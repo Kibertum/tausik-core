@@ -77,117 +77,30 @@ def _cmd_snippet_detect(svc: ProjectService, args: Any) -> None:
         print(f"  [{len(cluster.members)}x] {cluster.hash[:12]}  {locs}")
     if len(result.clusters) > 20:
         print(f"  ... and {len(result.clusters) - 20} more.")
-    _maybe_propose_brain_extract(ingested)
-
-
-def _maybe_propose_brain_extract(ingested: list[tuple[int, int]]) -> None:
-    """Advisory: suggest publishing high-occurrence clusters to the brain.
-
-    Opt-in — only fires when brain is enabled AND a positive integer
-    `brain.auto_propose_snippet_threshold` is configured. Never writes anything;
-    just nudges the operator toward `snippet extract --scope brain`.
-    """
-    try:
-        from brain_config import load_brain
-
-        brain = load_brain()
-        thr = brain.get("auto_propose_snippet_threshold")
-        if not brain.get("enabled") or not isinstance(thr, int) or thr <= 0:
-            return
-        hot = [(sid, occ) for sid, occ in ingested if occ >= thr]
-        if not hot:
-            return
-        print(f"\nBrain: {len(hot)} cluster(s) reused >= {thr}x — consider sharing:")
-        for sid, occ in hot[:10]:
-            print(f"  tausik snippet extract {sid} --scope brain  ({occ}x)")
-    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        # Advisory only — a brain-config hiccup must never break `detect`.
-        return
-
-
-def _snippet_to_pattern_card(snippet: dict[str, Any]) -> dict[str, Any]:
-    """Build a brain `patterns` artifact card from a stored snippet row.
-
-    The classifier (brain_snippet_detect.detect_artifact_kind) picks
-    snippet|pattern from the code itself; falls back to 'snippet' since the row
-    is, by construction, reusable code.
-    """
-    from brain_snippet_detect import detect_artifact_kind
-
-    code = snippet.get("code") or ""
-    language = snippet.get("language") or "text"
-    source = snippet.get("source_file") or "unknown"
-    occurrences = int(snippet.get("fts_rank") or 0)
-    fenced = f"```{language}\n{code}\n```"
-    kind = detect_artifact_kind({"example": fenced, "description": code}) or "snippet"
-    return {
-        "name": f"{language} snippet: {source}",
-        "description": (
-            f"Reusable {language} snippet detected as a clone cluster "
-            f"({occurrences} occurrence(s)); source {source}."
-        ),
-        "when_to_use": f"Reuse instead of re-implementing this {language} logic.",
-        "example": fenced,
-        "stack": [language],
-        "artifact_taxonomy_kind": kind,
-    }
 
 
 def _cmd_snippet_extract(svc: ProjectService, args: Any) -> None:
     snippet_id = getattr(args, "id", None)
-    scope = getattr(args, "scope", None) or "brain"
     snippet = get_snippet(svc.be._conn, int(snippet_id)) if snippet_id is not None else None
     if snippet is None:
         print(f"Snippet #{snippet_id} not found.")
         return
-    if scope == "global":
-        # The shared store is a file in this user's home: no network, no Notion,
-        # and deliberately no scrubber. Redaction belongs at the boundary where
-        # knowledge leaves the machine, which is the `brain` scope below — not
-        # here, where scrubbing would corrupt a snippet (a redacted identifier
-        # is a wrong identifier) to buy privacy against oneself.
-        from knowledge_write import write_snippet
+    # The shared store is a file in this user's home: no network and
+    # deliberately no scrubber. Redaction belongs at the boundary where
+    # knowledge leaves the machine — not here, where scrubbing would corrupt a
+    # snippet (a redacted identifier is a wrong identifier) to buy privacy
+    # against oneself.
+    from knowledge_write import write_snippet
 
-        print(
-            write_snippet(
-                code=snippet["code"],
-                language=snippet["language"],
-                source_file=snippet.get("source_file"),
-                source_lines=snippet.get("source_lines"),
-                taxonomy_kind=snippet.get("taxonomy_kind"),
-            )
+    print(
+        write_snippet(
+            code=snippet["code"],
+            language=snippet["language"],
+            source_file=snippet.get("source_file"),
+            source_lines=snippet.get("source_lines"),
+            taxonomy_kind=snippet.get("taxonomy_kind"),
         )
-        return
-    if scope != "brain":
-        print(f"Unsupported scope '{scope}'. Use --scope brain or --scope global.")
-        return
-
-    import sys
-
-    from brain_mcp_write import store_record
-    from brain_runtime import open_brain_deps
-    from brain_store_format import format_store_result
-
-    # open_brain_deps opens SQLite + builds a Notion HTTP client; store_record does
-    # network I/O. Wrap both so a DB/network/import failure is a friendly message,
-    # not a raw traceback (matches the defensive style of the detect path).
-    try:
-        conn, client, cfg = open_brain_deps()
-        if not cfg.get("enabled") or conn is None:
-            print("Brain not configured — enable it with `tausik brain init` first.")
-            return
-        if client is None:
-            print(
-                "Brain integration token is not set in env "
-                "(`brain.notion_integration_token_env`). Set it and retry."
-            )
-            return
-        fields = _snippet_to_pattern_card(snippet)
-        result = store_record(client, conn, "patterns", fields, cfg)
-    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        print(f"Brain error: {e}", file=sys.stderr)
-        return
-    print(format_store_result(result, "patterns"))
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests

@@ -1,7 +1,8 @@
 """argparse builder for `tausik spec` subcommands (v16r-spec-types).
 
-RENAR SPEC artifacts. ``type`` is a CLOSED list of 9 — argparse ``choices``
-gives a friendly upfront rejection; the service + DB CHECK are the hard guard.
+RENAR SPEC artifacts. ``type`` is a CLOSED list — argparse ``choices`` gives a
+friendly upfront rejection; the service + DB CHECK are the hard guard. The
+count in the help string is formatted from the list, never written beside it.
 """
 
 from __future__ import annotations
@@ -38,7 +39,11 @@ def build_spec_subparsers(sub: Any) -> None:
         "--version v1 --content-ref docs/specs/auth.md",
     )
     sa.add_argument("slug")
-    sa.add_argument("type", choices=SPEC_TYPE_CHOICES, help="Closed list of 9 RENAR types")
+    sa.add_argument(
+        "type",
+        choices=SPEC_TYPE_CHOICES,
+        help=f"Closed list of {len(SPEC_TYPES)} RENAR types",
+    )
     sa.add_argument("title")
     sa.add_argument("--version", required=True, help="SPEC version (e.g. v1, 1.0-draft)")
     sa.add_argument(

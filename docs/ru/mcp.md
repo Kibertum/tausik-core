@@ -1,15 +1,14 @@
-[English](/docs/mcp) | **Русский**
+[English](../en/mcp.md) | **Русский**
 
 # TAUSIK MCP — Справочник инструментов
 
-**126 инструмента** для ИИ-агентов (119 project + 7 brain; актуальный счёт, проверено `len(TOOLS)` обоих серверов). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**146 инструмента** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 126 — итого с ним 133 инструмента.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 153 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (117): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
-- `tausik-brain` — cross-project Shared Brain инструменты (7).
+- `tausik-project` — project-scoped инструменты (146): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
 
@@ -105,24 +104,26 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
 | `tausik_epic_add` | Создать эпик | `slug`, `title` |
-| `tausik_epic_list` | Список эпиков | — |
+| `tausik_epic_list` | Список эпиков; `(stale: N)` — задач создано после последней правки описания (отчёт, не гейт) | — |
+| `tausik_epic_update` | Изменить title и/или description эпика — замысел группы задач; хотя бы одно поле | `slug` |
 | `tausik_epic_done` | Завершить эпик | `slug` |
 | `tausik_epic_delete` | Удалить (cascade: стори + задачи) | `slug` |
 | `tausik_story_add` | Создать стори в эпике | `epic_slug`, `slug`, `title` |
-| `tausik_story_list` | Список стори | — |
+| `tausik_story_list` | Список стори; `(stale: N)` как у эпиков | — |
+| `tausik_story_update` | Изменить title и/или description стори; хотя бы одно поле | `slug` |
 | `tausik_story_done` | Завершить стори | `slug` |
 | `tausik_story_delete` | Удалить (cascade: задачи) | `slug` |
 | `tausik_roadmap` | Дерево: epic → story → task | — |
 
 ## RENAR substrate — SPEC + ADAPT (17 инструментов)
 
-RENAR-подложка: формальные требования (**SPEC**) и интерпретация ТЗ (**ADAPT**, §7) с forward-интерпретациями, backward-findings и двойной подписью. Используется QG-0 для substantial/deep задач и `tausik renar export`/`conformance`. См. также `tausik_reason_step` (RENAR trace) в разделе «Задачи».
+RENAR-подложка: формальные требования (**SPEC**) и интерпретация ТЗ (**ADAPT**, §7) с forward-интерпретациями, backward-findings и подписью архитектора (§7.5). Используется QG-0 для substantial/deep задач и `tausik renar export`/`conformance`. См. также `tausik_reason_step` (RENAR trace) в разделе «Задачи».
 
 ### SPEC (8)
 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
-| `tausik_spec_add` | Создать SPEC-артефакт. `type` — закрытый список 9 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS); новый тип = поправка к стандарту, не free-text | `slug`, `type`, `title`, `version` |
+| `tausik_spec_add` | Создать SPEC-артефакт. `type` — закрытый список 11 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC); новый тип = поправка к стандарту, не free-text | `slug`, `type`, `title`, `version` |
 | `tausik_spec_list` | Список SPEC, опц. фильтр по типу (JSON) | — |
 | `tausik_spec_show` | SPEC + связанные задачи (JSON) | `slug` |
 | `tausik_spec_update` | Патч изменяемых полей (title/version/content_ref/status); `type`+`slug` иммутабельны | `slug` |
@@ -138,12 +139,70 @@ RENAR-подложка: формальные требования (**SPEC**) и 
 | `tausik_adapt_create` | Создать заголовок ADAPT (§7); `tz_ref` (исходное ТЗ) обязателен; старт в `draft` | `slug`, `title`, `tz_ref` |
 | `tausik_adapt_interpret` | Forward-интерпретация (§7.4.3); tz_ref/citation/interpretation/scope_in/scope_out обязательны | `tz_ref`, `citation`, `interpretation`, `scope_in`, `scope_out` (+ adapt) |
 | `tausik_adapt_finding` | Backward-finding; `category` — закрытый список 7 (contradiction/gap/hidden-assumption/feasibility/regulatory/terminology/scope) | `adapt_slug`, `category`, `description` |
-| `tausik_adapt_sign` | Двойная подпись (§7.5): `architect` подписывает тело ed25519-ключом проекта, `client` — name+timestamp; обе роли ⇒ `signed` | `adapt_slug`, `role`, `signed_by` |
+| `tausik_adapt_sign` | Подпись architect (§7.5): подписывает тело ed25519-ключом проекта ⇒ `approved` (§13.3.3 стр.77 — статус и подпись разные факты). `role=client` ОТКЛОНЯЕТСЯ — ADR-011 отозвал подпись клиента под ADAPT; то, что одобряет клиент, теперь живёт в ACTZ | `adapt_slug`, `role`, `signed_by` |
 | `tausik_adapt_show` | ADAPT + forward-интерпретации, findings, подписи, линки (JSON) | `slug` |
-| `tausik_adapt_list` | Список ADAPT, опц. фильтр по статусу (draft/signed/superseded) | — |
+| `tausik_adapt_list` | Список ADAPT, опц. фильтр по статусу (закрытый перечень §7.8.1: draft/review/asked/answered/approved/frozen/superseded) | — |
 | `tausik_adapt_delta` | Delta-ADAPT, замещающий родителя (§7.6); родитель → `superseded`, поздний линк к нему = FATAL dangling (§7.6.4) | `parent_slug`, `new_slug`, `title`, `tz_ref` |
 | `tausik_adapt_link` | Связать ADAPT с задачей/SPEC; target должен существовать; линк к superseded ADAPT = FATAL (§7.6.4) | `adapt_slug`, `target_type`, `target_slug` |
 | `tausik_adapt_search` | FTS5 по slug/title/tz_ref (JSON) | `query` |
+
+### ACTZ (15)
+
+Контрактный протокол уточнения ТЗ (§5A, ADR-011) — в отличие от ADAPT обращён к клиенту:
+то, что клиент утверждает, живёт здесь. Жизненный цикл `draft` → `sent` → `signed` →
+`superseded`, вычисляется по покрытию ролей подписи. В проекте один ed25519-ключ, не по
+сторонам: `architect` подписывает по-настоящему; `client` записывает только
+`signed_by`+`signed_at`, без имитации независимой подписи. `final_tz`/`orphans` (§5A.4) —
+read-only проекции над подписанными пунктами ниже: производный эталон приёмки, а не
+третья копия текста.
+
+| Инструмент | Описание | Обязательные параметры |
+|---|---|---|
+| `tausik_actz_create` | Создать заголовок ACTZ (§5A); `tz_ref` обязателен; старт в `draft` | `slug`, `title`, `tz_ref` |
+| `tausik_actz_point` | Добавить нумерованный пункт; только пока `draft` (заморожено после первой подписи). `tz_ref` называет пункт исходного ТЗ (или предыдущего пункта ACTZ), который уточняется | `actz_slug`, `point_no`, `tz_ref`, `text` |
+| `tausik_actz_sign` | Записать подпись (§5.5.3): `architect` подписывает тело ed25519-ключом проекта; `client` — только `signed_by`+`signed_at`. Первая подпись ⇒ `sent`; обе роли ⇒ `signed` | `actz_slug`, `role`, `signed_by` |
+| `tausik_actz_verify` | Проверить подпись architect (ed25519) против текущего тела | `slug` |
+| `tausik_actz_show` | ACTZ + пункты, подписи, линки (JSON) | `slug` |
+| `tausik_actz_list` | Список ACTZ, опц. фильтр по статусу (draft/sent/signed/superseded) | — |
+| `tausik_actz_delta` | Delta-ACTZ, замещающий родителя; родитель → `superseded`, поздний линк к нему отклоняется | `parent_slug`, `new_slug`, `title`, `tz_ref`, `supersession_rationale` |
+| `tausik_actz_link` | Связать ACTZ с задачей/SPEC; target должен существовать; линк к superseded ACTZ отклоняется | `actz_slug`, `target_type`, `target_slug` |
+| `tausik_actz_unlink` | Снять связь ACTZ↔задача/SPEC | `actz_slug`, `target_type`, `target_slug` |
+| `tausik_actz_delete` | Удалить ACTZ (cascade: пункты/подписи/линки/decided-in) | `slug` |
+| `tausik_actz_search` | FTS5 по slug/title/tz_ref (JSON) | `query` |
+| `tausik_actz_decided_in` | Записать: backward-finding ADAPT решён в пункте ПОДПИСАННОГО ACTZ, с provenance (`linked_by`); отклоняет неподписанную цель | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no`, `linked_by` |
+| `tausik_actz_decided_in_remove` | Удалить decided-in ребро | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no` |
+| `tausik_actz_final_tz` | Производный эталон приёмки (§5A.4): по каждому пункту ТЗ — последний обеими сторонами подписанный пункт, с указанием, что он перекрыл. `as_of` (ISO-8601) — на прошлый момент | — |
+| `tausik_actz_orphans` | Подписанные пункты, которые не отражены ни в одном ADAPT — обязательство вне требований (§5A.4, fatal), находится запросом | — |
+
+### AT (9)
+
+Приёмочные тесты (§8A, ADR-012) — единственная проверка, которую трассируемость
+(TC → SR → ADAPT → ТЗ) структурно дать не может: неверная интерпретация
+проходит все TC. Эти инструменты ЗАПИСЫВАЮТ результат процедуры изолированной
+генерации (docs/en/at-generation-procedure.md) — ни один не генерирует ничего
+сам. `tz_text` (дословная цитата контракта) и `generated_by` обязательны при
+создании; `check_freshness` сравнивает с ЖИВЫМ `final_tz_snapshot` по `tz_ref`
+каждой записи и называет, что изменилось (§8A.2 — перегенерировать перед
+каждым испытанием). См. также warn-гейт `at_freshness`.
+
+`record_result`/`diagnose`/`release_readiness` реализуют матрицу маршрутизации
+§8A.4/§10.4.3. У TAUSIK нет TC как самостоятельной сущности (открытая отдельная
+задача) — `diagnose` сам pytest/verification_runs не читает; `tc_outcome`
+передаёт вызывающий явно. `release_readiness` не требует TC вовсе: готовность
+наступает только когда исход каждого AT зелёный и свежий — отдельно от QG-4,
+который необязателен и меряет бизнес-результат.
+
+| Инструмент | Описание | Обязательные параметры |
+|---|---|---|
+| `tausik_at_create` | Записать AT — результат процедуры изолированной генерации, не генератор | `slug`, `tz_ref`, `tz_text`, `scenario`, `source_as_of`, `generated_by` |
+| `tausik_at_show` | Показать запись AT (JSON) | `slug` |
+| `tausik_at_list` | Список AT, опц. фильтр по tz_ref (JSON) | — |
+| `tausik_at_delete` | Удалить запись AT | `slug` |
+| `tausik_at_search` | FTS5 по slug/tz_ref/tz_text/scenario (JSON) | `query` |
+| `tausik_at_check_freshness` | Какие AT устарели против текущего итогового ТЗ (§8A.2); без slug — проверка всех | — |
+| `tausik_at_record_result` | Записать один наблюдённый исход испытания (только добавление — повтор — новая строка) | `slug`, `outcome` |
+| `tausik_at_diagnose` | Маршрутизировать последний исход AT против переданного вызывающим `tc_outcome` (§8A.4/§10.4.3) | `slug`, `tc_outcome` |
+| `tausik_at_release_readiness` | Релизный гейт §8A.4: готовность только когда каждый AT зелёный и свежий | — |
 
 ## Знания
 
@@ -260,39 +319,6 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `tausik_update_claudemd` | Обновить динамическую секцию в CLAUDE.md | — |
 | `tausik_fts_optimize` | Оптимизировать FTS5 индексы | — |
 
-## Shared Brain (`tausik-brain`, 7 инструментов)
-
-| Инструмент | Описание | Обязательные параметры |
-|---|---|---|
-| `brain_search` | Поиск в Notion-backed brain (FTS по local mirror) | `query` |
-| `brain_get` | Получить brain-запись по id | `id`, `category` |
-| `brain_store_decision` | Сохранить cross-project решение | `name`, `decision` |
-| `brain_store_pattern` | Сохранить cross-project паттерн | `name`, `description` |
-| `brain_store_gotcha` | Сохранить cross-project gotcha | `name`, `description` |
-| `brain_draft_artifact` | Dry-run публикация артефакта (taxonomy + scrub + risk-classifier; без записи в Notion) | `kind` |
-| `brain_cache_web` | Кешировать web-результат для token reuse | `name`, `url`, `content` |
-
-`tausik-brain` MCP-сервер запускается config-agnostic и читает реестр из `.tausik-brain/` конфигурации. Полный счётчик brain-инструментов = 7 (проверено через `len(TOOLS)` в `harness/claude/mcp/brain/tools.py`).
-
-### Требования к brain-конфигу
-
-С 1.8 `tausik_decide` **не** маршрутизируется в brain вообще — запись решения
-больше никуда его не публикует (решение #221). Brain-конфиг управляет только
-явным внешним путём: `brain_store_*`, `brain_cache_web` и
-`tausik brain move --to-brain`. Когда в `.tausik/config.json` стоит
-`brain.enabled=true`, все нижеперечисленные поля ДОЛЖНЫ быть заданы — иначе эти
-операции откажут, а не зеркалируют:
-
-- `brain.database_ids.decisions`, `database_ids.patterns`, `database_ids.gotchas`, `database_ids.web_cache` — все четыре Notion-database UUID.
-- `brain.notion_integration_token_env` — имя env-переменной (по умолчанию `NOTION_TAUSIK_TOKEN`), которая должна резолвиться в непустой токен через env, `.tausik/.env` или поле `brain.notion_integration_token` в конфиге.
-
-`tausik doctor` поднимает ошибки валидации как WARN-строку `Brain config`. Быстрый фикс — `tausik brain init` (интерактивный wizard) или `brain.enabled=false` для явного отказа.
-
-`tausik brain move --to-brain` — единственный путь наружу, и это осознанное
-действие, а не догоняющая синхронизация после мисконфига. Решения остаются
-локальными потому, что теперь таково правило, а не потому, что сломан конфиг;
-никакой очереди, ждущей выгрузки в Notion, не копится.
-
 ## Codebase RAG (отдельный опциональный MCP-сервер)
 
 | Инструмент | Описание | Обязательные параметры |
@@ -305,7 +331,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 126 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 146 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Область tool-поверхности (`mcp.scope_tools_exposure`)
 
@@ -326,8 +352,8 @@ Rule 2) и всегда-безопасного ядра — целиком се�
 write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
 `list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
 
-**Замер стоимости.** Полная авторская поверхность — 126 тулов ~ 52 КБ определений
-(~12.8k оценочных токенов; `tests/test_mcp_tool_token_cost.py` фиксирует это и
+**Замер стоимости.** Полная авторская поверхность — 146 тула ~ 62 КБ определений
+(~15.9k оценочных токенов; `tests/test_mcp_tool_token_cost.py` фиксирует это и
 держит храповиком). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
 эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой
 тест держит каждое описание TAUSIK под этим лимитом, чтобы ничего не срезалось

@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS specs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     slug TEXT NOT NULL UNIQUE,
     type TEXT NOT NULL CHECK(type IN
-        ('ARCH', 'API', 'DATA', 'INT', 'PROC', 'UI', 'AI', 'SEC', 'OPS')),
+        ('ARCH', 'API', 'DATA', 'INT', 'PROC', 'UI', 'AI', 'SEC', 'OPS',
+         'TEST', 'DOC')),
     title TEXT NOT NULL,
     content_ref TEXT,
     version TEXT NOT NULL,

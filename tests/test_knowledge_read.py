@@ -75,7 +75,7 @@ class TestSharedRowsAreLabelledAndAddressless:
     """AC1: provenance follows the cq precedent, and the id is deliberately absent."""
 
     def test_a_shared_hit_has_no_local_address(self):
-        _seed(memories=[("pattern", "кэш по ключу", "тело", "D:/Work/clientA/repo")])
+        _seed(memories=[("pattern", "кэш по ключу", "тело", "C:/Projects/clientA/repo")])
         rows, warning = knowledge_read.search_shared_memory("кэш")
         assert warning is None
         assert len(rows) == 1
@@ -93,7 +93,7 @@ class TestSharedRowsAreLabelledAndAddressless:
         rewrites the stale value on open, and the display would not repeat the
         parent directories even if it had not.
         """
-        _seed(memories=[("pattern", "тема", "тело", "D:/Work/Kibertum/clients/acme/repo")])
+        _seed(memories=[("pattern", "тема", "тело", "C:/Projects/Kibertum/clients/acme/repo")])
         rows, _ = knowledge_read.search_shared_memory("тема")
         assert rows[0]["origin_project"].startswith("repo@")
         assert "clients" not in rows[0]["origin_project"]

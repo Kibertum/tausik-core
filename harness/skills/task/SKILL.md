@@ -37,23 +37,6 @@ Work on tasks from project DB.
    - **Check dead ends** — don't repeat failed approaches:
      - `tausik_memory_list` with `type=dead_end`
 
-3.5. **Brain primer (cross-project, 1.4+).** If `tausik-brain` MCP is configured, run one `brain_search` for patterns and one for gotchas, scoped to the task's topic + stack. Skip silently if brain is disabled.
-
-   ```
-   brain_search(
-     query="<task title keywords> <stack tag>",
-     category="patterns",
-     limit=3
-   )
-   brain_search(
-     query="<task title keywords> <stack tag>",
-     category="gotchas",
-     limit=3
-   )
-   ```
-
-   Surface up to 3 patterns + 3 gotchas inline before announcing the task. Filter out any page id that appears in `tausik_memory_list type=convention` with title `brain.ignored:<id>` — the user already dismissed it. If a result misleads, mark it ignored via `tausik_memory_add(type="convention", title="brain.ignored:<page_id>", content="…")` so it does not return next session.
-
 4. **Adopt role** from task — follow the role profile's skill modifiers for /task.
 
 5. **Announce:** Display to user:

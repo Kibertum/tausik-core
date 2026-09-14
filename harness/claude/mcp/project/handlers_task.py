@@ -54,36 +54,15 @@ def _order() -> Any:
 
 
 def _do_task_next(svc: Any, args: dict) -> str:
-    """Answer with the backlog STATE, not just a task.
+    """Transport over the one renderer. This used to be a second copy.
 
-    "No available tasks" used to cover three different situations, one of which
-    ("everything waits on something unfinished") is a stalled plan that reads
-    exactly like a finished one. This handler and the CLI print the same three
-    states, so the two surfaces cannot tell an agent different stories.
+    It claimed in its own docstring to print the same three states as the CLI,
+    and it did not: it reported HOW MANY tasks were withheld where the CLI
+    reports WHICH. Nothing compared the two, so the claim survived the drift.
     """
-    report = _order().task_next_report(svc)
-    if report["state"] == "ready":
-        task = svc.task_next(args.get("agent_id"))
-        action = "claimed and started" if args.get("agent_id") else "suggested"
-        lines = [f"Next task ({action}): {task['slug']} — {task['title']}"]
-        lines.append(f"Chosen by: {report['basis']}")
-        if report["blocked"]:
-            lines.append(
-                f"Withheld: {len(report['blocked'])} task(s) waiting on an unfinished predecessor"
-            )
-        mh = task.get("model_hint")
-        if mh:
-            lines.append(f"Model hint: {mh['display']} ({mh['model']})")
-        return "\n".join(lines)
-    if report["state"] == "all-blocked":
-        lines = [
-            f"No task can start: all {len(report['blocked'])} open task(s) wait on an "
-            "unfinished predecessor."
-        ]
-        for slug in report["blocked"]:
-            lines.append(f"  {slug} — after: {', '.join(_order().task_deps(svc, slug))}")
-        return "\n".join(lines)
-    return "No available tasks."
+    from render_task import task_next_lines
+
+    return "\n".join(task_next_lines(svc, args.get("agent_id")))
 
 
 def _do_task_done(svc: Any, args: dict) -> str:
@@ -127,6 +106,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
         # mcp-server-drops-unknown-arguments-silently). Advertising it in
         # tools.py is not what makes it arrive.
         verify_handle=args.get("verify_handle"),
+        zero_gate_ack=bool(args.get("gates_not_applicable", False)),
     )
     return json.dumps(result, ensure_ascii=False)
 
@@ -137,16 +117,11 @@ def _do_task_update(svc: Any, args: dict) -> str:
 
 
 def _handle_task_logs(svc: Any, args: dict) -> str:
-    logs = svc.task_logs(args["slug"], phase=args.get("phase"))
-    if not logs:
-        return "No logs."
-    lines = []
-    for log in logs:
-        phase = log.get("phase", "")
-        msg = log.get("message", "")
-        ts = log.get("created_at", "")[:16]
-        lines.append(f"[{ts}] ({phase}) {msg}")
-    return "\n".join(lines)
+    """Transport. The copy this replaces cut the timestamp to minutes and
+    printed empty parentheses where a line had no phase."""
+    from render_task import task_logs_lines
+
+    return "\n".join(task_logs_lines(svc, args["slug"], args.get("phase")))
 
 
 def _handle_task_list(svc: Any, args: dict) -> str:
@@ -191,6 +166,7 @@ def _handle_task_show(svc: Any, args: dict) -> str:
                 lines.append(f"  [{mark}] {i}. {s['step']}")
         except (json.JSONDecodeError, TypeError):
             lines.append("Plan: (corrupted)")
+    lines.extend(task.get("relevant_memory") or [])
     return "\n".join(lines)
 
 

@@ -1,4 +1,4 @@
-[English](/docs/senar) | **Русский**
+[English](../en/senar.md) | **Русский**
 
 # Что такое SENAR?
 

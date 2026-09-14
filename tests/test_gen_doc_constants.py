@@ -28,13 +28,13 @@ from mcp_tool_counts import count_mcp_tool_totals, mcp_descriptions_digest  # no
 
 def test_build_constants_matches_tool_totals():
     d = build_constants_doc(REPO)
-    n_p, n_b, n_r = count_mcp_tool_totals(REPO)
+    n_p, n_r = count_mcp_tool_totals(REPO)
     assert isinstance(d["tausik_version"], str) and d["tausik_version"]
     assert d["mcp_project_tools"] == n_p
-    assert d["mcp_brain_tools"] == n_b
+    assert "mcp_brain_tools" not in d, "the brain server left with the Notion transport"
     assert d["mcp_rag_tools"] == n_r
-    assert d["mcp_main_tools"] == n_p + n_b
-    assert d["mcp_tools_with_optional_rag"] == n_p + n_b + n_r
+    assert d["mcp_main_tools"] == n_p
+    assert d["mcp_tools_with_optional_rag"] == n_p + n_r
 
 
 def test_constants_json_file_matches_live():
@@ -247,7 +247,6 @@ _FAKE_MCP_PAYLOAD: dict[str, object] = {
     "schema_version": 1,
     "tausik_version": "1.4.0",
     "mcp_project_tools": 93,
-    "mcp_brain_tools": 7,
     "mcp_main_tools": 100,
     "mcp_rag_tools": 7,
     "mcp_tools_with_optional_rag": 107,
@@ -271,26 +270,139 @@ def test_scan_mcp_counts_clean_when_all_match(tmp_path: Path):
     assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
 
 
-def test_scan_mcp_counts_flags_pair_drift(tmp_path: Path):
+@pytest.mark.parametrize(
+    ("line", "label"),
+    [
+        # docs/ru/architecture.md sat at "117 + 7 = 124" with `--check` green:
+        # no "(" before the pair, and the bold spans the whole phrase.
+        ("**93 project + 7 brain = 124 инструментов**", "main count (after =)"),
+        # The compliance-matrix headline carries no bold at all.
+        ("| MCP coverage 124 tools | ok |", "MCP coverage headline"),
+        ("| MCP coverage (124 инструмента) | ok |", "MCP coverage headline"),
+        # mcp.md's server list carries the count AFTER the noun (record #24).
+        ("- `tausik-project` — project-scoped tools (117): tasks", "project-scoped count"),
+        ("- `tausik-project` — project-scoped инструменты (117): tasks", "project-scoped count"),
+        # README prose beside the IDE table.
+        ("hosts get the same 124 tools and skills", "README prose count"),
+        # Session #224: the optional server had TWO computed constants and no
+        # document was checked against either, so "+7 tools → **107** total"
+        # outlived the total reaching 159. Both forms are anchored on the
+        # server's own name so they cannot rewrite an unrelated total.
+        (
+            "**Optional `codebase-rag` server:** +9 tools → **107** total",
+            "codebase-rag increment",
+        ),
+        (
+            "**Optional `codebase-rag` server:** +7 tools → **124** total",
+            "grand total with the optional server",
+        ),
+        # The sentence that EXCLUDES the optional server from the main total
+        # names the count without the word "tools", at the foot of both mcp.md
+        # files: line 7 read 152 and line 370 read 128, and neither was checked.
+        (
+            "These are not part of the main 124 count - the `codebase-rag` server owns them",
+            "main count (excluding the optional server)",
+        ),
+        (
+            "Эти не входят в основной счёт 124 — принадлежат `codebase-rag` серверу",
+            "main count (excluding the optional server, ru)",
+        ),
+        # The SAME two rag claims in the wording docs/{en,ru}/mcp.md really uses.
+        # The AGENTS.md-shaped patterns above matched none of it, so the canonical
+        # MCP document was "covered" by patterns named after it and reaching none
+        # of its sentences — proven by giving the constants wrong values and
+        # watching mcp.md stay silent.
+        (
+            "> **Optional `codebase-rag` server** adds 9 tools (search_code, ...).",
+            "codebase-rag increment (mcp.md wording)",
+        ),
+        (
+            "> **Опциональный сервер `codebase-rag`** добавляет 9 инструментов.",
+            "codebase-rag increment (mcp.md wording)",
+        ),
+        (
+            "`codebase-rag` is separate; total with it is 124 tools.",
+            "grand total (mcp.md wording)",
+        ),
+        (
+            "`codebase-rag` отдельный; итого с ним 124 инструмента.",
+            "grand total (mcp.md wording)",
+        ),
+        # The sum with a tool-word BETWEEN the operands and the bold closing right
+        # after the digits. docs/en/architecture.md carried this line with a stale
+        # total while the auto-fixer rewrote its first operand four times.
+        (
+            "Total MCP surface: **93 project tools + 7 brain tools = 124** (optional)",
+            "main count (after = , tool-word between operands)",
+        ),
+        # The compliance matrix puts the count one table CELL over, so a pipe sits
+        # between the headline and the number.
+        (
+            "| MCP Coverage | 124 tools (93 project + 7 brain) | Hard |",
+            "MCP coverage headline",
+        ),
+        # mcp.md's measured-cost paragraph, twenty lines below a line already
+        # guarded, stale in both languages.
+        (
+            "**Measured cost.** The full authored surface is 124 tools ~ 62 KB",
+            "authored-surface count",
+        ),
+        (
+            "**Замер стоимости.** Полная авторская поверхность — 124 тула ~ 62 КБ",
+            "authored-surface count (ru)",
+        ),
+    ],
+)
+def test_scan_mcp_counts_sees_the_forms_review_208_found_blind(tmp_path: Path, line, label):
     repo = _seed_cross_file_repo(tmp_path)
-    (repo / "README.md").write_text("Surface: (90 project + 10 brain)\n", encoding="utf-8")
+    (repo / "README.md").write_text(line + "\n", encoding="utf-8")
     drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
-    assert any("README.md:1" in d and "project+brain pair" in d for d in drifts)
+    assert any("README.md:1" in d and label in d for d in drifts), drifts
+
+
+def test_scan_mcp_counts_accepts_the_same_forms_when_right(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "**93 project + 7 brain = 100 инструментов**\n| MCP coverage 100 tools | ok |\n"
+        "| MCP coverage (100 инструментов) | ok |\nproject-scoped tools (93): tasks\n"
+        "hosts get the same 100 tools and skills\n"
+        "**Optional `codebase-rag` server:** +7 tools → **107** total\n"
+        "These are not part of the main 100 count - the `codebase-rag` server owns them\n"
+        "Эти не входят в основной счёт 100 — принадлежат `codebase-rag` серверу\n"
+        "> **Optional `codebase-rag` server** adds 7 tools; total with it is 107 tools.\n"
+        "> **Опциональный `codebase-rag`** добавляет 7 инструментов; итого с ним 107 инструментов.\n"
+        "Total MCP surface: **93 project tools + 7 brain tools = 100** (optional extra)\n"
+        "| MCP Coverage | 100 tools (93 project + 7 brain) | Hard |\n"
+        "The full authored surface is 100 tools ~ 40 KB of definitions\n"
+        "Полная авторская поверхность — 100 тулов ~ 40 КБ определений\n"
+        # Unrelated prose must NOT be read as a count (the fixer rewrites matches).
+        # "the main N count" without the optional server named on the same line is
+        # ordinary prose: unanchored, the auto-fixer rewrote "run the main 3 count
+        # validators" into "the main 152 count validators" in a probe.
+        "Retry policy: run the main 3 count validators before falling back.\n"
+        "The recipe = 3 tools and a rope.\n",
+        encoding="utf-8",
+    )
+    assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
 
 
 def test_run_main_check_passes_with_skip_mcp_counts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """--skip-mcp-counts disables only the MCP-counts scan; version-ref check stays on."""
+    """--skip-mcp-counts drops the MCP scan AND the column scan grouped with it.
+
+    The column scan used to guard MCP tool counts alone, so the flag's name told
+    the whole truth; it now also covers hooks and core skills, and the flag turns
+    those off with it. Stated here and in the CLI help rather than left as a
+    surprise — the version-ref and test-count checks are what stay on.
+    """
     import gen_doc_constants as g
 
     repo = _seed_cross_file_repo(tmp_path)
-    (repo / "docs/en/mcp.md").write_text(
-        "## Shared Brain (`tausik-brain`, 6 tools)\n", encoding="utf-8"
-    )
+    (repo / "docs/en/mcp.md").write_text("**101 tools** across the servers\n", encoding="utf-8")
     monkeypatch.setattr(g, "build_constants_doc", lambda _root: dict(_FAKE_MCP_PAYLOAD))
     assert run_main(repo, check=False) == 0
-    # Without skip — fails on brain drift
+    # Without skip — fails on the main-count drift
     assert run_main(repo, check=True) == 1
     # With skip-mcp-counts — passes (no version drift in this fixture)
     assert run_main(repo, check=True, skip_mcp_counts=True) == 0
@@ -418,9 +530,9 @@ def test_run_main_test_count_shrink_is_drift(tmp_path: Path, monkeypatch: pytest
             "scan_mcp_tool_counts",
             "_FAKE_MCP_PAYLOAD",
             "docs/en/mcp.md",
-            "## Shared Brain (`tausik-brain`, 6 tools)\n",
-            ("docs/en/mcp.md:1", "tausik-brain", "found=6"),
-            id="scan_mcp_counts_flags_brain_header_drift",
+            "**93 project tools + 7 brain tools = 124**\n",
+            ("docs/en/mcp.md:1", "brain tools = 124", "found=124"),
+            id="scan_mcp_counts_flags_a_stale_brain_sum",
         ),
         pytest.param(
             "scan_mcp_tool_counts",

@@ -246,6 +246,90 @@ def _crosscutting_index(base: str) -> dict[str, list[str]]:
     return index
 
 
+def top_level_imports(text: str) -> set[str]:
+    """Top-level imported modules, or an empty set when parsing fails."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return set()
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            out.add(node.module.split(".")[0])
+    return out
+
+
+def _tests_importing(base: str, modules: set[str], tests_index: dict[str, list[str]]) -> set[str]:
+    """Find depth-one import edges; transitive imports deliberately do not count."""
+    if not modules:
+        return set()
+    out: set[str] = set()
+    for paths in tests_index.values():
+        for rel in paths:
+            try:
+                with open(os.path.join(base, rel.replace("/", os.sep)), encoding="utf-8") as fh:
+                    text = fh.read()
+            except OSError:
+                continue
+            if not any(m in text for m in modules):
+                continue
+            if modules & top_level_imports(text):
+                out.add(rel)
+    return out
+
+
+def parse_errors_for_relevant(relevant_files: list[str] | None, *, root: str | None = None) -> list[str]:
+    """Name candidate test sources the import resolver could not parse."""
+    if not relevant_files:
+        return []
+    base = root or os.getcwd()
+    modules = {
+        os.path.splitext(os.path.basename(path.replace("\\", "/")))[0]
+        for path in relevant_files
+        if isinstance(path, str) and path.endswith(".py")
+    }
+    if not modules:
+        return []
+    errors: list[str] = []
+    for paths in build_tests_index(base).values():
+        for rel in paths:
+            try:
+                with open(os.path.join(base, rel.replace("/", os.sep)), encoding="utf-8") as fh:
+                    text = fh.read()
+                if not any(module in text for module in modules):
+                    continue
+                ast.parse(text)
+            except (OSError, SyntaxError, ValueError):
+                errors.append(rel)
+    return sorted(errors)
+
+
+def direct_import_count_for_relevant(relevant_files: list[str] | None, *, root: str | None = None) -> int:
+    """Count depth-one import edges for an honest scoped-pytest label."""
+    if not relevant_files:
+        return 0
+    base = root or os.getcwd()
+    modules = {
+        os.path.splitext(os.path.basename(path.replace("\\", "/")))[0]
+        for path in relevant_files
+        if isinstance(path, str) and path.endswith(".py")
+    }
+    return len(_tests_importing(base, modules, build_tests_index(base)))
+
+
+def _basename_matches(stem: str, tests_index: dict[str, list[str]]) -> list[str]:
+    """Return exact and suffix basename matches for a source stem."""
+    out: list[str] = []
+    out.extend(tests_index.get(f"test_{stem}.py", []))
+    prefix = f"test_{stem}_"
+    for fn, paths in tests_index.items():
+        if fn.startswith(prefix) and fn.endswith(".py"):
+            out.extend(paths)
+    return out
+
+
 def _under_prefix(path: str, prefix: str) -> bool:
     """True when `path` lies at or under `prefix`, respecting directory bounds:
     `scripts/hooks/` matches `scripts/hooks/x.py` but not `scripts/hooks_x/y.py`."""
@@ -254,6 +338,26 @@ def _under_prefix(path: str, prefix: str) -> bool:
     if not prefix:
         return False
     return path == prefix or path.startswith(prefix + "/")
+
+
+def _is_global_tree_prefix(prefix: str) -> bool:
+    """Whether a declaration names an entire top-level repository tree."""
+    return len([part for part in prefix.replace("\\", "/").strip("/").split("/") if part]) == 1
+
+
+def deferred_global_crosscutting_for_relevant(
+    relevant_files: list[str] | None, *, root: str | None = None
+) -> set[str]:
+    """Global guards matching this scope but deferred to the full/release lane."""
+    if not relevant_files:
+        return set()
+    base = root or os.getcwd()
+    rels = [r.replace("\\", "/") for r in relevant_files if r and isinstance(r, str)]
+    return {
+        test_rel
+        for test_rel, prefixes in _crosscutting_index(base).items()
+        if any(_is_global_tree_prefix(p) and _under_prefix(rel, p) for rel in rels for p in prefixes)
+    }
 
 
 def build_tests_index(base: str) -> dict[str, list[str]]:
@@ -289,16 +393,7 @@ def count_test_files(root: str | None = None) -> int:
 def resolve_test_files_for_relevant(
     relevant_files: list[str] | None, *, root: str | None = None
 ) -> list[str]:
-    """Map source files → existing test files via basename heuristic.
-
-    For each `relevant_files` entry like `scripts/brain_init.py`, look for
-    `tests/test_brain_init.py` and `tests/test_brain_init_*.py`. Also matches
-    when the relevant file IS already a test file (returns it as-is).
-
-    Returns a deduplicated list of existing test file paths (forward-slashed).
-    Empty list = no mapping; caller decides whether to fall back to the full
-    suite (only safe when relevant_files itself is empty) or to skip.
-    """
+    """Resolve observed, basename, depth-one-import and narrow declared edges."""
     if not relevant_files:
         return []
     base = root or os.getcwd()
@@ -313,6 +408,7 @@ def resolve_test_files_for_relevant(
         found.append(norm)
 
     tests_index = build_tests_index(base)
+    changed_modules: set[str] = set()
 
     for raw in relevant_files:
         if not raw or not isinstance(raw, str):
@@ -327,15 +423,16 @@ def resolve_test_files_for_relevant(
         stem = os.path.splitext(os.path.basename(rel))[0]
         if not stem:
             continue
-        # Exact match: test_<stem>.py at any depth.
-        for path in tests_index.get(f"test_{stem}.py", []):
+        if rel.endswith(".py"):
+            changed_modules.add(stem)
+        for path in _basename_matches(stem, tests_index):
             _add(path)
-        # Glob suffix variants: test_<stem>_*.py at any depth.
-        prefix = f"test_{stem}_"
-        for fn, paths in tests_index.items():
-            if fn.startswith(prefix) and fn.endswith(".py"):
-                for path in paths:
-                    _add(path)
+
+    # Import edge: a changed module pulls in every test that imports it, whatever
+    # either one is called. Additive like the rest — a module nobody imports adds
+    # nothing, and no branch here can widen the run to the whole suite.
+    for test_rel in sorted(_tests_importing(base, changed_modules, tests_index)):
+        _add(test_rel)
 
     # Cross-cutting tests: a declared CROSSCUTTING_SCOPE prefix that any changed
     # file falls under pulls the test in — BY PATH, not basename. This is additive
@@ -345,6 +442,58 @@ def resolve_test_files_for_relevant(
     if cc_index:
         rels = [r.replace("\\", "/") for r in relevant_files if r and isinstance(r, str)]
         for test_rel, prefixes in cc_index.items():
-            if any(_under_prefix(f, p) for f in rels for p in prefixes):
+            if any(
+                not _is_global_tree_prefix(p) and _under_prefix(f, p)
+                for f in rels
+                for p in prefixes
+            ):
                 _add(test_rel)
+
+    # OBSERVED, added last in code and FIRST in authority. Order here is only
+    # de-duplication order; what matters is that the name/import/scope edges
+    # above remain a fallback rather than being replaced. A graph with nothing
+    # observed yet must select exactly what it selected before this existed —
+    # "no observation" is not a claim that no test covers the file.
+    for test_rel in sorted(_observed_tests_for(base, relevant_files)):
+        _add(test_rel)
     return found
+
+
+def _observed_tests_for(base: str, relevant_files: list[str] | None) -> set[str]:
+    """Test files the GRAPH observed reaching any of `relevant_files`.
+
+    Empty whenever the graph is unreachable, empty, or has never been fed an
+    observation — all of which mean "we do not know", never "nothing covers
+    this". The caller adds this to the name-based edges rather than replacing
+    them, so an unknown answer costs nothing.
+    """
+    if not relevant_files:
+        return set()
+    db = os.path.join(base, ".tausik", "tausik.db")
+    if not os.path.isfile(db):
+        return set()
+
+    wanted = [r.replace("\\", "/") for r in relevant_files if r and isinstance(r, str)]
+    if not wanted:
+        return set()
+
+    import sqlite3
+
+    placeholders = ",".join("?" for _ in wanted)
+    try:
+        with sqlite3.connect(db, timeout=2) as conn:
+            rows = conn.execute(
+                "SELECT src.path FROM artifact_edges e "
+                "JOIN artifacts src ON src.id = e.source_artifact_id "
+                "JOIN artifacts dst ON dst.id = e.target_artifact_id "
+                "WHERE e.layer = 'observed_coverage' "
+                f"AND dst.path IN ({placeholders})",
+                wanted,
+            ).fetchall()
+    except sqlite3.Error:
+        return set()
+    return {
+        str(row[0])
+        for row in rows
+        if os.path.isfile(os.path.join(base, str(row[0])))
+    }

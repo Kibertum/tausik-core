@@ -1,9 +1,17 @@
-[English](/docs/cli) | **Русский**
+[English](../en/cli.md) | **Русский**
 
 # TAUSIK CLI — Справочник команд (v1.5)
 
 Все команды запускаются через обёртку: `.tausik/tausik <команда> [подкоманда] [аргументы]`.
 На Windows обёртка — `.tausik/tausik.cmd`. Тот же surface также доступен через MCP (`tausik_*` инструменты); см. `mcp.md`.
+
+> **Аргументы со знаками `>`, `<`, `&`, `|` на Windows.** `.cmd`-обёртка запускается через `cmd.exe`, а он разбирает эти знаки как операторы **до** того, как батник начнёт работу — даже когда вызывающий передал аргумент списком, без оболочки. Замер: из девяти враждебных аргументов пять портились, и два портились **молча** — `48->49` доезжал как `48-` с кодом возврата 0, а вывод уходил в посторонний файл `49`; `a&b` доезжал как `a`, а хвост `b` исполнялся как команда. Так в смене #200 сохранился обрезанный handoff, и команда отрапортовала успех.
+>
+> Теперь такой вызов **падает с кодом 3** и печатает в stderr, что было на командной строке и что дошло до процесса, называя посторонний файл, если `cmd.exe` успел его создать. Молчаливого сохранения испорченного значения больше нет.
+>
+> Что делать: вызывайте POSIX-обёртку `.tausik/tausik` из bash (она передаёт `"$@"` и потерять аргумент не может) либо MCP-инструменты — ни то, ни другое не идёт через оболочку. Если перенаправление было **намеренным** (например, скрипт пишет `cmd /c "tausik.cmd status > out.txt"`), снимите охрану переменной `TAUSIK_CMDLINE_GUARD=off`.
+>
+> Перенаправление, набранное руками в интерактивной консоли (`tausik status > out.txt`), охрана не трогает: там `%CMDCMDLINE%` содержит только строку запуска самой оболочки и аргументов не называет.
 
 ## Инициализация
 
@@ -28,24 +36,42 @@ metrics [--cost]               # С --cost: агрегат по usage_events п�
 metrics record-session         # Записать LLM usage (tokens/cost/tool/model) для текущей или явной сессии
 metrics log-usage              # Одна строка manual в usage_events (--task-slug опционально; session_usage_metrics не трогаем)
 metrics cost [--since ISO] [--until ISO]   # SUM токенов/cost и COUNT по task (slug NULL исключены)
-metrics tokens [--since ISO] [--until ISO] [--task SLUG]    # Rollup токенов по task (sum input/output/cache tokens)
-                                # Источник: PostToolUse hook scripts/hooks/posttool_usage.py пишет
-                                #   одну usage_events строку на каждый tool call (source='posttool',
-                                #   tool_name=<инструмент>) с привязкой к активной задаче.
-                                # Прайсинг: scripts/cost_pricing.py — единый source of truth.
+metrics tokens [--last N] [--rebuild] [--json]   # Объём контекста по инструментам за последние N смен
+                                # Источник: .tausik/token_metrics.jsonl — его пишет SessionEnd hook
+                                #   scripts/hooks/session_metrics.py, обходя транскрипт и раскладывая
+                                #   message-level usage по tool_use внутри сообщения.
+                                # ГЛАВНАЯ КОЛОНКА — ctx_*: полный контекст сообщения
+                                #   (input + cache_creation + cache_read). Именно она есть предмет
+                                #   утверждения об экономии (решение #338). Колонка in_* — НЕ вход:
+                                #   при включённом кэше это неохваченный кэшем остаток, на нашем
+                                #   дереве буквально 2 токена на сообщение, то есть удвоенный
+                                #   счётчик вызовов.
+                                # --rebuild заново выводит всю ленту из ВСЕХ транскриптов проекта
+                                #   на диске. Нужен потому, что инкрементальный писатель видит лишь
+                                #   транскрипт только что завершившейся сессии, и его охват бывает
+                                #   куда уже реально существующей истории.
+                                # Строка COVERAGE в шапке отчёта называет знаменатель: за сколько
+                                #   смен из всех есть записи и с какой даты. Величина, которой в
+                                #   данных нет, печатается словом «не измерено», НЕ нулём.
+                                # Не путать с `metrics cost` — та считает деньги по usage_events в БД.
                                 # Подробности: docs/{en,ru}/cost-telemetry.md.
-doctor                         # Health check: venv + DB + MCP + skills + drift
+doctor                         # Health check: venv + DB + MCP + skills + drift + устаревший байт-код
+doctor --fix-bytecode          # Удалить РОВНО те .pyc, чей co_filename называет чужой каталог (после переезда дерева)
 ```
 
 ## Иерархия
 
 ```bash
 epic add <slug> <title> [--description TEXT]
+epic update <slug> [--title T] [--description TEXT]   # замысел группы задач можно править
+epic list [--stale-over N]     # stale = задач создано после последней правки описания; отчёт, не гейт
 epic list
 epic done <slug>
 epic delete <slug>             # CASCADE: удаляет все стори + задачи
 
 story add <epic_slug> <slug> <title> [--description TEXT]
+story update <slug> [--title T] [--description TEXT]
+story list [--epic E] [--stale-over N]
 story list [--epic EPIC_SLUG]
 story done <slug>
 story delete <slug>            # CASCADE: удаляет все задачи
@@ -86,12 +112,29 @@ task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ..
                                 #       миллисекунды. Если verify не запускался — блок с remediation.
                                 #       Opt-out: .tausik/config.json → {"task_done":{"auto_verify":true}}
                                 #       — старое поведение (heavy гейты inline). НЕТ --force.
+                                # --gates-not-applicable (1.9): ЗАКРЫТЬ НА ПРОГОНЕ, В КОТОРОМ НЕ
+                                #       ВЫПОЛНИЛСЯ НИ ОДИН ГЕЙТ. SENAR 1.4 §8.6(e): отсутствие
+                                #       отрицательной находки НЕ ЕСТЬ положительный вердикт, поэтому
+                                #       `verify --no-tests-expected` записывает заявление, а этот флаг —
+                                #       ОТДЕЛЬНЫЙ ЗАПИСАННЫЙ АКТ его принятия. Для работы, которая
+                                #       честно не мапится на тест: документация, конфиг, исследование.
+                                #       НЕ спасает прогон, в котором гейт БЫЛ ПРИМЕНИМ и всё равно не
+                                #       выполнился (COULD_NOT_RUN) — такой чинят, а не признают.
 task block <slug> [--reason TEXT]
 task unblock <slug>             # blocked → active
 task review <slug>              # active → review
 task update <slug> [--title T] [--goal G] [--notes N] [--notes-overwrite] [--acceptance-criteria AC]
                   [--scope S] [--scope-exclude S] [--stack S] [--complexity C] [--role ROLE]
-                  [--call-budget N] [--tier TIER]
+                  [--call-budget N] [--tier TIER] [--ticket REF ...]
+                                # --ticket (1.9): внешний тикет, на который отвечает задача.
+                                #   ЧЕРЕЗ ПРОБЕЛ, не через запятую: --ticket github#7 gitlab#12
+                                #   Форма `<трекер>#<номер>` либо полный https-адрес. Имя трекера
+                                #   ОБЯЗАТЕЛЬНО, и голый `#7` отвергается при записи: у этого
+                                #   репозитория два трекера, и GitHub #7 с GitLab #7 — РАЗНЫЕ
+                                #   тикеты разных авторов. Тот же флаг есть у `task add`.
+                                #   При закрытии задачи привязка ПЕЧАТАЕТ напоминание ответить
+                                #   автору. Ничего никуда не отправляется и ни один тикет не
+                                #   закрывается: тикет мог описывать больше, чем закрыла задача.
                                 # ⚠ --notes ЗАМЕНЯЕТ весь журнал (notes — append-only история,
                                 #   пишется через `task log`). По умолчанию перезапись непустого
                                 #   журнала ОТКЛОНЯЕТСЯ; чтобы дописать — `task log`, чтобы
@@ -169,6 +212,16 @@ verify [--task SLUG] [--relevant-files PATH ...]
 — поэтому игнорировать предупреждение было РАЗУМНЫМ поведением, а не
 небрежностью.
 
+**Пути передаются ЧЕРЕЗ ПРОБЕЛ** — `--relevant-files a.py b.py`, одинаково у
+`verify`, `task update` и `task done`; список хранится как JSON, и это форма
+ХРАНЕНИЯ, а не формат ввода. Значение вида `"a.py,b.py"` для argparse — один
+аргумент, и раньше оно сохранялось одним путём: scoped-гейты бежали по пустоте,
+а отказ приходил от `verify` со словами «на эти файлы нет тестов» (GitLab #13).
+С 1.9 элемент с запятой, не разрешающийся ни в один файл, отвергается при
+записи с указанием верной формы; существующий путь с запятой в имени
+принимается как есть; объявленный путь, которого ещё нет, принимается с
+пометкой — задача может как раз его создавать.
+
 **`--no-tests-expected`.** Прогон, в котором ни один гейт не выполнился (все
 `[SKIP]`), блокируется: он ничего не доказывает, а записанный зелёный по нему
 жил бы весь TTL при любых правках дерева. Для документации, конфигов и миграций
@@ -232,21 +285,35 @@ gates enable <name>             # Включить gate
 gates disable <name>            # Выключить gate
 ```
 
-## RENAR drift-детекторы (§3.11)
+Гейт `test_dedupe` (block, на task-done и commit) краснеет на РОСТЕ числа
+структурно неотличимых тестов. База — храповик в закоммиченном
+`tausik/gates.json`, существующий долг не блокирует. Предмет —
+РАЗЛИЧИМОСТЬ, а не количество: гейт не считает, сколько тестов в репозитории, и
+удалением тестов его удовлетворить нельзя. Полный отчёт по группам:
 
-RENAR §3.11 определяет 8 классов дрифта. Реализованы 2 (рекомендация R4 аудита),
+```bash
+python scripts/audit_pytest_dedupe.py            # markdown-отчёт по группам
+python scripts/audit_pytest_dedupe.py --json     # то же машиночитаемо
+```
+
+## RENAR drift-детекторы (§4.11)
+
+RENAR §4.11 определяет 8 классов дрифта. Реализованы 2 (рекомендация R4 аудита),
 оба в **warning-режиме** — находки не блокируют, агент читает листинг и реагирует.
 
 ```bash
 drift                          # Запустить все реализованные детекторы
 drift --detector schema        # Только drift-1 (схема артефактов)
 drift --detector provenance    # Только drift-7 (провенанс TC↔требование)
+drift --detector supersession  # ADR-007: delta-ADAPT на superseded-родителе
+drift --detector standard      # Сдвиг САМОГО стандарта (корпус против наших объявлений)
 ```
 
 - **drift-1 (schema)** — ре-валидация SPEC/ADAPT против closed-lists + cross-field
   инвариантов, которые DB CHECK выразить не может: `delta_n ↔ parent_adapt`
-  (delta_n>0 без parent_adapt / delta_n=0 с parent_adapt), `signed ↔ двойная
-  подпись` (§7.5),
+  (delta_n>0 без parent_adapt / delta_n=0 с parent_adapt), `approved ↔ подпись
+  архитектора` (§7.5; клиентская подпись отозвана ADR-011 — сохранившиеся
+  записи НАЗЫВАЮТСЯ находкой `signature-role-withdrawn`, а не стираются),
   пустая version. Ловит прямые правки БД и пробелы миграций.
 - **drift-7 (TC↔requirement provenance)** — у TAUSIK нет first-class TC; единица
   верификации — задача (её acceptance_criteria = «TC»), связанная со SPEC
@@ -254,10 +321,20 @@ drift --detector provenance    # Только drift-7 (провенанс TC↔�
   но SPEC отредактирован после связывания → верификация устарела) и
   `deprecated-requirement` (незавершённая задача на deprecated-SPEC).
 
-Также подключены как gates `renar_drift_schema` / `renar_drift_provenance`
-(severity=warn, trigger=task-done). Остальные 6 классов — вне scope.
+- **standard (сдвиг корпуса)** — единственный детектор, который сверяет не базу
+  с нашими объявлениями, а НАШИ ОБЪЯВЛЕНИЯ С САМИМ СТАНДАРТОМ: закрытые списки
+  (типы SPEC §8.3, категории находок §7.4.4, статусы ADAPT §7.8.1), редакцию
+  корпуса и принятые ADR, которых наш репозиторий не упоминает. Источник —
+  локальный клон, путь задаётся ключом `renar_standard_corpus` в
+  `.tausik/config.json`; без него команда печатает «standard corpus: NOT
+  CHECKED» и НЕ выдаёт «дрейфа нет». Предложенные ADR находкой не считаются
+  никогда.
 
-## RENAR conformance (§14.4)
+Также подключены как gates `renar_drift_schema` / `renar_drift_provenance`
+(severity=warn, trigger=task-done). Детектор `standard` гейтом не подключён:
+корпус есть не на каждой машине. Остальные 5 классов — вне scope.
+
+## RENAR conformance (§13.4)
 
 ```bash
 renar conformance              # Сгенерировать RENAR-CONFORMANCE.yaml (в stdout)
@@ -266,10 +343,10 @@ renar conformance --assessor <id>
 renar export [--out DIR] [--check]  # Сериализовать specs+adapts+conformance в дерево renar/; --check — CI drift-гейт (exit 1 при stale)
 ```
 
-Self-assessment-манифест со всеми mandatory-полями §14.4.2. Уровень RENAR-1..5
-вычисляется **честно из live-БД** (§14.4.3), не декларативно: нарушение любой
+Self-assessment-манифест со всеми mandatory-полями §13.4.2. Уровень RENAR-1..5
+вычисляется **честно из live-БД** (§13.4.3), не декларативно: нарушение любой
 mandatory clause → `pre_adoption: true` + `level: null` (паттерн kai, аудит
-§0.2.3). Секция `assessment-evidence` показывает raw-counts + per-signal met/unmet
+аудите принятия). Секция `assessment-evidence` показывает raw-counts + per-signal met/unmet
 и где именно заблокирован уровень — агенту видно, что нужно до следующего уровня.
 Машинные клаузы (closed-lists, V1–V6, QG-0/QG-2, schema-validation hook = наш
 drift-1) подтверждаются capability; data-клаузы (`adapt-per-tz`) — только при
@@ -342,10 +419,10 @@ session recompute               # Retro: сравнить wall-clock vs active (
 ## Знания
 
 ```bash
-decide <text> [--task SLUG] [--rationale TEXT]
+decide <text> [--task SLUG] [--rationale TEXT] [--global]   # --global: общее хранилище ~/.tausik-knowledge, без строки в проекте
 decisions [--limit N]           # Список решений (default: 20)
 
-memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG]
+memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG] [--global]
 memory list [--type TYPE] [--limit N]
 memory search <query>           # FTS5 полнотекстовый поиск
 memory show <id>
@@ -405,7 +482,22 @@ audit research [--min-age-days N] [--json]
                                 # Аудит docs/{en,ru}/research/ на устаревшие непривязанные файлы
                                 # (по умолчанию >30 дней, без ссылок в tests/scripts/CHANGELOG/README).
                                 # Read-only — показывает кандидатов на перенос в docs/_archive/research/.
+audit evidence [--json] [--no-git]
+                                # Разрешаются ли ещё ссылки на тесты в закрытых задачах.
+                                # Read-only, НИКОГДА не блокирует: переименовать тест законно,
+                                # задача команды — сделать распад ВИДИМЫМ.
 ```
+
+Четыре корзины `audit evidence`, и они намеренно не сводятся в одно число «сломано»:
+
+| корзина | что означает |
+|---|---|
+| `ROTTED` | цель БЫЛА в истории git и исчезла — переименование или удаление после закрытия. Ссылка распалась, покрытие может быть цело. |
+| `NEVER_EXISTED` | цели в истории НЕ БЫЛО — ссылка выдумана при закрытии. |
+| `ILLUSTRATIVE` | это ПРИМЕР, а не ссылка: `tests/foo.py`, `tests/test_does_not_exist.py`, `tests/../scripts/prod.py`. Такие имена цитируют задачи, чей ПРЕДМЕТ — сама форма ссылки. |
+| `UNKNOWN_HISTORY` | git не ответил — вердикт удержан, а не угадан. Появляется при `--no-git`. |
+
+Корзина `ILLUSTRATIVE` отделена в #209 по замеру: из 25 записей в `NEVER_EXISTED` примерами были 13, настоящими — 3, то есть шапка завышала реальный распад вдвое рядом с 22 записями `ROTTED`, которые читатель приучался пролистывать. Примеры **считаются отдельно, а не выбрасываются**: число, молча теряющее записи, — следующая версия той же болезни. Правило исключения печатается рядом с каждой записью. Понятие «путь-пример» общее с детектором `stale_file` команды `memory lint` (`scripts/illustrative_paths.py`) — второй список заглушек и был причиной расхождения детекторов.
 
 ## Ревью (SENAR Rule 10.15) — v1.5
 
@@ -455,16 +547,6 @@ Negative-сценарии (unknown skill, untrusted repo URL, missing skill)
 traceback не показывается (v1.5: `SkillManagerError` ловится наравне
 с `ServiceError` в `main()`).
 
-## Shared Brain (cross-project)
-
-```bash
-brain init                      # Инициализация: 4 Notion DB + конфиг
-brain status                    # Mirror freshness, sync state, registered проекты (v1.5: добавлено `stale: N min`)
-brain sync [--category C] [--json]  # Подтянуть обновления из Notion в локальное зеркало (v1.5)
-brain move <source_id> --to-brain --kind {decision,pattern,gotcha} [--keep-source]
-brain move <notion_page_id> --to-local --category {decisions,patterns,gotchas,web_cache} [--force]
-```
-
 ## Поиск и навигация
 
 ```bash
@@ -508,6 +590,50 @@ doc extract <path>              # Конвертировать DOCX/PPTX/XLSX/HT
 ```
 
 Opt-in: требует `markitdown` и Python ≥3.11.
+
+## Обход гейта записывается (SENAR 1.4 §8.6(j))
+
+Правка артефакта задачи по маршруту, перед которым гейт не стоит — ВКЛЮЧАЯ
+прямую правку супервизором, — допускает эффект, объявленный QG-0, без
+положительного вердикта; §8.6(h) считает это обходом независимо от намерения.
+Это НЕ запрет, а регулируемое исключение: законные случаи названы стандартом и
+остаются доступными — инцидент при недоступной агентской мощности, среда, где
+агент не запускается. Требуется ЗАПИСЬ.
+
+```bash
+events emit-supervision --vector direct_edit --task <slug> \
+    --rationale "инцидент, агент недоступен" \
+    --risk-accepted "правка уходит без scoped verify" \
+    --remediation "перепрогнать verify и перезакрыть задачу" \
+    --approved-by "владелец"
+```
+
+Запись без `--rationale` ОТКЛОНЯЕТСЯ (exit 2): обход без причины — это форма,
+заполненная не глядя. Отклоняется ЗАПИСЬ, а не правка: правка уже произошла.
+
+ПОЧЕМУ МЕТРИКА СЧИТАЕТСЯ ИЗ ЗАПИСЕЙ, А НЕ ИЗ САМООТЧЁТА (§9.2, §9.3):
+самоотчётная цифра есть УТВЕРЖДЕНИЕ, а не измерение; она не удовлетворяет ни
+§8.6(c), ни §8.6(d), и стандарт не может требовать от гейтов того, чего не
+требует от собственной меры соблюдения.
+
+ДВЕ ЧАСТОТЫ ВЛОЖЕНЫ И НЕ СКЛАДЫВАЮТСЯ (§8.6(i)): ручные вмешательства —
+ПОДМНОЖЕСТВО обходов, поэтому `metrics` печатает их как «из них», а не второй
+строкой итога. Сложенные, они дадут двойной счёт, и порог сработает на команде,
+которая не делает ничего плохого.
+
+## Порождённые документы
+
+```bash
+doc constants [--check]         # docs/_generated/constants.json из pyproject + счётчиков MCP
+doc roadmap [--check]           # ROADMAP.md из живой БД; --check — exit 1, если карта протухла
+```
+
+`doc roadmap` перевыпускает дорожную карту релиза в корне проекта. Состав
+релиза берётся из решений владельца (последнее решение, называющее истории
+релиза), счётчики — из живой БД; в файле не пишется руками ничего. Закрытие
+задачи двигает счётчики, поэтому перевыпуск делается **после `task done` и
+перед коммитом** — иначе `tests/test_release_roadmap.py` покраснеет и назовёт
+эту же команду.
 
 ## События (Журнал аудита)
 
@@ -598,6 +724,62 @@ fts optimize                          # Оптимизировать FTS5 инд
 hud                                   # Live dashboard: задача + сессия + gates + логи
 suggest-model [complexity]            # Рекомендация Claude-модели: simple→Haiku, medium→Sonnet, complex→Opus
 ```
+
+## Команды, не попавшие в разделы выше
+
+Раздел заведён замером смены #235: из 53 команд парсера четырнадцать не были
+названы в этом файле нигде, и агент не имел способа о них узнать. Порядок —
+алфавитный; подробности у каждой по `--help`.
+
+```bash
+# --- контрактный контур RENAR ---
+actz create|point|sign|verify|show|list|delta|link|unlink|delete|search
+actz decided-in|decided-in-remove|final-tz|orphans   # ACTZ: акты и итоговое ТЗ
+adapt create|interpret|finding|sign|verify|show|list|delta|link|unlink|delete|search
+                                                    # адаптация нормы под проект
+spec list|show|add|update|delete|link|unlink|search  # требования и их привязки
+at create|show|list|delete|search                    # приёмочные тесты
+at check-freshness|record-result|diagnose|release-readiness
+
+# --- доказательства и подписи ---
+key init                       # завести пару ключей проекта в .tausik/keys/
+key show                       # показать отпечаток открытого ключа
+receipt show                   # напечатать и ПЕРЕПРОВЕРИТЬ последнюю квитанцию
+receipt export|verify          # выгрузить и сверить квитанцию отдельно
+
+# --- навигация по коду (см. graph.md и symbol-index.md) ---
+graph build                    # наполнить граф артефактов: индекс и оба слоя рёбер
+graph show <путь>              # что связано с файлом и на каком основании
+graph status                   # сколько хранится, что протухло, какие корни
+symbol <имя>                   # определение, его файл:строка и вызывающие
+coherence [--json]             # собрать материал о связности дерева для судьи
+
+# --- работа с деревом и хранилищем ---
+knowledge export|restore|import-brain   # общее хранилище знаний в файл и обратно
+knowledge export --to <dir> --redacted  # копия в дорогу: пути, e-mail, приватные URL, имена проектов -> плейсхолдеры
+db prune                       # удалить старые .tausik/tausik.db.bak.*
+config show                    # показать разрешённую конфигурацию с её тирами
+config set <ключ> <значение>   # записать переопределение в .tausik/config.json
+redact --pattern <шаблон>      # вычистить секрет из истории знаний (--apply — не сухой прогон)
+redact list                    # показать применённые вычистки
+
+# --- выпуск и сеть ---
+publish snapshot --from <ref> --parent <sha> [--dry-run]   # публичный снимок: отфильтрованное дерево поверх публичной головы (решение #368)
+publish verify --snapshot <sha> --from <ref>               # снимок == отфильтрованное дерево источника, байт в байт
+push-ok [--ttl N]              # выписать билет на git push (по умолчанию 60 секунд)
+serve [--host H] [--port P]    # поднять локальную точку проверки квитанций
+```
+
+> `serve` по умолчанию слушает `127.0.0.1`. Выставление наружу требует
+> `--yes-expose` — отдельного явного согласия, а не флага по умолчанию.
+>
+> Порт эндпоинт НЕ делит. На Windows `SO_REUSEADDR`, который
+> `http.server` включает по умолчанию, разрешает привязку к адресу, уже
+> занятому другим процессом, — и до 1.9 два сервера действительно
+> привязывались к одному порту, обе привязки успешно. Теперь вторая
+> отбивается: эндпоинт, чей порт можно тихо разделить, — не тот, чьим
+> ответам о квитанциях можно доверять. На POSIX флаг сохранён, там он
+> означает лишь перепривязку порта из `TIME_WAIT`.
 
 ## Константы
 

@@ -16,6 +16,12 @@ import pytest
 pytestmark = pytest.mark.slow
 
 
+# How long ONE bootstrap subprocess may take before the test calls it stuck. The
+# number and the reasoning live in tests/hang_guard_contract.py, next to the hang
+# guard's own threshold, because they are the same kind of promise about the same
+# run and were wrong in the same way — sized in isolation, armed under load.
+from hang_guard_contract import BOOTSTRAP_SUBPROCESS_BUDGET_S  # noqa: E402
+
 _bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
 
 
@@ -38,7 +44,7 @@ class TestBootstrapReal:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=120,
+            timeout=BOOTSTRAP_SUBPROCESS_BUDGET_S,
             env=env,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
@@ -69,7 +75,7 @@ class TestBootstrapReal:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=120,
+            timeout=BOOTSTRAP_SUBPROCESS_BUDGET_S,
             env=env,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
@@ -103,7 +109,7 @@ class TestBootstrapReal:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=120,
+            timeout=BOOTSTRAP_SUBPROCESS_BUDGET_S,
             env=env,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
@@ -134,7 +140,7 @@ class TestBootstrapReal:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=120,
+            timeout=BOOTSTRAP_SUBPROCESS_BUDGET_S,
             env=env,
         )
         # Bootstrap itself must succeed (creates .tausik/)

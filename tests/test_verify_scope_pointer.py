@@ -86,34 +86,42 @@ class TestVerifyHasTheFlagItsMessagesName:
             assert _parses(argv), f"warning suggests an unparseable command: {argv}"
 
     def test_the_gate_skip_reason_suggests_a_runnable_command(self):
-        """The SKIP reason `run_gates` records when no scope was passed."""
-        import gate_runner
+        """The reason recorded when a scoped gate is given no scope at all.
 
-        monkey_free_message = (
-            "No relevant_files passed; gate skipped. Declare the "
-            f"scope: `{gate_runner._CLI} verify --task <slug> --relevant-files "
-            "<paths...>`."
-        )
-        suggestions = _suggested_commands(monkey_free_message)
-        assert suggestions
+        The message is now taken FROM THE PRODUCT — the outcome the runner
+        actually returns — instead of being retyped here. A copy in the test
+        can only ever prove that the copy parses (convention #417).
+        """
+        from gate_command_runner import run_command_gate
+
+        outcome = run_command_gate({"command": "pytest -q {test_files_for_files}"}, [])
+
+        suggestions = _suggested_commands(outcome.message)
+        assert suggestions, f"no command suggested in: {outcome.message!r}"
         for argv in suggestions:
             assert _parses(argv), f"skip reason suggests an unparseable command: {argv}"
 
-    def test_the_messages_in_the_source_are_the_ones_tested(self):
+    def test_the_messages_tested_are_the_ones_the_product_emits(self):
         """Guard against the tests above drifting from the real strings.
 
-        Both messages are built inline in their modules, so the only honest way
-        to keep this pair honest is to assert the distinctive fragment is still
-        present in the source that emits it.
+        The gate half no longer needs a source grep: the test above calls the
+        runner and parses whatever it returned, so drift is caught by
+        construction. `inspect.getsource` was the wrong instrument anyway — it
+        pinned the file a message happened to live in, and broke the moment the
+        message moved from gate_runner to gate_command_runner without changing
+        one character of what a user sees.
         """
         import inspect
 
-        import gate_runner
         import verify_cached_run
+        from gate_command_runner import run_command_gate
 
         assert "--relevant-files" in inspect.getsource(verify_cached_run)
         assert "verify --task" in inspect.getsource(verify_cached_run)
-        assert "verify --task" in inspect.getsource(gate_runner)
+
+        emitted = run_command_gate({"command": "pytest -q {test_files_for_files}"}, []).message
+        assert "verify --task" in emitted
+        assert "--relevant-files" in emitted
 
 
 class TestScopeDeclarationIsRejectedWhenItCannotBeRecorded:

@@ -14,6 +14,10 @@ from backend_migrations_legacy import seed_v18_roles
 from backend_migrations_v34 import maybe_backfill_v34
 from backend_migrations_v42_backfill import maybe_backfill_v42
 from backend_migrations_v43 import maybe_rebuild_tasks_v43
+from backend_migrations_v48 import maybe_rebuild_usage_events_v48
+from backend_migrations_v49 import maybe_widen_spec_types_v49
+from backend_migrations_v50 import maybe_widen_adapt_statuses_v50
+from backend_migrations_v53 import ensure_actz_points_tz_ref_index
 
 
 def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
@@ -60,3 +64,11 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
         maybe_backfill_v42(conn)
     if current_version >= 43:  # tighten tasks.model_mismatch to NOT NULL (guarded rebuild)
         maybe_rebuild_tasks_v43(conn)
+    if current_version >= 48:  # relax usage_events.session_id to optional (guarded rebuild)
+        maybe_rebuild_usage_events_v48(conn)
+    if current_version >= 49:  # widen specs.type to the standard's eleven (guarded rebuild)
+        maybe_widen_spec_types_v49(conn)
+    if current_version >= 50:  # widen adapts.status to the standard's seven (guarded rebuild)
+        maybe_widen_adapt_statuses_v50(conn)
+    if current_version >= 53:  # index on actz_points.tz_ref, safe on either path (guarded)
+        ensure_actz_points_tz_ref_index(conn)

@@ -36,8 +36,7 @@ def exploration_end(
     if create_task and not summary:
         raise ServiceError("--create-task requires --summary")
     task_slug = None
-    be.begin_tx()
-    try:
+    with be.transaction():
         msgs = [f"Exploration #{current['id']} ended."]
         if create_task and summary:
             slug = slugify(current["title"]) or "explore"
@@ -47,10 +46,6 @@ def exploration_end(
             task_slug = slug
             msgs.append(f"Task '{slug}' created from exploration.")
         be.exploration_end(current["id"], summary, task_slug)
-        be.commit_tx()
-    except Exception:
-        be.rollback_tx()
-        raise
     if summary:
         msgs.append(f"Summary: {summary}")
     return " ".join(msgs)

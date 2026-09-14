@@ -1,8 +1,12 @@
-**English** | [Русский](/ru/docs/senar-compliance-matrix)
+**English** | [Русский](../ru/senar-compliance-matrix.md)
 
-# SENAR v1.5 Core — Compliance Matrix
+# SENAR v1.3 Core — Compliance Matrix
 
-**Date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework:** TAUSIK v1.7.0
+**Claimed edition: SENAR v1.3 Core** (owner's decision #336). Later editions are in preparation and are **not** claimed by TAUSIK anywhere.
+
+**Assessment date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework at assessment:** TAUSIK v1.7.0
+
+> **What the rows below are, and what they are not.** Each row states a mechanism that exists in this repository and names the code that implements it — those statements are checkable here and were checked. The 35 rows were assembled on 2026-06-13 against a **later, still-moving draft** of the standard, and this document previously closed by asserting conformance to that draft. It no longer does: the normative text is not vendored into this tree, so a conformance percentage against the claimed edition **cannot be computed here**, and an uncomputable figure is reported as absent rather than carried over from a different rubric (decision #334). The re-assessment against v1.3 is task `senar-14-conformance-reassessment-and-self-check`; until it closes, read this page as *what is implemented*, not as *a scored conformance claim*.
 
 ## Quality Gates
 
@@ -79,7 +83,7 @@
 | Feature | Status | Evidence |
 |---------|--------|----------|
 | Multi-language gates | ✅ Implemented | `project_config.py` — 25 default stacks + custom_stacks override |
-| MCP coverage 124 tools | ✅ Implemented | `tools.py` + `tools_extra.py` — (119 project + 7 brain) |
+| MCP coverage 146 tools | ✅ Implemented | `tools.py` + `tools_extra.py` |
 | Batch execution (`/run`) | ✅ Implemented | `plan_parser.py` + `/run` skill |
 | Structured logs (task_logs + FTS5) | ✅ Implemented | `backend_schema.py` + `service_task.py:task_log` |
 | Fake test detection | ✅ Implemented | `/review` skill — 10 patterns |
@@ -91,12 +95,16 @@
 
 ## Overall Score
 
-| Category | Implemented | Partial | Missing | Score |
-|----------|-------------|---------|---------|-------|
-| Quality Gates (13) | 13 | 0 | 0 | **100%** |
-| Rules (13) | 13 | 0 | 0 | **100%** |
-| Metrics (6) | 6 | 0 | 0 | **100%** |
-| Explorations (3) | 3 | 0 | 0 | **100%** |
-| **Total (35)** | **35** | **0** | **0** | **100%** |
+| Category | Implemented | Partial | Missing | Rows citing code |
+|----------|-------------|---------|---------|------------------|
+| Quality Gates (13) | 13 | 0 | 0 | 12 of 13 |
+| Rules (13) | 13 | 0 | 0 | 7 of 13 |
+| Metrics (6) | 6 | 0 | 0 | 6 of 6 |
+| Explorations (3) | 3 | 0 | 0 | 3 of 3 |
+| **Total (35)** | **35** | **0** | **0** | **28 of 35** |
 
-**SENAR v1.5 Core compliance: 100%.** All gaps closed.
+**A "Score" column stood here printing 100% five times, and it is gone.** The paragraph below the table already said the conformance percentage for v1.3 cannot be computed here and is deliberately left unstated (decision #334) — while the table directly above it printed a number. Readers take the number. Session #225 removed the percentage from the prose and did not touch the table; session #238 finished the job.
+
+**What replaces it, and why that is measurable.** The count of implemented mechanisms stays: it is checkable row by row and was checked. A second count is added — how many rows of each section **cite code** that resolves in the tree. The gap between 13 and 7 under "Rules" is the unevenness of the evidence: the other six rows assert a mechanism in prose ("keyword detection in notes", "QG-0 + QG-2 joint enforcement"), and such a statement can be neither confirmed nor refuted by a machine. The "13/13 implemented" total counts them the same as the rest, so the share is named rather than averaged away.
+
+**Claimed edition: SENAR v1.3 Core**, and this page carries no conformance score against it. The standard's normative text is not vendored in this tree — only our own restatement — so any rubric applied here is **ours**, and passing it off as the standard's is not allowed. The checkable property this page genuinely has is the integrity of its citations: `scripts/senar_self_check.py` resolves every function, constant and file named here against the tree and refuses when one is gone. It runs inside `tausik coherence` and in the ordinary test run (`tests/test_senar_self_check.py`). This is not attestation and not certification: §13.7 of the standard states plainly that no certification scheme is created and that the claim is made by the organisation itself.

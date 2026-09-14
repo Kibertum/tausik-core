@@ -65,12 +65,47 @@ class TestProjectMayOnlyTighten:
             ),
             ({"qg0": {"scope_hard_gate": True}}, ("qg0", "scope_hard_gate"), True),
             ({"task_done": {"auto_verify": False}}, ("task_done", "auto_verify"), False),
+            # The changelog gate is opt-in (default False); switching it on is a
+            # tightening, and it travels on its own path, not gates.<name>.
+            (
+                {"task_done": {"changelog_gate": {"enabled": True}}},
+                ("task_done", "changelog_gate", "enabled"),
+                True,
+            ),
         ],
     )
     def test_tightening_key_passes_through(self, project, path, expected):
         cfg, rejections = ct.resolve(project, trusted={})
         assert rejections == []
         assert ct._dig(cfg, path) == (True, expected)
+
+    def test_the_changelog_switch_cannot_undercut_a_trusted_true(self):
+        """NEGATIVE SCENARIO, found by external review #38.
+
+        `task_done.changelog_gate.enabled` is the gate's real switch — older
+        than `gates.<name>.enabled` — and it was not in GUARDS, so a project
+        `false` under a trusted `true` went through with no rejection: a
+        severity=block gate switched off silently. The ordinary sibling key
+        (`files`) stays the project's: only the switch is guarded.
+        """
+        project = {"task_done": {"changelog_gate": {"enabled": False, "files": ["X.md"]}}}
+        trusted = {"task_done": {"changelog_gate": {"enabled": True}}}
+        cfg, rejections = ct.resolve(project, trusted=trusted)
+        assert [r.key for r in rejections] == ["task_done.changelog_gate.enabled"]
+        assert cfg["task_done"]["changelog_gate"]["enabled"] is True
+        assert cfg["task_done"]["changelog_gate"]["files"] == ["X.md"]
+
+    def test_the_changelog_switch_may_stay_off_where_nothing_turned_it_on(self):
+        """The guard's default is the framework's (opt-in, False), not the
+        strict position. Written because a mutation flipping the default to
+        True SURVIVED: every test above passes with a guard that would force
+        the changelog gate ON for every project with no trusted tier — a
+        consumer that keeps no changelog would be blocked on every close."""
+        cfg, rejections = ct.resolve(
+            {"task_done": {"changelog_gate": {"enabled": False}}}, trusted={}
+        )
+        assert rejections == []
+        assert cfg["task_done"]["changelog_gate"]["enabled"] is False
 
     def test_equal_to_baseline_is_not_a_rejection(self):
         """`filesize.enabled: true` restates the default — noise, not a bypass."""
@@ -116,9 +151,7 @@ class TestOffByAnotherSpelling:
     def test_dropping_one_trigger_is_rejected(self):
         """filesize defaults to task-done + commit; keeping only commit silences
         it on closure, which is the trigger that matters."""
-        cfg, rejections = ct.resolve(
-            {"gates": {"filesize": {"trigger": ["commit"]}}}, trusted={}
-        )
+        cfg, rejections = ct.resolve({"gates": {"filesize": {"trigger": ["commit"]}}}, trusted={})
         assert [r.key for r in rejections] == ["gates.filesize.trigger"]
         assert self._fires(cfg)
 
@@ -131,9 +164,7 @@ class TestOffByAnotherSpelling:
         assert self._fires(cfg, trigger="review")
 
     def test_narrowing_file_extensions_is_rejected(self):
-        _, rejections = ct.resolve(
-            {"gates": {"ruff": {"file_extensions": [".pyi"]}}}, trusted={}
-        )
+        _, rejections = ct.resolve({"gates": {"ruff": {"file_extensions": [".pyi"]}}}, trusted={})
         assert [r.key for r in rejections] == ["gates.ruff.file_extensions"]
 
     def test_widening_file_extensions_is_allowed(self):
@@ -151,8 +182,17 @@ class TestOffByAnotherSpelling:
 class TestBuiltinGateCommandOverride:
     """`_validate_custom_gate` used to run only for gate names absent from
     DEFAULT_GATES, so overriding a built-in gate's command skipped the
-    allowed-executable check entirely. `.tausik/config.json` travels with the
-    repo, so a clone could point `ruff.command` at any binary.
+    allowed-executable check entirely. The PROJECT TIER travels with the repo,
+    so a clone could point `ruff.command` at any binary.
+
+    NAMED PRECISELY, because the shorter sentence described two incompatible
+    worlds at once. The tier is TWO files. `tausik/policy.json` is committed and
+    reaches every clone. `.tausik/config.json` reaches a clone only where
+    `.tausik/` is tracked — true of consumer projects, FALSE of this repository,
+    whose `.gitignore` ignores the whole directory. The threat model rests on
+    the tier arriving with the repo, and that holds for the tier; it does not
+    hold for either file alone (this-repos-strictness-lives-in-a-gitignored-file,
+    decision #287).
     """
 
     def _command(self, project, gate):
@@ -235,6 +275,137 @@ class TestTrustedTiersOutrankTheProject:
             _write(str(tmp_path / "managed.json"), {"qg0": {"scope_hard_gate": True}}),
         )
         assert ct.load_trusted_layers()["qg0"]["scope_hard_gate"] is True
+
+
+class TestProjectScopedEntries:
+    """Gotcha #690: a workaround for ONE project used to govern every project on
+    the machine, because the trusted tiers had no narrower place to put it.
+    A `projects` entry keyed by the project directory is that place."""
+
+    @staticmethod
+    def _user_tier(tmp_path, monkeypatch, layer: dict) -> None:
+        monkeypatch.setenv("TAUSIK_USER_CONFIG", _write(str(tmp_path / "user.json"), layer))
+        monkeypatch.delenv("TAUSIK_MANAGED_CONFIG", raising=False)
+
+    def test_entry_applies_to_its_project_however_the_path_is_spelled(self, tmp_path, monkeypatch):
+        """The spellings `normcase` equates ON THIS PLATFORM: separators and a
+        trailing slash everywhere, letter case only where the filesystem folds
+        it. The first cut uppercased the whole path and was red on the Linux
+        cell of the matrix — there `/HOME/X` is another directory, and the
+        entry rightly did not apply (session #260)."""
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        spelled = str(project).replace(os.sep, "/") + "/"
+        if os.path.normcase("A") == "a":  # a case-folding platform
+            spelled = spelled.upper()
+        self._user_tier(
+            tmp_path, monkeypatch, {"projects": {spelled: {"task_done": {"auto_verify": True}}}}
+        )
+
+        cfg, rejections = ct.resolve({}, project_dir=str(project))
+
+        assert rejections == []
+        assert cfg["task_done"]["auto_verify"] is True
+        assert "projects" not in cfg
+
+    @pytest.mark.skipif(os.path.normcase("A") == "a", reason="a case-folding platform equates them")
+    def test_on_a_case_sensitive_platform_another_case_is_another_project(
+        self, tmp_path, monkeypatch
+    ):
+        """NEGATIVE: what the old test assumed everywhere is false here, and the
+        entry must NOT apply — that is a different directory."""
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        self._user_tier(
+            tmp_path,
+            monkeypatch,
+            {"projects": {str(project).upper(): {"task_done": {"auto_verify": True}}}},
+        )
+        cfg, _ = ct.resolve({}, project_dir=str(project))
+        assert "task_done" not in cfg
+
+    @pytest.mark.parametrize(
+        "other", ["another-project", None], ids=["other-project", "unknown-project"]
+    )
+    def test_entry_does_not_leak_to_another_or_unknown_project(self, tmp_path, monkeypatch, other):
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        self._user_tier(
+            tmp_path,
+            monkeypatch,
+            {"projects": {str(project): {"task_done": {"auto_verify": True}}}},
+        )
+        target = str(tmp_path / other) if other else None
+
+        cfg, _ = ct.resolve({}, project_dir=target)
+
+        assert "auto_verify" not in cfg.get("task_done", {})
+        assert "projects" not in cfg
+
+    @pytest.mark.parametrize(
+        "layer",
+        [
+            {"projects": "not-an-object", "qg0": {"scope_hard_gate": False}},
+            {"projects": {"{project}": ["not", "an", "object"]}, "qg0": {"scope_hard_gate": False}},
+        ],
+        ids=["section-not-object", "entry-not-object"],
+    )
+    def test_malformed_scoping_is_ignored_not_elevated(self, tmp_path, monkeypatch, layer, caplog):
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        rendered = json.loads(
+            json.dumps(layer).replace("{project}", str(project).replace("\\", "/"))
+        )
+        self._user_tier(tmp_path, monkeypatch, rendered)
+
+        with caplog.at_level("WARNING", logger="config_trust"):
+            cfg, _ = ct.resolve({}, project_dir=str(project))
+
+        assert cfg["qg0"]["scope_hard_gate"] is False, "the machine-wide key still applies"
+        assert "projects" not in cfg
+        assert any("projects" in record.getMessage() for record in caplog.records)
+
+    def test_managed_entry_outranks_user_entry_for_the_same_project(self, tmp_path, monkeypatch):
+        project = tmp_path / "vaflower"
+        project.mkdir()
+        monkeypatch.setenv(
+            "TAUSIK_USER_CONFIG",
+            _write(
+                str(tmp_path / "user.json"),
+                {"projects": {str(project): {"qg0": {"scope_hard_gate": False}}}},
+            ),
+        )
+        monkeypatch.setenv(
+            "TAUSIK_MANAGED_CONFIG",
+            _write(
+                str(tmp_path / "managed.json"),
+                {"projects": {str(project): {"qg0": {"scope_hard_gate": True}}}},
+            ),
+        )
+
+        assert ct.load_trusted_layers(str(project))["qg0"]["scope_hard_gate"] is True
+
+    def test_machine_wide_key_keeps_governing_every_project(self, tmp_path, monkeypatch):
+        self._user_tier(tmp_path, monkeypatch, {"qg0": {"scope_hard_gate": False}})
+
+        for target in (str(tmp_path / "one"), str(tmp_path / "two"), None):
+            cfg, _ = ct.resolve({}, project_dir=target)
+            assert cfg["qg0"]["scope_hard_gate"] is False
+
+    def test_the_hook_reader_honours_a_scoped_entry(self, tmp_path, monkeypatch):
+        """`tausik_utils.load_effective_config` is what hooks read as a fresh
+        subprocess; it must hand the directory through, or hooks would keep
+        seeing the machine-wide view while doctor reports the scoped one."""
+        import tausik_utils
+
+        project = tmp_path / "vaflower"
+        (project / ".tausik").mkdir(parents=True)
+        self._user_tier(
+            tmp_path, monkeypatch, {"projects": {str(project): {"qg0": {"scope_hard_gate": False}}}}
+        )
+
+        assert tausik_utils.load_effective_config(str(project))["qg0"]["scope_hard_gate"] is False
+        assert "qg0" not in tausik_utils.load_effective_config(str(tmp_path / "other"))
 
 
 # --- Negative / robustness --------------------------------------------------

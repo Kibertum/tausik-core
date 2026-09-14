@@ -47,8 +47,19 @@ def run_git(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
     ``stdin`` is passed as an explicit keyword (not folded into ``**kwargs``) so
     the AST anti-regression scan in test_risk_compute_stdin sees the guard here —
     this module is the ONE sanctioned ``subprocess.run`` of a git command.
+
+    ``input`` keeps the guarantee rather than weakening it: data WE supply goes
+    down a pipe that ``subprocess.run`` opens, writes and closes itself, so the
+    child still never sees the inherited (MCP) stdin. ``subprocess.run`` refuses
+    ``input`` next to any other ``stdin`` value, hence ``None`` as the DEFAULT
+    there — the keyword stays explicit for the same AST scan. An explicit
+    ``stdin`` still wins, ``input`` or not; if the two cannot coexist,
+    ``subprocess.run`` says so loudly rather than this guard picking one.
     """
-    stdin = kwargs.pop("stdin", subprocess.DEVNULL)
+    if "stdin" in kwargs:
+        stdin = kwargs.pop("stdin")
+    else:
+        stdin = None if kwargs.get("input") is not None else subprocess.DEVNULL
     return subprocess.run(cmd, stdin=stdin, **kwargs)
 
 
@@ -60,6 +71,7 @@ def run(
     text: bool = True,
     binary: bool = False,
     check: bool = False,
+    input: str | bytes | None = None,
 ) -> subprocess.CompletedProcess:
     """Run ``git <args>`` (no leading "git"), capturing stdout/stderr.
 
@@ -67,6 +79,11 @@ def run(
     - ``binary=True`` returns bytes stdout/stderr; otherwise text is decoded.
     - ``check`` is False by default: a non-zero exit yields a CompletedProcess
       with ``returncode != 0`` for the caller to handle, never an exception.
+    - ``input`` feeds a batch-mode git (``cat-file --batch``, ``hash-object
+      --stdin``) through a pipe of our own; ``bytes`` under ``binary=True``,
+      ``str`` otherwise — and a text pipe applies the platform's newline
+      translation on the way in, so feed a line protocol as bytes. Absent,
+      stdin is DEVNULL as always.
 
     stdin is closed by ``run_git`` — a captured git call can never block on the
     inherited (MCP) stdin pipe.
@@ -76,7 +93,9 @@ def run(
     name or path never crash the decode.
     """
     as_text = text and not binary
-    text_kwargs = {"encoding": "utf-8", "errors": "replace"} if as_text else {}
+    extra: dict[str, Any] = {"encoding": "utf-8", "errors": "replace"} if as_text else {}
+    if input is not None:
+        extra["input"] = input
     return run_git(
         ["git", *args],
         cwd=cwd,
@@ -84,5 +103,5 @@ def run(
         text=as_text,
         timeout=timeout,
         check=check,
-        **text_kwargs,
+        **extra,
     )

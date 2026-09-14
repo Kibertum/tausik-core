@@ -12,7 +12,16 @@ so **a file write through Bash bypassed both**: `cat > f <<EOF`, `sed -i`, `tee`
 `dd of=`, `python -c "open(f,'w')"` created and edited files with no active task
 and outside the declared `scope_paths` (demonstrated live in sessions #117/#118).
 Since 1.8 `bash_write_gate` closes that hole, and `MultiEdit`/`NotebookEdit` were
-added to the `task_gate`/`scope_write_gate` matchers.
+added to the `task_gate`/`scope_write_gate` matchers. Since 1.9 (GitHub PR #5,
+Okianiwa) every write guard reads ONE list of write tools —
+`scripts/hooks/write_tools.py`: the built-in editors plus the serena and
+windows-mcp editors — and one list of payload fields (`file_path`,
+`notebook_path`, `path`, `relative_path`, `destination`), so a notebook or an
+MCP edit reaches the same gates as a Write on the hook-bearing hosts (Claude,
+Qwen, Codex — the ones that take `build_hooks_dict`; OpenCode's QG-0 plugin
+keeps its own list of that host's editors); `tests/test_pr5_hook_coverage.py`
+holds the bootstrap matchers to that list and refuses an unlisted write without
+a task.
 
 **What the gate catches:** redirections (`>`, `>>`, `&>`, `N>`, including the
 heredoc header line), `tee`, `dd of=`, `sed -i` (GNU and the BSD `-i ''` form),
@@ -27,6 +36,15 @@ target and block an honest write). Only targets **inside** the project tree are
 gated, exactly as for Write; the scratchpad, `/tmp`, `/dev/null` and other repos
 are allowed.
 
+**Python AST catalogue.** `python_source_writes.RECOGNISED_PYTHON_WRITE_FORMS`
+is the single declared list: literal `open` with a write mode; literal
+`Path`/`pathlib.Path` `write_text`, `write_bytes`, write-mode `open`, `unlink`,
+`mkdir` and `rename`; `shutil.copy`/`move` to a literal destination; and
+`os.replace`'s literal source and destination. A simple string bound earlier in
+the same straight-line Python scope is accepted as a `Path` argument. The same
+reader handles `python -c`, Python script files, and `python - <<PY` when its
+header proves Python receives the body on stdin.
+
 **What it does NOT catch (the explicit residual).** A shell is Turing-complete,
 so a total gate is impossible. Not intercepted: a path built or passed through a
 variable (`f=scripts/x.py; echo >$f`, `echo > $SCRATCH/x`, `$env:TEMP\x` — a
@@ -34,8 +52,8 @@ token carrying `$` is treated as unresolvable and dropped); `base64 -d | sh` and
 other obfuscation; a command assembled from STDIN (`… | xargs -I{} bash -c '…'`)
 or executed on another host (`ssh host 'cmd'` — this project's paths mean nothing
 there); `curl -O`/`wget` without `-O`; `tar`/`unzip` extraction into the current
-directory with no `-C`/`-d`; arbitrary interpreter code that writes a file by any
-route other than a literal `open(...)`.
+directory with no `-C`/`-d`; arbitrary interpreter code that writes a file by a
+form outside that declared Python AST catalogue.
 
 **The `bash -c` / `sh -c` wrapper — CLOSED.** `bash -c 'echo x > scripts/foo.py'`
 used to yield NO target at all: the redirection lives inside one quoted argument
@@ -74,6 +92,52 @@ positive costs more than a miss and trains the bypass. The miss is not silent �
 reason names the parser that failed rather than filing everything under Bash) —
 and the in-tree half of the deny-list is judged again by the `memory_route` gate
 and the pre-commit hook before anything can be committed.
+
+## Coverage BY RULE, not by whole host
+
+The notice an agent reads answers two different questions, and the second exists
+because the first was not enough. "No real-time mechanism is deployed on this
+host" is true and coarser than the truth: on Kilo every task closure, every
+knowledge write and every task opening IS refused, because those go through our
+own tools. One sentence about a whole host cannot carry both answers, and
+carrying only the first lies to the user in the other direction.
+
+The split follows WHO PERFORMS THE ACTION:
+
+| What holds the rule | Which rules | Where it works |
+|---|---|---|
+| Our surface (`tausik_*` / CLI) | QG-0, QG-2, session limit (9.2), memory routing | EVERY host: the enforcement point is inside our code, and the MCP server is what an otherwise bare install still has |
+| Intercepting the host's action | Rule 1 (no code without a task), Rule 2 (scope boundaries), Rule 10.12 (secrets) | ONLY where the artifact carrying that particular rule is deployed |
+
+The second column is derived from the deployment, not from a list: each rule
+names its artifact (`hook:task_gate.py`, `plugin:tausik-qg0.js`), and "is it
+covered here" is the question "is that artifact in the profile". So OpenCode,
+which ships one QG-0 plugin, shows as covering Rule 1 and NOT covering Rule 2 or
+Rule 10.12 — which is the truth, rather than "the host is covered".
+
+Measured at the MCP boundary (session #232, AST): 146 declared tools, 44 mutating
+handlers, and not one reaching the backend directly. The service layer's refusals
+do travel to the boundary — and that is checked by driving the handlers, not by
+reasoning about them: `tests/test_rule_coverage.py` closes a task through
+`tausik_task_done` with no receipt and requires the task to stay open.
+
+`.tausik/tausik doctor` prints both lines: coverage by host, and the split by
+rule.
+
+### Two conditions for an interception, and the scan sees one
+
+"Is that artifact in the profile" is the condition a scan can answer. On a
+host that guards its hook mechanism there is a second one the scan cannot: the
+host must be WILLING to run the project's hooks. Codex runs a project's
+`.codex/hooks.json` only after the user has trusted it, and the two states are
+byte-identical on disk. Measured live in the 1.9 acceptance run (session #251):
+with the generated profile present but untrusted, the forbidden
+`Path('outside.txt').write_text(...)` completed and the file existed — no hook
+ran; the same operation under a trusted profile was refused before the write.
+So for Rule 1 and Rule 2 on Codex the honest statement is "hard once the hooks
+are trusted", `doctor` reports only the first condition and says so, and an
+untrusted generated profile is NOT protected and is not described as such —
+see the [Codex enforcement matrix](model-providers.md#codex-enforcement-matrix).
 
 ## Channel-coverage matrix
 
@@ -150,7 +214,11 @@ operand of the deleting cmdlet and is not seen; `-EncodedCommand <base64>` is no
 decoded; .NET calls (`[IO.File]::Delete`) are not parsed. `Remove-Item` of a
 project file is not reported as a write — exact parity with Bash, where `rm` is
 not a writer either; that gap is common to both channels and is closed
-separately rather than on one side only.
+separately rather than on one side only. A script path carrying a QUOTE
+character (`python "a'b\helper.py"`) keeps its backslashes and is left
+unresolved on POSIX — the quote rule that protects a `-c` payload from the
+separator rewrite covers it too; a token with a quote is read as source, not
+as a path (review #208, record #22).
 
 **Mixed scope (Rule 2, AC3).** As soon as ANY active task declares
 `scope_paths`, ACL enforcement switches on for ALL co-active tasks: a parallel

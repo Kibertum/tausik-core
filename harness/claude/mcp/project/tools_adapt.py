@@ -1,36 +1,60 @@
 """TAUSIK MCP tool definitions — RENAR ADAPT artifacts (v16r-adapt).
 
-Kept in its own module (filesize hygiene). ``category`` (findings) and ``role``
-(signatures) are CLOSED lists — enforced both by the enum here and the service +
-DB CHECK. No mirror to keep in sync: harness/claude/mcp is the single canonical
-tree, handed to every IDE by copy_mcp.
+Kept in its own module (filesize hygiene). ``category`` (findings), ``role``
+(signatures) and ``status`` are CLOSED lists, and this module no longer keeps
+its own copies of them: the enums are READ from ``service_adapts``, the one
+place those lists live.
+
+THE OLD SENTENCE HERE SAID "No mirror to keep in sync". It was true about the
+TREE — harness/claude/mcp is canonical and copied to every IDE unchanged — and
+false about the CONSTANTS, which sat right below it as literals. A mirror
+pinned by a test is still a second literal that has to be edited in lockstep,
+and the standard has already moved under one (ADR-013 took SPEC types from
+nine to eleven; ``tools_spec`` was converted then, this module was not).
+
+``scripts`` goes on ``sys.path`` here for the same reason and with the same
+arithmetic as in ``tools_spec``: ``tools.py`` imports this module at import
+time, while ``server.py`` only extends the path inside ``_get_service``. The
+two levels are the DEPLOYED layout's — see that module's comment, and
+``tests/test_mcp_deployed_layout_resolves.py``, which asserts every profile
+resolves it to its own ``scripts``.
 """
 
 from __future__ import annotations
 
-_FINDING_CATEGORIES = [
-    "contradiction",
-    "gap",
-    "hidden-assumption",
-    "feasibility",
-    "regulatory",
-    "terminology",
-    "scope",
-]
-_SIGNATURE_ROLES = ["client", "architect"]
-_LINK_TARGETS = ["task", "spec"]
-_ADAPT_STATUSES = ["draft", "signed", "superseded"]
+import os
+import sys
+
+_SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+from service_adapts import (  # noqa: E402 — path must be set first
+    ADAPT_STATUSES,
+    FINDING_CATEGORIES,
+    LINK_TARGETS,
+    SIGNATURE_ROLES,
+)
+
+_FINDING_CATEGORIES = list(FINDING_CATEGORIES)
+_SIGNATURE_ROLES = list(SIGNATURE_ROLES)
+_LINK_TARGETS = list(LINK_TARGETS)
+_ADAPT_STATUSES = list(ADAPT_STATUSES)
 
 TOOLS_ADAPT = [
     {
         "name": "tausik_adapt_create",
-        "description": "Create a RENAR ADAPT artifact header (§7). tz_ref (source TZ) is required. Starts in 'draft' for body parts + dual signature.",
+        "description": "Create a RENAR ADAPT artifact header (§7). tz_ref (source TZ) is required. Starts in 'draft' for body parts + the architect's signature (§7.5).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "slug": {"type": "string"},
                 "title": {"type": "string"},
                 "tz_ref": {"type": "string", "description": "Source TZ id, e.g. TZ-2026-001"},
+                "trigger_stage": {
+                    "type": "string",
+                    "description": "Stage that triggered this ADAPT (ADR-007) — how several ADAPTs of one ТЗ are told apart. Optional.",
+                },
             },
             "required": ["slug", "title", "tz_ref"],
         },
@@ -62,7 +86,12 @@ TOOLS_ADAPT = [
     },
     {
         "name": "tausik_adapt_finding",
-        "description": "Add a backward finding to an ADAPT. category is a CLOSED list of 7 (contradiction/gap/hidden-assumption/feasibility/regulatory/terminology/scope) — a new category requires a standard amendment.",
+        "description": (
+            "Add a backward finding to an ADAPT. category is a CLOSED list of "
+            f"{len(_FINDING_CATEGORIES)} "
+            f"({'/'.join(_FINDING_CATEGORIES)}) — a new category requires a "
+            "standard amendment."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -77,7 +106,7 @@ TOOLS_ADAPT = [
     },
     {
         "name": "tausik_adapt_sign",
-        "description": "Record a dual signature (§7.5). role=architect signs the canonical ADAPT body with the project ed25519 key; role=client records a name+timestamp. Both roles present ⇒ status 'signed'.",
+        "description": "Record the architect's signature (§7.5): role=architect signs the canonical ADAPT body with the project ed25519 key ⇒ status 'approved' (§13.3.3 p.77 — the status and the signature are separate facts). role=client is REFUSED: ADR-011 withdrew the client signature under ADAPT, and what the client approves belongs in an ACTZ.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -99,7 +128,7 @@ TOOLS_ADAPT = [
     },
     {
         "name": "tausik_adapt_list",
-        "description": "List ADAPTs, optionally filtered by status (draft/signed/superseded). Returns JSON rows.",
+        "description": "List ADAPTs, optionally filtered by status (the §7.8.1 closed list: draft/review/asked/answered/approved/frozen/superseded). Returns JSON rows.",
         "inputSchema": {
             "type": "object",
             "properties": {"status": {"type": "string", "enum": _ADAPT_STATUSES}},
@@ -115,8 +144,12 @@ TOOLS_ADAPT = [
                 "new_slug": {"type": "string"},
                 "title": {"type": "string"},
                 "tz_ref": {"type": "string", "description": "delta-TZ id"},
+                "supersession_rationale": {
+                    "type": "string",
+                    "description": "Why the parent is superseded (ADR-007 p.108). MANDATORY: a supersession that cannot cite the contradicting requirement is an empty record.",
+                },
             },
-            "required": ["parent_slug", "new_slug", "title", "tz_ref"],
+            "required": ["parent_slug", "new_slug", "title", "tz_ref", "supersession_rationale"],
         },
     },
     {

@@ -172,7 +172,7 @@ def test_format_empty_returns_empty_string():
 def test_format_single_topic():
     hint = bu.format_universality_hint(["jwt"])
     assert "jwt" in hint
-    assert "brain_draft_artifact" in hint
+    assert "memory add --global" in hint
     assert "cross-project" in hint
 
 

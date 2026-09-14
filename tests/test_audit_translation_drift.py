@@ -28,6 +28,13 @@ from audit_translation_drift import (  # noqa: E402
     render_markdown,
 )
 
+#: Ратчет ниже обходит ДЕРЕВО документов, а не фикстуру, поэтому правка в
+#: `docs/` обязана его запускать. Без этой строки гейт scoped-pytest файла не
+#: видит: он сопоставляет тест с исходником по имени, а `docs/ru/cli.md` ни с
+#: каким `test_<basename>.py` не сопоставляется. Поймано
+#: tests/test_crosscutting_registry.py на том же прогоне, где ратчет добавлен.
+CROSSCUTTING_SCOPE = ["docs/"]
+
 
 @pytest.fixture
 def fake_repo(tmp_path: Path) -> Path:
@@ -282,3 +289,48 @@ def test_heading_after_closing_fence_still_counted(fake_repo: Path) -> None:
     text = "# Before\n\n```py\nx = 1\n```\n\n## After\n"
     m = count_metrics(text)
     assert m.headings == 2  # both # Before and ## After
+
+
+# --- Ратчет на ЖИВОМ дереве, а не на фикстуре -------------------------------
+
+
+class TestЖивоеДеревоНеРасходится:
+    """Тесты выше проверяют ДЕТЕКТОР на фикстурах. Этот проверяет ДЕРЕВО.
+
+    Различие не формальное: детектор был зелен всё то время, пока шесть
+    настоящих пар расходились, — его просто никто не спрашивал. Линза
+    `tausik coherence` спрашивает, но только по требованию, поэтому находки
+    копились непрочитанными (смена #239: механика чека v3 и команда `redact`
+    существовали лишь по-русски, стоимостная телеметрия — лишь по-английски).
+
+    ЧТО ЗДЕСЬ НЕ УТВЕРЖДАЕТСЯ: что переводы ВЕРНЫ. Сравниваются количества
+    заголовков, блоков кода и таблиц — то есть пропажа целого раздела видна, а
+    неточный перевод абзаца нет. Утверждение узкое и записано узко.
+    """
+
+    @staticmethod
+    def _repo() -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    def test_ни_одна_пара_не_разошлась(self) -> None:
+        drifts, _en_only, _ru_only, _abbrev = audit_pairs(self._repo())
+        assert not drifts, "пары документов разошлись: " + ", ".join(
+            f"{d.basename} (EN h{d.en.headings} c{d.en.code_blocks} t{d.en.tables} / "
+            f"RU h{d.ru.headings} c{d.ru.code_blocks} t{d.ru.tables})"
+            for d in drifts
+        )
+
+    def test_список_непарных_документов_закреплён(self) -> None:
+        """Три документа существуют на одном языке, и это НАЗВАНО, а не
+        засчитано как паритет. Ратчет держит их поимённо: новый непарный
+        документ обязан объявить о себе, а не раствориться в счётчике."""
+        _drifts, en_only, ru_only, _abbrev = audit_pairs(self._repo())
+        assert sorted(en_only) == ["at-generation-procedure.md"]
+        assert sorted(ru_only) == ["agent-contract.md", "hooks-events.md"]
+
+    def test_проверка_действительно_смотрит_на_пары(self) -> None:
+        """Предпосылка. Ноль расхождений при нуле сравненных пар — самый тихий
+        способ сделать ратчет выше бессмысленным."""
+        _d, _en_only, ru_only, _a = audit_pairs(self._repo())
+        pairs = len(list((self._repo() / "docs" / "ru").glob("*.md"))) - len(ru_only)
+        assert pairs > 20, f"сравнивается всего {pairs} пар — детектор ослеп"

@@ -41,14 +41,20 @@ from gate_renar_drift import run_renar_drift_gate  # noqa: F401, E402
 from gate_bootstrap_drift import run_bootstrap_drift_gate  # noqa: F401, E402
 from gate_test_resolver import resolve_test_files_for_relevant  # noqa: F401, E402
 from gate_registry import impl_for  # noqa: E402
+import gate_outcome  # noqa: E402
+from gate_outcome import GateOutcome  # noqa: F401,E402 — re-exported for callers
 from tausik_utils import cli_invocation  # noqa: E402
 
 # How to spell the CLI in a remediation the reader's shell will accept.
 _CLI = cli_invocation()
 
-# A gate with neither an implementation nor a command. Routed through the same
-# skip path as _SCOPED_SKIP_SENTINEL so it reads as SKIP everywhere, including
-# the persisted `gate_runs` row.
+# RETIRED as a transport by check-result-conflates-could-not-run-with-passed.
+# A gate with neither an implementation nor a command used to be routed through
+# the skip path and read as SKIP everywhere, including the persisted `gate_runs`
+# row — a check that never executed, recorded as one that had nothing to do.
+# It is now `gate_outcome.COULD_NOT_RUN` with REASON_NO_GATE_IMPLEMENTATION, and
+# it blocks. The name survives only because it is part of this module's
+# published surface; nothing produces or consumes it any more.
 _NO_IMPL_SENTINEL = "__TAUSIK_GATE_NO_IMPL__"
 
 # v14b-filesize-debt-paydown: run_command_gate + _SCOPED_SKIP_SENTINEL extracted
@@ -146,77 +152,65 @@ def run_gates(
         # and the only one a reader of `default_gates` had no reason to visit.
         # Dispatch is now a registry lookup; a gate the registry does not know
         # (stack-declared, user-defined) is a command gate by construction.
-        impl = impl_for(name)
-        if impl is not None:
-            passed, output = impl(gate, files or [])
+        # A command override that failed validation is answered BEFORE dispatch.
+        # Running the built-in default here is what made the refusal invisible:
+        # the default's own result (pass, or its own unrelated failure) became
+        # the gate's verdict, and the user read that instead of "your command
+        # was refused". Checked first so the two halves of GitLab #9 cannot mask
+        # each other — this is named even when the default command would also
+        # have failed.
+        rejected = gate.get("command_override_rejected")
+        if rejected:
+            outcome = gate_outcome.could_not_run(
+                gate_outcome.REASON_OVERRIDE_REJECTED,
+                f"Gate '{name}': the configured command was refused, so this "
+                f"gate did not run. {rejected}",
+                remedy=(
+                    f"Fix or remove `gates.{name}.command` in "
+                    f".tausik/config.json. Until then this gate certifies "
+                    f"nothing — the built-in default is NOT run in its place."
+                ),
+            )
+            logging.getLogger("tausik.gates").warning(outcome.message)
+        elif (impl := impl_for(name)) is not None:
+            # Registry implementations still return the legacy pair; `coerce`
+            # is the single place it becomes an outcome, so everything below
+            # reasons about exactly one result shape.
+            outcome = gate_outcome.coerce(impl(gate, files or []))
         elif gate.get("command"):
-            passed, output = run_command_gate(gate, files or [])
+            outcome = run_command_gate(gate, files or [])
         else:
-            # No implementation and no command: this gate cannot run. It used to
-            # reach `run_command_gate`, which answered "No command configured."
-            # as a PASS — a gate that never executes reporting success, the
-            # exact reading `gate_verdict` exists to forbid. Say SKIP, loudly.
-            passed, output = True, _NO_IMPL_SENTINEL
+            # No implementation and no command: this gate CANNOT RUN. It used to
+            # answer PASS (via run_command_gate's "No command configured."), and
+            # then SKIP — both of which let a check that never executed sign a
+            # receipt. It now blocks and names its reason, which is the header
+            # of this task: "could not run" was indistinguishable from "passed".
+            outcome = gate_outcome.could_not_run(
+                gate_outcome.REASON_NO_GATE_IMPLEMENTATION,
+                f"Gate '{name}' declares no command and the framework ships no "
+                f"implementation for it — nothing ran, so it cannot be reported "
+                f"as passed.",
+                remedy="Give it a `command`, or remove it from `gates` in .tausik/config.json.",
+            )
+            logging.getLogger("tausik.gates").warning(outcome.message)
 
         # Scoped-skip sentinel from run_command_gate: either relevant_files
         # were provided but no test files mapped, OR no relevant_files at
         # all (full-suite fallback removed in v1.3 — burns MCP 10s budget).
-        if output in (_SCOPED_SKIP_SENTINEL, _NO_IMPL_SENTINEL):
-            if output == _NO_IMPL_SENTINEL:
-                skip_reason = (
-                    f"Gate '{name}' declares no command and the framework ships no "
-                    f"implementation for it — nothing to run, so it is SKIPPED, not "
-                    f"passed. Give it a `command`, or remove it from `gates` in "
-                    f".tausik/config.json."
-                )
-                logging.getLogger("tausik.gates").warning(skip_reason)
-            else:
-                skip_reason = (
-                    "No test file maps to relevant_files via "
-                    "tests/test_<basename>.py heuristic; gate skipped (scoped run)."
-                    if files
-                    # verify-warn-names-a-flag-verify-does-not-have: this
-                    # used to name a bare `--relevant-files` with no command
-                    # attached, and the command a reader would try it on
-                    # (`verify`) did not have the flag. Name the whole line.
-                    else (
-                        "No relevant_files passed; gate skipped. Declare the "
-                        f"scope: `{_CLI} verify --task <slug> --relevant-files "
-                        "<paths...>`."
-                    )
-                )
-            results.append(
-                {
-                    "name": name,
-                    "severity": severity,
-                    "passed": True,
-                    "skipped": True,
-                    "output": skip_reason,
-                    "duration_ms": int((time.monotonic() - start_ms) * 1000),
-                }
-            )
-            if progress_callback:
-                progress_callback(
-                    {
-                        "event": "gate_done",
-                        "index": idx,
-                        "total": total,
-                        "name": name,
-                        "severity": severity,
-                        "passed": True,
-                        "skipped": True,
-                        "duration_ms": int((time.monotonic() - start_ms) * 1000),
-                        "output": skip_reason,
-                    }
-                )
-            continue
-
-        # Lift the genuine scope label off the output ONCE, here, at the single
-        # boundary where gate output becomes a result dict. Only a run_command_gate
-        # scoped run carries the private sentinel; everything else (filesize, a
-        # spoofed "SCOPE:" line in tool stdout) yields an empty scope and untouched
-        # body. `output` from here on is the sentinel-free body that gets stored.
-        scope, output = split_scope(output)
+        # ONE result shape for every outcome. The branch that used to stand here
+        # existed only to give the sentinel-carried skips their own exit; with
+        # non-execution promoted to the outcome type, they travel the same path
+        # as a verdict and differ by `outcome`, not by which code built them.
+        #
+        # Lift the genuine scope label off the detail ONCE, here, at the single
+        # boundary where gate output becomes a result dict. Only a
+        # run_command_gate scoped run carries the private sentinel; everything
+        # else (filesize, a spoofed "SCOPE:" line in tool stdout) yields an empty
+        # scope and untouched body.
+        scope, body = split_scope(outcome.detail)
+        # The remedy is re-attached after the split so it cannot be mistaken for
+        # gate stdout, and so a reader of the stored row sees the way out.
+        output = "\n".join(part for part in (body, outcome.remedy) if part)
 
         # duration_ms and skipped used to reach the progress callback only, so
         # any caller that did not pass one lost them — including the code that
@@ -224,10 +218,16 @@ def run_gates(
         result = {
             "name": name,
             "severity": severity,
-            "passed": passed,
+            # `outcome`/`reason_code` are the load-bearing fields now.
+            # `passed`/`skipped` are kept as the legacy reading so existing
+            # consumers keep working; they cannot express COULD_NOT_RUN, which
+            # is why they are no longer what the decision is made on.
+            "outcome": outcome.outcome,
+            "reason_code": outcome.reason_code,
+            "passed": outcome.legacy_passed,
             "output": output,
             "scope": scope,
-            "skipped": False,
+            "skipped": outcome.legacy_skipped,
             "duration_ms": int((time.monotonic() - start_ms) * 1000),
         }
         results.append(result)
@@ -239,15 +239,19 @@ def run_gates(
                     "total": total,
                     "name": name,
                     "severity": severity,
-                    "passed": passed,
-                    "skipped": False,
+                    "outcome": outcome.outcome,
+                    "reason_code": outcome.reason_code,
+                    "passed": outcome.legacy_passed,
+                    "skipped": outcome.legacy_skipped,
                     "duration_ms": int((time.monotonic() - start_ms) * 1000),
                     "output": output,
                     "scope": scope,
                 }
             )
 
-        if not passed and severity == "block":
+        # SENAR 1.4 §8.6(e): a check that could not execute has produced no
+        # evidence, so it cannot certify. It blocks alongside an honest failure.
+        if outcome.blocks and severity == "block":
             has_block_failure = True
 
     return not has_block_failure, results
@@ -270,10 +274,28 @@ def gate_verdict(result: dict) -> str:
     combination is not produced by `run_gates` at any of its three skip sites,
     but the reading must still be unambiguous: a gate that did not execute
     cannot have failed, so calling it FAIL would be inventing a result.
+
+    check-result-conflates-could-not-run-with-passed: when the result carries an
+    ``outcome``, that is the answer — including ``CANNOT-RUN``, a reading the
+    two legacy booleans could not spell at all. The boolean fallback stays for
+    result dicts built by older callers, and still cannot say CANNOT-RUN, which
+    is exactly why the field was added rather than derived.
     """
+    outcome = result.get("outcome")
+    if outcome:
+        return gate_outcome.GateOutcome(
+            outcome, reason_code=result.get("reason_code") or _PLACEHOLDER_REASON
+        ).verdict
     if result.get("skipped"):
         return "SKIP"
     return "PASS" if result.get("passed") else "FAIL"
+
+
+# `GateOutcome` refuses a reason-bearing outcome without a reason, which is the
+# right rule at a construction site and the wrong one when merely re-reading a
+# stored row whose reason predates the column. Naming the substitute makes the
+# gap visible instead of papering it with an empty string.
+_PLACEHOLDER_REASON = "unrecorded"
 
 
 def summarize_results(results: list[dict]) -> str:

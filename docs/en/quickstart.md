@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/quickstart)
+**English** | [Русский](../ru/quickstart.md)
 
 # Quick Start
 
@@ -6,6 +6,10 @@ TAUSIK — **T**ask **A**gent **U**nified **S**upervision, **I**nspection & **K*
 
 Step-by-step guide: from zero to your first task with an AI agent.
 Takes 10-15 minutes. No prior experience with AI tools required.
+
+> **Are you the agent?** Read [agent-quickstart.md](agent-quickstart.md)
+> instead — the same path as exact calls, with the replies and refusals you
+> will see, for every host bootstrap scaffolds.
 
 ---
 
@@ -34,7 +38,9 @@ Make sure the following are installed on your computer:
    - **Cursor** — download from [cursor.com](https://cursor.com)
    - **Qwen Code (GigaCode)** — install from [qwen.ai/qwencode](https://qwen.ai/qwencode)
    - **Kilo Code** — VSCode addon; pairs with z.ai GLM models (see [Kilo + z.ai](kilo-zai.md))
-   - **Windsurf** — download from [windsurf.com](https://windsurf.com)
+   - **OpenCode** — `npm i -g opencode-ai`; bootstrap with `--ide opencode`
+   - **Codex CLI** — bootstrap with `--ide codex`; its hooks enforce only after you trust them in Codex (see [model-providers.md](model-providers.md#codex-enforcement-matrix))
+   - **Windsurf** — download from [windsurf.com](https://windsurf.com) (expected; not scaffolded by bootstrap)
    - You'll need an API key or subscription for your chosen IDE
 
 ## Step 1. Create a Repository
@@ -116,8 +122,6 @@ Team members who clone the repo just need to run `git submodule update --init` t
 `.claude/` and `CLAUDE.md` — keep these under version control. These are instructions
 for the agent, they should be in the repository.
 
-> **v1.4 — Shared Brain prompt.** When you run `bootstrap.py` with `--interactive --init`, the bootstrap will offer to launch the Shared Brain wizard at the very end (`Setup Shared Brain (cross-project knowledge in Notion)? [y/N]`). Saying `y` runs `.tausik/tausik brain init` immediately so cross-project decisions, patterns and gotchas become available without an extra step. Saying `N` (default) skips it; you can run `.tausik/tausik brain init` later. CI and non-TTY runs never see the prompt.
-
 ## Step 3. Verify Installation
 
 ```bash
@@ -197,7 +201,7 @@ Answer "yes" to the commit offer — and your first task is complete.
 
 > **Context tier (`AGENTS.md` / `CLAUDE.md` size).** At the **root** of `.tausik/config.json`, set `"context_tier": "minimal"` \| `"standard"` (default) \| `"full"`. Bootstrap then generates shorter (**minimal**), unchanged (**standard**), or extended-pointer (**full**) onboarding text. Bootstrap exits with an error on unknown strings. `tausik doctor`'s CLAUDE.md drift check uses the tier from your saved config.
 
-> **Output economy (`output_mode`, opt-in).** Root key `"output_mode": "off"` (default) \| `"caveman"`. Orthogonal to `context_tier`: the tier sizes the **input** rules, `output_mode` compresses the agent's **output**. When `caveman`, bootstrap appends a short directive (inspired by the [caveman skill](https://github.com/JuliusBrussee/caveman)) telling the agent to answer in terse, telegraphic prose while keeping **code, commands, tool output and error messages byte-exact**, and **acceptance-criteria evidence, decisions and SPEC/ADAPT full** (future agents parse those). A bad value silently falls back to `off` — a typo in an economy knob must not break a bootstrap. **On an already-bootstrapped project**, note that `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `QWEN.md` / the OpenCode rules file are preserve-if-exists: flipping this key does not rewrite them. Bootstrap says so explicitly rather than pretending it applied — delete the generated rules file and re-run, or paste the directive in by hand. caveman's own "~65% reduction" is *their* figure, unmeasured in TAUSIK's harness. If you have the real caveman skill installed too, `tausik doctor` reports the coexistence (its compression stacks on ours; and it flags any caveman hook wired into the `.claude/settings.json` TAUSIK manages).
+> **Output economy (`output_mode`, opt-in).** Root key `"output_mode": "off"` (default) \| `"caveman"`. Orthogonal to `context_tier`: the tier sizes the **input** rules, `output_mode` compresses the agent's **output**. When `caveman`, bootstrap appends a short directive (inspired by the [caveman skill](https://github.com/JuliusBrussee/caveman)) telling the agent to answer in terse, telegraphic prose while keeping **code, commands, tool output and error messages byte-exact**, and **acceptance-criteria evidence, decisions and SPEC/ADAPT full** (future agents parse those). Since 1.9 the directive is a **response contract**, not only a length: a shape (*done → verified by → left → your call*, empty parts omitted), five named exceptions (an explanation was asked for; a destructive action needs confirmation; three failed debugging turns; genuine ambiguity; the rule would delete the answer itself) and a pre-send check (drop intent announcements, closing recaps, side branches and empty hedges; first line = next action, last line = current state). The `/i-have-adhd` skill carries the same shape and exceptions in prose, and `tests/test_response_contract_shape.py` keeps the two in step. A bad value silently falls back to `off` — a typo in an economy knob must not break a bootstrap. **On an already-bootstrapped project**, note that `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `QWEN.md` / the OpenCode rules file are preserve-if-exists: flipping this key does not rewrite them. Bootstrap says so explicitly rather than pretending it applied — delete the generated rules file and re-run, or paste the directive in by hand. caveman's own "~65% reduction" is *their* figure, unmeasured in TAUSIK's harness. If you have the real caveman skill installed too, `tausik doctor` reports the coexistence (its compression stacks on ours; and it flags any caveman hook wired into the `.claude/settings.json` TAUSIK manages).
 
 > **Model host profile (v1.4).** Optional **root** key **`model_profile`**: lowercase slug (`a-z`, digits, hyphens), e.g. `claude`, `codex`. Bootstrap writes it when environment variable **`TAUSIK_MODEL_PROFILE`** is set to a non-empty valid value; invalid values abort bootstrap with an error. Empty/unset env leaves any existing `model_profile` in the file unchanged. To refresh only config (no skill/script copy), run `python bootstrap/bootstrap.py --refresh` from the project root.
 

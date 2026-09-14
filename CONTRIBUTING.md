@@ -23,12 +23,14 @@ python bootstrap/bootstrap.py --init
 # Activate the venv and install dev tools
 source .tausik/venv/bin/activate   # Linux/Mac
 .tausik\venv\Scripts\activate      # Windows
-pip install pytest ruff pyyaml
+pip install pytest pytest-xdist ruff pyyaml
 ```
 
 > Bootstrap automatically finds the best Python >= 3.11, creates `.tausik/venv/`, and installs dependencies from `requirements.txt`. Your system Python is not modified.
 >
 > **`pyyaml`** is an *optional* dependency — core scripts import it lazily, so the CLI runs without it. It is only required to run the RENAR conformance/export tests (`test_renar_conformance.py`, `test_renar_export.py`); without it those tests are skipped, not failed.
+>
+> **`pytest-xdist`** is *not* optional. `pyproject.toml` sets `addopts = "-m 'not slow' -n auto"`, so the suite is parallel by default and without the plugin pytest refuses to start at all: `unrecognized arguments: -n`. Add `-n0` to any command when you want a serial run — a debugger session, or output you need in file order.
 
 ## Running Tests
 
@@ -119,12 +121,14 @@ python bootstrap/bootstrap.py --init
 # Активируйте venv и установите dev-инструменты
 source .tausik/venv/bin/activate   # Linux/Mac
 .tausik\venv\Scripts\activate      # Windows
-pip install pytest ruff pyyaml
+pip install pytest pytest-xdist ruff pyyaml
 ```
 
 > Bootstrap автоматически находит Python >= 3.11, создаёт `.tausik/venv/` и устанавливает зависимости из `requirements.txt`. Ваш системный Python не модифицируется.
 >
 > **`pyyaml`** — *опциональная* зависимость: ядро импортирует её лениво, поэтому CLI работает без неё. Она нужна только для RENAR-тестов (`test_renar_conformance.py`, `test_renar_export.py`); без неё эти тесты скипаются, а не падают.
+>
+> **`pytest-xdist`** — НЕ опциональная. В `pyproject.toml` стоит `addopts = "-m 'not slow' -n auto"`, то есть лента параллельна по умолчанию, и без плагина pytest вообще не стартует: `unrecognized arguments: -n`. Нужен последовательный прогон (отладчик, вывод в порядке файлов) — добавьте `-n0`.
 
 ## Запуск тестов
 

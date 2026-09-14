@@ -19,6 +19,8 @@ from __future__ import annotations
 import os
 import sys
 
+import pytest
+
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _BOOTSTRAP = os.path.join(_ROOT, "bootstrap")
 if _BOOTSTRAP not in sys.path:
@@ -34,18 +36,39 @@ def test_scaffold_ides_subset_of_ide_dirs():
     )
 
 
-def test_windsurf_codex_discoverable_but_not_scaffolded():
-    """windsurf/codex are wrapper-discoverable (IDE_DIRS) but have no generator,
-    so they are intentionally absent from SCAFFOLD_IDES. Documents the split."""
-    for ide in ("windsurf", "codex"):
-        assert ide in IDE_DIRS
-        assert ide not in SCAFFOLD_IDES
+def test_windsurf_discoverable_but_not_scaffolded():
+    """windsurf is wrapper-discoverable (IDE_DIRS) but has no generator, so it is
+    intentionally absent from SCAFFOLD_IDES. Documents the split.
+
+    `codex` sat here too until session #241, when it got `bootstrap_codex` and
+    moved to the scaffold-capable test below. The split itself is the point and
+    survives: membership in SCAFFOLD_IDES is a promise, and it is kept backed by
+    a generator rather than by intent.
+    """
+    assert "windsurf" in IDE_DIRS
+    assert "windsurf" not in SCAFFOLD_IDES
 
 
-def test_kilo_is_scaffold_capable():
-    """v156: Kilo must be both discoverable and scaffold-capable (the P0 fix)."""
-    assert "kilo" in IDE_DIRS
-    assert "kilo" in SCAFFOLD_IDES
+@pytest.mark.parametrize(
+    ("ide", "why"),
+    [
+        pytest.param("kilo", "v156: the P0 fix — discoverable AND scaffold-capable", id="kilo"),
+        pytest.param(
+            "codex",
+            "session #241: Codex has a hook API (measured on codex.exe), so it is a "
+            "first-class target rather than a wrapper-discoverable directory",
+            id="codex",
+        ),
+    ],
+)
+def test_is_scaffold_capable(ide, why):
+    """Both halves matter: discoverable by the wrapper AND backed by a generator.
+
+    One test over both, because the assertion is one — a per-IDE copy says
+    nothing the parameter does not, and the next host would add a third.
+    """
+    assert ide in IDE_DIRS, why
+    assert ide in SCAFFOLD_IDES, why
 
 
 def test_argparse_ide_choices_derive_from_scaffold_ides():

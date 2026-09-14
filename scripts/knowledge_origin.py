@@ -51,7 +51,7 @@ _LABEL_RE = re.compile(r"^[^/\\]+@[0-9a-f]{8}$")
 # What the migration accepts as "this is a project root someone stored", spelled
 # so it means the same thing on every platform: a leading separator, or a
 # Windows drive, or a UNC share. `os.path.isabs` cannot be used — on Linux it
-# calls `D:\Work\clients\acme\repo` relative, and the whole point is to redact
+# calls `C:\Projects\clients\acme\repo` relative, and the whole point is to redact
 # rows written on Windows no matter where they are read.
 #
 # The narrowness is the feature. `origin_project` is free text by design, so a
@@ -83,7 +83,7 @@ def _canonical(abs_root: str, *, resolve: bool) -> str:
     a label computed correctly after two minutes of nothing.
 
     Case folding is `lower()` rather than `os.path.normcase` DELIBERATELY. A
-    stored `D:\\Work\\Core` must fingerprint the same whether the process
+    stored `C:\\Projects\\Core` must fingerprint the same whether the process
     reading it runs on Windows or on Linux — the store is explicitly shared
     across a machine, WSL included, and `normcase` is a no-op on POSIX, so it
     would hand the same row two identities depending on who opened it first. The

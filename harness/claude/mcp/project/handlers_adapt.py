@@ -21,7 +21,12 @@ def _dump(obj: Any) -> str:
 
 def handle_adapt_create(svc: Any, args: dict) -> str:
     try:
-        return svc.adapt_create(args["slug"], args["title"], args["tz_ref"])
+        return svc.adapt_create(
+            args["slug"],
+            args["title"],
+            args["tz_ref"],
+            trigger_stage=args.get("trigger_stage"),
+        )
     except ServiceError as e:
         return f"Error: {e}"
 
@@ -78,7 +83,13 @@ def handle_adapt_list(svc: Any, args: dict) -> str:
 
 def handle_adapt_delta(svc: Any, args: dict) -> str:
     try:
-        return svc.adapt_delta(args["parent_slug"], args["new_slug"], args["title"], args["tz_ref"])
+        return svc.adapt_delta(
+            args["parent_slug"],
+            args["new_slug"],
+            args["title"],
+            args["tz_ref"],
+            args.get("supersession_rationale"),
+        )
     except ServiceError as e:
         return f"Error: {e}"
 

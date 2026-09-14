@@ -56,7 +56,9 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
     conn.isolation_level = None  # autocommit — run_migrations drives its own BEGIN
     conn.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     conn.execute("INSERT INTO meta VALUES('schema_version', '31')")
-    conn.execute("CREATE TABLE tasks(slug TEXT PRIMARY KEY)")  # FK target
+    conn.execute(
+        "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
+    )  # defect_of: v10 column, indexed by v62  # FK target
     # events exists in the v1 baseline on every real DB; v34 ALTERs it.
     # ddl-parity: historical — форма v31 до migration v34, канон уже содержит
     # entry_hash/prev_hash, которые этот прогон только собирается добавить.
@@ -73,12 +75,8 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
     # колонка уронила бы прогон, а комментарий перед глазами обещал обратное.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     # ALTER + backfill targets for v42 (slug identity): the chain reaches them too.
-    conn.execute(
-        "CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
-    )
-    conn.execute(
-        "CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)"
-    )
+    conn.execute("CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)")
+    conn.execute("CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)")
 
     new_ver = run_migrations(conn, 31)
     assert new_ver >= 32

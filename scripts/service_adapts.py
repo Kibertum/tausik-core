@@ -1,8 +1,9 @@
 """TAUSIK AdaptsMixin — RENAR ADAPT-artifact service methods (v16r-adapt full §7).
 
 An ADAPT is the architect's reconciliation of a client TZ with engineering
-reality (renar.tech v1.0-draft §7): a forward interpretation (§7.4.3), a closed
-list of 7 backward findings (§7), and a dual signature (§7.5). Deltas (§7.6)
+reality (renar.tech v1.0-draft §7): a forward interpretation (§7.4.3), backward
+findings drawn from a closed category list (§7.4.4), and the architect's
+signature (§7.5 — the client's was withdrawn by ADR-011). Deltas (§7.6)
 supersede a prior ADAPT and a link to a superseded ADAPT is FATAL (§7.6.4).
 
 Closed lists (finding category, signature role, link target) are validated here
@@ -24,26 +25,22 @@ from tausik_utils import ServiceError, utcnow_iso, validate_length, validate_slu
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
-# RENAR backward-finding categories — CLOSED list of 7 (mirrors the DB CHECK).
-FINDING_CATEGORIES: tuple[str, ...] = (
-    "contradiction",
-    "gap",
-    "hidden-assumption",
-    "feasibility",
-    "regulatory",
-    "terminology",
-    "scope",
+# The closed lists RENAR fixes live in `adapt_closed_lists` — declarations the
+# standard governs, kept apart from the behaviour here. Re-exported so every
+# existing `from service_adapts import FINDING_CATEGORIES` keeps working: a
+# constant moving house is nobody else's business.
+from adapt_closed_lists import (  # noqa: E402,F401
+    ADAPT_BODY_SCHEMA,
+    ADAPT_STATUSES,
+    FINDING_CATEGORIES,
+    HISTORICAL_SIGNATURE_ROLES,
+    LINK_TARGETS,
+    SIGNATURE_ROLES,
 )
-# Dual-signature roles (§7.5) and link targets — CLOSED lists (mirror DB CHECK).
-SIGNATURE_ROLES: tuple[str, ...] = ("client", "architect")
-LINK_TARGETS: tuple[str, ...] = ("task", "spec")
-ADAPT_STATUSES: tuple[str, ...] = ("draft", "signed", "superseded")
-
-ADAPT_BODY_SCHEMA = "renar-adapt/v1"
 
 
 class AdaptsMixin:
-    """Manage RENAR ADAPT artifacts, body parts, dual signatures and deltas."""
+    """Manage RENAR ADAPT artifacts, body parts, the architect signature and deltas."""
 
     be: SQLiteBackend
 
@@ -56,8 +53,15 @@ class AdaptsMixin:
         tz_ref: str,
         parent_adapt: str | None = None,
         delta_n: int = 0,
+        trigger_stage: str | None = None,
     ) -> str:
-        """Create an ADAPT header. ``tz_ref`` (source TZ) is mandatory (§7.4.3)."""
+        """Create an ADAPT header. ``tz_ref`` (source TZ) is mandatory (§7.4.3).
+
+        ``trigger_stage`` (ADR-007) records WHICH stage triggered this ADAPT —
+        the field by which the standard tells several ADAPTs of one ТЗ apart.
+        Optional: cardinality 0..N is not violated by a single ADAPT, but
+        without the column we could not express the distinction at all.
+        """
         try:
             validate_slug(slug)
             if not title:
@@ -73,7 +77,7 @@ class AdaptsMixin:
         if parent_adapt and not self.be.adapt_get(parent_adapt):
             raise ServiceError(f"Parent ADAPT '{parent_adapt}' not found.")
         try:
-            self.be.adapt_add(slug, title, tz_ref, "draft", parent_adapt, delta_n)
+            self.be.adapt_add(slug, title, tz_ref, "draft", parent_adapt, delta_n, trigger_stage)
         except sqlite3.IntegrityError as e:
             raise ServiceError(f"Could not create ADAPT '{slug}': {e}") from e
         return f"ADAPT '{slug}' created (tz_ref={tz_ref}, status=draft)."
@@ -139,7 +143,7 @@ class AdaptsMixin:
         )
         return f"Interpretation for {tz_ref} added to ADAPT '{adapt_slug}'."
 
-    # --- backward findings (closed-7 §7) ---
+    # --- backward findings (closed category list, §7) ---
 
     def adapt_finding(
         self,
@@ -149,25 +153,36 @@ class AdaptsMixin:
         tz_ref: str | None = None,
         resolution: str | None = None,
     ) -> str:
-        """Add a backward finding. ``category`` must be one of the 7 closed types."""
+        """Add a backward finding. ``category`` must be in FINDING_CATEGORIES."""
         self._require_draft(adapt_slug)
         if category not in FINDING_CATEGORIES:
             raise ServiceError(
                 f"Invalid finding category '{category}'. "
-                f"Valid (closed list of 7): {', '.join(FINDING_CATEGORIES)}"
+                f"Valid (closed list of {len(FINDING_CATEGORIES)}): "
+                f"{', '.join(FINDING_CATEGORIES)}"
             )
         if not description or not description.strip():
             raise ServiceError("Finding description is required.")
         self.be.finding_add(adapt_slug, category, description, tz_ref, resolution)
         return f"Finding ({category}) added to ADAPT '{adapt_slug}'."
 
-    # --- dual signature (§7.5) ---
+    # --- architect signature (§7.5) ---
 
     def adapt_sign(
         self, slug: str, role: str, signed_by: str, project_dir: str | None = None
     ) -> str:
-        """Record a signature. ``architect`` → ed25519 over the canonical body;
-        ``client`` → recorded name + timestamp. Both present ⇒ status 'signed'.
+        """Record the architect's signature — ed25519 over the canonical body.
+
+        Present ⇒ status 'approved' (§13.3.3 p.77: the findings-present branch
+        requires 'approved' WITH an Architect signature; the signature itself
+        stays in adapt_signatures — status and signature are separate facts).
+
+        A CLIENT SIGNATURE IS REFUSED, and the refusal names why: ADR-011
+        withdrew it as a fiction, and §7.5 now carries a paragraph on its
+        absence. What the client approves lives in ACTZ, an artifact of its
+        own; this method used to accept the role and this project used to
+        advertise it in `adapt sign --help`, which is publishing a withdrawn
+        norm as current.
 
         Signing an architect role without a project key is a friendly ServiceError,
         never a traceback (the key lives at .tausik/keys/, gitignored by design).
@@ -177,11 +192,19 @@ class AdaptsMixin:
             raise ServiceError(f"ADAPT '{slug}' not found")
         if adapt["status"] == "superseded":
             raise ServiceError(f"ADAPT '{slug}' is superseded — cannot sign (§7.6.4).")
-        if adapt["status"] == "signed":
-            # Dual signature already complete + body frozen — re-signing would
-            # silently overwrite a sealed record. Amend via a delta instead (§7.6).
+        if adapt["status"] == "approved":
+            # Approved + body frozen — re-signing would silently overwrite a
+            # sealed record. Amend via a delta instead (§7.6).
             raise ServiceError(
-                f"ADAPT '{slug}' is already signed — create a delta to amend it (§7.6)."
+                f"ADAPT '{slug}' is already approved — create a delta to amend it (§7.6)."
+            )
+        if role == "client":
+            raise ServiceError(
+                "The client signature under ADAPT was withdrawn by RENAR ADR-011 and "
+                "§7.5 now names only the architect: the client was signing an "
+                "engineering document they had not read. What the client approves "
+                "belongs in an ACTZ, not here. Existing client signatures are kept "
+                "as audit records and are never rewritten."
             )
         if role not in SIGNATURE_ROLES:
             raise ServiceError(f"Invalid role '{role}'. Valid: {', '.join(SIGNATURE_ROLES)}")
@@ -198,9 +221,16 @@ class AdaptsMixin:
             raise ServiceError(f"Could not record {role} signature for '{slug}': {e}") from e
         roles = {s["role"] for s in self.be.signatures_for_adapt(slug)}
         if roles >= set(SIGNATURE_ROLES):
-            self.be.adapt_set_status(slug, "signed")
-            return f"ADAPT '{slug}' signed by {role} — dual signature complete, status=signed."
-        return f"ADAPT '{slug}' signed by {role} (awaiting the other signature)."
+            self.be.adapt_set_status(slug, "approved")
+            return (
+                f"ADAPT '{slug}' signed by {role} — architect signature recorded, "
+                "status=approved (§7.5, §13.3.3 p.77)."
+            )
+        # Unreachable while SIGNATURE_ROLES holds one role, and kept rather than
+        # deleted: it is the branch that runs if the standard ever adds a second
+        # signer, and removing it would hide that this method decides `approved`
+        # from the ROLE SET and not from a count.
+        return f"ADAPT '{slug}' signed by {role} (awaiting {sorted(set(SIGNATURE_ROLES) - roles)})."
 
     def adapt_verify(self, slug: str, project_dir: str | None = None) -> dict[str, Any]:
         """Verify the architect ed25519 signature against the current body.
@@ -232,24 +262,78 @@ class AdaptsMixin:
 
     # --- delta workflow (§7.6) ---
 
-    def adapt_delta(self, parent_slug: str, new_slug: str, title: str, tz_ref: str) -> str:
+    def adapt_delta(
+        self,
+        parent_slug: str,
+        new_slug: str,
+        title: str,
+        tz_ref: str,
+        supersession_rationale: str | None = None,
+    ) -> str:
         """Create a delta-ADAPT superseding ``parent_slug`` (§7.6).
 
         The parent's status becomes 'superseded'; subsequent links to it are
         FATAL (§7.6.4). The new ADAPT carries parent_adapt + an incremented
-        delta_n and starts in 'draft' for its own dual signature.
+        delta_n and starts in 'draft' for its own architect signature.
+
+        ``supersession_rationale`` is MANDATORY (ADR-007 p.108) — this is the
+        only path into 'superseded'. Declared keyword-optional in the signature
+        so the refusal is a ServiceError naming the standard rather than a
+        TypeError naming Python; the backend enforces it regardless.
+
+        A REFUSAL IS A NON-EVENT — with one condition, stated because the
+        unconditional version would be a promise this cannot keep. Both writes
+        share a transaction, so when this call OWNS that transaction a refusal
+        leaves neither the supersession nor the delta header behind. When the
+        caller already had one open, ownership stays with the caller: the
+        header is written into THEIR transaction and only their rollback
+        removes it. Undoing just our own part would take a SAVEPOINT, which
+        this backend does not offer.
         """
         parent = self.be.adapt_get(parent_slug)
         if not parent:
             raise ServiceError(f"Parent ADAPT '{parent_slug}' not found")
         if self.be.adapt_get(new_slug):
             raise ServiceError(f"ADAPT '{new_slug}' already exists.")
+        # BOTH WRITES IN ONE TRANSACTION, and that is the whole point. The
+        # rationale guard lives in `adapt_set_status`, the lowest primitive
+        # that writes the column, so it necessarily refuses AFTER the delta
+        # header has been written. While the two steps auto-committed
+        # separately, that refusal was a HALF-WRITE: the parent stayed live
+        # (correct, and the only half the tests asserted) while the child
+        # survived as an orphan carrying delta_n>0 and status='draft'. It then
+        # blocked its own repair, because `adapt_create` refuses a slug that
+        # exists -- so retrying the SAME slug with a proper rationale failed
+        # forever. It also counted as a live change-set in the RENAR manifest,
+        # whose `delta_adapts_count` selects `delta_n > 0 AND status !=
+        # 'superseded'`. A refusal has to be a NON-EVENT, not a partial write.
+        #
         # `or 0` guards a NULL delta_n (defensive — column is NOT NULL DEFAULT 0,
         # but a hand-edited / pre-migration row must not crash with a TypeError).
-        msg = self.adapt_create(
-            new_slug, title, tz_ref, parent_adapt=parent_slug, delta_n=(parent["delta_n"] or 0) + 1
-        )
-        self.be.adapt_set_status(parent_slug, "superseded")
+        # OWNERSHIP IS THE BACKEND'S JOB, NOT THIS FUNCTION'S. `begin_tx`
+        # no-ops inside an open transaction, but `commit_tx`/`rollback_tx` do
+        # not, so unwinding a transaction we did not open would discard the
+        # CALLER's rows and hand back a closed transaction it still believes it
+        # owns -- measured, not feared: an outer `begin_tx` + `epic_add` lost
+        # its epic to a refused delta nested inside it, with no exception to
+        # say so. `transaction()` keeps that accounting once (and, nested,
+        # unwinds only OUR part via SAVEPOINT, which the hand-written guard
+        # here could not do -- it could only leave the header for the caller
+        # to roll back). Refusal stays a NON-EVENT either way.
+        try:
+            with self.be.transaction():
+                msg = self.adapt_create(
+                    new_slug,
+                    title,
+                    tz_ref,
+                    parent_adapt=parent_slug,
+                    delta_n=(parent["delta_n"] or 0) + 1,
+                )
+                self.be.adapt_set_status(parent_slug, "superseded", supersession_rationale)
+        except ValueError as e:
+            # The guard spoke: a supersession without a reason must not be
+            # recorded, and neither must its delta.
+            raise ServiceError(str(e)) from e
         return f"{msg} Parent ADAPT '{parent_slug}' superseded (§7.6)."
 
     # --- links (adapt ↔ task/spec) ---

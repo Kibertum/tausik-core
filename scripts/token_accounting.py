@@ -43,6 +43,26 @@ UNKNOWN_ERA = "unknown"
 # named constant so a future measured value has exactly one place to change.
 NEW_TOKENIZER_INFLATION = 1.30
 
+#: Last session recorded by the DOUBLE-COUNTING arithmetic `sum_usage_tokens`
+#: used before it was corrected. Every `session_usage_metrics` row at or below
+#: this id was written by the old rule and is inflated by the measured 1.9999x
+#: wherever the API reported `usage.iterations`; every row above it is right.
+#:
+#: This is a fact about the data, captured once, not a calendar date — the value
+#: is `MAX(session_id)` at the moment of the fix, and sessions only go forward,
+#: so it cannot rot the way a date-based threshold does (that is exactly how
+#: Sonnet 5 was billed at another model's rate for months).
+#:
+#: The old rows are NOT rewritten. Transcripts survive for only 65 of the 227
+#: sessions, so the correct value is unknowable for the rest; and the inflation
+#: is not uniform — a session whose messages predate the `iterations` field was
+#: never doubled at all, and without its transcript there is no way to tell
+#: which is which. Halving blindly would corrupt the rows that were already
+#: right, and correcting only the recoverable ones would put a THIRD scale in
+#: the same column. The series is therefore left as it is and the report says
+#: so; see `render_metrics._usage_lines`.
+LAST_SESSION_ON_SUPERSEDED_TOKEN_ARITHMETIC = 227
+
 # Family -> the minimum (major, minor) version that uses the NEW tokenizer. A
 # model at or above the bound is NEW; strictly below is OLD. `None` means the
 # family has no known new-tokenizer release yet — every shipped version is OLD.
@@ -177,20 +197,46 @@ def _iter_tokens(entry: Any) -> tuple[int, int]:
 def sum_usage_tokens(usage: Any) -> tuple[int, int]:
     """(input, output) tokens INCLUDING separately-billed server-side compaction.
 
-    Top-level `input_tokens` / `output_tokens` omit compaction passes, which the
-    API reports under `usage.iterations[*]` (each entry carrying its own counts,
-    flat or under a nested `usage`). Summing only the top level understates the
-    real token count. Malformed input is zero-safe — telemetry must never raise
-    (a non-numeric field yields 0, not a ValueError up into the hook).
+    `usage.iterations` is the COMPLETE list of passes the API billed for this
+    message — the first pass included, not excluded. The top level is a VIEW of
+    that list, not a separate quantity: with one iteration it equals it exactly,
+    and with several it equals the FIRST one. So the total is the sum over
+    `iterations` when the list is non-empty, and the top level when there is no
+    list at all.
+
+    This function used to ADD the two, on the assumption that `iterations` held
+    only the extra compaction passes. Measured against every transcript this
+    project has (session #227, 23,836 messages with usage): 23,818 of them
+    — 99.92% — carry exactly one iteration whose fields equal the top level
+    character for character, so the old rule returned exactly DOUBLE. The
+    measured inflation was 1.9999x on the total, and it reached
+    `tokens_input` / `tokens_output` / `cost_usd` in `session_usage_metrics`,
+    which is what `tausik metrics` reports as this project's LLM spend.
+
+    The original INTENT was right and is preserved: compaction passes are real
+    and are billed separately. The 7 multi-iteration messages in that corpus
+    contribute 2,247 tokens that the top level alone would miss (top 32/2905
+    against an iteration sum of 64/3194) — this rule still counts them. What it
+    stops doing is counting the first pass twice.
+
+    Malformed input is zero-safe — telemetry must never raise (a non-numeric
+    field yields 0, not a ValueError up into the hook).
     """
     if not isinstance(usage, dict):
         return 0, 0
-    ti = _as_int(usage.get("input_tokens"))
-    to = _as_int(usage.get("output_tokens"))
+    top = (_as_int(usage.get("input_tokens")), _as_int(usage.get("output_tokens")))
     iters = usage.get("iterations")
-    if isinstance(iters, list):
-        for it in iters:
-            iti, ito = _iter_tokens(it)
-            ti += iti
-            to += ito
+    if not isinstance(iters, list) or not iters:
+        return top
+    ti = to = 0
+    for it in iters:
+        iti, ito = _iter_tokens(it)
+        ti += iti
+        to += ito
+    if (ti, to) == (0, 0) and top != (0, 0):
+        # The list is present but unreadable — entries that are not dicts, or
+        # whose counts are non-numeric. The top level is the FIRST pass, so it
+        # is a lower bound on the truth; reporting it beats reporting zero for a
+        # message we can plainly see was not free.
+        return top
     return ti, to

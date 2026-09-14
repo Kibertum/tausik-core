@@ -26,29 +26,24 @@ def cmd_events(svc: Any, args: Any) -> None:
     if sub in dispatch:
         dispatch[sub](svc, args)
         return
-    events = svc.events_list(entity_type=args.entity, entity_id=args.entity_id, n=args.limit)
-    if not events:
-        print("No events found.")
-        return
-    from output_rollup import render_rollup, should_rollup
+    # One renderer, both surfaces: the MCP handler was a second copy with no
+    # rollup and no `details`. Audit logs grow with the project; the rollup keeps
+    # the read bounded, and --full restores the per-event dump.
+    from render_status import events_lines
 
-    if should_rollup(len(events), full=getattr(args, "full", False)):
-        # Audit logs grow with the project; a per-entity/action rollup keeps the
-        # agent's read bounded. --full restores the exact per-event dump below.
-        for line in render_rollup(
-            events,
-            ["entity_type", "action"],
-            title="Events",
-            top_n=getattr(args, "top_n", None),
-            max_lines=getattr(args, "max_lines", None),
-        ):
-            print(line)
-        return
-    for ev in events:
-        actor = f" by {ev['actor']}" if ev.get("actor") else ""
-        print(f"[{ev['created_at']}] {ev['entity_type']}/{ev['entity_id']}: {ev['action']}{actor}")
-        if ev.get("details"):
-            print(f"  {ev['details']}")
+    print(
+        "\n".join(
+            events_lines(
+                svc,
+                args.entity,
+                args.entity_id,
+                args.limit,
+                full=getattr(args, "full", False),
+                top_n=getattr(args, "top_n", None),
+                max_lines=getattr(args, "max_lines", None),
+            )
+        )
+    )
 
 
 def cmd_events_emit_supervision(svc: Any, args: Any) -> None:
@@ -74,6 +69,30 @@ def cmd_events_emit_supervision(svc: Any, args: Any) -> None:
     from hook_supervision import emit_supervision_bypass, emit_supervision_degradation
 
     project_dir = os.path.dirname(svc.tausik_dir())
+
+    # SENAR 1.4 §8.6(j): the direct-edit vector carries the Gate Bypass (3.13)
+    # fields, and a record without a rationale is REFUSED here rather than
+    # written as a stub. Refusing the RECORD never refuses the edit — the edit
+    # already happened, and the standard treats it as a regulated exception, not
+    # a forbidden act. What it refuses is a row that would count as evidence of
+    # a decision nobody made.
+    from gate_bypass_record import DIRECT_EDIT_VECTOR, BypassRecordRefused, build
+
+    if args.vector == DIRECT_EDIT_VECTOR:
+        try:
+            details = build(
+                getattr(args, "bypass_task", None),
+                rationale=getattr(args, "rationale", None) or "",
+                risk_accepted=getattr(args, "risk_accepted", None) or "",
+                remediation=getattr(args, "remediation", None) or "",
+                approved_by=getattr(args, "approved_by", None) or "",
+            )
+        except BypassRecordRefused as exc:
+            print(f"Refused: {exc}", file=sys.stderr)
+            raise SystemExit(2) from exc
+        args.details = details
+        args.sup_source = getattr(args, "bypass_task", None) or args.sup_source
+
     if args.kind == "degradation":
         wrote = emit_supervision_degradation(
             project_dir, args.vector, args.sup_source, args.details

@@ -23,7 +23,11 @@ def cmd_adapt(svc: ProjectService, args: Any) -> None:
         if cmd == "show":
             return _cmd_show(svc, args.slug)
         if cmd == "create":
-            print(svc.adapt_create(args.slug, args.title, args.tz_ref))
+            print(
+                svc.adapt_create(
+                    args.slug, args.title, args.tz_ref, trigger_stage=args.trigger_stage
+                )
+            )
             return None
         if cmd == "interpret":
             print(
@@ -56,7 +60,15 @@ def cmd_adapt(svc: ProjectService, args: Any) -> None:
             )
             return None
         if cmd == "delta":
-            print(svc.adapt_delta(args.parent_slug, args.new_slug, args.title, args.tz_ref))
+            print(
+                svc.adapt_delta(
+                    args.parent_slug,
+                    args.new_slug,
+                    args.title,
+                    args.tz_ref,
+                    args.supersession_rationale,
+                )
+            )
             return None
         if cmd == "link":
             print(svc.adapt_link(args.adapt_slug, args.target_type, args.target_slug))

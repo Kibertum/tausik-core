@@ -91,6 +91,12 @@ def _capture_db_state() -> None:
         _DB_PRE_SVC_EXISTS = os.path.isfile(db)
 
 
+# The optional checks (Kilo, OpenCode, caveman, backlog, commit hooks, enforcement
+# coverage) live next door: this file is held at 490 lines with headroom, and the
+# six of them were the same block six times over.
+from service_doctor_external import run_optional_checks  # noqa: E402
+
+
 def cmd_doctor(svc: ProjectService, args: Any) -> None:
     failures = 0
     warnings = 0
@@ -132,91 +138,16 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
 
     ide, ide_rel = resolve_profile(project_dir)
     mcp_project = os.path.join(project_dir, ide_rel, "mcp", "project", "server.py")
-    mcp_brain = os.path.join(project_dir, ide_rel, "mcp", "brain", "server.py")
     if os.path.isfile(mcp_project):
         _print_ok("MCP server (project)", f"{ide_rel}/mcp/project/server.py")
     else:
         hint = missing_profile_hint(project_dir, ide)
         _print_fail("MCP server (project)", f"{ide_rel}/mcp/project/server.py {hint}")
         failures += 1
-    if os.path.isfile(mcp_brain):
-        _print_ok("MCP server (brain)", f"{ide_rel}/mcp/brain/server.py")
-    else:
-        _print_warn("MCP server (brain)", "missing — bootstrap may have skipped it")
-        warnings += 1
 
-    # Kilo MCP config — only fires for Kilo installs (.kilo/.kilocode present).
-    # Silent for non-Kilo projects so it adds no noise to the common path.
-    try:
-        from service_doctor_kilo import check_kilo_config
-
-        for severity, label, detail in check_kilo_config(project_dir):
-            if severity == "fail":
-                _print_fail(label, detail)
-                failures += 1
-            elif severity == "warn":
-                _print_warn(label, detail)
-                warnings += 1
-            else:
-                _print_ok(label, detail)
-    except Exception as e:  # noqa: BLE001 — best-effort: a Kilo-check bug must not crash doctor
-        _print_warn("Kilo MCP config", f"could not validate: {e}")
-        warnings += 1
-
-    # OpenCode config + QG-0 plugin — only fires for OpenCode installs (.opencode/).
-    # Catches the three failures that broke a user's host: a `tools` object
-    # (ConfigInvalidError), a missing/singular-dir plugin (enforcement silently off),
-    # and `instructions` pointing nowhere (rules silently never load).
-    try:
-        from service_doctor_opencode import check_opencode_config
-
-        for severity, label, detail in check_opencode_config(project_dir):
-            if severity == "fail":
-                _print_fail(label, detail)
-                failures += 1
-            elif severity == "warn":
-                _print_warn(label, detail)
-                warnings += 1
-            else:
-                _print_ok(label, detail)
-    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
-        _print_warn("OpenCode config", f"could not validate: {e}")
-        warnings += 1
-
-    # caveman interop — silent unless a user-installed caveman is present alongside
-    # TAUSIK's own output_mode. Surfaces coexistence + the .claude/settings.json overlap.
-    try:
-        from service_doctor_caveman import check_caveman_interop
-
-        for severity, label, detail in check_caveman_interop(project_dir):
-            if severity == "warn":
-                _print_warn(label, detail)
-                warnings += 1
-            else:
-                _print_ok(label, detail)
-    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
-        _print_warn("caveman interop", f"could not validate: {e}")
-        warnings += 1
-
-    # Backlog hygiene — open tasks no epic can reach. The release boundary is a
-    # mechanical "everything in epic X", so such a task is silently absent from
-    # every scope count. Warn, never fail: a standalone task is legitimate.
-    # Deferred AC — a criterion parked at closure inside work still in flight.
-    # Scoped to open epics so the signal stays clearable; a warning that names
-    # long-shipped history is one a reader learns to skip.
-    try:
-        from service_doctor_backlog import check_backlog_hygiene, check_deferred_acs
-
-        for check in (check_backlog_hygiene, check_deferred_acs):
-            for severity, label, detail in check(svc):
-                if severity == "warn":
-                    _print_warn(label, detail)
-                    warnings += 1
-                else:
-                    _print_ok(label, detail)
-    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
-        _print_warn("Backlog hygiene", f"could not validate: {e}")
-        warnings += 1
+    _f, _w = run_optional_checks(project_dir, svc, _print_ok, _print_warn, _print_fail)
+    failures += _f
+    warnings += _w
 
     skills_dir = os.path.join(project_dir, ide_rel, "skills")
     if os.path.isdir(skills_dir):
@@ -230,9 +161,6 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             "ship",
             "checkpoint",
         }
-        brain_critical, brain_undetermined = brain_skill_requirement()
-        if brain_critical:
-            critical.add("brain")
         missing = critical - set(skills)
         if not missing:
             _print_ok("Core skills", f"{len(skills)} deployed (all critical present)")
@@ -242,38 +170,18 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
                 f"missing critical: {sorted(missing)} — re-run bootstrap",
             )
             failures += 1
-        if brain_undetermined:
-            # A WARNING, never a failure. Inserting this block above once stole
-            # the `failures += 1` that belonged to the branch overhead — which
-            # both stopped missing critical skills from failing the check AND
-            # made an unreadable config fail it, the exact inversion of what the
-            # message right here promises. Counting stays with the FAIL branch.
-            _print_warn(
-                "Shared Brain",
-                "config unreadable — could not tell whether brain is enabled. "
-                "Treating it as OFF (the default), so this does not fail the check. "
-                "If you do use the Notion brain, fix .tausik/config.json and re-run.",
-            )
     else:
         _print_fail("Core skills", f"no {ide_rel}/skills/ — run bootstrap")
         failures += 1
 
-    drift_names = _scripts_drift_names(project_dir)
-    if drift_names is None:
-        _print_warn("Bootstrap drift", "could not compare scripts/ vs deployed profiles")
-        warnings += 1
-    elif drift_names:
-        shown = ", ".join(drift_names[:8])
-        more = f" (+{len(drift_names) - 8} more)" if len(drift_names) > 8 else ""
-        _print_warn(
-            "Bootstrap drift",
-            f"{len(drift_names)} deployed file(s) differ: {shown}{more} — "
-            "run `python bootstrap/bootstrap.py --ide all` to redeploy",
-        )
-        warnings += 1
-    else:
-        _print_ok("Bootstrap drift", "none — deployed scripts match source")
+    d_is_warn, d_detail = _format_scripts_drift_line(_scripts_drift_names(project_dir))
+    (_print_warn if d_is_warn else _print_ok)("Bootstrap drift", d_detail)
+    warnings += int(d_is_warn)
 
+    from pyc_hygiene import doctor_section  # a .pyc that names another tree lies in tracebacks
+
+    fix_pyc = getattr(args, "fix_bytecode", False)  # tests call cmd_doctor with bare namespaces
+    warnings += doctor_section(project_dir, fix_pyc, _print_ok, _print_warn)
     md_is_warn, md_detail = _format_claudemd_drift_line(_claudemd_drift_report(project_dir))
     if md_is_warn:
         _print_warn("CLAUDE.md drift", md_detail)
@@ -310,15 +218,23 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         if av_hint:
             _print_warn("Verify-First profile", av_hint)
             warnings += 1
-        # Trust tiers: a project-scope key that tried to weaken enforcement is
-        # dropped on read. Silent dropping would look like the setting works,
-        # so every rejection is named here.
-        if trust_rejections:
-            for r in trust_rejections:
-                _print_warn("Config trust tier", r.describe())
-            warnings += len(trust_rejections)
-        else:
-            _print_ok("Config trust tier", "no project-scope key weakens enforcement")
+        # THREE states, not two. A project-scope key that tried to weaken
+        # enforcement is dropped on read, and silent dropping would look like the
+        # setting works — so every rejection is named. A key a TRUSTED tier holds
+        # weaker is NOT dropped; saying nothing of it let the OK line read as
+        # "nothing is weakened" while QG-2 was being bypassed. WARN and never
+        # FAIL: those tiers are the operator's word, and doctor owes visibility
+        # here, not a verdict.
+        from config_trust_weakening import summary
+
+        weak_lines, weak_ok = summary(cfg, project_dir)
+        for r in trust_rejections:
+            _print_warn("Config trust tier", r.describe())
+        for line in weak_lines:
+            _print_warn("Config trust tier", line)
+        warnings += len(trust_rejections) + len(weak_lines)
+        if not trust_rejections and weak_ok:
+            _print_ok("Config trust tier", weak_ok)
     except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Config knobs", f"load failed: {e}")
         warnings += 1
@@ -344,29 +260,6 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_fail("Quality gates", f"config failed to resolve: {type(e).__name__}: {e}")
         failures += 1
 
-    # Brain config — surfaces "enabled but misconfigured" before the user
-    # accumulates local-only decisions/gotchas that should reach Notion.
-    # See defect v14b-defect-brain-decisions-empty.
-    try:
-        from brain_config import is_brain_enabled, validate_brain
-
-        if is_brain_enabled():
-            brain_errors = validate_brain()
-            if brain_errors:
-                first = brain_errors[0]
-                more = f" (+{len(brain_errors) - 1} more)" if len(brain_errors) > 1 else ""
-                _print_warn(
-                    "Brain config",
-                    f"enabled but misconfigured: {first}{more} — "
-                    f"run `tausik brain init` or set `brain.enabled=false`",
-                )
-                warnings += 1
-            else:
-                _print_ok("Brain config", "enabled, all 4 database_ids + token set")
-        else:
-            _print_ok("Brain config", "disabled (opt-in)")
-    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        _print_warn("Brain config", f"could not validate: {e}")
         warnings += 1
 
     try:
@@ -394,57 +287,6 @@ def _print_ok(label: str, detail: str) -> None:
     print(f"  {GREEN}  {label:<25} {detail}")
 
 
-def brain_skill_requirement() -> tuple[bool, bool]:
-    """(is_critical, undetermined) — is the opt-in brain skill required here?
-
-    Required only when `brain.enabled` is true. The rule lives here, in one
-    readable place, rather than inside `cmd_doctor` — which is how the
-    contradiction described below survived: a branch nine lines under the
-    comment that forbids it is far enough that nobody read them together, and
-    buried mid-function it was not testable either.
-
-    WHAT THE OLD BRANCH ACTUALLY DID. It added the brain skill to the critical
-    set when the config could not be loaded — "default-on when config
-    unreadable" — turning an OPT-IN subsystem into a required one. Two things
-    are worth stating precisely, because an earlier version of this docstring
-    got the second one wrong and review caught it.
-
-    First: it was a real inversion. Uncertainty must not manufacture a
-    requirement, and `enabled` defaults to False, so following the default is
-    the only reading consistent with the rest of the config layer.
-
-    Second, and contrary to what this docstring first claimed: a fresh project
-    with no config NEVER reached that branch. `load_config` already swallows a
-    missing or malformed file, prints "Config corrupted — using defaults", and
-    returns `{}`. So the except path fires only on unusual failures — an import
-    error, a filesystem fault — and the story about new projects failing their
-    health check was invented, not observed.
-
-    WHY EVERYTHING IS INSIDE THE TRY. The return used to sit outside it, and
-    that was a regression this very fix introduced: `{"brain": true}` — an
-    ordinary typo, valid JSON, no exception from `load_config` — made
-    `.get()` raise AttributeError out of a call `cmd_doctor` does not guard,
-    crashing the whole health check. A doctor that dies on a malformed config is
-    worse than one that misjudges it, because it reports nothing at all.
-
-    The second return value exists so the caller SAYS it could not tell: an
-    undetermined check that reports nothing is indistinguishable from one that
-    passed, and that is how a check quietly stops existing.
-    """
-    try:
-        from project_config import load_config  # noqa: PLC0415
-
-        cfg = load_config() or {}
-        brain = cfg.get("brain")
-        if not isinstance(brain, dict):
-            # Present but not a mapping — `{"brain": true}` and friends. Not an
-            # opt-in, and not a crash: treat it as off and say we could not tell.
-            return False, brain is not None
-        return bool(brain.get("enabled", False)), False
-    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-        return False, True
-
-
 def _print_warn(label: str, detail: str) -> None:
     print(f"  {YELLOW}  {label:<25} {detail}")
 
@@ -461,6 +303,7 @@ from service_doctor_drift import (  # noqa: E402,F401
     check_scripts_drift as _check_scripts_drift,
     claudemd_drift_report as _claudemd_drift_report,
     format_claudemd_drift_line as _format_claudemd_drift_line,
+    format_scripts_drift_line as _format_scripts_drift_line,
     scripts_drift_names as _scripts_drift_names,
 )
 

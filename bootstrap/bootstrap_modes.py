@@ -83,8 +83,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Include skills-official/registry.json stubs in the deployed set. "
-            "Default since v1.4: only source harness/skills/ are deployed (12 + brain "
-            "conditional). Use this flag to restore the larger pre-v1.4 skill list."
+            "Default since v1.4: only source harness/skills/ are deployed. "
+            "Use this flag to restore the larger pre-v1.4 skill list."
         ),
     )
     parser.add_argument(
@@ -202,7 +202,7 @@ def run_post_bootstrap(
     args: Any,
     project_dir: str,
 ) -> None:
-    """Post-bootstrap: optionally invoke `tausik init` and prompt for Brain setup."""
+    """Post-bootstrap: optionally invoke `tausik init`."""
     import subprocess
 
     if args.init is not None:
@@ -219,6 +219,30 @@ def run_post_bootstrap(
                 check=True,
                 timeout=30,
             )
+            # RENDER THE DYNAMIC BLOCK BEFORE DECLARING THE PROJECT READY.
+            # `init` writes CLAUDE.md with an EMPTY dynamic block, and the
+            # `claudemd_state_drift` gate — blocking, on by default — then
+            # refuses the project's FIRST close: a block with no memory tail is
+            # exactly what drift looks like. Measured on a real consumer walk
+            # (session #240): bootstrap, task, code, green verify, `task done`
+            # BLOCKED. On a machine that already has a shared knowledge store
+            # the tail is non-empty from the very start, so the gate had
+            # something to compare against and the fresh block carried none of
+            # it.
+            #
+            # Best-effort: a project that cannot render its block is still a
+            # usable project, and failing bootstrap over a generated file would
+            # be the worse trade.
+            try:
+                subprocess.run(
+                    [tausik_wrapper, "update-claudemd"],
+                    cwd=project_dir,
+                    check=False,
+                    timeout=30,
+                    capture_output=True,
+                )
+            except (OSError, subprocess.SubprocessError):
+                pass
             print(f"\nProject '{init_name}' initialized and ready!")
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             print(f"\nBootstrap complete but init failed: {e}\n  Run manually: .tausik/tausik init")
@@ -231,34 +255,6 @@ def run_post_bootstrap(
             )
         else:
             print("\nBootstrap complete! Run:\n  .tausik/tausik init")
-
-    # Brain wizard runs only when interactive AND project was just initialised:
-    # brain init writes into the project DB.
-    if args.interactive and args.init is not None:
-        try:
-            answer = (
-                input("\nSetup Shared Brain (cross-project knowledge in Notion)? [y/N] ")
-                .strip()
-                .lower()
-            )
-        except EOFError:
-            answer = ""
-        if answer in ("y", "yes"):
-            wrapper_name = "tausik.cmd" if sys.platform == "win32" else "tausik"
-            tausik_wrapper = os.path.join(project_dir, ".tausik", wrapper_name)
-            try:
-                subprocess.run(
-                    [tausik_wrapper, "brain", "init"],
-                    cwd=project_dir,
-                    check=False,
-                )
-            except FileNotFoundError as e:
-                print(
-                    f"  Could not launch brain init wizard: {e}\n"
-                    "  Run manually later: .tausik/tausik brain init"
-                )
-        else:
-            print("  Skipping Shared Brain setup. Run later with `.tausik/tausik brain init`.")
 
 
 def load_bootstrap_config(

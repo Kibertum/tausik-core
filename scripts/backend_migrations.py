@@ -10,6 +10,7 @@ Legacy migrations (v2-v11) are in backend_migrations_legacy.py.
 
 from __future__ import annotations
 
+
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
 from backend_schema import SCHEMA_VERSION
 from backend_migrations_postseed import run_post_migrations
@@ -26,6 +27,21 @@ from backend_migrations_v43 import MIGRATION_V43
 from backend_migrations_v44 import MIGRATION_V44
 from backend_migrations_v45 import MIGRATION_V45
 from backend_migrations_v46 import MIGRATION_V46
+from backend_migrations_v47 import MIGRATION_V47
+from backend_migrations_v48 import MIGRATION_V48
+from backend_migrations_v49 import MIGRATION_V49
+from backend_migrations_v50 import MIGRATION_V50
+from backend_migrations_v52 import MIGRATION_V52
+from backend_migrations_v53 import MIGRATION_V53
+from backend_migrations_v54 import MIGRATION_V54
+from backend_migrations_v55 import MIGRATION_V55
+from backend_migrations_v56 import MIGRATION_V56
+from backend_migrations_v57 import MIGRATION_V57
+from backend_migrations_v58 import MIGRATION_V58
+from backend_migrations_v59 import MIGRATION_V59
+from backend_migrations_v60 import MIGRATION_V60
+from backend_migrations_v61 import MIGRATION_V61
+from backend_migrations_v62 import MIGRATION_V62
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -364,6 +380,57 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v46: the edge that makes a plan's ORDER expressible
     # (task-next-cannot-express-plan-order). One additive table.
     46: MIGRATION_V46,
+    # v47: a gate row records its OUTCOME and its REASON, so a check that
+    # could not run stops being stored as one that passed
+    47: MIGRATION_V47,
+    # v48: атрибуция расхода ключуется ЗАДАЧЕЙ, а не сессией
+    # (usage-attribution-is-keyed-by-task-not-session). Список пуст намеренно —
+    # перестройка usage_events живёт охраняемым пост-шагом, чтобы уметь
+    # пропустить себя на частичной фикстуре без этой таблицы (см. v48-модуль).
+    48: MIGRATION_V48,
+    # v49: закрытый перечень типов SPEC доводится до одиннадцати (ADR-013).
+    # Список пуст намеренно — перестройка specs живёт охраняемым пост-шагом,
+    # чтобы уметь пропустить себя на частичной фикстуре (см. v49-модуль).
+    49: MIGRATION_V49,
+    # v50: закрытый перечень статусов ADAPT приводится к §7.8.1, плюс
+    # две колонки ADR-007 (trigger_stage, supersession_rationale). Список пуст
+    # намеренно — перестройка adapts живёт охраняемым пост-шагом (см. v50-модуль).
+    50: MIGRATION_V50,
+    # v51: каждая строка gate_runs несёт ОБЪЯВЛЕННЫЙ ЭФФЕКТ гейта
+    # (SENAR 1.4 §8.6(a) и §8.6(g)). Старые строки остаются с NULL —
+    # это честное «записано до появления различения», а не догадка.
+    51: [
+        "ALTER TABLE gate_runs ADD COLUMN prevents TEXT",
+    ],
+    # v52: RENAR ACTZ artifacts (actz-the-contract-contour-artifact-is-missing,
+    # RENAR §5A). New tables only -- SQL in backend_schema_actz.py, reused
+    # verbatim (this is ACTZ's first migration, no historical delta to keep
+    # separate from the fresh-DB shape).
+    52: MIGRATION_V52,
+    # v53: actz_points.tz_ref (final-tz-is-the-acceptance-reference-and-we-have-none)
+    # -- which ТЗ clause a point clarifies, so the final-TZ view can group by it.
+    53: MIGRATION_V53,
+    # v54: RENAR AT (Acceptance Test) artifacts (at-acceptance-tests-derived-by-an-isolated-agent)
+    # -- SQL in backend_schema_at.py, reused verbatim (AT's first migration).
+    54: MIGRATION_V54,
+    # v55: at_results append-only outcome history
+    # (at-red-with-tc-green-routes-to-interpretation-not-code).
+    55: MIGRATION_V55,
+    # v56: artifact graph -- code and docs as entities, every edge carrying the
+    # layer it was obtained by (ag-artifacts-and-edges-with-provenance).
+    56: MIGRATION_V56,
+    # v57: collapse the session_record pile
+    # (usage-events-sums-cumulative-snapshots-as-if-they-were-events) --
+    # DATA ONLY. SQL in backend_migrations_v57.py, a frozen literal like
+    # v52/v56 rather than a read of the live schema.
+    57: MIGRATION_V57,
+    58: MIGRATION_V58,
+    59: MIGRATION_V59,
+    60: MIGRATION_V60,
+    61: MIGRATION_V61,
+    # v62: idx_tasks_defect_of -- status spent 5 s in one unindexed EXISTS and
+    # the SessionStart hook timed out on it (backend_migrations_v62.py).
+    62: MIGRATION_V62,
 }
 
 

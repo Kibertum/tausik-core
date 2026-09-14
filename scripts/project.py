@@ -16,6 +16,15 @@ def main() -> None:
     from tausik_utils import fix_stdio_encoding, install_file_logging
 
     fix_stdio_encoding()
+
+    # Before anything reads an argument: refuse a command line that cmd.exe
+    # ate part of. Runs after fix_stdio_encoding so the diagnostic can carry
+    # non-ASCII, and before install_file_logging so a mangled line is not
+    # recorded as a real invocation.
+    from cmdline_fidelity import enforce as _enforce_cmdline_fidelity
+
+    _enforce_cmdline_fidelity()
+
     install_file_logging()
 
     from project_cli import (
@@ -42,6 +51,9 @@ def main() -> None:
     )
     from project_cli_config import cmd_config
     from project_cli_doctor import cmd_doctor
+    from project_cli_coherence import cmd_coherence
+    from project_cli_graph import cmd_graph
+    from project_cli_symbol import cmd_symbol
     from project_cli_hygiene import cmd_hygiene
     from project_cli_redact import cmd_redact
     from project_cli_role import cmd_role
@@ -49,7 +61,6 @@ def main() -> None:
     from project_cli_audit import cmd_audit
     from project_cli_metrics import cmd_metrics
     from project_cli_ops import (
-        cmd_brain,
         cmd_dead_end,
         cmd_doc,
         cmd_explore,
@@ -59,9 +70,12 @@ def main() -> None:
         cmd_suggest_model,
     )
     from project_cli_events import cmd_events
+    from project_cli_publish import cmd_publish
     from project_cli_specs import cmd_spec
     from project_cli_state import cmd_state, cmd_sync
+    from project_cli_actz import cmd_actz
     from project_cli_adapts import cmd_adapt
+    from project_cli_at import cmd_at
     from project_cli_drift import cmd_drift
     from project_cli_renar import cmd_renar
     from cli_push_ok import cmd_push_ok
@@ -108,6 +122,8 @@ def main() -> None:
         "state": cmd_state,
         "sync": cmd_sync,
         "adapt": cmd_adapt,
+        "actz": cmd_actz,
+        "at": cmd_at,
         "drift": cmd_drift,
         "renar": cmd_renar,
         "fts": cmd_fts,
@@ -118,15 +134,18 @@ def main() -> None:
         "dead-end": cmd_dead_end,
         "explore": cmd_explore,
         "audit": cmd_audit,
-        "brain": cmd_brain,
         "doc": cmd_doc,
         "run": cmd_run,
         "review": cmd_review,
+        "coherence": cmd_coherence,
+        "graph": cmd_graph,
+        "symbol": cmd_symbol,
         "hygiene": cmd_hygiene,
         "redact": cmd_redact,
         "config": cmd_config,
         "db": cmd_db,
         "push-ok": cmd_push_ok,
+        "publish": cmd_publish,
         "key": cmd_key,
         "receipt": cmd_receipt,
         "serve": cmd_serve,

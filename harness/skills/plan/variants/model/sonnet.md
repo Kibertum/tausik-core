@@ -27,7 +27,6 @@ Save the user spec via `tausik_task_log` after task creation.
 
 - `tausik_memory_search` — relevant patterns/conventions
 - `tausik_memory_list type=dead_end` — avoid past failures
-- **`brain_search` (cross-project, 1.4+)** — `category="patterns"` and `category="gotchas"`, `limit=3` each, query = task keywords + stack tag. Skip silently if `tausik-brain` MCP missing. Filter out ids that appear in `memory_list type=convention` with title prefix `brain.ignored:`.
 
 ### 3. Detect stack and load defaults
 

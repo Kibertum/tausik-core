@@ -54,7 +54,8 @@ class TestGenerateClaudeMd:
         assert "## Workflow" in text
         assert "start → plan → task" in text
         assert "## Memory" in text
-        assert "TAUSIK memory" in text
+        assert "Project memory" in text
+        assert "Shared knowledge" in text
         assert "Agent auto-memory" in text
 
     def test_contains_senar_rules_table(self, tmp_path):
@@ -75,7 +76,11 @@ class TestGenerateClaudeMd:
         Upper bound was 150 before r14-overrides-integration; v1.4 appends the
         `harness/overrides/claude/rules.md` block (~15 lines) right before the
         DYNAMIC marker, so the budget needed to grow to absorb it without
-        forcing every IDE-specific rule into the shared body.
+        forcing every IDE-specific rule into the shared body. 1.9 added the
+        ten-line compaction contract to a body that sat at 180 exactly and PAID
+        for it (memory and SENAR prose compressed, no rule dropped) rather than
+        moving this bound — see test_graph_is_framework_machinery for the same
+        convention.
         """
         text = self._generate_and_read(tmp_path, "proj", ["python"])
         lines = text.splitlines()

@@ -68,6 +68,72 @@ def cmd_audit_research(args: Any) -> None:
         print("\n  Audit is read-only — review manually before moving.")
 
 
+def cmd_audit_evidence(svc: ProjectService, args: Any) -> None:
+    """`tausik audit evidence [--json] [--no-git]` — do closure citations still resolve?
+
+    Read-only and NON-BLOCKING by construction: it neither fails nor returns a
+    non-zero status on findings. Renaming a test is legitimate; the point is
+    that the decay is visible, not that refactoring is punished.
+    """
+    from audit_closure_evidence import (
+        ILLUSTRATIVE,
+        NEVER_EXISTED,
+        ROTTED,
+        UNKNOWN_HISTORY,
+        audit_closure_evidence,
+        default_probe,
+    )
+
+    # --no-git is not a speed switch: without history the audit CANNOT tell a
+    # rename from a path that never existed, so it withholds the verdict rather
+    # than picking the likelier one.
+    probe = None if getattr(args, "no_git", False) else default_probe
+    report = audit_closure_evidence(_os.getcwd(), svc.task_list(status="done"), probe=probe)
+
+    if getattr(args, "as_json", False):
+        print(_json.dumps(report, ensure_ascii=False, indent=2))
+        return
+
+    print("Closure-evidence audit (read-only, never blocks):")
+    print(f"  closed tasks scanned:   {report['tasks_scanned']}")
+    print(f"  tasks citing a test:    {report['tasks_with_refs']}")
+    print(f"  citations / unique:     {report['refs_total']} / {report['refs_unique']}")
+    print(f"  resolve today:          {report['resolved_unique']}")
+    counts = report["counts"]
+    print(f"  ROTTED (was in git history, gone now):  {counts[ROTTED]}")
+    print(f"  NEVER_EXISTED (git never had it):       {counts[NEVER_EXISTED]}")
+    print(f"  UNKNOWN_HISTORY (git could not answer): {counts[UNKNOWN_HISTORY]}")
+    # Printed with the others, not folded away: the three counts above are only
+    # trustworthy while a reader can see how many refs were set aside and why.
+    print(f"  ILLUSTRATIVE (an example quoted, not a citation): {counts[ILLUSTRATIVE]}")
+    for verdict, blurb in (
+        (
+            ROTTED,
+            "renamed or deleted AFTER closure — the reference decayed, coverage may be intact",
+        ),
+        (NEVER_EXISTED, "never in git: a synthetic path quoted on purpose, or invented at closure"),
+        (UNKNOWN_HISTORY, "git refused to answer — verdict withheld, not guessed"),
+        (
+            ILLUSTRATIVE,
+            "a conventional example name, quoted by a task whose subject IS the citation form",
+        ),
+    ):
+        rows = [f for f in report["findings"] if f["verdict"] == verdict]
+        if not rows:
+            continue
+        print(f"\n  {verdict} ({blurb}):")
+        for f in rows:
+            near = f["successor_candidate"]
+            hint = f"  ~ CANDIDATE, not a verdict: {near}" if near else ""
+            amb = "  [ambiguous file name]" if f["ambiguous"] else ""
+            why = f.get("illustrative_reason")
+            reason = f"  <- {why}" if why else ""
+            print(f"    - {f['ref']}{amb}{hint}{reason}")
+            print(f"        cited by: {', '.join(f['tasks'])}")
+    print("\n  A successor is a suggestion from name similarity. Confirm it by reading the")
+    print("  test before treating it as the same check under a new name.")
+
+
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
     from cli_entrypoint import refuse_direct_run
 
@@ -82,6 +148,8 @@ def cmd_audit(svc: ProjectService, args: Any) -> None:
         cmd_audit_vendors(args)
     elif c == "research":
         cmd_audit_research(args)
+    elif c == "evidence":
+        cmd_audit_evidence(svc, args)
     else:
         # Default and "check" -- same behavior
         warning = svc.audit_check()

@@ -328,7 +328,16 @@ class TestNoTestsExpectedEscape:
         assert code == 0, "документационная задача обязана иметь способ закрыться"
 
     def test_declared_run_is_reusable_by_task_done(self, conn, monkeypatch, no_envelope, tmp_path):
-        """AC1: иначе выход был бы декоративным — task done всё равно не закрылся бы."""
+        """AC1: иначе выход был бы декоративным — task done всё равно не закрылся бы.
+
+        ФОРМА ПРИГОДНОСТИ ИЗМЕНИЛАСЬ в senar-14-fail-closed-when-no-gate-actually-ran.
+        Раньше такой прогон принимался поиском свежего зелёного САМ ПО СЕБЕ, и
+        это и был дефект: SENAR 1.4 §8.6(e) — свойство ВЕРДИКТА, а отсутствие
+        отрицательной находки вердиктом не является. Выход остался (иначе
+        документационная задача снова упёрлась бы в тупик), но он стал ВТОРЫМ
+        ЯВНЫМ АКТОМ: закрывающий признаёт пустоту флагом --gates-not-applicable.
+        Обе стороны утверждаются здесь, иначе тест доказывал бы только запрет.
+        """
         from verify_cache import has_fresh_verify_run
 
         for name in DECLARED:
@@ -336,8 +345,13 @@ class TestNoTestsExpectedEscape:
         monkeypatch.chdir(tmp_path)
 
         _run_cli(conn, DECLARED, monkeypatch, ALL_SKIPPED, no_tests_expected=True)
-        ok, hit = has_fresh_verify_run(conn, "t", DECLARED)
-        assert ok is True
+
+        refused, hit = has_fresh_verify_run(conn, "t", DECLARED)
+        assert refused is False, "прогон без единого выполненного гейта не вердикт"
+        assert hit is not None, "отказ обязан назвать строку, которую он отверг"
+
+        accepted, hit = has_fresh_verify_run(conn, "t", DECLARED, zero_gate_ack=True)
+        assert accepted is True, "выход обязан оставаться проходимым по явному признанию"
         assert hit is not None
 
     def test_declared_run_is_auditable_by_one_query(self, conn, monkeypatch, no_envelope):
@@ -494,53 +508,47 @@ class TestReceiptSignFailureIsObservable:
     """
 
     def test_signing_failure_with_key_is_visible_warning(self, conn, monkeypatch, capsys):
-        from project_cli_verify import _emit_receipt
+        from render_verify import receipt_lines
 
-        monkeypatch.setattr("project_cli_verify._project_has_key", lambda _svc: True)
+        monkeypatch.setattr("render_verify._project_has_key", lambda _svc: True)
         svc = _FakeSvc(conn, DECLARED)
         run_id = _insert_run(conn, receipt_json=None)  # emission failed → no receipt
 
-        _emit_receipt(svc, run_id)
-
-        out = capsys.readouterr().out
+        out = "\n".join(receipt_lines(svc, run_id))
         assert "WARNING" in out, "a configured key that failed to sign must warn visibly"
         assert "no project key" not in out, "must NOT be mistaken for the benign no-key case"
         # countable metric recorded
         assert any(ev[:1] == ("verify",) and ev[2] == "receipt_sign_failed" for ev in svc.be.events)
 
     def test_no_key_is_benign_notice_without_event(self, conn, monkeypatch, capsys):
-        from project_cli_verify import _emit_receipt
+        from render_verify import receipt_lines
 
-        monkeypatch.setattr("project_cli_verify._project_has_key", lambda _svc: False)
+        monkeypatch.setattr("render_verify._project_has_key", lambda _svc: False)
         svc = _FakeSvc(conn, DECLARED)
         run_id = _insert_run(conn, receipt_json=None)
 
-        _emit_receipt(svc, run_id)
-
-        out = capsys.readouterr().out
+        out = "\n".join(receipt_lines(svc, run_id))
         assert "no project key" in out
         assert "WARNING" not in out
         assert not svc.be.events, "the benign no-key path must not record a failure event"
 
     def test_signed_receipt_reports_signed(self, conn, capsys):
-        from project_cli_verify import _emit_receipt
+        from render_verify import receipt_lines
 
         svc = _FakeSvc(conn, DECLARED)
         run_id = _insert_run(
             conn, receipt_json=json.dumps({"signature": {"key_fingerprint": "abcd"}})
         )
 
-        _emit_receipt(svc, run_id)
-
-        out = capsys.readouterr().out
+        out = "\n".join(receipt_lines(svc, run_id))
         assert "signed" in out and "abcd" in out
         assert not svc.be.events
 
     def test_unrecorded_run_reports_not_recorded(self, conn, capsys):
-        from project_cli_verify import _emit_receipt
+        from render_verify import receipt_lines
 
-        _emit_receipt(_FakeSvc(conn, DECLARED), None)
-        assert "not recorded" in capsys.readouterr().out
+        out = "\n".join(receipt_lines(_FakeSvc(conn, DECLARED), None))
+        assert "not recorded" in out
 
 
 class TestProjectHasKeyDetection:
@@ -554,12 +562,12 @@ class TestProjectHasKeyDetection:
 
     def test_true_when_key_present(self, conn, tmp_path):
         import crypto_keys
-        from project_cli_verify import _project_has_key
+        from render_verify import _project_has_key
 
         crypto_keys.init_keys(str(tmp_path))
         assert _project_has_key(self._svc_with_dir(conn, str(tmp_path))) is True
 
     def test_false_when_key_absent(self, conn, tmp_path):
-        from project_cli_verify import _project_has_key
+        from render_verify import _project_has_key
 
         assert _project_has_key(self._svc_with_dir(conn, str(tmp_path))) is False

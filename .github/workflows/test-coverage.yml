@@ -22,11 +22,39 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install pytest pytest-cov
+        # pytest-xdist is required, not optional: pyproject's addopts carry `-n auto`,
+        # and without the plugin pytest exits on `unrecognized arguments: -n` before
+        # collecting anything. The `|| true` on the run step below would then swallow
+        # that death and this job would report "no coverage data" instead of a failure.
+        run: pip install pytest pytest-xdist pytest-cov
+
+      # The deployed IDE profiles (.claude, .cursor, .kilo, .opencode, .qwen) and
+      # .tausik/ are bootstrap OUTPUT and are gitignored, so a fresh clone has
+      # neither. Fourteen test files need them and failed here every run —
+      # measured on a pristine clone, identical list across two runs — while
+      # `|| true` below turned that into silence and the coverage number was
+      # computed on the remainder. The gating lanes (tests.yml, .gitlab-ci.yml)
+      # have always run this step; only this advisory lane did not.
+      - name: Deploy IDE profiles
+        run: python bootstrap/bootstrap.py --no-detect --ide all
 
       - name: Run tests with coverage
+        # ADVISORY, NOT SILENT. This lane deliberately does not gate the PR, so
+        # the coverage report is still uploaded when tests fail — that is what
+        # the `|| true` was for. But a failure that produces no signal is the
+        # silent error this project refuses everywhere else, so the exit code is
+        # CAPTURED and re-reported as a loud annotation instead of discarded.
+        id: pytest
         run: |
-          pytest tests/ -v --cov=scripts --cov-report=json:coverage.json --cov-report=term-missing || true
+          set +e
+          pytest tests/ -v --cov=scripts --cov-report=json:coverage.json --cov-report=term-missing
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Say so when the measured run was not green
+        if: steps.pytest.outputs.exit_code != '0'
+        run: |
+          echo "::warning title=Coverage measured on a failing run::pytest exited ${{ steps.pytest.outputs.exit_code }}. The percentage below covers only the tests that ran."
 
       - name: Upload coverage report artifact
         uses: actions/upload-artifact@v4

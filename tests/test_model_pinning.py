@@ -144,17 +144,26 @@ def test_task_done_persists_mismatch_in_evidence(svc, monkeypatch):
 # === AC3: metrics by model ===
 
 
-def test_rollup_by_model_excludes_session_record(svc, monkeypatch):
+def test_rollup_by_model_reads_the_session_slice_not_the_posttool_one(svc, monkeypatch):
+    """The by-model view comes from session records, where the model lives.
+
+    It used to read the `posttool` slice and exclude `session_record`. On this
+    project `model_id` is filled in exactly ONE of 54,855 posttool rows — the
+    PostToolUse payload carries no usage — so the report named `claude-opus-4-7`
+    as the only model and gave it all the spend, while the work had been running
+    on `claude-opus-5` and `claude-sonnet-5` for months. The exclusivity contract
+    is unchanged; the report now stands on the other side of it.
+    """
     monkeypatch.setenv("TAUSIK_AGENT_MODEL", "claude-opus-4-8")
     sid = svc.be.session_start()
     _seed_task(svc)
+    # posttool rows carry call volume, not model spend — they must not appear.
     _add_usage(svc, sid, "mp1", "claude-opus-4-8", source="posttool")
     _add_usage(svc, sid, "mp1", "claude-sonnet-4-6", source="posttool")
-    # session_record aggregate must NOT be counted in the by-model rollup.
-    _add_usage(svc, sid, None, "claude-opus-4-8", source="session_record")
+    _add_usage(svc, sid, None, "claude-opus-5", source="session_record")
     rollup = {r["model_id"]: r for r in svc.be.usage_events_cost_rollup_by_model()}
-    assert set(rollup) == {"claude-opus-4-8", "claude-sonnet-4-6"}
-    assert rollup["claude-opus-4-8"]["event_count"] == 1  # session_record excluded
+    assert set(rollup) == {"claude-opus-5"}
+    assert rollup["claude-opus-5"]["event_count"] == 1
 
 
 def test_format_model_usage_section():

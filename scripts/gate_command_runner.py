@@ -18,12 +18,68 @@ import os
 import re
 import shlex
 import subprocess
-from typing import IO
 
-from gate_test_resolver import count_test_files, resolve_test_files_for_relevant
+import gate_outcome as _outcome
+from gate_outcome import GateOutcome
+from gate_shellless_exec import (  # noqa: F401 — re-exported: three test modules import these by their old home
+    _exec_pipeline,
+    _GateCommandError,
+    _resolve_argv0,
+    _run_shellless,
+    _split_tokens,
+    _tokenize_command,
+)
+from gate_test_resolver import (
+    count_test_files,
+    deferred_global_crosscutting_for_relevant,
+    direct_import_count_for_relevant,
+    parse_errors_for_relevant,
+    resolve_test_files_for_relevant,
+)
+from tausik_utils import cli_invocation
+
+# How to spell the CLI in a remediation the reader's shell will accept.
+_CLI = cli_invocation()
 
 
+# Retired as a transport (check-result-conflates-could-not-run-with-passed): a
+# non-execution is now an outcome, not a magic string riding the output channel.
+# The name is kept because it is re-exported from gate_runner and asserted by
+# existing tests; nothing produces it any more.
 _SCOPED_SKIP_SENTINEL = "__TAUSIK_SCOPED_SKIP__"
+
+# pytest says "I collected nothing" in its own exit code, and has since forever
+# (EXIT_NOTESTSCOLLECTED). Collapsing it into "something failed" is the mirror
+# half of this task's defect: session #182 measured `[FAIL] pytest (block)` on
+# `5 deselected` — no test failed, none ran. Measured directly, not assumed:
+# `python -m pytest tests/test_skill_cli_help.py -q` exits 5.
+_PYTEST_NO_TESTS_COLLECTED = 5
+
+# Recognise pytest as a TOKEN so `python.exe -m pytest ...` counts too — the
+# same shape the TAUSIK_VERIFY_FULL injection below already relies on.
+_PYTEST_TOKEN = re.compile(r"(^|\s)pytest(\s|$)")
+
+# One scoped pytest command has a hard per-command budget.  Sending a large but
+# still honest selection as a single argv makes its proof time out; `&&` is
+# executed shelllessly and gives every batch that same budget without raising it.
+# The slowest proof modules take roughly one transport window alone.  Four
+# modules leave them room under the existing per-command timeout; a larger
+# batch makes a complete, honest selection fail merely by aggregation.
+_SCOPED_PYTEST_BATCH_SIZE = 4
+
+# The remedy the #182 refusal never named. Kept next to the reason it belongs
+# to so the two cannot drift apart, and spelled as the environment variable
+# because `--full` DOES NOT EXIST: `verify --help` lists --task, --scope,
+# --relevant-files and --no-tests-expected, and nothing else. pyproject.toml
+# used to promise the flag as well; that promise was DELETED rather than
+# implemented, so the environment variable is now the single true name for the
+# full lane and this string cannot send anyone to a flag the product refuses.
+_FULL_LANE_REMEDY = (
+    "No test ran: the default lane is `-m 'not slow'` (pyproject.toml addopts) "
+    "and every collected test was deselected. This is not a failure — nothing "
+    "was checked. Re-run the gate over the full battery with "
+    "TAUSIK_VERIFY_FULL=1 set in the environment."
+)
 
 # How many scoped test files to name before summarising the rest.
 _SCOPE_LABEL_MAX_NAMED = 5
@@ -58,7 +114,9 @@ def split_scope(output: str) -> tuple[str, str]:
     return first, rest
 
 
-def _scope_label(test_files: list[str], total: int) -> str:
+def _scope_label(
+    test_files: list[str], total: int, *, direct_imports: int = 0, deferred_global: int = 0
+) -> str:
     """One ASCII line stating WHAT a scoped pytest run actually covered.
 
     The gate answers "do the tests mapped to relevant_files pass?", but its
@@ -75,9 +133,15 @@ def _scope_label(test_files: list[str], total: int) -> str:
     if rest > 0:
         named += f", +{rest} more"
     denominator = f" of {total}" if total else ""
+    deferred = (
+        f"; global tree checks deferred to full/release lane: {deferred_global}"
+        if deferred_global
+        else ""
+    )
     return (
         f"{SCOPE_PREFIX} scoped run over {len(test_files)}{denominator} test "
-        f"file(s) mapped from relevant_files -- NOT the full suite: {named}"
+        f"file(s) mapped from relevant_files (direct-import subject tests: {direct_imports}) "
+        f"-- NOT the full suite{deferred}: {named}"
     )
 
 
@@ -126,151 +190,57 @@ def _apply_line_filter(output: str, line_filter: tuple[str, int]) -> str:
 # operators we act on are `&&` (sequential AND) and `|` (pipe). Every other
 # shell metacharacter shlex surfaces (`;`, `||`, `&`, `(`, `)`, `<`, `>`, `>>`)
 # is refused, so the gate fails safely instead of executing an unknown tail.
-_SEQ_OP = "&&"
-_PIPE_OP = "|"
-_KNOWN_OPS = frozenset({_SEQ_OP, _PIPE_OP})
-_SHELL_PUNCT = "();<>|&"
-
-
-class _GateCommandError(ValueError):
-    """Raised for a gate command the shell-less runner refuses to execute."""
-
-
-def _tokenize_command(cmd: str) -> list[str]:
-    """shlex-tokenize, surfacing shell operators (&&, |, ;, ...) as own tokens.
-
-    posix=True so quoting works; punctuation_chars=True makes runs of the
-    shell metacharacters their own tokens, letting us detect — and reject —
-    anything beyond the `&&`/`|` we support instead of handing it to a shell.
-    """
-    lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
-    lex.whitespace_split = True
-    return list(lex)
-
-
-def _split_tokens(tokens: list[str], op: str) -> list[list[str]]:
-    """Split a token list on a separator operator into groups."""
-    groups: list[list[str]] = [[]]
-    for tok in tokens:
-        if tok == op:
-            groups.append([])
-        else:
-            groups[-1].append(tok)
-    return groups
-
-
-def _exec_pipeline(stages: list[list[str]], timeout: int) -> tuple[int, str]:
-    """Run one `|`-connected pipeline (argv stages). Returns (rc, output)."""
-    if len(stages) == 1:
-        argv = list(stages[0])
-        argv[0] = os.path.normpath(argv[0])
-        r = subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            stdin=subprocess.DEVNULL,
-        )
-        return r.returncode, r.stdout + r.stderr
-    # Multi-stage: chain stdout->stdin. We capture only the final stage's
-    # stdout+stderr (gate semantics); intermediate stderr is discarded to
-    # avoid pipe-buffer deadlocks. Pipelines are rare once truncation pipes
-    # (`| head/tail`) are stripped upstream.
-    procs: list[subprocess.Popen[str]] = []
-    prev_stdout: IO[str] | None = None
-    for i, raw in enumerate(stages):
-        argv = list(raw)
-        argv[0] = os.path.normpath(argv[0])
-        is_last = i == len(stages) - 1
-        proc = subprocess.Popen(
-            argv,
-            stdin=prev_stdout if prev_stdout is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE if is_last else subprocess.DEVNULL,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        if prev_stdout is not None:
-            prev_stdout.close()  # let upstream see SIGPIPE when downstream exits
-        prev_stdout = proc.stdout
-        procs.append(proc)
-    last = procs[-1]
-    try:
-        out, err = last.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        for proc in procs:
-            proc.kill()
-        for proc in procs:
-            proc.wait()
-        raise
-    for proc in procs[:-1]:
-        # Last stage already finished; upstream stages should have seen EOF/
-        # SIGPIPE and be exiting. Bound the reap so a stage that ignores the
-        # signal (or otherwise hangs) cannot wedge the gate forever.
-        try:
-            proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
-    return last.returncode, out + err
-
-
-def _run_shellless(cmd: str, timeout: int) -> tuple[int, str]:
-    """Execute a gate command without a shell. Honours `&&` and `|` only."""
-    cmd = re.sub(r"\s*2>&1", "", cmd)  # stderr is always merged by the caller
-    tokens = _tokenize_command(cmd)
-    for tok in tokens:
-        if tok in _KNOWN_OPS:
-            continue
-        if tok and all(ch in _SHELL_PUNCT for ch in tok):
-            raise _GateCommandError(
-                f"unsupported shell operator '{tok}' in gate command — "
-                "shell-less runner refuses to chain on it"
-            )
-    returncode, output = 0, ""
-    for seq in _split_tokens(tokens, _SEQ_OP):
-        stages = _split_tokens(seq, _PIPE_OP)
-        if any(not stage for stage in stages):
-            raise _GateCommandError("empty command segment in gate pipeline")
-        returncode, seg_out = _exec_pipeline(stages, timeout)
-        output += seg_out
-        if returncode != 0:  # `&&` short-circuits on first failure
-            break
-    return returncode, output
-
-
-def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
+def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
     """Run a command-based gate. Substitutes {files} / {test_files_for_files}.
 
-    Special return: (True, _SCOPED_SKIP_SENTINEL) when {test_files_for_files}
-    is in cmd and no test files map from a non-empty relevant_files. The
-    caller (run_gates) translates this into a skipped_result entry so the
-    UI shows SKIP, not PASS, and we don't run an irrelevant full suite.
+    Returns a `GateOutcome`. It unpacks as the historical ``(passed, output)``
+    pair, so existing call sites keep working; callers that need to tell "did
+    not run" from "ran and failed" read ``.outcome`` instead of the first slot.
+
+    The non-execution cases used to be a sentinel string in the output channel;
+    they are now NOT_APPLICABLE (a legitimately empty check — does not block)
+    or COULD_NOT_RUN (the check could not execute — blocks, and says why).
 
     A run that WAS scoped prefixes its output with `_scope_label` — the verdict
     and the size of the thing it was earned on travel together.
     """
     cmd = gate.get("command", "")
     if not cmd:
-        return True, "No command configured."
+        return _outcome.could_not_run(
+            _outcome.REASON_NO_GATE_IMPLEMENTATION,
+            "No command configured.",
+            remedy=(
+                f"Give gate '{gate.get('name', '?')}' a `command`, or remove it "
+                "from `gates` in .tausik/config.json."
+            ),
+        )
 
     scope_label = ""
+    batch_commands: list[str] | None = None
 
+    # `file_extensions` объявляет, КОГДА гейт применим, и это не зависит от
+    # того, подставляет ли команда {files}. Прежнее условие требовало наличия
+    # подстановки, поэтому у гейта без неё объявление «я про .py» не значило
+    # НИЧЕГО и молча игнорировалось — гейт запускался на любой коммит. Сегодня
+    # такой гейт ровно один (mypy, который проверяет набор источников из
+    # pyproject целиком, а не переданные файлы), и для него область обязана
+    # сохраниться: «проверяю проект целиком» и «проверяю на КАЖДЫЙ коммит» —
+    # разные утверждения.
     file_exts_raw = gate.get("file_extensions") or []
-    if file_exts_raw and "{files}" in cmd:
+    if file_exts_raw:
         allowed = {(e if e.startswith(".") else "." + e).lower() for e in file_exts_raw}
         files = [f for f in files if os.path.splitext(f)[1].lower() in allowed]
         if not files:
-            return True, ("No files matching " + ", ".join(sorted(allowed)) + " — gate skipped.")
+            return _outcome.not_applicable(
+                _outcome.REASON_NO_MATCHING_FILES,
+                "No files matching " + ", ".join(sorted(allowed)) + " — gate skipped.",
+            )
 
     # v1.5: filename-based scoping for gates whose targets have no extension
     # (Dockerfile, Containerfile, Makefile...). Without this, an empty match
     # left {files} = "." and e.g. `hadolint .` choked on the directory.
     patterns_raw = gate.get("file_patterns") or []
-    if patterns_raw and "{files}" in cmd:
+    if patterns_raw:
         import fnmatch
 
         files = [
@@ -279,10 +249,22 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
             if any(fnmatch.fnmatch(os.path.basename(f).lower(), p.lower()) for p in patterns_raw)
         ]
         if not files:
-            return True, ("No files matching " + ", ".join(patterns_raw) + " — gate skipped.")
+            return _outcome.not_applicable(
+                _outcome.REASON_NO_MATCHING_FILES,
+                "No files matching " + ", ".join(patterns_raw) + " — gate skipped.",
+            )
 
     if "{test_files_for_files}" in cmd:
         test_files = resolve_test_files_for_relevant(files)
+        parse_errors = parse_errors_for_relevant(files)
+        if parse_errors:
+            named = ", ".join(parse_errors[:10])
+            more = "" if len(parse_errors) <= 10 else f" (+{len(parse_errors) - 10} more)"
+            return _outcome.could_not_run(
+                _outcome.REASON_TEST_SOURCE_PARSE_ERROR,
+                f"Could not parse candidate test source(s): {named}{more}.",
+                remedy="Fix the named test source before relying on scoped verification.",
+            )
         # Scoped-only semantics:
         #   - relevant_files non-empty + no test mapping → SKIP (scoped run for
         #     a module without test_<basename>.py — running the full suite for
@@ -292,10 +274,86 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         #     burns budget for zero verification value. Forces callers to pass
         #     relevant_files to opt in to actual verification.
         if not test_files:
-            return True, _SCOPED_SKIP_SENTINEL
-        scope_label = _scope_label(test_files, count_test_files())
-        test_files_str = " ".join(shlex.quote(t) for t in test_files)
-        cmd = cmd.replace("{test_files_for_files}", test_files_str)
+            # Both branches are LEGITIMATE emptiness, so both stay non-blocking
+            # — the task's negative constraint is explicit that a change which
+            # honestly matches no test must not be turned red. What changes is
+            # that they stop being one indistinguishable SKIP: each now carries
+            # its own reason code, so the record says which emptiness it was.
+            #
+            # NO_SCOPE_DECLARED is deliberately NOT promoted to COULD_NOT_RUN:
+            # certification of an unscoped run is already refused upstream
+            # (verification_runs.declared_scope_status), and blocking here would
+            # turn every `gate_runner <trigger>` invocation without --files red.
+            if files:
+                return _outcome.not_applicable(
+                    _outcome.REASON_NO_TEST_MAPPING,
+                    "No test file maps to relevant_files via "
+                    "tests/test_<basename>.py heuristic; gate skipped (scoped run).",
+                )
+            return _outcome.not_applicable(
+                _outcome.REASON_NO_SCOPE_DECLARED,
+                "No relevant_files passed; gate skipped.",
+                # Name the whole line: a bare `--relevant-files` used to be
+                # suggested against a command that has no such flag.
+                remedy=(
+                    f"Declare the scope: `{_CLI} verify --task <slug> --relevant-files <paths...>`."
+                ),
+            )
+        scope_label = _scope_label(
+            test_files,
+            count_test_files(),
+            direct_imports=direct_import_count_for_relevant(files),
+            deferred_global=len(deferred_global_crosscutting_for_relevant(files)),
+        )
+        batches = [
+            test_files[offset : offset + _SCOPED_PYTEST_BATCH_SIZE]
+            for offset in range(0, len(test_files), _SCOPED_PYTEST_BATCH_SIZE)
+        ]
+        batch_commands = [
+            cmd.replace("{test_files_for_files}", " ".join(shlex.quote(t) for t in batch))
+            for batch in batches
+        ]
+        cmd = " && ".join(batch_commands)
+
+    # A DELETED file cannot be read by a file gate, and until session #235 the
+    # declared list went to the command verbatim: `ruff` was handed a path that
+    # no longer existed and answered `E902 no such file`, so the whole verify run
+    # came back exit=1 with no handle. The only way past it was to leave the
+    # deletion OUT of `--relevant-files` — to under-declare on purpose, which is
+    # exactly what `declared_scope_status` measures and what decision #348 put in
+    # this release to fix. A framework that forces the dishonest answer has no
+    # standing to measure honesty.
+    #
+    # HERE, at ARGUMENT construction, and not where applicability was decided.
+    # Whether a gate APPLIES is a question about names — `file_extensions` and
+    # `file_patterns` judge `Dockerfile` and `.py` without opening anything, and
+    # filtering earlier made seventeen existing tests fail because they ask that
+    # question with paths that never existed. Only what the command must OPEN has
+    # to be on disk.
+    #
+    # The declaration and the signed receipt keep the full list, deletions
+    # included: the receipt describes the CHANGE, and the change included
+    # removing a file.
+    # ONLY for a command that actually interpolates `{files}`. A gate whose
+    # command never receives the list cannot be broken by a path that is gone —
+    # `mypy` reads the source set from pyproject, `probe-tool` takes no
+    # arguments at all — and filtering for them would answer "nothing to read"
+    # about a command that was not going to read them anyway, masking the real
+    # verdict (a missing tool is COULD_NOT_RUN, and that must not be hidden
+    # behind NOT_APPLICABLE).
+    if files and "{files}" in cmd:
+        on_disk = [f for f in files if os.path.exists(f)]
+        if not on_disk:
+            return _outcome.not_applicable(
+                _outcome.REASON_ALL_FILES_DELETED,
+                f"All {len(files)} declared file(s) are gone from disk — a file gate "
+                "has nothing to read, so this is not a verdict.",
+                remedy=(
+                    "A task whose product is deletions closes on the gates that CAN "
+                    "judge it (tests, state checks), not on this one reporting green."
+                ),
+            )
+        files = on_disk
 
     files_str = " ".join(shlex.quote(f) for f in files) if files else "."
     cmd = cmd.replace("{files}", files_str)
@@ -303,8 +361,23 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     # (pyproject.toml addopts="-m 'not slow'") and runs the full battery. Detect
     # pytest as a TOKEN (works for `pytest …` AND `python.exe -m pytest …`) and
     # inject the override right after it; count=0 leaves non-pytest gates untouched.
+    #
+    # IT IS `-m ''`, NOT `--override-ini=addopts=`, SINCE full-lane-runs-serial-on-
+    # a-twenty-core-machine. Wiping addopts removed the marker filter AND everything
+    # else standing beside it — here `-n auto`, so the "full battery" was the one
+    # run in the project that went back to a single core (32m24s against 3m48s,
+    # measured session #186). A marker expression on the command line beats the one
+    # in addopts because it is parsed later and -m keeps only the last value:
+    # measured on this tree, `-m ''` and `--override-ini=addopts=` both collect
+    # 7459 against the fast lane's 7317. Whatever else a consumer put in addopts
+    # (coverage, timeouts, their own -p flags) now survives the full lane too.
     if os.environ.get("TAUSIK_VERIFY_FULL"):
-        cmd = re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest --override-ini=addopts=\2", cmd, count=1)[0]
+        cmd = re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest -m ''\2", cmd)[0]
+        if batch_commands is not None:
+            batch_commands = [
+                re.subn(r"(^|\s)pytest(\s|$)", r"\1pytest -m ''\2", batch)[0]
+                for batch in batch_commands
+            ]
     # Cross-platform truncation: strip `[2>&1] | head/tail -N`, filter later.
     # Windows note: shlex (posix) strips backslashes from paths and subprocess
     # cannot launch a relative forward-slash executable (WinError 2); the
@@ -319,22 +392,68 @@ def run_command_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         a non-scoped run (empty ``scope_label``) returns the text untouched."""
         return f"{_SCOPE_SENTINEL}{scope_label}\n{text}" if scope_label else text
 
+    is_pytest = bool(_PYTEST_TOKEN.search(cmd))
+
     try:
-        returncode, raw_output = _run_shellless(cmd, timeout)
+        if batch_commands is None:
+            returncode, raw_output = _run_shellless(cmd, timeout)
+        else:
+            returncode = 0
+            raw_output = ""
+            saw_test_batch = False
+            for batch in batch_commands:
+                returncode, batch_output = _run_shellless(batch, timeout)
+                raw_output += batch_output
+                if returncode == 0:
+                    saw_test_batch = True
+                    continue
+                # Pytest's exit 5 means this particular batch collected no
+                # tests.  It cannot certify a wholly empty run, but it cannot
+                # erase tests a prior batch already ran either.
+                if is_pytest and returncode == _PYTEST_NO_TESTS_COLLECTED and saw_test_batch:
+                    raw_output += "\npytest batch collected no tests; prior batch evidence retained\n"
+                    returncode = 0
+                    continue
+                break
         output = raw_output.strip()
         if line_filter:
             output = _apply_line_filter(output, line_filter)
         if returncode == 0:
-            return True, _scoped(output or "Passed.")
-        return False, _scoped(output or f"Failed with exit code {returncode}.")
+            return _outcome.passed(_scoped(output or "Passed."))
+        if is_pytest and returncode == _PYTEST_NO_TESTS_COLLECTED:
+            # The distinction this task exists for: pytest ran, collected
+            # nothing, and said so. Nothing failed — nothing was checked.
+            return _outcome.could_not_run(
+                _outcome.REASON_NO_TESTS_COLLECTED,
+                _scoped(output or "No tests were collected."),
+                remedy=_FULL_LANE_REMEDY,
+            )
+        return _outcome.failed(_scoped(output or f"Failed with exit code {returncode}."))
     except subprocess.TimeoutExpired:
-        return False, _scoped(f"Gate timed out ({timeout}s).")
+        # A gate that ran out of clock produced no verdict either. It kept its
+        # blocking behaviour, but it stops being reported as a finding.
+        return _outcome.could_not_run(
+            _outcome.REASON_TIMED_OUT,
+            _scoped(f"Gate timed out ({timeout}s)."),
+            remedy=(
+                "Raise `timeout` for this gate in .tausik/config.json, or narrow "
+                "the scope it runs over."
+            ),
+        )
     except (FileNotFoundError, PermissionError, NotADirectoryError) as e:
         # Spawn failure (binary missing / not executable) — distinct from an
         # honest non-zero exit. Log it so a misconfigured gate command is visible.
         import logging
 
         logging.getLogger("tausik.gates").warning("Gate command not runnable: %s", e)
-        return False, _scoped(f"Gate command not runnable (check the configured path): {e}")
+        return _outcome.could_not_run(
+            _outcome.REASON_COMMAND_NOT_RUNNABLE,
+            _scoped(f"Gate command not runnable (check the configured path): {e}"),
+            remedy="Fix the gate's `command` path in .tausik/config.json.",
+        )
     except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-        return False, _scoped(f"Gate error: {e}")
+        return _outcome.could_not_run(
+            _outcome.REASON_RUNNER_ERROR,
+            _scoped(f"Gate error: {e}"),
+            remedy="The gate runner itself failed; this is a framework defect.",
+        )

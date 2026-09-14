@@ -136,13 +136,27 @@ class TestGateRegistration:
 
 
 class TestFailOpenAndExportError:
-    """Review HIGH-1 (fail-open must survive an internal fault, incl. a broken
-    import) and MED-3 (ExportError is a hard block, not a fail-open pass)."""
+    """Review HIGH-1 (an internal fault, incl. a broken import, must not escape)
+    and MED-3 (ExportError is a hard block, not a pass).
 
-    def test_internal_fault_fails_open_never_raises(self, project, monkeypatch):
-        # A non-ExportError fault anywhere in the guarded block (a broken import
-        # chain lands here too, now that the import is inside the try) must
-        # degrade to a PASS with 'unavailable', never propagate to gate_runner.
+    ПЕРЕВЁРНУТО, НЕ СНЯТО (three-more-gates-sign-non-execution-as-a-pass).
+    Класс держал `test_internal_fault_fails_open_never_raises` с `assert passed`
+    на подброшенном исключении — то есть ЗАКРЕПЛЯЛ поведение, из-за которого
+    квитанция сессии #192 подписала блокирующий гейт как PASSED, пока его
+    собственный текст говорил «unavailable».
+
+    В том утверждении были склеены две мысли, и верна только первая:
+      (1) исключение не должно выходить наружу и ронять прогон гейтов — ВЕРНО,
+          сохранено, проверяется ниже;
+      (2) следовательно прогон засчитывается пройденным — ЛОЖЬ, и это вся цена
+          дефекта.
+    Теперь это два разных теста, чтобы выживший не мог протащить второе.
+    """
+
+    def test_an_internal_fault_never_escapes(self, project, monkeypatch):
+        # Сбой в защищённом блоке (сюда же попадает и сломанная цепочка
+        # импортов, раз импорт внутри try) обязан быть перехвачен, а не
+        # долететь до gate_runner, который зовёт impl() без try/except.
         _export(project)
         import state_export
 
@@ -150,9 +164,27 @@ class TestFailOpenAndExportError:
             raise RuntimeError("simulated internal fault")
 
         monkeypatch.setattr(state_export, "build_tree", _boom)
-        passed, msg = run_state_roundtrip_gate()  # must NOT raise
-        assert passed
-        assert "unavailable" in msg.lower()
+        outcome = run_state_roundtrip_gate()  # must NOT raise
+        assert "unavailable" in outcome.message.lower()
+
+    def test_an_internal_fault_is_recorded_as_non_execution(self, project, monkeypatch):
+        import gate_outcome
+
+        _export(project)
+        import state_export
+
+        def _boom(_svc):
+            raise RuntimeError("simulated internal fault")
+
+        monkeypatch.setattr(state_export, "build_tree", _boom)
+        outcome = run_state_roundtrip_gate()
+        assert outcome.outcome == gate_outcome.COULD_NOT_RUN
+        assert outcome.reason_code == gate_outcome.REASON_RUNNER_ERROR
+        assert not outcome.ran, "сверка не состоялась — сертифицировать нечем"
+        assert outcome.blocks, (
+            "severity=block и ноль доказательств: SENAR 1.4 §8.6(e) — отсутствие "
+            "отрицательной находки не есть положительный вердикт"
+        )
 
     def test_export_error_is_a_hard_block(self, project, monkeypatch):
         _export(project)

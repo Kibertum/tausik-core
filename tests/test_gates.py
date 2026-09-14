@@ -485,9 +485,20 @@ class TestGateRunner:
         assert passed is False
 
     def test_command_gate_no_command(self):
+        """A gate with no command CANNOT RUN, so it must not answer PASS.
+
+        check-result-conflates-could-not-run-with-passed: this used to assert
+        ``passed is True`` — a check that never executed reporting success,
+        which is the defect the outcome type exists to make unspellable.
+        """
+        import gate_outcome
+
         gate = {"command": None}
-        passed, _ = run_command_gate(gate, [])
-        assert passed is True
+        outcome = run_command_gate(gate, [])
+        assert outcome.outcome == gate_outcome.COULD_NOT_RUN
+        assert outcome.reason_code == gate_outcome.REASON_NO_GATE_IMPLEMENTATION
+        assert outcome.blocks is True
+        assert outcome.ran is False
 
     def test_command_gate_files_substitution(self, tmp_path):
         f = tmp_path / "test.txt"
@@ -498,7 +509,14 @@ class TestGateRunner:
 
     def test_pytest_gate_full_lane_env_var_injects_override(self, tmp_path, monkeypatch):
         """v14b-pytest-fast-lane: TAUSIK_VERIFY_FULL=1 makes pytest gate run the
-        full battery (override pyproject.toml addopts='-m not slow')."""
+        full battery (override pyproject.toml addopts='-m not slow').
+
+        The override is a MARKER expression, not an addopts wipe. Wiping addopts
+        also deleted everything else standing in it — in this repository `-n auto`,
+        so the one run that was supposed to be the full battery was the only one
+        that went back to a single core. `-m ''` beats the addopts marker because
+        it is parsed later, and leaves the rest of the line alone.
+        """
         monkeypatch.setenv("TAUSIK_VERIFY_FULL", "1")
         # Use a python -c stub that prints argv, dressed up as a 'pytest' command
         # so the env-var branch fires (the check is on the leading executable).
@@ -518,9 +536,17 @@ class TestGateRunner:
         monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
         passed, _ = run_command_gate(gate, [])
         assert passed is True
-        assert "--override-ini=addopts=" in captured["cmd"], (
-            "TAUSIK_VERIFY_FULL must inject --override-ini=addopts= so pytest "
-            "ignores the fast-lane addopts in pyproject.toml"
+        # argv[0] is resolved to a launchable path (…/Scripts/pytest.EXE), so the
+        # runner is recognised by its basename rather than by the literal token.
+        argv = list(captured["cmd"])
+        assert os.path.basename(argv[0]).lower().startswith("pytest"), argv
+        assert argv[1:3] == ["-m", ""], (
+            "TAUSIK_VERIFY_FULL must inject `-m ''` right after the pytest token so "
+            f"the marker filter in addopts is overridden; got {argv}"
+        )
+        assert not any(a.startswith("--override-ini=addopts") for a in argv), (
+            "the full lane must not WIPE addopts: that also deletes -n auto and "
+            f"runs the full battery serially; got {argv}"
         )
 
     def test_pytest_gate_default_does_not_inject_override(self, tmp_path, monkeypatch):
@@ -541,6 +567,9 @@ class TestGateRunner:
         passed, _ = run_command_gate(gate, [])
         assert passed is True
         assert "--override-ini" not in captured["cmd"]
+        assert "-m" not in captured["cmd"], (
+            "no TAUSIK_VERIFY_FULL, no marker override — the fast lane stays"
+        )
 
     def test_full_env_var_does_not_affect_non_pytest_gates(self, tmp_path, monkeypatch):
         """Negative scenario: TAUSIK_VERIFY_FULL only injects into pytest cmd."""
@@ -559,6 +588,9 @@ class TestGateRunner:
         monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
         run_command_gate(gate, [])
         assert "--override-ini" not in captured["cmd"]
+        assert "-m" not in captured["cmd"], (
+            "ruff has no -m; injecting one would make the gate refuse to start"
+        )
 
     def test_pytest_via_python_m_gets_override(self, monkeypatch):
         """Windows fix: pytest is detected as a TOKEN, so `python.exe -m pytest`
@@ -579,16 +611,31 @@ class TestGateRunner:
         monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
         passed, _ = run_command_gate(gate, [])
         assert passed is True
-        # argv form (no shell operators) — cmd is the argv list; join to inspect
-        joined = " ".join(captured["cmd"])
-        assert "pytest --override-ini=addopts= -q" in joined, (
-            "override must be injected right after the pytest token, not at the leading executable"
+        # argv form (no shell operators) — cmd is the argv list. Compared as a
+        # SEQUENCE, not as a joined string: the injected marker expression is the
+        # empty argument, which a join renders as nothing at all.
+        argv = list(captured["cmd"])
+        i = argv.index("pytest")
+        assert argv[i - 1] == "-m" and "python" in argv[i - 2].lower(), (
+            f"this case is about `python -m pytest`; got {argv}"
+        )
+        assert argv[i + 1 : i + 4] == ["-m", "", "-q"], (
+            "the override must be injected right after the pytest TOKEN, not at the "
+            f"leading executable; got {argv}"
         )
 
-    def test_command_gate_normalizes_argv0_separator(self, monkeypatch):
-        """Windows fix: argv[0] is normpath'd so a configured forward-slash venv
-        path (backend/.venv/Scripts/python.exe) resolves; bare executables are
-        unaffected because normpath is a no-op on a name without a directory."""
+    def test_command_gate_resolves_argv0(self, monkeypatch):
+        """argv[0] is made launchable by a shell-less spawn.
+
+        Two promises, one place. A configured forward-slash venv path
+        (backend/.venv/Scripts/python.exe) is normpath'd — the original Windows
+        fix. A BARE executable is now resolved on PATH as well
+        (js-test-gate-silent-on-windows-and-override-dropped, GitLab #9): this
+        test used to assert "bare executable must be untouched", and untouched
+        is precisely what made every `npm`/`yarn` gate die with [WinError 2],
+        because CreateProcess does not consult PATHEXT and npm ships as
+        `npm.CMD`. Leaving the name alone was the defect, not the contract.
+        """
         import gate_runner
 
         captured: dict = {}
@@ -605,7 +652,17 @@ class TestGateRunner:
         assert captured["cmd"][0] == os.path.normpath("backend/.venv/Scripts/python.exe")
 
         run_command_gate({"command": "ruff check ."}, [])
-        assert captured["cmd"][0] == "ruff", "bare executable must be untouched"
+        resolved = captured["cmd"][0]
+        assert os.path.isabs(resolved), (
+            "a bare executable must be resolved to something CreateProcess can "
+            f"launch, got {resolved!r}"
+        )
+        assert os.path.basename(resolved).lower().startswith("ruff")
+
+        # An unresolvable name stays as written, so the caller can report
+        # COULD_NOT_RUN / command_not_runnable instead of a substituted tool.
+        run_command_gate({"command": "definitely-not-installed-xyz check"}, [])
+        assert captured["cmd"][0] == "definitely-not-installed-xyz"
 
     def test_format_results_empty(self):
         assert "No gates" in format_results([])
@@ -880,6 +937,20 @@ class TestFileConflicts:
         assert set(conflicts[0][2]) == {"x.py", "y.py"}
 
 
+def _touch(tmp_path, *names: str) -> None:
+    """Создать перечисленные пути и перейти в их каталог.
+
+    Гейт с версии 1.9 не подставляет в команду путь, которого нет на диске:
+    удалённый файл ронял `ruff` с E902 и заставлял занижать объявленный объём.
+    Тесты ниже проверяют ФИЛЬТРАЦИЮ ПО ИМЕНИ, поэтому им нужны настоящие файлы —
+    иначе они проверяли бы новый фильтр вместо своего предмета.
+    """
+    for name in names:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x = 1\n", encoding="utf-8")
+
+
 class TestCommandGateFileExtensions:
     """file_extensions filter in run_command_gate."""
 
@@ -888,12 +959,14 @@ class TestCommandGateFileExtensions:
         stdout = ""
         stderr = ""
 
-    def test_mixed_list_filtered_to_matching(self, monkeypatch):
+    def test_mixed_list_filtered_to_matching(self, monkeypatch, tmp_path):
         calls = []
         monkeypatch.setattr(
             "gate_runner.subprocess.run",
             lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
         )
+        _touch(tmp_path, "a.py", "b.yml")
+        monkeypatch.chdir(tmp_path)
         gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
         passed, _ = run_command_gate(gate, ["a.py", "b.yml"])
         assert passed is True
@@ -914,37 +987,71 @@ class TestCommandGateFileExtensions:
         assert "No files matching" in output
         assert calls == []
 
-    def test_extension_match_case_insensitive(self, monkeypatch):
+    def test_extension_match_case_insensitive(self, monkeypatch, tmp_path):
         calls = []
         monkeypatch.setattr(
             "gate_runner.subprocess.run",
             lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
         )
+        _touch(tmp_path, "Main.PY")
+        monkeypatch.chdir(tmp_path)
         gate = {"command": "ruff check {files}", "file_extensions": [".PY"]}
         passed, _ = run_command_gate(gate, ["Main.PY"])
         assert passed is True
         assert len(calls) == 1
         assert "Main.PY" in calls[0]
 
-    def test_no_placeholder_filter_not_applied(self, monkeypatch):
-        """If command has no {files}, filter must not early-return."""
+    def test_no_placeholder_still_honours_the_declared_scope(self, monkeypatch, tmp_path):
+        """A declared `file_extensions` scopes the gate WHETHER OR NOT the
+        command interpolates {files}.
+
+        THIS TEST WAS INVERTED, DELIBERATELY, and the old contract is named so
+        the next reader does not think it was lost by accident. It used to be
+        `test_no_placeholder_filter_not_applied` and pinned the opposite: "if
+        command has no {files}, filter must not early-return". That made
+        `file_extensions` mean NOTHING for such a gate — a declaration the
+        runner silently ignored, so the gate ran on every commit no matter what
+        changed.
+
+        Nothing depended on the old behaviour: at the time of the inversion all
+        three command gates (ruff, mypy, bandit) interpolated {files}, so the
+        branch was unreachable in production and only this test observed it. It
+        became reachable when the mypy gate dropped {files} on purpose
+        (mypy-gate-measures-differently-than-mypy-itself) to type-check the
+        source set pyproject.toml declares rather than the changed files.
+
+        The protection the old test really carried — a gate that declares NO
+        scope must never be skipped — is not weakened: it lives in
+        `test_no_extensions_config_behaves_as_before` and in
+        `tests/test_mypy_gate_scope.py::test_gate_without_scope_declaration_always_runs`.
+        """
         calls = []
         monkeypatch.setattr(
             "gate_runner.subprocess.run",
             lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
         )
+        _touch(tmp_path, "a.yml", "b.py")
+        monkeypatch.chdir(tmp_path)
         gate = {"command": "ruff check .", "file_extensions": [".py"]}
-        passed, _ = run_command_gate(gate, ["a.yml"])
-        assert passed is True
-        assert len(calls) == 1  # ran despite no matching files
+        passed, output = run_command_gate(gate, ["a.yml"])
+        assert passed is True, "empty scope is legitimate emptiness — it must not block"
+        assert calls == [], "the gate ran although nothing it declared an interest in changed"
+        assert "No files matching" in output, output
 
-    def test_no_extensions_config_behaves_as_before(self, monkeypatch):
+        # ...and it DOES run once a file it declared an interest in appears.
+        passed, _ = run_command_gate(gate, ["a.yml", "b.py"])
+        assert passed is True
+        assert len(calls) == 1
+
+    def test_no_extensions_config_behaves_as_before(self, monkeypatch, tmp_path):
         """Backward compat: gate without file_extensions runs on everything."""
         calls = []
         monkeypatch.setattr(
             "gate_runner.subprocess.run",
             lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
         )
+        _touch(tmp_path, "a.py", "b.yml")
+        monkeypatch.chdir(tmp_path)
         gate = {"command": "ruff check {files}"}
         passed, _ = run_command_gate(gate, ["a.py", "b.yml"])
         assert passed is True
@@ -952,7 +1059,7 @@ class TestCommandGateFileExtensions:
         assert "a.py" in calls[0]
         assert "b.yml" in calls[0]
 
-    def test_real_py_violation_still_blocks(self, monkeypatch):
+    def test_real_py_violation_still_blocks(self, monkeypatch, tmp_path):
         """Negative: filter doesn't over-exempt — real lint failures still fail."""
 
         class FakeFail:
@@ -960,6 +1067,8 @@ class TestCommandGateFileExtensions:
             stdout = "bad.py:1:1: E501 line too long"
             stderr = ""
 
+        _touch(tmp_path, "bad.py")
+        monkeypatch.chdir(tmp_path)
         monkeypatch.setattr("gate_runner.subprocess.run", lambda *a, **kw: FakeFail())
         gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
         passed, output = run_command_gate(gate, ["bad.py"])
@@ -1199,8 +1308,13 @@ class TestPytestGateScopeSubstitution:
         That defeated scoping and burned 60+s on every task_done. The new
         contract: scoped runs that miss the mapping return a sentinel so
         run_gates emits a SKIP entry.
+
+        The sentinel is retired: the skip is now the NOT_APPLICABLE outcome
+        carrying REASON_NO_TEST_MAPPING. It stays NON-BLOCKING — a change that
+        honestly matches no test is a normal case, and turning it red would
+        replace one indistinguishability with another.
         """
-        from gate_runner import _SCOPED_SKIP_SENTINEL
+        import gate_outcome
 
         (tmp_path / "tests").mkdir()
         monkeypatch.chdir(tmp_path)
@@ -1220,9 +1334,10 @@ class TestPytestGateScopeSubstitution:
 
         monkeypatch.setattr(_sp, "run", fake_run)
         gate = {"command": "pytest -q {test_files_for_files}"}
-        ok, output = run_command_gate(gate, ["scripts/no_test_for_this.py"])
-        assert ok is True
-        assert output == _SCOPED_SKIP_SENTINEL
+        outcome = run_command_gate(gate, ["scripts/no_test_for_this.py"])
+        assert outcome.outcome == gate_outcome.NOT_APPLICABLE
+        assert outcome.reason_code == gate_outcome.REASON_NO_TEST_MAPPING
+        assert outcome.blocks is False
         assert called["ran"] is False, (
             "subprocess.run must NOT be invoked on a scoped-skip — full suite "
             "would otherwise run for an unrelated module."
@@ -1233,8 +1348,13 @@ class TestPytestGateScopeSubstitution:
 
         Full-suite fallback removed in v1.3 — burned MCP 10s budget for no
         verification value. Callers must pass relevant_files to opt in.
+
+        Distinguished from the no-mapping skip by its own reason code. It is
+        deliberately NOT promoted to COULD_NOT_RUN: certification of an unscoped
+        run is already refused upstream (declared_scope_status), and blocking
+        here would turn every `gate_runner <trigger>` call without --files red.
         """
-        from gate_runner import _SCOPED_SKIP_SENTINEL
+        import gate_outcome
 
         (tmp_path / "tests").mkdir()
         monkeypatch.chdir(tmp_path)
@@ -1253,9 +1373,10 @@ class TestPytestGateScopeSubstitution:
 
         monkeypatch.setattr(_sp, "run", fake_run)
         gate = {"command": "pytest -q {test_files_for_files}"}
-        ok, output = run_command_gate(gate, [])
-        assert ok is True
-        assert output == _SCOPED_SKIP_SENTINEL
+        outcome = run_command_gate(gate, [])
+        assert outcome.outcome == gate_outcome.NOT_APPLICABLE
+        assert outcome.reason_code == gate_outcome.REASON_NO_SCOPE_DECLARED
+        assert outcome.blocks is False
         assert called["ran"] is False
 
     def test_run_gates_translates_scoped_skip_into_skipped_result(self, tmp_path, monkeypatch):

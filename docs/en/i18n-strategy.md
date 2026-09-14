@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/i18n-strategy)
+**English** | [Русский](../ru/i18n-strategy.md)
 
 # Localization Strategy
 
@@ -57,6 +57,6 @@ docs/
 
 1. Create `docs/{lang}/` directory
 2. Copy files from `docs/en/`, translate prose content
-3. Add language switcher to all files: ``[English](../en/file.md) | [Язык](../lang/file.md)`` (example, replace `lang` with your language code)
+3. Add language switcher to all files: ``[English](../en/<file>.md) | [Язык](../<lang>/<file>.md)`` (example, replace `lang` with your language code)
 4. Keep all code blocks, paths, and technical terms as-is
 5. Update `docs/README.md` navigation hub

@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/customization.md)
+
 # Customization Guide
 
 > **Contract:** TAUSIK never touches your `.tausik/` directory. Anything you put under `.tausik/stacks/<name>/` survives every framework upgrade.

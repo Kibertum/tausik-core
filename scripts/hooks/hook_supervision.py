@@ -211,9 +211,11 @@ def emit_supervision_degradation(
     """Record an audit event when supervision is SILENTLY weakened — not by an
     explicit switch, but because a guard could not do its job and failed open.
 
-    hook-fail-open-db-error-telemetry: task_gate/scope_write_gate fail OPEN on a
-    sqlite error (a locked/corrupt DB lets the edit through unless
-    TAUSIK_HOOK_FAIL_SECURE is set). Without a trace this is indistinguishable
+    hook-fail-open-db-error-telemetry: task_gate/scope_write_gate REFUSE on a
+    sqlite error since 1.9; a locked/corrupt DB lets the edit through only when
+    TAUSIK_HOOK_FAIL_OPEN is set. This event therefore now counts an explicitly
+    requested bypass of the check rather than a silent default. Without a trace
+    it would still be indistinguishable
     from "nothing to block" — a transient DB fault silently drops enforcement
     and no one can count it. This is a DEGRADATION, categorically distinct from
     an intentional `bypass_*`: the agent did not switch anything off. It is also

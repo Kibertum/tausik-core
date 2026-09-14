@@ -51,7 +51,7 @@ _NS = uuid.UUID("6f1c8d2e-9a4b-4f77-9c31-0f1a2b3c4d5e")
 
 
 def _mirror_path() -> str:
-    from brain_config import get_brain_mirror_path
+    from knowledge_mirror import get_brain_mirror_path
 
     return get_brain_mirror_path()
 

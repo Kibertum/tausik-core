@@ -1,4 +1,4 @@
-[English](/docs/architecture) | **Русский**
+[English](../en/architecture.md) | **Русский**
 
 # Архитектура TAUSIK
 
@@ -72,7 +72,8 @@
 | `project_config.py` + `default_gates.py` | Загрузчик конфигурации, настройка шлюзов, автовключение |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Установка/удаление навыков из репозиториев |
-| `brain_*.py` | Shared Brain (Notion mirror, sync, classifier, registry) |
+| `knowledge_db.py` + `knowledge_write.py` + `knowledge_read.py` | Общее локальное хранилище `~/.tausik-knowledge` (`--global` у `decide` / `memory add`; входит в `memory search`) |
+| `publication_boundary.py` + `knowledge_export.py` | Единственное место, где содержимое общего хранилища покидает машину (`knowledge export --redacted`) |
 | `cq_client.py` | Cross-project queue клиент |
 | `doc_extract.py` | markitdown интеграция |
 | `docs_lint.py` | Warning-only stale-version линтер |
@@ -80,7 +81,13 @@
 | `model_routing.py` | Helper выбора модели |
 | `ide_utils.py` | Определение IDE, пути, реестр |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Хелперы, версия, типы |
-| `gen_doc_constants.py` + `mcp_tool_counts.py` | Генерация `docs/_generated/constants.json` (v1.5) |
+| `gen_doc_constants.py` | Точка входа доковых проверок: `--check`, `--write`, перегенерация `constants.json` |
+| `doc_drift_common.py` | Общие таблицы регулярных выражений, цели сканов, текстовые помощники |
+| `doc_drift_scanners.py` | Шесть сканов дрейфа: версии, счётчики MCP, закрытые перечни, числа тестов и кода |
+| `doc_drift_tables.py` | Числовые ячейки колонок таблиц markdown и реестр их предметов |
+| `doc_drift_fixes.py` | Автопочинщик, который запускает `--write` |
+| `code_counts.py` | Считает состояние репозитория: хуки, стеки, роли, агенты ревью, скиллы |
+| `mcp_tool_counts.py` | Считает поверхность MCP, которую объявляет каждый сервер |
 | `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.5) |
 | `project_cli_hygiene.py` | `tausik hygiene archive` (read-only гигиена проекта, v1.5) |
 | `hooks/check_docs.py` | Pre-commit / CI wrapper для drift-проверки doc-constants (v1.5) |
@@ -94,7 +101,7 @@
 | `bootstrap_copy.py` | ~180 | Копирование навыков, скриптов, MCP в `.claude/` |
 | `bootstrap_config.py` | ~70 | Конфигурация, стек-детекция |
 | `bootstrap_generate.py` | ~300 | Генерация settings.json, CLAUDE.md, каталога навыков |
-| `analyzer.py` | ~330 | Расширенная стек-детекция, анализ кодовой базы |
+| `analyzer.py` | ~260 | Детекция расширяющих скиллов и обход дерева |
 
 ### MCP-сервер
 
@@ -102,12 +109,28 @@
 |------|------------|
 | `harness/claude/mcp/project/server.py` | JSON-RPC stdio-сервер |
 | `harness/claude/mcp/project/tools.py` | core tool definitions |
-| `harness/claude/mcp/project/tools_extra.py` | расширенные tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
+| `harness/claude/mcp/project/tools_extra.py` | расширенные tool definitions (skills, gates, doctor, verify, roles, stacks) |
 | `harness/claude/mcp/project/handlers.py` | Только диспетчеризация: счётчик вызовов, `handle_tool`, слияние доменных таблиц |
 | `harness/claude/mcp/project/handlers_<домен>.py` | Обработчики по доменам: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Каждый модуль экспортирует `<DOMAIN>_HANDLERS`, `handlers.py` сливает их в `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Общий рендер списков (`render_list`) — пустой результат обязан читаться как «ничего нет», а не как пустая строка |
 
-Полный MCP-surface: **117 project + 7 brain = 124 инструмента** (опциональный `codebase-rag` добавляет ещё 7; не в основном счёте).
+Полный MCP-surface: **146 project-инструментов** (опциональный
+`codebase-rag` добавляет ещё 7; не в основном счёте).
+
+**ЦЕНА ЭТОЙ ПОВЕРХНОСТИ ПЛАТИТСЯ НА КАЖДОМ ХОДУ, И ОНА РАЗНАЯ ПО ХОСТАМ.**
+Протокол MCP пересылает имя И схему каждого инструмента на каждом ходу, если
+клиент не откладывает схемы. Замер смены #229: сериализованные определения
+project-сервера весят 56 108 байт (порядка 14 000 токенов), одни имена — 3 201
+байт (около 800 токенов), разница в 17.5 раза. Claude Code схемы откладывает и
+платит имена — это НАБЛЮДАЛОСЬ; хост без отложенной загрузки платит всё — это
+следует из протокола и здесь не наблюдалось.
+
+Числа выше даны для чтения, а не как источник истины: источник — храповик
+`mcp_surface` в `tausik/gates.json`, который `tests/test_mcp_surface_ratchet.py`
+пересчитывает на каждом прогоне и краснит при росте. Так сделано потому, что
+предыдущая редакция этого числа сгнила ровно здесь: задача записала 117
+инструментов и 44 501 байт в сессии #178, а к #229 стало 145 и 56 108 — рост на
+24% и 26%, которого никто не заметил, пока число жило в тексте.
 
 ### Контекстные заголовки чанков (codebase-rag)
 
@@ -130,6 +153,17 @@
 добавляется, а FTS-таблица перестраивается из чанков, которые и есть источник
 истины.
 
+**Как это измерено, и чем измерить снова.** Заголовки не «выглядят полезными» —
+их выигрыш посчитан воспроизводимым прибором `scripts/rag_retrieval_bench.py`
+(`python scripts/rag_retrieval_bench.py [--limit N] [--json]`). Он выводит
+запросы МЕХАНИЧЕСКИ из корпуса и выбирает их детерминированно, поэтому набор
+нельзя подогнать под лестный результат, а два прогона по одному дереву задают
+одни и те же вопросы. Меряет recall@K по КОНКРЕТНОМУ ЧАНКУ и держит два набора
+сразу: `context` — случай, ради которого заголовок заведён, и `control` —
+запросы из слов, уже лежащих в теле чанка, где заголовок помогать не должен и
+особенно не должен вредить. Результат при n=115: recall@3 в наборе context
+0.4870 → 0.8348, в control 0.5739 → 0.6435; регрессии нет ни на одном K.
+
 ### Поддержка разных сред разработки
 
 Навыки, роли, стеки — общие для всех сред. MCP-серверы тоже: `harness/claude/mcp/` —
@@ -138,11 +172,11 @@
 такое лежало в `harness/cursor/` и удалено в v1.7.0.
 ```
 harness/
-├── skills/           # 13 core auto-deployed + brain условно + 20 в skills-official/ (opt-in через --include-official)
-├── roles/            # 6 ролей (architect, developer, devops, qa, tech-writer, ui-ux)
+├── skills/           # 13 core auto-deployed + 20 в skills-official/ (opt-in через --include-official)
+├── roles/            # 7 ролей (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
-├── claude/mcp/       # MCP-серверы (project, brain, codebase-rag) — канон для ВСЕХ сред
+├── claude/mcp/       # MCP-серверы (project, codebase-rag) — канон для ВСЕХ сред
 └── opencode/plugins/ # Плагин дисциплины QG-0 для OpenCode (tool.execute.before)
 ```
 
@@ -214,7 +248,44 @@ QG-2-гейт отработал.
 **Scoped-гейты** — `(gate_config, files) -> (passed, output)`, судят объявленный
 скоуп задачи. Универсальные (всегда включены): `filesize`, `class_surface`,
 `tdd_order`, `ruff`, `mypy`, `bandit`, `bootstrap_drift`, `memory_route`,
-`renar_drift_schema`, `renar_drift_provenance`.
+`renar_drift_schema`, `renar_drift_provenance`, `cross_model_parity`.
+
+`cross_model_parity` спрашивает одно: не уехала ли возможность к одному хосту
+молча. Он ЗАПУСКАЕТ настоящие генераторы механизмов в чистое дерево и сравнивает
+хосты, делящие одну точку расширения: хуки claude против хуков qwen, плагины
+против плагинов. Сравнения ПОПЕРЁК форм нет — спрашивать, «не потерял ли Claude
+плагин OpenCode», значит задавать вопрос без смысла. Гейт НЕ требует одинакового
+поведения: у Cursor точки расширения нет вовсе, и равняться там не на что.
+Требуется, чтобы различие было НАЗВАНО, с причиной; объявление, которому больше
+не соответствует ни одно живое различие, отвергается так же громко, как
+необъявленное различие (решение #335). Срабатывает только на правках слоя хостов
+(`bootstrap/`, `scripts/hooks/`, `harness/opencode/`) — гейт, спрашивающий про
+кроссмодельность на каждой задаче, становится налогом, а налог выключают.
+
+`bootstrap_drift` проверяет три звена цепи «правка → развёртывание → вступает в
+силу»: `scripts/` против развёрнутого профиля, `harness/` против его
+разворота, и развёрнутый профиль против **процесса, который из него работает**
+(`running_source_drift`: снимок содержимого при старте процесса, сравнение на
+task-done). Долгоживущий MCP-сервер, под которым перезаписали профиль,
+исполняет старую копию; гейт отказывает закрытию и называет лекарство —
+перезапустить сервер или закрыть через CLI, который есть свежий процесс.
+
+**Гейт проверяется мутацией, а не тем, что он зелёный.** Зелёный прогон
+доказывает лишь, что гейт не возразил, — не то, что он возразил бы хоть чему-то.
+Правило держит `tests/test_gates_catch_their_violation.py`: каждый гейт из
+`gate_registry.GATE_REGISTRY` стоит ровно в одной из двух таблиц. COVERED —
+гейт прогоняется через собственный `impl_for` реестра на ОБОИХ концах:
+настоящее нарушение, собранное под `tmp_path`, обязано вернуть failed, чистый
+вход, собранный так же, — passed (один конец без другого пуст: гейт, красный на
+любом входе, красную проверку проходит не хуже верного). EXCUSED — гейт,
+который из синтетического дерева не завести (привязан к сервису, вердикт
+внешнего инструмента, severity warn), с причиной и именами красного и зелёного
+теста в модуле, который его гоняет; имена сверяются с AST того модуля. Список
+закрыт: новый гейт без строки краснит ленту. Мутация не может остаться в дереве
+по построению — всё строится под `tmp_path`, и запись за его пределы во время
+прогона таблицы ловится перехватом `open`, `sqlite3.connect` и `subprocess`
+(три канала, которыми билдеры пользуются), а не снимком `git status`, который
+под xdist гонку с соседним воркером проигрывает.
 
 `class_surface` — единственное исключение из «судят объявленный скоуп»: он
 игнорирует список файлов и мерит **весь репозиторий** (~0.65 с). Класс уезжает за
@@ -267,7 +338,7 @@ Code (паттерн orchestrator-workers от Anthropic). TAUSIK даёт **sca
 | Шаг | Команда / механизм |
 |---|---|
 | Делегировать | `tausik task delegate <slug>` — пишет {рекоменд. модель, parent session} в `meta` kv (без миграции). **complex отвергается** (остаётся у координатора). |
-| Handoff-контракт | `tausik task handoff <slug>` — детерминированный JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; trimmed профиль `WORKER_SKILLS` (без plan/explore/brain). Оркестратор передаёт его в Agent tool; воркер возвращает обратно (round-trip identity). |
+| Handoff-контракт | `tausik task handoff <slug>` — детерминированный JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; trimmed профиль `WORKER_SKILLS` (без plan/explore). Оркестратор передаёт его в Agent tool; воркер возвращает обратно (round-trip identity). |
 | Распознавание in-session | `task start` делегированной задачи показывает **worker mode** (operating contract) и подавляет orchestrator-only баннер модели. |
 | Scope hard-gate | воркер ограничен scope — `scope_write_gate` блокирует edits вне `scope_paths`, а делегированная задача **без** scope блокируется до объявления (нет legacy fail-open для воркеров). |
 | Summary-back | `tausik task summary-back <slug> "<summary>" [--gates …]` — воркер возвращает структурный результат (в `meta`, виден в `task show`), чтобы координатор взял его **без** транскрипта воркера. |
@@ -279,14 +350,22 @@ Code (паттерн orchestrator-workers от Anthropic). TAUSIK даёт **sca
 
 Все hook-файлы в `scripts/hooks/` регистрируются через `bootstrap/bootstrap_generate.py` (Claude Code) и `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook-скрипты non-blocking (exit 0), ошибки в stderr. Общие helper'ы в `scripts/hooks/_common.py`.
 
-Brain-хуки делят helpers в `scripts/brain_hook_utils.py` — одна реализация mirror-lookup + TTL семантики. Brain-connection setup в `scripts/brain_runtime.py`: `open_brain_deps() -> (conn, client, cfg)`. Skill `/brain` — диалоговый UI.
 
 ## Memory Aggregates
 
 `service_knowledge_aggregates.py` содержит чистые функции для re-injection памяти:
 
 - `build_memory_block(be, ...)` — компактный markdown (decisions + conventions + dead ends) ≤50 строк, вызывается из `/start`, `/checkpoint`, SessionStart hook
+- `build_compact_memory_tail(be)` — построчная выжимка, встраиваемая в динамический блок CLAUDE.md
 - `build_memory_compact(be, last_n)` — агрегация `task_logs`: фазы + топ-слова + топ-файлы
+
+Обе выжимки спрашивают граф памяти через `memory_supersedes.live_head`: запись,
+которую отменило ЖИВОЕ ребро `supersedes`, не печатается, её строка достаётся
+следующей живой записи, а выжившая запись говорит `(supersedes #N)` на строке,
+которую занимает в любом случае. Скрывает только это отношение и только пока
+заменившая запись сама не заархивирована — иначе старая есть лучшее из
+оставшегося знания. Нечитаемый граф не отменяет ничего: выжимка вырождается в
+то, что печаталось до фильтра.
 
 Аналогично `scripts/model_routing.py` + `plugin_data.py` — чистые модули, импортируемые из CLI/MCP handlers.
 

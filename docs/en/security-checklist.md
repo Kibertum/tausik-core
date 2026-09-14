@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/security-checklist.md)
+
 # OWASP Top 10 — Detailed Checks
 
 ## A01: Broken Access Control

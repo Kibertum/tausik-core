@@ -28,10 +28,25 @@ fails if any Claude id reachable from `model_profiles` / `model_routing_matrix`
 / `service_delegate` has no row, so a routing change that outruns this table
 breaks the build instead of silently zeroing the meter.
 
-Sonnet 5 carries an introductory rate ($2/$10 through 2026-08-31) that this
-table deliberately does NOT encode: a static table cannot express "until a
-date", and a stale discount would UNDER-report spend. The standard rate is the
-honest default — over-reporting during the intro window is the safe direction.
+Sonnet 5's $2/$10 was once read here as an introductory rate "through
+2026-08-31" that a static table could not express, so Sonnet 5 and Sonnet 4.6
+shared $3/$15 and over-reporting was called the safe direction. That premise
+expired with the date: $2/$10 is Sonnet 5's rate, and Sonnet 4.6's $3/$15 is a
+different model's. They are now carried separately. Measured on this project's
+own ledger in session #225: 3064 of 4777 rows (1,969,220 tokens) are Sonnet 5
+and had been priced 50% high. A comment that justifies a number by a deadline
+becomes wrong on its own schedule, with nothing to notice.
+
+WHAT THIS TABLE STILL CANNOT SEE, stated so it is not mistaken for coverage.
+`models_missing_pricing` reads the models the framework can ROUTE to; the model
+that actually runs arrives in the host's telemetry payload and need not appear
+in any routing table. In session #225 `claude-opus-5` was the running model,
+was absent here, and 36.5% of the live ledger (1,133,486 tokens) recorded
+cost_usd=0.00 while the coverage guard stayed green. The id is priced now, but
+the blind spot is structural: closing it means deciding which generation
+`model_profiles` routes to, which is an owner's call. The counter-measure that
+does not depend on that decision is at the REPORTING end — `metrics` names a
+model it cannot price instead of printing $0.00 for it.
 """
 
 from __future__ import annotations
@@ -50,34 +65,54 @@ _SUFFIX_RE = re.compile(r"\[[^\[\]]+\]\s*$")
 _WARNED_UNPRICED: set[str] = set()
 
 _OPUS = {"input": 5.0, "output": 25.0}
-_SONNET = {"input": 3.0, "output": 15.0}
+# Sonnet is NOT one tier. Sonnet 5 is $2/$10; Sonnet 4.6 is $3/$15. The two
+# shared `_SONNET` = $3/$15 until session #225, on the reasoning quoted below
+# in the module docstring: that $2/$10 was an introductory rate "through
+# 2026-08-31" which a static table cannot express, and over-reporting was the
+# safe direction. The date has passed and $2/$10 is simply Sonnet 5's rate, so
+# the premise is gone and the rate is now carried per model. Measured cost of
+# the old assumption on this project's own ledger: 3064 of 4777 rows
+# (1,969,220 tokens) are Sonnet 5 and were priced 50% high.
+_SONNET_5 = {"input": 2.0, "output": 10.0}
+_SONNET_46 = {"input": 3.0, "output": 15.0}
 _HAIKU = {"input": 1.0, "output": 5.0}
 _FABLE = {"input": 10.0, "output": 50.0}
 
 _MODEL_PRICING: dict[str, dict[str, float]] = {
     # Canonical IDs. Opus and Sonnet ship a 1M context window at these rates.
+    "claude-fable-5-1": _FABLE,
+    "claude-mythos-5-1": _FABLE,
     "claude-fable-5": _FABLE,
     "claude-mythos-5": _FABLE,
+    "claude-opus-5": _OPUS,
     "claude-opus-4-8": _OPUS,
     "claude-opus-4-7": _OPUS,
     "claude-opus-4-6": _OPUS,
-    "claude-sonnet-5": _SONNET,
-    "claude-sonnet-4-6": _SONNET,
+    "claude-sonnet-5": _SONNET_5,
+    "claude-sonnet-4-6": _SONNET_46,
     "claude-haiku-4-5": _HAIKU,  # 200k context; no 1M tier exists
     # Explicit `[1m]` rows, at parity with their base — the suffix names the
     # context window, not a price tier. Without these the strip-suffix fallback
     # would produce the same answer; they are spelled out so a future published
     # long-context premium has an obvious place to land.
+    "claude-fable-5-1[1m]": _FABLE,
+    "claude-mythos-5-1[1m]": _FABLE,
     "claude-fable-5[1m]": _FABLE,
+    "claude-opus-5[1m]": _OPUS,
     "claude-opus-4-8[1m]": _OPUS,
     "claude-opus-4-7[1m]": _OPUS,
     "claude-opus-4-6[1m]": _OPUS,
-    "claude-sonnet-5[1m]": _SONNET,
-    "claude-sonnet-4-6[1m]": _SONNET,
-    # Short aliases — capability ranks, not ids (see model_profiles.RANKS).
+    "claude-sonnet-5[1m]": _SONNET_5,
+    "claude-sonnet-4-6[1m]": _SONNET_46,
+    # Short aliases — capability ranks, not ids (see model_profiles.RANKS). A
+    # rank prices as the id it ROUTES to, not as the newest model of that name:
+    # `model_profiles.DEFAULT_FAMILIES` still maps `sonnet` to Sonnet 4.6, so
+    # pricing the alias at Sonnet 5's rate would make the meter disagree with
+    # the router. When the routing table moves to the current generation, this
+    # row moves with it — one change, not two independent ones.
     "fable": _FABLE,
     "opus": _OPUS,
-    "sonnet": _SONNET,
+    "sonnet": _SONNET_46,
     "haiku": _HAIKU,
 }
 
@@ -106,46 +141,45 @@ def get_pricing(model_id: str | None, config: dict | None = None) -> dict[str, f
     key = str(model_id).strip().lower()
     if not key:
         return None
+    # CONFIG FIRST. The built-in table below is a shipped SEED, not the
+    # authority: a project states its own tariffs in `.tausik/config.json`, and
+    # what it states wins. The old order asked the hardcoded table first and
+    # consulted the project only when the table missed, which meant a table
+    # entry that had gone stale (Sonnet 5 at $3/$15 for months) could not be
+    # corrected without editing Python.
+    if config is not None:
+        override = _config_override_pricing(config, model_id)
+        if override is not None:
+            return override
     found = _MODEL_PRICING.get(key)
     if found is None:
         stripped = _SUFFIX_RE.sub("", key).strip()
         if stripped and stripped != key:
             found = _MODEL_PRICING.get(stripped)
-    if found is None and config is not None:
-        override = _config_override_rate(config, model_id)
-        if override is not None:
-            # A project-declared flat tariff: same rate for input and output,
-            # because the config schema is one number per model, not a pair.
-            return {"input": override, "output": override}
     # A copy, not the stored row: tiers share one dict across their id and
     # suffix spellings, so handing out the original would let one caller's
     # mutation reprice every model that shares that tier.
     return dict(found) if found is not None else None
 
 
-def _config_override_rate(config: dict | None, model_id: str | None) -> float | None:
-    """Flat USD/1M-token override for `model_id` from the project config, or None.
+def _config_override_pricing(config: dict | None, model_id: str | None) -> dict[str, float] | None:
+    """`{input, output}` from the project config for `model_id`, or None.
 
-    `load_config` already runs `normalize_llm_pricing_config` (drops negative /
-    NaN / non-numeric entries), but a caller-supplied dict might not have — so
-    the same guard is repeated here rather than trusted. A price that is not a
-    finite, non-negative number is treated as absent, never as $0.00.
+    `load_config` already runs `normalize_llm_pricing_config`, but a
+    caller-supplied dict might not have, so the lookup revalidates rather than
+    trusting the shape. A price that is not a finite, non-negative number is
+    treated as absent, never as $0.00.
+
+    Exact ids only — a config entry is not tier-expanded and a `[1m]` suffix is
+    not stripped here, because a project naming a spelling means that spelling.
     """
     try:
-        from project_config import lookup_llm_usd_per_million_tokens
+        from project_config import lookup_llm_pricing_pair
 
-        rate = lookup_llm_usd_per_million_tokens(config, model_id)
+        pair = lookup_llm_pricing_pair(config, model_id)
     except Exception:  # noqa: BLE001 — a missing/broken config just means "no override"
         return None
-    if rate is None:
-        return None
-    try:
-        r = float(rate)
-    except (TypeError, ValueError):
-        return None
-    if r != r or r < 0:  # NaN or negative
-        return None
-    return r
+    return dict(pair) if pair else None
 
 
 def _load_config_safe() -> dict | None:
@@ -185,31 +219,40 @@ def _warn_unpriced_once(model_id: str | None, tokens_total: int) -> None:
 
 def calculate_cost_usd(
     model_id: str | None,
-    tokens_input: int,
-    tokens_output: int,
+    tokens_input: int | None,
+    tokens_output: int | None,
     config: dict | None = None,
-) -> float:
-    """Compute USD cost for the given token counts. Returns 0.0 for unknown models.
+) -> float | None:
+    """USD cost for the given token counts, or None when it cannot be computed.
+
+    THREE ANSWERS, NOT TWO, and the third is why this changed. Previously an
+    unpriced model and a genuinely free one both returned 0.0, so "we do not
+    know what this cost" was stored as "this cost nothing" and nothing anywhere
+    could tell them apart. Measured before the change: 55,471 of 55,584 rows
+    carried a cost of exactly 0 and not one carried NULL.
+
+      * a priced model with measured tokens -> the number
+      * a priced model whose price really is 0 (`free`) -> 0.0, a measurement
+      * unmeasured tokens, or a model with no price -> None, an absence
 
     For an unknown Claude id the built-in table answers directly; only when it
     misses do we consult the project's `llm_pricing_usd_per_million` override
     (loading the effective config lazily if the caller didn't pass one), so the
-    hot Claude path never touches disk. A non-empty model that is still unpriced
-    after the override warns once — 0.0 is the recorded value, not the whole
-    story.
+    hot Claude path never touches disk.
     """
+    if tokens_input is None and tokens_output is None:
+        return None  # nothing was measured; there is no cost to compute
+    ti = tokens_input or 0
+    to = tokens_output or 0
     pricing = get_pricing(model_id, config=config)
     if pricing is None and config is None and model_id:
         # Table missed and the caller had no config in hand — give the project's
         # own pricing table a chance before declaring the model unpriced.
         pricing = get_pricing(model_id, config=_load_config_safe())
     if not pricing:
-        _warn_unpriced_once(model_id, tokens_input + tokens_output)
-        return 0.0
-    return round(
-        tokens_input * pricing["input"] / 1_000_000 + tokens_output * pricing["output"] / 1_000_000,
-        4,
-    )
+        _warn_unpriced_once(model_id, ti + to)
+        return None
+    return round(ti * pricing["input"] / 1_000_000 + to * pricing["output"] / 1_000_000, 4)
 
 
 def known_models() -> tuple[str, ...]:

@@ -1,7 +1,9 @@
+**English** | [Русский](../ru/environment.md)
+
 # Environment Variables and Shell Rules
 
 > Two scopes in this doc:
-> 1. **TAUSIK environment variables** — every `TAUSIK_*` / `CLAUDE_*` / `CURSOR_*` / `WINDSURF_*` / `CODEX_*` / `QWEN_*` / `ANTHROPIC_*` / `OPENAI_*` / `NOTION_*` knob that the code actually reads. Use them to override behaviour without editing config.
+> 1. **TAUSIK environment variables** — every `TAUSIK_*` / `CLAUDE_*` / `CURSOR_*` / `WINDSURF_*` / `CODEX_*` / `QWEN_*` / `ANTHROPIC_*` / `OPENAI_*` knob that the code actually reads. Use them to override behaviour without editing config.
 > 2. **Shell rules** — shells / virtual envs / Docker on Windows / POSIX, kept from the original `environment.md`.
 
 ---
@@ -15,7 +17,8 @@ Source of truth: anywhere the code calls `os.getenv` / `os.environ` in `scripts/
 | Variable | Effect | Notes |
 |---|---|---|
 | `TAUSIK_SKIP_HOOKS=1` | Bypasses ALL TAUSIK hooks (task_gate, bash_firewall, secret_scan, push_gate, etc.). Each hook also honours its own narrower switch. | Use for debugging hook behaviour. Never in CI. |
-| `TAUSIK_HOOK_FAIL_SECURE=1` | When a hook errors (not blocks), treat the failure as a block. Default is fail-open (errors warn). | Set in security-sensitive CI environments. |
+| `TAUSIK_HOOK_FAIL_OPEN=1` | When a write gate cannot query the DB, allow the write instead of refusing. **Refusing is the default since 1.9** (breaking change, announced on PR #5): a guard that cannot evaluate does not wave the edit through. | Set only while a broken database cannot be repaired. |
+| `TAUSIK_HOOK_FAIL_SECURE=1` | RETIRED — it asked for what is now the default. Setting it changes nothing and the gate says so rather than ignoring it. | Unset it. |
 | `TAUSIK_QUIET=1` | Suppresses `[gates]` / `[rag]` progress lines on stderr. | CI / scripted runs. |
 | `TAUSIK_VERIFY_FULL=1` | Forces `tausik verify` to run the full pytest suite (drops the `-m 'not slow'` filter). | Use before release; baseline 12 min on the TAUSIK repo. |
 | `TAUSIK_SCOPED_SKIP__<gate>=1` | Skips one named gate for the current `verify` / `task_done` run (e.g. `TAUSIK_SCOPED_SKIP__pytest=1`). | Narrow opt-out; documented per gate. |
@@ -32,7 +35,6 @@ Source of truth: anywhere the code calls `os.getenv` / `os.environ` in `scripts/
 | `TAUSIK_PUSH_TICKET_PATH=<abs path>` | Override the default `.tausik/.push_ticket.json` location. Used by the test suite. |
 | `TAUSIK_ALLOW_PUSH=1` | **No-op since v1.4** — the env-bypass path was removed (replaced by the single-use ticket file). Setting it does nothing; the gate now requires `tausik push-ok` to write a ticket. |
 | `TAUSIK_SKIP_MEMORY_HOOK=1` | Skips `memory_pretool_block.py` for a single tool call (rarely needed; safer to use `confirm: cross-project` in the prompt). |
-| `TAUSIK_BRAIN_HOOK_DEBUG=1` | Brain hooks log to stderr in addition to silent operation. |
 | `TAUSIK_E2E=1` | End-to-end test marker; some hooks emit deterministic output when set. |
 
 ### Project + IDE detection
@@ -45,7 +47,6 @@ These are typically set by the IDE host, not by the user.
 | `TAUSIK_PROJECT_DIR` | Override the project root (default: parent of `.tausik/`). |
 | `TAUSIK_PROJECT_NAME` | Override the project name shown in CLAUDE.md and `tausik status`. |
 | `TAUSIK_MANIFEST` | Path to an alternative bootstrap manifest (advanced; testing). |
-| `TAUSIK_BRAIN_REGISTRY` | Override `~/.tausik-brain/projects/` registry root. |
 | `CLAUDE_PROJECT_DIR` | Set by Claude Code; TAUSIK reads it for project detection. |
 | `CLAUDE_PLUGIN_DATA` | Set by Claude Code plugin host. |
 | `CLAUDE_CODE_ENTRYPOINT` / `CLAUDE_CODE_SSE_PORT` | Internal Claude Code wiring; informational only. |
@@ -62,18 +63,10 @@ The skill profile detector reads these in precedence order (`TAUSIK_MODEL_PROFIL
 |---|---|
 | `TAUSIK_IDE` / `TAUSIK_IDE_PROFILE` | Force the IDE profile (claude / cursor / qwen / codex). |
 | `TAUSIK_MODEL` / `TAUSIK_MODEL_PROFILE` | Force the model profile slug (opus / sonnet / haiku / gpt-4 / gpt-5 / gpt-5-5 / qwen). |
-| `TAUSIK_AGENT_MODEL` / `TAUSIK_AGENT_MODEL_VERSION` | Logged into `usage_events` rows when the host doesn't report the active model. |
+| `TAUSIK_AGENT_MODEL` / `TAUSIK_AGENT_MODEL_VERSION` | The model running this session, when the host does not report one. FIRST in the resolution chain — it outranks `CLAUDE_MODEL`/`ANTHROPIC_MODEL`/`OPENAI_MODEL`/`CURSOR_MODEL` and the host's provider, because a stated model beats a detected one. Read ONCE, at session open, and recorded on the session; task start and done pin it, and a mid-task change raises `model_mismatch`. Blank is ABSENCE, not a name. `tausik doctor` says so when nothing reports a model. |
 | `CLAUDE_MODEL` / `CLAUDE_CODE_MODEL` | Read when the host is Claude Code. |
 | `CURSOR_MODEL` | Read when the host is Cursor. |
 | `ANTHROPIC_MODEL` / `OPENAI_MODEL` / `OPENAI_API_MODEL` / `QWEN_MODEL` | Provider-flavoured model envs; used as fallbacks by the detector. |
-
-### Brain / Notion
-
-| Variable | Effect |
-|---|---|
-| `NOTION_TAUSIK_TOKEN` | Notion integration token (default name; override via `brain.notion_integration_token_env`). |
-| `NOTION_TOKEN` | Generic fallback if `NOTION_TAUSIK_TOKEN` is unset. |
-| `NOTION_RICH_TEXT_CHUNK` | Override the rich-text chunk size used by the Notion writer (default 1800). |
 
 ---
 

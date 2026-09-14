@@ -11,8 +11,9 @@ Deliberately conservative adoption semantics:
     (an undeclared task grants unrestricted writes — legacy behavior);
   - target outside the project root -> allow (auto-memory and other
     out-of-tree paths are governed by their own hooks);
-  - pre-v30 DB (no scope_paths column) or any DB error -> fail-open,
-    unless TAUSIK_HOOK_FAIL_SECURE=1 (same policy as task_gate.py).
+  - pre-v30 DB (no scope_paths column) or any DB error -> REFUSE, unless
+    TAUSIK_HOOK_FAIL_OPEN=1 (same policy as task_gate.py; the default
+    flipped in 1.9, announced as breaking on PR #5).
 
 Exit codes: 0 = allow, 2 = block. Skipped via TAUSIK_SKIP_HOOKS=1.
 """
@@ -29,8 +30,16 @@ sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
 from _common import is_tausik_project  # noqa: E402
+from hook_policy import (  # noqa: E402
+    classify_target,
+    fail_open_on_db_error,
+    legacy_fail_secure_notice,
+)
 
-_GATED_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+# One list, shared with every other write guard (PR #5): a private copy here
+# is how NotebookEdit and the MCP editors fell out of two guards at once.
+from write_tools import WRITE_TOOLS as _GATED_TOOLS  # noqa: E402
+from write_tools import edited_paths  # noqa: E402
 
 
 def _read_stdin_json() -> dict:
@@ -42,16 +51,20 @@ def _read_stdin_json() -> dict:
 
 
 def _relative_to_project(file_path: str, project_dir: str) -> str | None:
-    """Project-relative path, or None when the target is outside the root."""
-    try:
-        target = os.path.realpath(os.path.expanduser(file_path))
-        root = os.path.realpath(project_dir)
-        rel = os.path.relpath(target, root)
-    except (OSError, ValueError):
-        return None
-    if rel == ".." or rel.startswith(".." + os.sep):
-        return None
-    return rel
+    """Project-relative path, or None when this gate has no jurisdiction.
+
+    Containment comes from `hook_policy.classify_target`, the single answer this
+    gate and `task_gate` both use — they used to compute it separately and
+    disagree on a cross-drive path (see that function). None still means
+    exactly what it meant here: not our business, skip the ACL check. That
+    covers "unknown" as well as "outside", which is this gate's PRE-EXISTING
+    behaviour and is deliberately left alone: an ACL is a scope refinement for
+    a task that already passed QG-0, and QG-0 is the gate that must stay closed
+    on doubt. Tightening it to block on "unknown" would be a behaviour change
+    with no measurement behind it.
+    """
+    verdict, rel = classify_target(file_path, project_dir)
+    return rel if verdict == "inside" else None
 
 
 def _active_acls(db_path: str) -> list[tuple[str, str | None]]:
@@ -174,29 +187,38 @@ def main() -> int:
     if event.get("tool_name") not in _GATED_TOOLS:
         return 0
     tool_input = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
-    # NotebookEdit carries its target as `notebook_path`, not `file_path`
-    # (l26-hook-contract-review AC: NotebookEdit was previously ungated).
-    file_path = tool_input.get("file_path") or tool_input.get("notebook_path")
-    if not isinstance(file_path, str) or not file_path:
-        return 0
+    # NotebookEdit says `notebook_path`, serena `relative_path`, a FileSystem
+    # move `path` and `destination` — `write_tools.edited_paths` knows the
+    # fields. EVERY in-project path is judged: judging the destination alone
+    # let a task scoped to src/a/** move .tausik/tausik.db into src/a/ (review,
+    # session #259).
+    rels = [
+        rel
+        for rel in (_relative_to_project(p, project_dir) for p in edited_paths(tool_input))
+        if rel is not None
+    ]
+    if not rels:
+        return 0  # nothing named, or everything outside the project root — not this hook's jurisdiction
 
-    rel = _relative_to_project(file_path, project_dir)
-    if rel is None:
-        return 0  # outside the project root — not this hook's jurisdiction
-
-    fail_secure = bool(os.environ.get("TAUSIK_HOOK_FAIL_SECURE"))
+    fail_open = fail_open_on_db_error()
+    notice = legacy_fail_secure_notice()
+    if notice:
+        print(notice, file=sys.stderr)
     try:
         acls = _active_acls(db_path)
     except sqlite3.Error as e:
-        if fail_secure:
+        if not fail_open:
             print(
-                f"BLOCKED: TAUSIK_HOOK_FAIL_SECURE=1 set, but scope gate could "
-                f"not query .tausik/tausik.db: {e}.",
+                f"BLOCKED: the scope gate could not query .tausik/tausik.db: {e}\n"
+                "  The gate could not evaluate at all, and a guard that cannot evaluate\n"
+                "  refuses rather than waving the write through.\n"
+                "  Fix:      repair or restore the DB (try `.tausik/tausik doctor`)\n"
+                "  Override: set TAUSIK_HOOK_FAIL_OPEN=1 to allow writes while it is broken",
                 file=sys.stderr,
             )
             return 2
-        # fail-open: pre-v30 schema / transient DB issue. Count the silently
-        # dropped scope check so the degradation is not invisible.
+        # Asked for explicitly (pre-v30 schema / transient DB issue). Count the
+        # silently dropped scope check so the degradation is not invisible.
         emit_supervision_degradation(project_dir, "db_error", "scope_write_gate", str(e))
         return 0
 
@@ -225,8 +247,10 @@ def main() -> int:
     if not acls or not has_declared_scope(acls):
         return 0  # no active task, or nobody declared a scope — legacy freedom
 
-    if scope_allows(rel, acls):
+    outside = [rel for rel in rels if not scope_allows(rel, acls)]
+    if not outside:
         return 0
+    rel = outside[0]
 
     declared = declared_acls(acls)
     acl_lines = "\n".join(f"  {slug}: {patterns}" for slug, patterns in declared)

@@ -48,7 +48,7 @@ def test_posix_home_path_blocked_with_match_substring():
             "Config at /Users/bob/projects/top-secret", False, id="posix_users_path_blocked"
         ),
         pytest.param(
-            "Open D:\\Work\\Kibertum\\acmeproj\\foo.py", False, id="windows_drive_path_blocked"
+            "Open C:\\Projects\\Kibertum\\acmeproj\\foo.py", False, id="windows_drive_path_blocked"
         ),
         pytest.param(
             "See C:/Users/carol/code/bank/api.py",
@@ -177,7 +177,7 @@ def test_scrub_with_config_missing_fields_passes():
 
 def test_multiple_detectors_fire_simultaneously():
     r = brain_scrubbing.scrub(
-        "Email alice@corp.com and see D:\\Work\\foo",
+        "Email alice@corp.com and see C:\\Projects\\foo",
         project_names=["foo"],
     )
     detectors = {i["detector"] for i in r["issues"]}

@@ -38,7 +38,7 @@ from ac_evidence_detectors import (  # noqa: E402,F401 — re-export for callers
     NEGATIVE_RE,
     PYTEST_SUMMARY_RE,
     REVIEW_RE,
-    TEST_REF_RE,
+    find_test_refs,
     TIMESTAMP_PREFIX_RE,
     VERIFICATION_RUN_RE,
 )
@@ -229,7 +229,9 @@ def _segment_evidence_line(line: str) -> list[str]:
 def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
     """Build EvidenceLine(s) for one text unit (a whole line or a segment)."""
     has_check = bool(CHECK_MARK_RE.search(unit))
-    test_refs = TEST_REF_RE.findall(unit)
+    # GitLab #16: token-wise, anchored — the citation as written, which is
+    # what the resolver and the gate read; linear in the line, not quadratic.
+    test_refs = find_test_refs(unit)
     is_manual = bool(MANUAL_RE.search(unit))
     is_negative = bool(NEGATIVE_RE.search(unit))
     is_review = bool(REVIEW_RE.search(unit))

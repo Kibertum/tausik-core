@@ -1,8 +1,8 @@
-[English](/docs/hooks) | **Русский**
+[English](../en/hooks.md) | **Русский**
 
 # Хуки
 
-TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **22 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 23 шлюза (v1.4 добавил `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`; 1.8 добавил `scope_write_gate.py` и `bash_write_gate.py`).
+TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **22 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 24 шлюза (v1.4 добавил `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`; 1.8 добавил `scope_write_gate.py` и `bash_write_gate.py`; 1.9 добавил `read_ledger_gate.py`, выключенный по умолчанию).
 
 ## Что такое хуки
 
@@ -12,27 +12,25 @@ TAUSIK использует хуки Claude Code для автоматическ
 
 | Хук | Когда | Что делает |
 |------|-------|-----------|
-| `task_gate.py` | Перед Write/Edit | Блокирует изменения файлов, если нет активной задачи (SENAR Rule 9.1) |
-| `scope_write_gate.py` | Перед Write/Edit/MultiEdit/NotebookEdit | Scope-ACL (SENAR Rule 2, Walko-паттерн): блокирует запись вне объединения объявленных `scope_paths` активных задач. Именно этот вердикт переиспользует `bash_write_gate` для оболочечных записей. Консервативно: хоть одна активная задача без `scope_paths` → доступ открыт (legacy, необъявленное = без ограничений); цель вне корня проекта → открыт; pre-v30 БД или любая ошибка БД → fail-open, кроме `TAUSIK_HOOK_FAIL_SECURE=1`. |
-| `memory_pretool_block.py` | Перед Write/Edit/MultiEdit **и Bash/PowerShell** | Слой 2 memory-route: блокирует запись в любой чужой memory-сток из `scripts/memory_sinks.py` (`~/.claude/**/memory/`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.aider*`, …) и перенаправляет на `memory add`. Оболочки в matcher, потому что heredoc и `Set-Content` пишут ровно то, что запрещает Write. Обход: `confirm: cross-project` в промпте или `gates.memory_route.allow` в конфиге. |
-| `secret_scan.py` (v1.4) | Перед Write/Edit/MultiEdit | Сканирует `tool_input` на типичные секреты (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic токены, JWT, блоки приватного ключа, generic `password`/`api_key`). По умолчанию warning; `TAUSIK_SECRET_SCAN_STRICT=1` — блокировка. (SENAR Rule 10.12). **Оболочечные каналы не покрывает** — ни Bash, ни PowerShell; см. матрицу покрытия в [`enforcement-coverage.md`](enforcement-coverage.md). |
+| `task_gate.py` | Перед каждым пишущим инструментом — Write/Edit/MultiEdit/NotebookEdit и MCP-редакторами из `hooks/write_tools.py` (serena, windows-mcp; PR #5) | Блокирует изменения файлов, если нет активной задачи (SENAR Rule 9.1) |
+| `scope_write_gate.py` | Перед каждым пишущим инструментом — Write/Edit/MultiEdit/NotebookEdit и MCP-редакторами из `hooks/write_tools.py` (serena, windows-mcp; PR #5) | Scope-ACL (SENAR Rule 2, Walko-паттерн): блокирует запись вне объединения объявленных `scope_paths` активных задач. Именно этот вердикт переиспользует `bash_write_gate` для оболочечных записей. Консервативно: хоть одна активная задача без `scope_paths` → доступ открыт (legacy, необъявленное = без ограничений); цель вне корня проекта → открыт; pre-v30 БД или любая ошибка БД → ОТКАЗ, кроме `TAUSIK_HOOK_FAIL_OPEN=1` (умолчание перевёрнуто в 1.9). |
+| `memory_pretool_block.py` | Перед каждым пишущим инструментом — Write/Edit/MultiEdit/NotebookEdit и MCP-редакторами из `hooks/write_tools.py` (serena, windows-mcp; PR #5) **и каждым shell-инструментом (Bash, PowerShell, `mcp__windows-mcp__PowerShell`)** | Слой 2 memory-route: блокирует запись в любой чужой memory-сток из `scripts/memory_sinks.py` (`~/.claude/**/memory/`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.aider*`, …) и перенаправляет на `memory add`. Оболочки в matcher, потому что heredoc и `Set-Content` пишут ровно то, что запрещает Write. Обход: `confirm: cross-project` в промпте или `gates.memory_route.allow` в конфиге. |
+| `secret_scan.py` (v1.4) | Перед каждым пишущим инструментом — Write/Edit/MultiEdit/NotebookEdit и MCP-редакторами из `hooks/write_tools.py` (serena, windows-mcp; PR #5) **и каждым shell-инструментом (Bash, PowerShell, `mcp__windows-mcp__PowerShell`)** | Сканирует `tool_input` на типичные секреты (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic токены, JWT, блоки приватного ключа, generic `password`/`api_key`). По умолчанию warning; `TAUSIK_SECRET_SCAN_STRICT=1` — блокировка. (SENAR Rule 10.12). **Оболочечные каналы не покрывает** — ни Bash, ни PowerShell; см. матрицу покрытия в [`enforcement-coverage.md`](enforcement-coverage.md). |
 | `bash_firewall.py` | Перед Bash **и PowerShell** | Блокирует опасные команды (`rm -rf /`, `Remove-Item -Recurse C:\`, DROP TABLE, `Format-Volume`, force push, …). Диалект выбирается по `tool_name`: POSIX-лексер не умеет читать PowerShell, где `\` — обычный символ пути, а не экранирование. |
 | `bash_write_gate.py` | Перед Bash **и PowerShell** | Применяет к записи через оболочку те же QG-0 (Rule 1) и scope-ACL (Rule 2), что и Write — переиспользуя решения `scope_write_gate`, а не копируя их. Разбирает редиректы, `tee`/`dd`/`sed -i`/`cp`/`mv` и `Set-Content`/`Add-Content`/`Out-File`/`New-Item`/`Tee-Object`. |
-| `brain_search_proactive.py` | Перед WebSearch/WebFetch | Проактивно query'ит shared brain на релевантные decisions/patterns перед web-вызовами |
 | `git_push_gate.py` | Перед Bash **и PowerShell** | Блокирует push без свежего, одноразового тикета `.tausik/.push_ticket.json`, привязанного к SHA HEAD. `/ship` и `/commit` запускают `tausik push-ok && git push` после вашего "y" — `push-ok` пишет 60-секундный тикет, хук съедает его на следующем push. Сужающей клаузы `if` больше нет: она была второй копией решения, которое хук принимает сам, и называла только одну оболочку. |
 
 ## PostToolUse — реакции после действия
 
 | Хук | Когда | Что делает |
 |------|-------|-----------|
-| `auto_format.py` | После Write/Edit | Авто-форматирование через ruff/prettier/gofmt + лог "Modified: X" в задачу |
-| `memory_posttool_audit.py` | После Write/Edit/MultiEdit в auto-memory | Аудитит cross-project leakage (использует regex-библиотеку `memory_markers.py`) и предупреждает |
+| `auto_format.py` | После каждого пишущего инструмента (MultiEdit не был на этом хуке до PR #5) | Авто-форматирование через ruff/prettier/gofmt + лог "Modified: X" в задачу |
+| `memory_posttool_audit.py` | После каждого пишущего инструмента в auto-memory | Аудитит cross-project leakage (использует regex-библиотеку `memory_markers.py`) и предупреждает |
 | `task_done_verify.py` | После `mcp__tausik-project__tausik_task_done` | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite). |
-| `brain_post_webfetch.py` | После WebFetch | Авто-кешит результат в shared brain `web_cache` для token reuse |
 | `task_call_counter.py` | После любого tool call | Инкрементирует per-task `call_actual` счётчик; warning'ит на 1.5×budget |
 | `posttool_usage.py` (v1.4) | После любого tool call | Записывает token-usage события в `usage_events` для per-task cost rollup |
 | `activity_event.py` | После любого tool call | Записывает activity-таймстемпы для **gap-based active-time** метрики (SENAR Rule 9.2) |
-| `tool_output_truncation_nudge.py` (v1.4) | После Read/Grep/Bash/Glob | Подсказывает агенту сузить scope, когда вывод превышает порог по строкам (warn-only) |
+| `tool_output_truncation_nudge.py` (v1.4) | После Read/Grep/Glob и каждым shell-инструментом (Bash, PowerShell, `mcp__windows-mcp__PowerShell`) | Подсказывает агенту сузить scope, когда вывод превышает порог по строкам (warn-only) |
 | `task_cost_budget_check.py` (v1.4) | После любого tool call | Сравнивает `cost_actual` / `tokens_actual` активной задачи с бюджетом; WARN на 1.5×, BLOCKER на 2× (с throttle) |
 
 ## SessionStart

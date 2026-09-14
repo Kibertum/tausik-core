@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/architecture)
+**English** | [Русский](../ru/architecture.md)
 
 # TAUSIK Architecture Reference
 
@@ -71,7 +71,8 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `project_config.py` + `default_gates.py` | Config loader, gates config, auto-enable |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Skill install/uninstall from repositories |
-| `brain_*.py` | Shared Brain (Notion mirror, sync, classifier, registry) |
+| `knowledge_db.py` + `knowledge_write.py` + `knowledge_read.py` | The shared local store `~/.tausik-knowledge` (`--global` on `decide` / `memory add`; folded into `memory search`) |
+| `publication_boundary.py` + `knowledge_export.py` | The one place shared-store content leaves the machine (`knowledge export --redacted`) |
 | `cq_client.py` | Cross-project queue client |
 | `doc_extract.py` | markitdown integration |
 | `docs_lint.py` | Warning-only stale-version linter |
@@ -79,7 +80,13 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `model_routing.py` | Model selection helper |
 | `ide_utils.py` | IDE detection, paths, registry |
 | `tausik_utils.py` + `tausik_version.py` + `project_types.py` | Helpers, version, types |
-| `gen_doc_constants.py` + `mcp_tool_counts.py` | Generate `docs/_generated/constants.json` (v1.5) |
+| `gen_doc_constants.py` | Doc-drift entry point: `--check`, `--write`, regenerate `constants.json` |
+| `doc_drift_common.py` | Shared regex tables, scan targets, text helpers |
+| `doc_drift_scanners.py` | The six drift scans (versions, MCP counts, closed lists, test and code counts) |
+| `doc_drift_tables.py` | Numeric cells of markdown table columns, with their subject registry |
+| `doc_drift_fixes.py` | The auto-fixer `--write` runs |
+| `code_counts.py` | Counts repo state: hooks, stacks, roles, review agents, skills |
+| `mcp_tool_counts.py` | Counts the MCP surface each server advertises |
 | `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.5) |
 | `project_cli_hygiene.py` | `tausik hygiene archive` (read-only project hygiene, v1.5) |
 | `hooks/check_docs.py` | Pre-commit / CI wrapper for doc-constants drift (v1.5) |
@@ -93,7 +100,7 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `bootstrap_copy.py` | ~180 | Copy skills, scripts, MCP into `.claude/` |
 | `bootstrap_config.py` | ~70 | Configuration, stack detection |
 | `bootstrap_generate.py` | ~300 | Generate settings.json, CLAUDE.md, skill catalog |
-| `analyzer.py` | ~330 | Extended stack detection, codebase analysis |
+| `analyzer.py` | ~260 | Extension-skill detection and tree walking |
 
 ### MCP Server
 
@@ -101,12 +108,29 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 |------|---------|
 | `harness/claude/mcp/project/server.py` | JSON-RPC stdio server |
 | `harness/claude/mcp/project/tools.py` | core tool definitions |
-| `harness/claude/mcp/project/tools_extra.py` | extended tool definitions (skills, gates, doctor, verify, roles, stacks, brain) |
+| `harness/claude/mcp/project/tools_extra.py` | extended tool definitions (skills, gates, doctor, verify, roles, stacks) |
 | `harness/claude/mcp/project/handlers.py` | Dispatch only: tool-call counter, `handle_tool`, merge of the per-domain tables |
 | `harness/claude/mcp/project/handlers_<domain>.py` | Handlers by domain: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Each module exports `<DOMAIN>_HANDLERS`; `handlers.py` merges them into `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Shared list rendering (`render_list`) — an empty result must read as "nothing here", not as an empty string |
 
-Total MCP surface: **119 project tools + 7 brain tools = 124** (optional `codebase-rag` adds 7 more; not part of the main count).
+Total MCP surface: **146 project tools** (optional
+`codebase-rag` adds 7 more; not part of the main count).
+
+**THAT SURFACE IS PAID FOR ON EVERY TURN, AND THE PRICE DIFFERS BY HOST.** The
+MCP protocol sends every tool's name AND schema each turn unless the client
+defers schemas. Measured in session #229: the project server's serialized
+definitions are 56,108 bytes (~14,000 tokens); the names alone are 3,201 bytes
+(~800 tokens) — a 17.5x difference. Claude Code defers and pays the names, which
+was OBSERVED; a host without deferral pays the whole thing, which follows from
+the protocol and was not observed here.
+
+The figures above are for reading, not the source of truth: that is the
+`mcp_surface` ratchet in `tausik/gates.json`, which
+`tests/test_mcp_surface_ratchet.py` re-measures on every run and turns red on
+growth. It is done that way because the previous version of this number rotted
+in exactly this spot — the task filed 117 tools and 44,501 bytes in session #178,
+and by #229 it was 145 and 56,108: 24% and 26% of growth nobody noticed while the
+number lived in prose.
 
 ### Contextual chunk headers (codebase-rag)
 
@@ -128,6 +152,18 @@ still does not appear in what search returns. An index built before v1.8 grows
 into the layout on first open — the column is added and the FTS table rebuilt
 from the chunks, which are the source of truth.
 
+**How that was measured, and how to measure it again.** The headers are not
+"obviously helpful" — their gain is counted by a reproducible instrument,
+`scripts/rag_retrieval_bench.py` (`python scripts/rag_retrieval_bench.py
+[--limit N] [--json]`). It derives its queries MECHANICALLY from the corpus and
+samples them deterministically, so the set cannot be tuned toward a flattering
+result and two runs over the same tree ask the same questions. It measures
+recall@K against the SPECIFIC CHUNK and keeps two query sets at once: `context`,
+the case the header exists for, and `control`, queries built only from words
+already inside the chunk, where the header must not help and above all must not
+hurt. At n=115: recall@3 went 0.4870 → 0.8348 on `context` and 0.5739 → 0.6435
+on `control`, with no regression at any K.
+
 ### Cross-IDE Support
 
 Skills, roles, stacks -- shared across IDEs. So are the MCP servers: `harness/claude/mcp/`
@@ -136,11 +172,11 @@ own (all of them, today). A per-IDE copy would be a mirror waiting to drift — 
 exist under `harness/cursor/` and was deleted in v1.7.0.
 ```
 harness/
-+-- skills/           # 13 core auto-deployed + brain conditional + 20 in skills-official/ (opt-in via --include-official)
-+-- roles/            # 6 roles (architect, developer, devops, qa, tech-writer, ui-ux)
++-- skills/           # 13 core auto-deployed + 20 in skills-official/ (opt-in via --include-official)
++-- roles/            # 7 roles (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)
-+-- claude/mcp/       # MCP servers (project, brain, codebase-rag) — canonical for ALL IDEs
++-- claude/mcp/       # MCP servers (project, codebase-rag) — canonical for ALL IDEs
 +-- opencode/plugins/ # QG-0 enforcement plugin for OpenCode (tool.execute.before)
 ```
 
@@ -211,7 +247,45 @@ and they wrote no `gate_runs` row — so nothing could prove a QG-2 gate had run
 **Scoped gates** — `(gate_config, files) -> (passed, output)`, run over the
 task's declared scope. Universal (always on): `filesize`, `class_surface`,
 `tdd_order`, `ruff`, `mypy`, `bandit`, `bootstrap_drift`, `memory_route`,
-`renar_drift_schema`, `renar_drift_provenance`.
+`renar_drift_schema`, `renar_drift_provenance`, `cross_model_parity`.
+
+`cross_model_parity` asks one question: did a capability go host-only without
+anyone saying so. It RUNS the real mechanism generators into a clean tree and
+compares hosts that share an extension point — Claude's hooks against Qwen's,
+plugins against plugins. There is no comparison ACROSS kinds: asking whether
+Claude is "missing" OpenCode's plugin is a question with no meaning. The gate does
+NOT demand sameness: Cursor has no extension point at all, so there is nothing for
+it to be equal to. What it demands is that a difference be NAMED, with a reason —
+and a declaration that no longer matches any live difference is refused as loudly
+as an undeclared difference (decision #335). It fires only on host-layer edits
+(`bootstrap/`, `scripts/hooks/`, `harness/opencode/`): a gate that asks every task
+about cross-model parity is a tax, and a tax gets switched off.
+
+`bootstrap_drift` checks all three links of the chain "edit → deploy → takes
+effect": `scripts/` against the deployed profile, `harness/` against its
+fan-out, and the deployed profile against **the process that runs from it**
+(`running_source_drift`: a content snapshot at process start, compared at
+task-done). A long-lived MCP server whose profile was rewritten underneath it
+executes the old copy; the gate refuses the close and names the fix — restart
+the server, or close via the CLI, which is a fresh process.
+
+**A gate is verified by mutation, not by passing.** A green run proves only
+that the gate did not object — not that it would object to anything. The rule
+is held by `tests/test_gates_catch_their_violation.py`: every gate in
+`gate_registry.GATE_REGISTRY` is in exactly one of two tables. COVERED — the
+gate is driven through the registry's own `impl_for` on BOTH ends: a real
+violation built under `tmp_path` must come back failed, a clean input built the
+same way must come back passed (one end alone is empty: a gate that is red on
+every input passes a red-only check as well as a correct one). EXCUSED — a gate
+that cannot be driven from a synthetic tree (service-bound, an external tool's
+verdict, warn severity), with a reason and the names of a red and a green test
+in the module that does drive it; the names are checked against that module's
+AST. The list is closed: a new gate without a row reddens the lane. A mutation
+cannot stay in the tree by construction — everything is built under
+`tmp_path`, and a write outside it during the table run is caught by
+intercepting `open`, `sqlite3.connect` and `subprocess` (the three channels
+the builders use) — not by a `git status` snapshot, which under xdist loses
+the race to a neighbouring worker.
 
 `class_surface` is the one exception to "run over the declared scope": it ignores
 the file list and measures the **whole repo** (~0.65s). A class grows past its cap
@@ -261,7 +335,7 @@ the delegation **scaffolding/state**; the agent performs the actual spawn.
 | Step | Command / mechanism |
 |---|---|
 | Delegate | `tausik task delegate <slug>` — records {recommended model, parent session} in the `meta` kv (no schema migration). **complex tasks are refused** (they stay with the coordinator). |
-| Handoff contract | `tausik task handoff <slug>` — deterministic JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; the trimmed `WORKER_SKILLS` profile (no plan/explore/brain). The orchestrator passes it to the Agent tool; the worker echoes it back (round-trip identity). |
+| Handoff contract | `tausik task handoff <slug>` — deterministic JSON {slug, goal, acceptance_criteria, scope, scope_exclude, model, skills}; the trimmed `WORKER_SKILLS` profile (no plan/explore). The orchestrator passes it to the Agent tool; the worker echoes it back (round-trip identity). |
 | In-session recognition | `task start` on a delegated task surfaces **worker mode** (operating contract) and suppresses the orchestrator-only model-recommendation banner. |
 | Scope hard-gate | the worker is scope-bounded — `scope_write_gate` blocks edits outside `scope_paths`, and a delegated task with **no** scope is blocked until it declares one (no legacy fail-open for workers). |
 | Summary-back | `tausik task summary-back <slug> "<summary>" [--gates …]` — the worker returns a structured result (stored in `meta`, surfaced in `task show`) so the coordinator picks it up **without** the worker transcript. |
@@ -273,14 +347,22 @@ lives entirely in the `meta` table (`delegation:<slug>`, `worker_summary:<slug>`
 
 All hook files under `scripts/hooks/` are registered via `bootstrap/bootstrap_generate.py` (Claude Code) and `bootstrap/bootstrap_qwen.py` (Qwen Code). Hook scripts are non-blocking (exit 0); errors go to stderr. Shared helpers live in `scripts/hooks/_common.py`.
 
-Brain hooks share helpers in `scripts/brain_hook_utils.py` — a single mirror-lookup + TTL-semantics implementation. Brain-connection setup is in `scripts/brain_runtime.py`: `open_brain_deps() -> (conn, client, cfg)`. The `/brain` skill provides the conversational UI.
 
 ## Memory Aggregates
 
 `service_knowledge_aggregates.py` holds pure functions for memory re-injection:
 
 - `build_memory_block(be, ...)` — compact markdown (decisions + conventions + dead ends), ≤50 lines, called from `/start`, `/checkpoint`, and the SessionStart hook
+- `build_compact_memory_tail(be)` — the one-line-per-entry recap embedded in the CLAUDE.md dynamic block
 - `build_memory_compact(be, last_n)` — `task_logs` aggregation: phases + top words + top files
+
+Both recaps read the memory graph through `memory_supersedes.live_head`: an
+entry a LIVE `supersedes` edge has retired is not printed, its line goes to the
+next live entry, and the surviving entry says `(supersedes #N)` on the line it
+occupies anyway. Only that relation hides anything, and only when the
+superseding entry is itself unarchived — otherwise the older entry is the best
+knowledge left. An unreadable graph retires nothing, so the recap degrades to
+what it printed before the filter existed.
 
 Likewise `scripts/model_routing.py` and `plugin_data.py` are pure modules imported by CLI/MCP handlers.
 

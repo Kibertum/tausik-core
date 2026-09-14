@@ -1,4 +1,4 @@
-"""v16r-spec-types: RENAR SPEC artifacts (9 closed types).
+"""v16r-spec-types: RENAR SPEC artifacts, typed from a closed list.
 
 Covers the v35 migration, CRUD + closed-type/relation enforcement (CHECK +
 service validation), task↔SPEC linking, task_show integration, FTS5 search,
@@ -40,12 +40,15 @@ def _seed_task(svc, slug: str = "t1") -> None:
     svc.task_add("s1", slug, "Task 1", role="developer", goal="g")
 
 
-# === AC: closed list is exactly the 9 RENAR types ===
+# === AC: closed list is exactly the RENAR types the standard names ===
 
 
-def test_spec_types_closed_nine():
-    assert SPEC_TYPES == ("ARCH", "API", "DATA", "INT", "PROC", "UI", "AI", "SEC", "OPS")
-    assert len(SPEC_TYPES) == 9
+def test_spec_types_are_the_closed_list_the_service_enforces():
+    """Composition is asserted in tests/test_spec_types_closed_list.py against the
+    standard's own transcription; restating the tuple here would be a second
+    literal and a tautology (memory #474). What belongs HERE is that the service
+    rejects anything outside it."""
+    assert len(SPEC_TYPES) == len(set(SPEC_TYPES))
 
 
 # === AC: migration v35 applies cleanly on a v34 DB ===
@@ -63,17 +66,15 @@ def test_migration_v35_creates_tables_clean(tmp_path):
     conn.isolation_level = None  # autocommit — run_migrations drives its own BEGIN
     conn.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     conn.execute("INSERT INTO meta VALUES('schema_version', '34')")
-    conn.execute("CREATE TABLE tasks(slug TEXT PRIMARY KEY)")  # FK target
+    conn.execute(
+        "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
+    )  # defect_of: v10 column, indexed by v62  # FK target
     # ALTER target for v38 — run_migrations walks every version up to current,
     # not just the one under test here.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     # ALTER + backfill targets for v42 (slug identity): the chain reaches them too.
-    conn.execute(
-        "CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
-    )
-    conn.execute(
-        "CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)"
-    )
+    conn.execute("CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)")
+    conn.execute("CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)")
 
     new_ver = run_migrations(conn, 34)
     assert new_ver >= 35

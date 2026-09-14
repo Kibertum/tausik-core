@@ -13,8 +13,13 @@ from __future__ import annotations
 import os
 import re
 import sys
+import tomllib
 
 import pytest
+
+# This module reads the canonical Claude-agent source and exercises the bootstrap
+# converter.  A change elsewhere in scripts/ is not its subject.
+CROSSCUTTING_SCOPE = ["harness/claude/subagents/", "bootstrap/bootstrap_copy.py"]
 
 REPO = os.path.join(os.path.dirname(__file__), "..")
 SUBAGENT_PATH = os.path.join(REPO, "harness", "claude", "subagents", "tausik-reviewer.md")
@@ -114,7 +119,7 @@ def lib_dir_with_subagent(tmp_path):
     sub_src = lib / "harness" / "claude" / "subagents"
     sub_src.mkdir(parents=True)
     (sub_src / "tausik-reviewer.md").write_text(
-        "---\nname: tausik-reviewer\nmodel: sonnet\ntools: Read, Grep, Bash\n---\nbody",
+        "---\nname: tausik-reviewer\ndescription: Test reviewer\nmodel: sonnet\ntools: Read, Grep, Bash\n---\nbody",
         encoding="utf-8",
     )
     (sub_src / "non-md-file.txt").write_text("ignore me", encoding="utf-8")
@@ -135,11 +140,52 @@ def test_copy_subagents_for_claude_writes_to_agents_dir(lib_dir_with_subagent, t
     assert "name: tausik-reviewer" in body
 
 
-def test_copy_subagents_skips_non_claude_ides(lib_dir_with_subagent, tmp_path):
+def test_copy_subagents_converts_canonical_source_for_codex(lib_dir_with_subagent, tmp_path):
     sys.path.insert(0, BOOTSTRAP_DIR)
     from bootstrap_copy import copy_subagents
 
-    for ide in ("cursor", "qwen", "codex", "windsurf"):
+    target = tmp_path / "target_codex"
+    target.mkdir()
+    assert copy_subagents(lib_dir_with_subagent, str(target), "codex") == 1
+    converted = tomllib.loads((target / "agents" / "tausik-reviewer.toml").read_text(encoding="utf-8"))
+    assert converted["name"] == "tausik-reviewer"
+    assert converted["description"]
+    assert converted["developer_instructions"] == "body"
+
+
+def test_copy_subagents_for_codex_preserves_all_canonical_agents_and_instructions(tmp_path):
+    """Codex has no second prompt source: every TOML is derived from Claude's MD."""
+    sys.path.insert(0, BOOTSTRAP_DIR)
+    from bootstrap_copy import copy_subagents
+
+    target = tmp_path / "target_codex"
+    target.mkdir()
+    source_dir = os.path.join(REPO, "harness", "claude", "subagents")
+    source_names = sorted(os.path.splitext(entry)[0] for entry in os.listdir(source_dir) if entry.endswith(".md"))
+    assert copy_subagents(REPO, str(target), "codex") == len(source_names)
+    deployed_dir = target / "agents"
+    deployed_names = sorted(path.stem for path in deployed_dir.glob("*.toml"))
+    assert deployed_names == source_names
+    for name in source_names:
+        source = open(os.path.join(source_dir, f"{name}.md"), encoding="utf-8").read()
+        frontmatter, _, instructions = source[4:].partition("\n---\n")
+        fields = dict(line.split(":", 1) for line in frontmatter.splitlines() if ":" in line)
+        deployed = tomllib.loads((deployed_dir / f"{name}.toml").read_text(encoding="utf-8"))
+        assert deployed["name"] == fields["name"].strip()
+        assert deployed["description"] == fields["description"].strip()
+        assert deployed["developer_instructions"] == instructions
+
+    changed = deployed_dir / f"{source_names[0]}.toml"
+    changed.write_text('name = "user-change"\n', encoding="utf-8")
+    assert copy_subagents(REPO, str(target), "codex") == len(source_names)
+    assert tomllib.loads(changed.read_text(encoding="utf-8"))["name"] == source_names[0]
+
+
+def test_copy_subagents_skips_hosts_without_named_agents(lib_dir_with_subagent, tmp_path):
+    sys.path.insert(0, BOOTSTRAP_DIR)
+    from bootstrap_copy import copy_subagents
+
+    for ide in ("cursor", "qwen", "windsurf"):
         target = tmp_path / f"target_{ide}"
         target.mkdir()
         n = copy_subagents(lib_dir_with_subagent, str(target), ide)

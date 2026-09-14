@@ -81,6 +81,14 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="SENAR Rule 6: how to undo this change (git revert / migration "
         "down / feature flag off).",
     )
+    ta.add_argument(
+        "--ticket",
+        nargs="*",
+        default=None,
+        dest="add_tickets",
+        help="External ticket(s) this task answers, SPACE-separated: "
+        "--ticket github#7 gitlab#12 (or a full ticket URL). The tracker name is required — this repo has two trackers whose numbers collide.",
+    )
     _add_scope_acl_flags(ta)
     _add_unit_flags(ta)
 
@@ -155,6 +163,18 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         "and is validated against live files and the live gate set. Omitting it "
         "keeps the previous behaviour (a green verify run younger than the cache "
         "TTL is searched for).",
+    )
+    tdone.add_argument(
+        "--gates-not-applicable",
+        action="store_true",
+        dest="zero_gate_ack",
+        help="Knowingly close on a verify run in which NO gate executed. "
+        "Required because SENAR 1.4 §8.6(e) makes 'nothing was checked' a "
+        "non-verdict: `verify --no-tests-expected` records the declaration, "
+        "and this flag is the separate, recorded act of accepting it. Use it "
+        "for work that honestly maps to no test — documentation, config, an "
+        "investigation. It cannot rescue a run in which a gate APPLIED and "
+        "still did not execute; that one is fixed, not acknowledged.",
     )
     tdone.add_argument(
         "--no-file-changes",
@@ -232,7 +252,19 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         nargs="*",
         default=None,
         dest="update_relevant_files",
-        help="JSON-list scope for scoped verify / pytest gate (overwrites prior)",
+        help=(
+            "Scope for scoped verify / pytest gate, SPACE-separated paths "
+            "(--relevant-files a.py b.py); stored as a JSON list; overwrites prior. "
+            "A comma-joined value is refused (GitLab #13)."
+        ),
+    )
+    tupdate.add_argument(
+        "--ticket",
+        nargs="*",
+        default=None,
+        dest="update_tickets",
+        help="External ticket(s) this task answers, SPACE-separated: "
+        "--ticket github#7 gitlab#12 (or a full ticket URL). The tracker name is required — this repo has two trackers whose numbers collide.",
     )
     _add_scope_acl_flags(tupdate)
     _add_unit_flags(tupdate)

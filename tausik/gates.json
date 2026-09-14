@@ -27,10 +27,94 @@
   "class_surface": {
     "_comment": "Caps the COMPOSED public surface of a class after inheritance, which the line gate structurally cannot see: a god-object built from mixins keeps every file under the line cap while the class they compose has 129 public members. Complements the line cap, does not replace it — 'this class does too much' and 'this file is too long to read' are different defects. Read by scripts/gate_class_surface.py. See task filesize-mro-exempt-mcp.",
     "max_public_members": 60,
-    "_baseline_comment": "RATCHET, may only shrink. These two predate the gate; they fail only if they GROW, so the gate blocks any NEW god-object today while these come down over time. A gate that turns red on everything the day it lands gets switched off. tests/test_gate_class_surface.py::test_baseline_only_ratchets_down pins that these never rise. Removing a name once it is under the cap is the goal.",
+    "_baseline_comment": "RATCHET, may only shrink. These two predate the gate; they fail only if they GROW, so the gate blocks any NEW god-object today while these come down over time. A gate that turns red on everything the day it lands gets switched off. tests/test_gate_class_surface.py::test_committed_baseline_matches_reality_and_only_ratchets_down pins that these never rise. Removing a name once it is under the cap is the goal.",
     "baseline": {
-      "SQLiteBackend": 129,
-      "ProjectService": 118
+      "SQLiteBackend": 169,
+      "ProjectService": 148
     }
+  },
+  "red_proofs": {
+    "doc_coverage": {
+      "test": "tests/test_doc_coverage_gate.py::TestTheGateGoesRedOnARealOmission::test_a_command_missing_from_the_reference_is_refused",
+      "violation": "a command the parser declares that the CLI reference names nowhere — the shape measured at 14 of 53 when this gate landed"
+    },
+    "_comment": "RED-PROOF REGISTRY. For every blocking gate IN FORCE: the test that hands it a VIOLATION and requires red. Not 'is covered by tests' — a gate that has forgotten how to fail passes its whole happy path. Read by scripts/gate_degeneracy.py, which resolves every `test` node against the tree's AST and reddens, naming the gate, when an entry is missing, unresolvable, or names a gate the live registry no longer blocks on. BORROWED from ADR-021, NOT owed to it: §3.1 of that ADR rejects the 'for every mandatory control' form and its norm lives in §13.9.4, the procedure for amending the STANDARD, which we are not doing. Adding a blocking gate means adding a line here. See task no-degeneracy-measure-for-our-own-mandatory-controls.",
+    "_command_gate_note": "ruff and pytest are COMMAND gates: the framework's share of the contract is 'a nonzero exit becomes a blocking FAIL', and that is what their proof feeds. Whether the TOOL detects a given violation is the tool's business, not this registry's. Naming that limit beats a proof that pretends to cover it.",
+    "ruff": {
+      "test": "tests/test_gates.py::TestGateRunner::test_command_gate_fail",
+      "violation": "a command that exits nonzero — the only shape of violation a command gate can perceive"
+    },
+    "pytest": {
+      "test": "tests/test_gates.py::TestGateRunner::test_command_gate_fail",
+      "violation": "same command-gate contract as ruff; see _command_gate_note"
+    },
+    "filesize": {
+      "test": "tests/test_gates.py::TestGateRunner::test_filesize_gate_fail",
+      "violation": "a file longer than the configured max_lines"
+    },
+    "class_surface": {
+      "test": "tests/test_gate_class_surface.py::test_new_god_class_is_blocked_outright_not_baselined",
+      "violation": "a new class whose composed public surface exceeds the cap and is not in the baseline"
+    },
+    "bootstrap_drift": {
+      "test": "tests/test_bootstrap_drift_gate.py::TestGateRunner::test_fails_and_names_the_file_and_command_on_drift",
+      "violation": "a source file edited without redeploying it to the profile that actually runs"
+    },
+    "memory_route": {
+      "test": "tests/test_memory_sinks.py::TestGate::test_foreign_sink_in_tree_blocks",
+      "violation": "project knowledge written into a foreign agent's memory sink (.cursor/rules/learned.mdc)"
+    },
+    "state_roundtrip": {
+      "test": "tests/test_state_roundtrip_gate.py::TestStateRoundtripGate::test_red_on_single_field_hand_edit",
+      "violation": "one hand-edited field in the committed tausik/ projection, diverging from the DB export"
+    },
+    "claudemd_state_drift": {
+      "test": "tests/test_claudemd_state_gate.py::TestTheWipeIsCaught::test_replacing_the_block_with_an_empty_project_reds",
+      "violation": "a dynamic block replaced by an empty-project rendering — carries no memory tail"
+    },
+    "skill_spec_conformance": {
+      "test": "tests/test_skill_spec_conformance.py::TestGate::test_gate_fails_on_broken_skill",
+      "violation": "a changed SKILL.md violating the agentskills.io name/size canon"
+    },
+    "verify_first": {
+      "test": "tests/test_verify_first_contract.py::TestVerifyFirstEnforcement::test_no_verify_run_blocks",
+      "violation": "a close attempted with no fresh signed verify green behind it"
+    },
+    "changelog": {
+      "test": "tests/test_changelog_gate.py::TestEnforceChangelog::test_neither_file_written_blocks_naming_both",
+      "violation": "a close whose diff touches neither CHANGELOG.md nor CHANGELOG.ru.md"
+    },
+    "test_dedupe": {
+      "test": "tests/test_gate_test_dedupe.py::test_growth_is_red_and_says_where",
+      "violation": "one more test sharing an existing shape — the growth the ratchet exists to block; the proof drives it on the REAL repository measurement, because a synthetic fixture cannot produce a duplicate group across the actual test tree"
+    },
+    "cross_model_parity": {
+      "test": "tests/test_cross_model_parity_gate.py::TestTakingAHookAwayTurnsItRed::test_the_gate_blocks_when_that_happens",
+      "violation": "a hook present on one mechanism-bearing host and absent from another, with no declaration naming the difference - the shape in which a capability goes host-only quietly"
+    }
+  },
+  "test_dedupe": {
+    "_comment": "Structurally indistinguishable tests, measured by scripts/audit_pytest_dedupe.py (AST shape modulo names, strings and numbers) and enforced by scripts/gate_test_dedupe.py. The detector predates the gate by a long way and had a --check flag nobody ran, so the number grew unwatched: 294 groups / 683 tests in session #178, 322 / 753 when the gate landed.",
+    "_baseline_comment": "RATCHET, may only turn down. Existing debt does not block; GROWTH does. A baseline found ABOVE the measurement is itself a failure — tests/test_gate_test_dedupe.py::test_the_baseline_only_ratchets_down requires lowering it to what was achieved, or the line stops being a ratchet and becomes a list. The subject is DISTINGUISHABILITY, not count: this gate never looks at how many tests exist, so it can never be satisfied by deleting them.",
+    "baseline": {
+      "groups": 290,
+      "tests": 686
+    }
+  },
+  "mcp_surface": {
+    "_comment": "Caps the MCP tool surface the server advertises. The MCP protocol sends every tool's name AND schema on each turn unless the CLIENT defers schemas, so the surface is a per-turn tax paid before a single useful call. Claude Code defers (observed: this session's tools arrive as names with schemas fetched on demand); a host without deferral pays the whole thing, and the two differ by 17.5x. Read by tests/test_mcp_surface_ratchet.py.",
+    "_baseline_comment": "RATCHET, may only shrink. Session #229 measured 145 tools and 56108 bytes; session #234 raised both by exactly one tool -- `tausik_graph` -- under decision #350, which argues the raise and states its price: +799 bytes serialized (+1.4%), and on a schema-deferring host only the name, about 22 of 3201 bytes (+0.7%). The new numbers are the MEASUREMENT, not a target with headroom: headroom is how a ratchet stops ratcheting. The task that filed this recorded 117 and 44501 in session #178 -- the surface grew 24% and 26% with nobody noticing, because the number lived in prose. A number in a document rots; a number a test re-measures cannot. Lower these when the surface actually shrinks; raising one is a decision to be argued, not a chore.",
+    "max_tools": 146,
+    "max_bytes": 56907,
+    "_host_note": "names-only cost is 3201 bytes (~800 tokens); full surface ~14027 tokens. The first is what THIS host pays and was observed; the second follows from the protocol and was not observed here."
+  },
+  "closure_evidence": {
+    "_comment": "DECLARED REMAINDER, not a ratchet at zero. Closure journals are append-only: these citations were written into tasks closed long ago, and rewriting them would forge the evidence this project exists to keep honest. The set is CLOSED — since session #240 `task done` checks a task's own citations while the author can still fix them (scripts/closure_citation_check.py). So growth is the signal and the history is not. Measured 2026-09-08; may only shrink.",
+    "baseline": {
+      "rotted": 99,
+      "never_existed": 36
+    },
+    "_remeasured_comment": "Re-measured 2026-09-12 (session #250, decision #365): 87 / 39. Of the 75 new entries, 58 rotted refs and 14 bare-name never-existed refs are test files deleted WITH THEIR SUBJECT by the Notion removal 77703c4a (decision #358) - correct history, not a lie; 3 are session #250 citations corrected by a later journal line (the collector counts the first mention); 1 is a named absence. The numbers are the measurement with no headroom and may only shrink.",
+    "_remeasured_2026_09_13": "Re-measured 2026-09-13 (session #257, task the-closure-auditor-reads-class-method-and-param-c): 99 / 35, by a CORRECTED auditor over the same 1494 done tasks. Since GitLab #16 (46161e24) the extractor reads a node id whole (file::Class::method[param]) and the auditor still looked the tail up as ONE name: 908 committed tests were reported as never having existed (872 Class::method, 10 [param]). The auditor now follows the chain link by link (test_b in the BODY of TestA, the [param] cut first) and asks git about every missing link, the worst answer being the verdict. RECONCILED PER CITATION against the 09-12 pair (old extractor + old auditor, re-run today and reproducing 87 / 39 exactly): the old pair keyed a citation by its first segment, the new one by the whole id, so one old key can be several new ids. never_existed 39 -> 35: 28 old keys remain, as 31 whole ids; 11 old keys are no longer findings under the whole id; 4 ids are new to the measurement (3 ecosystem-form EXAMPLES quoted in the GitLab #16 task's own journal, the PHPUnit and RSpec forms among them, which the illustrative detector does not know, plus one citation in task l26-firewall-quote-regression naming, in tests/test_hooks.py, a firewall method under a class the file has and a method git never had — named here by its task, not by its node id, because a quoted citation is a citation to every guard that reads this file). rotted 87 -> 99: 82 old keys remain, as 91 whole ids; 5 are no longer findings; 8 are new — a method renamed under a class that still lives, a leaf the old extractor never read. The 36th is this very task's journal, which quoted one of the wrong chains verbatim while checking it — a quoted citation IS a citation to the extractor, and the journal is append-only (memory: name a bad reference by its task, never by its text). Measurement with no headroom; may only shrink."
   }
 }

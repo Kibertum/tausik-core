@@ -189,6 +189,20 @@ TOOLS = [
                         "previous freshness-lookup behaviour."
                     ),
                 },
+                "gates_not_applicable": {
+                    "type": "boolean",
+                    "description": (
+                        "Knowingly close on a verify run in which NO gate "
+                        "executed. Required because SENAR 1.4 §8.6(e) makes "
+                        "'nothing was checked' a non-verdict: tausik_verify "
+                        "with no_tests_expected records the declaration, and "
+                        "this is the separate, recorded act of accepting it. "
+                        "For work that honestly maps to no test — "
+                        "documentation, config, an investigation. It cannot "
+                        "rescue a run in which a gate APPLIED and still did "
+                        "not execute; that one is fixed, not acknowledged."
+                    ),
+                },
                 "no_file_changes": {
                     "type": "boolean",
                     "description": "Close a task that touched NO files (pure planning / a decision). Allowed only when git proves the declared scope (relevant_files as a pathspec, else the whole tree) has no uncommitted changes; fail-closed otherwise. The third QG-2 scope state, symmetric to no_tests_declared.",
@@ -513,6 +527,32 @@ TOOLS = [
         "name": "tausik_epic_list",
         "description": "List all epics",
         "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "tausik_epic_update",
+        "description": "Change an epic's title and/or description — the intent a fresh agent reads for the group. At least one of the two",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["slug"],
+        },
+    },
+    {
+        "name": "tausik_story_update",
+        "description": "Change a story's title and/or description. At least one of the two",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+            },
+            "required": ["slug"],
+        },
     },
     {
         "name": "tausik_epic_done",
@@ -1024,8 +1064,12 @@ from tools_extra import TOOLS_EXTRA  # noqa: E402
 from tools_extra_admin import TOOLS_EXTRA_ADMIN  # noqa: E402
 from tools_spec import TOOLS_SPEC  # noqa: E402
 from tools_adapt import TOOLS_ADAPT  # noqa: E402
+from tools_actz import TOOLS_ACTZ  # noqa: E402
+from tools_at import TOOLS_AT  # noqa: E402
 
 TOOLS.extend(TOOLS_EXTRA)
 TOOLS.extend(TOOLS_EXTRA_ADMIN)
 TOOLS.extend(TOOLS_SPEC)
 TOOLS.extend(TOOLS_ADAPT)
+TOOLS.extend(TOOLS_ACTZ)
+TOOLS.extend(TOOLS_AT)

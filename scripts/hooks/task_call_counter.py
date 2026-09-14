@@ -62,7 +62,43 @@ def _increment_all(conn: sqlite3.Connection, slugs: list[str]) -> None:
         raise
 
 
+#: The rule says every 30-50 tool calls. The reminder fires at the FAR end: at
+#: 30 it would speak five times in a session where the agent was already
+#: checkpointing, and a reminder that arrives when the work is already done is
+#: one the reader learns to skip.
+_CHECKPOINT_EVERY = 50
+
+
+def _checkpoint_due(conn, slug: str) -> int | None:
+    """Calls so far for `slug` if this call crosses a multiple of the interval.
+
+    Read AFTER the increment, so the number in the message is the number the
+    reader would get from `task show` — a reminder quoting a different count
+    than the record teaches the reader to distrust both.
+    """
+    try:
+        row = conn.execute(
+            "SELECT CAST(value AS INTEGER) FROM meta WHERE key = ?", (f"tool_calls:{slug}",)
+        ).fetchone()
+    except Exception:  # noqa: BLE001 — a reminder is never worth a failure
+        return None
+    if not row or not row[0]:
+        return None
+    count = int(row[0])
+    return count if count % _CHECKPOINT_EVERY == 0 else None
+
+
 def main() -> int:
+    # The checkpoint reminder carries non-ASCII. Written through an interpreter
+    # not started in UTF-8 mode it leaves in the machine's locale encoding, and a
+    # reminder that arrives as mojibake is one nobody acts on.
+    try:
+        from _common import force_utf8_io
+
+        force_utf8_io()
+    except Exception:  # noqa: BLE001 - the guard is a courtesy, not a dependency
+        pass
+
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
     try:
@@ -80,6 +116,18 @@ def main() -> int:
         try:
             slugs = _active_slugs(conn)
             _increment_all(conn, slugs)
+            for slug in slugs:
+                due = _checkpoint_due(conn, slug)
+                if due is None:
+                    continue
+                print(
+                    f"[TAUSIK checkpoint] {due} tool calls on '{slug}'. SENAR Rule 9.3 "
+                    "asks for a checkpoint every 30-50: write down where the work "
+                    "stands before the context that holds it is summarised away — "
+                    f'`.tausik/tausik task log {slug} "<where this stands>"`, or '
+                    "`/checkpoint`.",
+                    file=sys.stderr,
+                )
         finally:
             conn.close()
     except Exception as exc:  # noqa: BLE001 — best-effort hook

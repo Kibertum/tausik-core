@@ -11,7 +11,7 @@ import os
 import sys
 from typing import Any
 
-from bootstrap_generate import _stdio_mcp_server
+from bootstrap_generate import _stdio_mcp_server, retire_managed_servers
 
 # The shell-tool matcher is IMPORTED, not restated. Every matcher below used to
 # carry its own copy of the string "Bash" under a comment promising parity with
@@ -19,7 +19,12 @@ from bootstrap_generate import _stdio_mcp_server
 # second shell tool appeared, the Claude generator and this one would have had
 # to be edited in lockstep by whoever remembered. Sharing the constant makes
 # that impossible to get wrong.
-from bootstrap_hooks import SHELL_MATCHER, deployed_hooks_dir
+from bootstrap_hooks import (
+    BUILTIN_WRITE_MATCHER,
+    SHELL_MATCHER,
+    deployed_hooks_dir,
+    with_mcp_registrations,
+)
 
 
 def generate_settings_qwen(
@@ -32,9 +37,8 @@ def generate_settings_qwen(
 
     Qwen Code uses the same hook format as Claude Code (PreToolUse, PostToolUse,
     SessionEnd) — so we generate the **same** SENAR enforcement hooks. v1.4
-    closed the four-hook gap audited as r14-qwen-parity-or-honesty
-    (brain_search_proactive, brain_post_webfetch, task_call_counter,
-    activity_event). Parity is now pinned by tests/test_bootstrap_hooks_parity.py.
+    closed the hook gap audited as r14-qwen-parity-or-honesty; parity is pinned
+    by tests/test_bootstrap_hooks_parity.py.
     MCP config goes into mcpServers key in the same file.
     """
     python_exe = venv_python or sys.executable
@@ -68,6 +72,7 @@ def generate_settings_qwen(
 
     # MCP servers
     servers = existing.get("mcpServers", {})
+    retire_managed_servers(servers)
     rag_server = os.path.join(target_dir, "mcp", "codebase-rag", "server.py")
     if os.path.exists(rag_server):
         servers["codebase-rag"] = _stdio_mcp_server(
@@ -80,19 +85,13 @@ def generate_settings_qwen(
             _p(python_exe),
             [_p(project_server), "--project", _p(project_dir)],
         )
-    brain_server = os.path.join(target_dir, "mcp", "brain", "server.py")
-    if os.path.exists(brain_server):
-        servers["tausik-brain"] = _stdio_mcp_server(
-            _p(python_exe),
-            [_p(brain_server), "--project", _p(project_dir)],
-        )
 
     # Hooks — same SENAR enforcement as Claude Code
     hooks = {
         "PreToolUse": [
             {
                 # l26-hook-contract-review parity: MultiEdit/NotebookEdit also write.
-                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+                "matcher": BUILTIN_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -104,7 +103,7 @@ def generate_settings_qwen(
             {
                 # v15-scope-enforce-write parity with bootstrap_hooks.py
                 # (+ l26-hook-contract-review: NotebookEdit added).
-                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+                "matcher": BUILTIN_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -114,9 +113,23 @@ def generate_settings_qwen(
                 ],
             },
             {
+                # read-ledger: same mechanism as the Claude profile, and the
+                # parity test is the reason it is here rather than an
+                # afterthought. A guarantee that exists on one host and not
+                # another is exactly what this release refuses to ship.
+                "matcher": "Read",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("read_ledger_gate.py"),
+                        "timeout": 5,
+                    }
+                ],
+            },
+            {
                 # memory-route-gate: shell parity with bootstrap_hooks.py — a
                 # heredoc or a Set-Content writes what the Write path refuses.
-                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
+                "matcher": f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -129,7 +142,7 @@ def generate_settings_qwen(
                 # secret-scan-covers-no-shell-channel (Decision #178): shell
                 # parity with bootstrap_hooks.py — a heredoc or `Set-Content
                 # -Value 'AKIA...'` carries the secret the Write path warns on.
-                "matcher": f"Write|Edit|MultiEdit|{SHELL_MATCHER}",
+                "matcher": f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
@@ -173,20 +186,32 @@ def generate_settings_qwen(
                     }
                 ],
             },
-            {
-                "matcher": "WebSearch|WebFetch",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("brain_search_proactive.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
         ],
         "PostToolUse": [
             {
-                "matcher": "Write|Edit",
+                # The tool TAUSIK ships, named at the moment an alternative was chosen:
+                # an MCP twin for a CLI call, and `symbol` for a grep after
+                # a definition. Measured before it existed — MCP 29.1% of
+                # framework calls, `symbol` 2 uses against 226 greps.
+                # Measured in session #233: 1,216 of 1,530 CLI invocations had an
+                # MCP twin and used the shell anyway — 79.5% — while the rules
+                # call MCP-first a hard constraint and nothing checked it.
+                #
+                # Shell tools only: the nudge is about choosing the shell over a
+                # tool, and it has nothing to say about a Write or a Read. It
+                # lands on BOTH hook-bearing hosts: a capability on one and not
+                # the other is what `cross_model_parity` refuses.
+                "matcher": SHELL_MATCHER,
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("tool_choice_nudge.py"),
+                        "timeout": 6,
+                    }
+                ],
+            },
+            {
+                "matcher": "Write|Edit|MultiEdit",  # MultiEdit was off this hook (PR #5)
                 "hooks": [
                     {
                         "type": "command",
@@ -196,7 +221,7 @@ def generate_settings_qwen(
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",
+                "matcher": BUILTIN_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
@@ -216,16 +241,6 @@ def generate_settings_qwen(
                         "type": "command",
                         "command": _hook_cmd("task_done_verify.py"),
                         "timeout": 6,
-                    }
-                ],
-            },
-            {
-                "matcher": "WebFetch",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("brain_post_webfetch.py"),
-                        "timeout": 5,
                     }
                 ],
             },
@@ -314,7 +329,7 @@ def generate_settings_qwen(
         ],
     }
 
-    settings = {**existing, "mcpServers": servers, "hooks": hooks}
+    settings = {**existing, "mcpServers": servers, "hooks": with_mcp_registrations(hooks)}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=2)
 
@@ -340,6 +355,7 @@ def generate_qwen_md(
         ide="qwen",
         context_tier=context_tier,
         output_mode=output_mode,
+        project_dir=project_dir,
     )
     content = f"# QWEN.md\n\n{body}"
     path = os.path.join(project_dir, "QWEN.md")

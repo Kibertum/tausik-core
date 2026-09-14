@@ -15,13 +15,39 @@ decision the Write gates apply — by importing THEIR functions (scope_write_gat
 not by re-deriving the rule. A second copy of the rule would drift from the
 first (conv #266: judge with the real producer, not a second copy).
 
-Residual boundary — documented in docs/ru/agent-contract.md (AC2): obfuscated
-writes are NOT caught — a path built in a shell variable, `base64 -d | sh`, a
-writer hidden behind a wrapper (`sudo tee`), arbitrary interpreter code beyond
-a literal `open(...)`. Shell is Turing-complete; a total gate is impossible.
-AC2 permits "close it OR document the boundary explicitly"; only silence is
-forbidden. This raises the bar from "trivially bypass with a heredoc" to "must
-actively obfuscate", and names what remains.
+Residual boundary — documented in docs/ru/enforcement-coverage.md (AC2). Shell
+is Turing-complete, so a total gate is impossible; AC2 permits "close it OR
+document the boundary explicitly", and only silence is forbidden.
+
+NOT caught: a path built in a shell variable, `base64 -d | sh`, a command
+assembled from stdin, and — inside a script the command runs — any write that
+is not a literal `open(path, 'w'|'a'|'x')` in Python. A script written in shell
+or Node is likewise unread: `python_source_writes` reads Python, and a parser
+that cannot read a substrate should not claim to have checked it.
+
+The error in the OTHER direction was open for four sessions and is closed for
+Python the parser can read. `python_source_writes` used to match the TEXT of a
+script, so a literal `open(..., "w")` inside a string, a docstring or even a
+COMMENT was reported as a write the command never performs — measured in #203
+on this gate's own test harness, and in #207 over the whole repository: six
+files named a target and all six were phantoms. Python source is now PARSED,
+and only real `open(...)` call nodes count; the `-c` payload is read the same
+way, and the arguments after it are no longer read at all. What remains of the
+phantom is confined and named: a source that does not parse falls back to the
+text reading rather than to silence, and command text around a NON-Python
+interpreter is still read as text. See `docs/ru/enforcement-coverage.md`.
+
+What this paragraph used to say, and why it was wrong: it called the gap
+"obfuscated writes" and claimed the bar was raised to "must actively obfuscate".
+Session #200 measured the opposite. `python helper.py`, with the write in the
+script, walked straight through while `cp x .claude/...` was refused with the
+ACL printed — and running a script from a file is the ordinary way to run code,
+not obfuscation. The cut was never "literal versus computed `open()`"; it was
+INLINE versus IN A FILE, and nothing said so. A gate that overstates what it
+prevents is worse than one that prevents less, because the agent reading the
+refusal concludes the ACL is closed. `bash_write_parse._script_file_writes` now
+reads the script, which is what makes the sentence above true rather than
+aspirational.
 
 Exit codes: 0 = allow, 2 = block. Skipped via TAUSIK_SKIP_HOOKS=1.
 """
@@ -38,8 +64,19 @@ sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
 import shell_channel  # noqa: E402
-from _common import cli_invocation, is_tausik_project  # noqa: E402
-from bash_write_parse import write_targets  # noqa: E402,F401 — re-exported for tests
+from _common import (  # noqa: E402
+    cli_invocation,
+    is_tausik_project,
+    shell_cwd,
+)
+from hook_policy import (  # noqa: E402
+    fail_open_on_db_error,
+    legacy_fail_secure_notice,
+)
+from bash_write_parse import (  # noqa: E402,F401 - write_targets re-exported for tests
+    command_changes_directory,
+    write_targets,
+)
 
 
 def main() -> int:
@@ -94,28 +131,48 @@ def main() -> int:
     # Only in-tree writes are this gate's jurisdiction — identical rule to the
     # Write scope gate (out-of-tree paths, /dev/null, scratchpad, other repos
     # are governed elsewhere or not at all).
+    base_dir = shell_cwd(event, project_dir)
+    moved = command_changes_directory(command)
     in_tree: list[str] = []
-    for raw in shell_channel.write_targets(tool_name, command):
-        # A Bash redirect/target is relative to the shell's cwd — the project
-        # dir — not to wherever this hook process happened to launch. Resolve it
-        # against project_dir before deciding jurisdiction (task_gate does the
-        # same for its file/notebook paths). Absolute targets are used as-is.
+    for raw in shell_channel.write_targets(tool_name, command, base_dir):
+        # A Bash redirect/target is relative to the SHELL's cwd, which the event
+        # carries — not to wherever this hook process happened to launch, and
+        # not to the project dir, which is what stood here and was only true
+        # until the agent worked in a second checkout. See `_common.shell_cwd`
+        # for the measurement. Absolute targets are used as-is.
         expanded = os.path.expanduser(raw)
-        cand = expanded if os.path.isabs(expanded) else os.path.join(project_dir, expanded)
-        rel = _relative_to_project(cand, project_dir)
-        if rel is not None and rel not in in_tree:
-            in_tree.append(rel)
+        if os.path.isabs(expanded):
+            roots: tuple[str, ...] = ("",)
+        elif moved:
+            # The command moves the shell before this write happens, so the
+            # event's cwd is stale and no single root is right. Judge against
+            # BOTH and keep whatever lands in the project: failing toward the
+            # block is the only safe direction for a containment gate.
+            roots = (base_dir, project_dir)
+        else:
+            roots = (base_dir,)
+        for root in roots:
+            cand = expanded if os.path.isabs(expanded) else os.path.join(root, expanded)
+            rel = _relative_to_project(cand, project_dir)
+            if rel is not None and rel not in in_tree:
+                in_tree.append(rel)
     if not in_tree:
         return 0  # no in-project write detected — nothing to gate
 
-    fail_secure = bool(os.environ.get("TAUSIK_HOOK_FAIL_SECURE"))
+    fail_open = fail_open_on_db_error()
+    notice = legacy_fail_secure_notice()
+    if notice:
+        print(notice, file=sys.stderr)
     try:
         acls = _active_acls(db_path)
     except sqlite3.Error as e:
-        if fail_secure:
+        if not fail_open:
             print(
-                f"BLOCKED: TAUSIK_HOOK_FAIL_SECURE=1 set, but bash-write gate "
-                f"could not query .tausik/tausik.db: {e}.",
+                f"BLOCKED: the bash-write gate could not query .tausik/tausik.db: {e}\n"
+                "  The gate could not evaluate at all, and a guard that cannot evaluate\n"
+                "  refuses rather than waving the write through.\n"
+                "  Fix:      repair or restore the DB (try `.tausik/tausik doctor`)\n"
+                "  Override: set TAUSIK_HOOK_FAIL_OPEN=1 to allow writes while it is broken",
                 file=sys.stderr,
             )
             return 2

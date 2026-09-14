@@ -26,6 +26,28 @@ if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
+#: Words a journal uses when an approach was tried and did not work. Matched on
+#: the WORD, so "refuted" in a quotation of somebody else's text still counts —
+#: over-detecting a dead end costs a sentence, under-detecting costs the next
+#: agent the whole rediscovery.
+_REFUTATION_MARKERS = (
+    "опроверг",
+    "не сработал",
+    "гипотеза снята",
+    "оказалась неверн",
+    "refuted",
+    "did not work",
+    "turned out to be wrong",
+    "dead end",
+)
+
+
+def _journal_shows_a_refutation(notes: str) -> bool:
+    """Does the journal say something was tried and found not to work?"""
+    lowered = (notes or "").lower()
+    return any(marker in lowered for marker in _REFUTATION_MARKERS)
+
+
 def _format_task_done_failures(report: dict[str, Any]) -> str:
     """v1.4: aggregate ALL blocking failures into the v1 ServiceError message.
 
@@ -54,7 +76,6 @@ def _format_task_done_failures(report: dict[str, Any]) -> str:
             prefix += f" gate={gate}"
         parts.append(f"{prefix}: {msg}")
     return "\n".join(parts)
-
 
 
 def _redeem_verify_handle(be: "SQLiteBackend", slug: str, report: dict[str, Any]) -> None:
@@ -113,6 +134,7 @@ class TaskDoneReportMixin:
         no_file_changes: bool = False,
         no_changelog: bool = False,
         verify_handle: str | None = None,
+        zero_gate_ack: bool = False,
     ) -> dict[str, Any]:
         # v14b-token-t15: structured evidence — convert JSON to canonical
         # prose before the existing log path. Mutex with --evidence prose
@@ -145,7 +167,8 @@ class TaskDoneReportMixin:
             raise ServiceError(f"Task '{slug}' is already done")
         # Where the scope comes from — and when it is written down — lives in
         # `task_done_scope`; this function is about whether the task may CLOSE.
-        if persist_declared_scope(self.be, slug, relevant_files):
+        tdir = self.tausik_dir()  # type: ignore[attr-defined]
+        if persist_declared_scope(self.be, slug, relevant_files, tdir, report["warnings"]):
             task = self._require_task(slug)  # type: ignore[attr-defined]
         if relevant_files is None:
             relevant_files = scope_from_task_row(task)
@@ -176,6 +199,7 @@ class TaskDoneReportMixin:
             no_file_changes=no_file_changes,
             no_changelog=no_changelog,
             verify_handle=verify_handle,
+            zero_gate_ack=zero_gate_ack,
         )
         report["gates"] = gate_report.get("results", [])
         report["cache_status"] = gate_report.get("cache_status")
@@ -318,6 +342,18 @@ class TaskDoneReportMixin:
                 and self.be.decision_count_for_task(slug) == 0
             ):
                 knowledge_warning = "NOTE: No knowledge captured for this task (no memories, decisions, or dead ends). Use --no-knowledge to confirm none needed."
+                if _journal_shows_a_refutation(notes):
+                    # NAMED, because the general warning was measured at zero
+                    # effect: `dead-end` was used 0 times in 5,966 tool calls
+                    # while the journals of that same window carry refuted
+                    # hypotheses. A warning that lists three options is one the
+                    # reader satisfies with whichever is cheapest; this one says
+                    # which of the three the journal is asking for.
+                    knowledge_warning += (
+                        " This task's journal records an approach that was REFUTED — that is a"
+                        " dead end, and the next agent will otherwise pay to rediscover it:"
+                        ' `.tausik/tausik dead-end "<approach>" "<why it failed>"`.'
+                    )
         if no_knowledge:
             self.be.event_add(
                 "task",
@@ -401,8 +437,7 @@ class TaskDoneReportMixin:
             if l3_note:
                 risk_note += f" | {l3_note}"
         # Atomic: task update + cascade + audit in one transaction
-        self.be.begin_tx()
-        try:
+        with self.be.transaction():
             # v16r: pin done-model + flag mismatch (inside tx: lock-covered read).
             model_updates, model_mismatch_msg = model_done_updates(self.be, task)
             updates.update(model_updates)
@@ -433,6 +468,14 @@ class TaskDoneReportMixin:
             if rollback_warning:
                 msgs.append(rollback_warning)
                 report["warnings"].append(rollback_warning)
+            # Asked HERE: the last moment the author can still act — the journal
+            # is append-only and a closed task is never re-read. Both reminders
+            # live in their own module; neither blocks the close.
+            from closure_reminders import reminders_at_close
+
+            for note in reminders_at_close(slug, notes, task):
+                msgs.append(note)
+                report["warnings"].append(note)
             if complexity_warning:
                 msgs.append(complexity_warning)
                 report["warnings"].append(complexity_warning)
@@ -452,10 +495,6 @@ class TaskDoneReportMixin:
             # blocks on a later gate no longer burns a verify run the agent
             # then has to repeat.
             _redeem_verify_handle(self.be, slug, report)
-            self.be.commit_tx()
-        except Exception:
-            self.be.rollback_tx()
-            raise
         report["ok"] = True
         report["message"] = " ".join(msgs)
         return report

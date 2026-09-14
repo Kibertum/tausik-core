@@ -10,6 +10,24 @@ REM Force UTF-8 stdio so Unicode output (Cyrillic, checkmarks) never hits a
 REM cp1251/cp1252 console encoder and raises UnicodeEncodeError on Windows.
 set "PYTHONUTF8=1"
 
+REM Hand the untouched command line to python. cmd.exe parses >, <, &, | and ^
+REM out of the line BEFORE this file runs, so %* can arrive truncated while the
+REM command still reports success (measured: "48->49" reaches python as "48-",
+REM rc 0, output diverted into a stray file). The environment survives that
+REM parser, so cmdline_fidelity.py compares the two and refuses on a mismatch.
+REM DELAYED expansion is not a style choice: %CMDCMDLINE% carries quotes, and
+REM the quotes in a plain set "X=%CMDCMDLINE%" close the protecting pair early,
+REM so a > inside the value redirects the set line itself and the value arrives
+REM already truncated (measured: "SCHEMA 48->49 next" stored as "SCHEMA 48-
+REM next"). !CMDCMDLINE! is substituted AFTER the line is parsed for operators.
+REM The second setlocal turns delayed expansion back off — it inherits the
+REM variable, and leaving it on would eat an exclamation mark inside %*.
+REM Empty when a human runs the wrapper from an interactive shell: there
+REM %CMDCMDLINE% is the shell's own startup line and names no arguments.
+setlocal EnableDelayedExpansion
+set "TAUSIK_RAW_CMDLINE=!CMDCMDLINE!"
+setlocal DisableDelayedExpansion
+
 REM Find scripts dir. IDE list injected from bootstrap_config.IDE_DIRS
 REM (single source of truth) by install_cli_wrapper.
 set "IDE_LIST=__IDE_LIST__"

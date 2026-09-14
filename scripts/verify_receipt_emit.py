@@ -115,6 +115,7 @@ def emit_signed_receipt(
             files=files,
             gate_signature=gate_signature,
             expires_at=expires_at,
+            actor=_actor_for(conn),
         )
         envelope = sign_receipt(project_dir, receipt)
         conn.execute(
@@ -165,3 +166,28 @@ def load_receipt(
     if not isinstance(envelope, dict):
         return None
     return {"run_id": int(rid), "ran_at": ran_at, "envelope": envelope}
+
+
+def _actor_for(conn) -> dict | None:
+    """WHO is running this verification, read off the open session.
+
+    The session already knows the model; the task already knows the role. Both
+    are read here rather than passed down through six call sites, because the
+    caller that has them is not the caller that builds the receipt — and a
+    parameter threaded through six frames is a parameter somebody forgets.
+
+    Any failure yields None, not a partial block: a receipt that cannot name its
+    actor must answer "unknown", and a half-filled block would answer "someone".
+    """
+    from actor_identity import build_actor
+
+    try:
+        row = conn.execute(
+            "SELECT id, model_id, model_version FROM sessions "
+            "WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    except Exception:  # noqa: BLE001 — a receipt must not fail over its actor
+        return None
+    if not row:
+        return None
+    return build_actor(session_id=row[0], model_id=row[1], model_version=row[2])

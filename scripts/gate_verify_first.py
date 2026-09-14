@@ -50,7 +50,9 @@ def _project_dir(svc: Any) -> str:
     return "."
 
 
-def _enforce_handle(svc: Any, report: dict[str, Any], slug: str, handle: str) -> None:
+def _enforce_handle(
+    svc: Any, report: dict[str, Any], slug: str, handle: str, zero_gate_ack: bool = False
+) -> None:
     """QG-2 via a presented explicit state handle (SEP-2567).
 
     THE HANDLE IS VALIDATED HERE AND SPENT ELSEWHERE, and the split was earned
@@ -71,7 +73,13 @@ def _enforce_handle(svc: Any, report: dict[str, Any], slug: str, handle: str) ->
     """
     from verify_handle_check import check_handle
 
-    verdict = check_handle(svc.be._conn, handle, task_slug=slug, project_dir=_project_dir(svc))
+    verdict = check_handle(
+        svc.be._conn,
+        handle,
+        task_slug=slug,
+        project_dir=_project_dir(svc),
+        zero_gate_ack=zero_gate_ack,
+    )
     svc.be.task_append_notes(slug, f"Verify-First: {verdict.reason}")
     if verdict.ok:
         # Internal transport between the two halves of one flow, hence the
@@ -220,6 +228,7 @@ def enforce_verify_first(
     *,
     no_file_changes: bool = False,
     verify_handle: str | None = None,
+    zero_gate_ack: bool = False,
 ) -> None:
     """Add a synthetic blocking_failure if no fresh `tausik verify` run
     exists for this task and the project has verify-trigger gates.
@@ -316,7 +325,7 @@ def enforce_verify_first(
     # recoverable by simply having verified recently — which is exactly the
     # substitution of "recent" for "correct" that decision #218 removed.
     if verify_handle:
-        _enforce_handle(svc, report, slug, verify_handle)
+        _enforce_handle(svc, report, slug, verify_handle, zero_gate_ack)
         return
 
     # verify-cache-empty-scope-hit: an undeclared scope cannot be certified
@@ -325,8 +334,8 @@ def enforce_verify_first(
     # hole intact behind a config flag: that path runs the gates inline,
     # `gate_runner` skips the scoped ones for want of declared files, and a
     # scope-independent gate going green would close the task on a run that
-    # examined nothing. `.tausik/config.json` travels with the repository,
-    # so "legacy opt-out" is not a safe place to keep a bypass.
+    # examined nothing. The PROJECT TIER travels with the repository, so
+    # "legacy opt-out" is not a safe place to keep a bypass.
     #
     # It also has to be its own message. The generic block below tells the
     # agent to run `tausik verify` — advice that can never succeed while the
@@ -348,7 +357,9 @@ def enforce_verify_first(
         )
         return
 
-    fresh, hit = has_fresh_verify_run(svc.be._conn, slug, relevant_files, max_age_s=ttl)
+    fresh, hit = has_fresh_verify_run(
+        svc.be._conn, slug, relevant_files, max_age_s=ttl, zero_gate_ack=zero_gate_ack
+    )
     if fresh and hit is not None:
         # v15-receipt-check-on-done: a cached green only counts if its
         # signed receipt still verifies — tamper-evidence for QG-2.
@@ -405,6 +416,11 @@ def enforce_verify_first(
                 # would leave a valid hour-long handle behind for a task that
                 # never closed (v2-verify-receipt-as-argument).
                 allow_handle=False,
+                # review-209-third-door: this call is reached exactly when the
+                # freshness lookup has just REFUSED, so it must be told the same
+                # thing that lookup was told. Without it the acknowledgement is a
+                # rule about which route you took rather than about the closure.
+                zero_gate_ack=zero_gate_ack,
             )
         except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             _block(

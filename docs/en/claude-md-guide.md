@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/claude-md-guide)
+**English** | [Русский](../ru/claude-md-guide.md)
 
 # How to Write an Effective CLAUDE.md
 
@@ -84,6 +84,11 @@ Point to documentation; don't copy it.
 
 ## Patterns
 {Example of a mandatory pattern}
+
+## Compaction contract
+{What must survive a context compaction, by name: the active task and slug,
+the declared scope and verify receipt, this session's measurements, retired
+rules, owner prohibitions, open forks. TAUSIK's bootstrap template ships one.}
 
 ## Commands
 {dev command}

@@ -20,13 +20,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-RECEIPT_SCHEMA = "tausik-receipt/v3"
-
-# v1 receipts (pre-l26-verify-git-diff-wire) carry no declared-scope fields.
-# They remain cryptographically valid — verification re-canonicalizes the
-# stored payload rather than rebuilding it from this module — but a reader
-# must treat their scope as UNVERIFIED, not as complete.
-LEGACY_RECEIPT_SCHEMA = "tausik-receipt/v1"
+RECEIPT_SCHEMA = "tausik-receipt/v4"
 
 # v2 receipts (pre-v2-verify-receipt-as-argument) name neither the files they
 # covered nor the gate set that ran. They stay cryptographically valid, and the
@@ -35,6 +29,17 @@ LEGACY_RECEIPT_SCHEMA = "tausik-receipt/v1"
 # v2 receipt cannot. `missing_v3_fields` names what is absent so the refusal can
 # say so instead of returning a bare "invalid".
 V3_REQUIRED_FIELDS = ("files", "gate_signature", "expires_at")
+
+# v4 (separation-of-duties-is-asserted-not-attested) adds `actor`: WHO ran the
+# verification, under which model and role. Deliberately NOT in
+# `V3_REQUIRED_FIELDS`: 1,686 receipts predate it and stay valid, and a receipt
+# that cannot name its actor must answer "unknown" rather than be refused. The
+# actor is CONTENT of the project-signed receipt, not a second signer — a second
+# key would mean per-agent key material, which the filing rules out.
+#
+# It is signed like everything else: `canonical_bytes` covers the whole receipt,
+# so an actor edited after the fact breaks the signature. That is the property
+# that makes it attestation rather than annotation.
 
 
 class ReceiptError(Exception):
@@ -81,6 +86,7 @@ def build_receipt(
     files: list[str] | None = None,
     gate_signature: str | None = None,
     expires_at: str | None = None,
+    actor: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble a schema-v3 receipt dict.
 
@@ -174,6 +180,10 @@ def build_receipt(
         "files": sorted(str(f) for f in files) if files else None,
         "gate_signature": str(gate_signature) if gate_signature else None,
         "expires_at": str(expires_at) if expires_at else None,
+        # v4: WHO ran this. None when nothing is known — a block of empty fields
+        # would read as "an actor was recorded" to every check looking for the
+        # key, which is the same trap `missing_v3_fields` documents for scope.
+        "actor": dict(actor) if actor else None,
     }
     return receipt
 

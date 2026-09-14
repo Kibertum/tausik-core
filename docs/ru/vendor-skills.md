@@ -1,4 +1,4 @@
-[English](/docs/vendor-skills) | **Русский**
+[English](../en/vendor-skills.md) | **Русский**
 
 # Пользовательские навыки
 

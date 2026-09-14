@@ -14,8 +14,16 @@ from __future__ import annotations
 
 import os
 import shlex
+import sys
+
+# Own directory FIRST: the siblings below are imported by bare name, and
+# scripts/hooks reaches sys.path only when this file is RUN as a script. Imported
+# as `hooks.<name>` — which model_routing does — those names did not resolve, and
+# the caller's except swallowed the ImportError into a silent None.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from bash_cmd_norm import _MAX_WRAPPER_DEPTH, _interpreter_payloads
+from shell_statements import strip_heredoc_bodies
 
 # Programs that EXECUTE their arguments rather than consuming them as data.
 # For these, a dangerous phrase inside quotes is still a command and must stay
@@ -112,6 +120,25 @@ def _mentions_interpreter(tokens: list[str]) -> bool:
     return False
 
 
+def _header_runs_its_body(header: str) -> bool:
+    """True when the heredoc opened on `header` feeds something that EXECUTES it.
+
+    `bash <<EOF` runs its body; `cat > f <<EOF` files it. The question is the
+    one `_mentions_interpreter` already answers, asked about the header line
+    alone — a second list of interpreters here would drift from that one, and
+    the drift would be silent in the unsafe direction.
+
+    A header that will not tokenize is treated as executing: the body then
+    stays and is scanned, which is the over-scanning side of the trade.
+    """
+    try:
+        lexer = shlex.shlex(header, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        return _mentions_interpreter(list(lexer))
+    except ValueError:
+        return True
+
+
 def scan_target(command: str, depth: int = 0) -> str:
     """The part of `command` that can actually execute.
 
@@ -158,6 +185,24 @@ def scan_target(command: str, depth: int = 0) -> str:
     hidden behind a surviving quote is not descended into. `-EncodedCommand`
     (base64) is likewise a residual — it is not decoded here.
     """
+    # A HEREDOC BODY IS DATA, UNLESS SOMETHING EXECUTES IT. The body arrives in
+    # the same string as the command and tokenizes like live shell, so prose
+    # NAMING a destructive command read as one: writing a docstring that
+    # explains why a migration rebuilds a table was refused as a table drop.
+    # Measured four times in ordinary work, the third and fourth of them while
+    # writing the acceptance criteria and the fix for this very defect — the
+    # text had to quote the command it is about.
+    #
+    # `keep_body` is why this is not a hole: `bash <<EOF … EOF` really does run
+    # what it is handed, so a body whose header names an interpreter STAYS and
+    # is scanned. Measured both ways before and after (`bash`/`sh` heredocs
+    # carrying a recursive delete and a table drop are still refused).
+    #
+    # Depth 0 only: nested calls receive an interpreter payload that was already
+    # stripped on the way in, and re-walking it would be work with no answer to
+    # change.
+    if depth == 0 and "<<" in command:
+        command = strip_heredoc_bodies(command, keep_body=_header_runs_its_body)
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
@@ -182,3 +227,55 @@ def scan_target(command: str, depth: int = 0) -> str:
         else:
             parts.append(" ".join(_PAYLOAD if len(tok.split()) > 1 else tok for tok in sub))
     return " ; ".join(parts)
+
+
+def _tokens_of(command: str) -> list[str] | None:
+    """POSIX tokens, or None when the text will not tokenize."""
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        return list(lexer)
+    except ValueError:
+        return None
+
+
+def _has_chdir_flag(args: list[str]) -> bool:
+    """`env -C DIR` / `env --chdir=DIR` — the only `env` form that moves."""
+    for i, a in enumerate(args):
+        if a in ("-C", "--chdir") and i + 1 < len(args):
+            return True
+        if a.startswith("--chdir="):
+            return True
+    return False
+
+
+#: Command words that move the shell somewhere else before the next one runs.
+#: `env` only counts with `-C`, which is why it is not a bare membership test.
+_DIR_CHANGERS = frozenset({"cd", "pushd", "popd", "chdir"})
+
+
+def command_changes_directory(command: str) -> bool:
+    """True when this command moves the shell before a later part of it runs.
+
+    The event's `cwd` is where the shell stood BEFORE the command started. For
+    `cd <project> && python helper.py` that directory is already wrong by the
+    time the script is named, and resolving against it turned a block into an
+    allow — measured on the live gate for `&&`, a `( … ; … )` subshell, `pushd`
+    and `env -C` alike.
+
+    Asked of the token stream rather than of the raw text, so a path that merely
+    CONTAINS the word (`cp cd.txt out`, `echo "cd /tmp"`) is not mistaken for a
+    directory change: only a command word counts.
+    """
+    tokens = _tokens_of(command)
+    if tokens is None:
+        return True  # unparseable: assume the worst and let the caller widen
+    for sub in _split_subcommands(tokens):
+        if not sub:
+            continue
+        base = os.path.basename(sub[0]).lower().removesuffix(".exe")
+        if base in _DIR_CHANGERS:
+            return True
+        if base == "env" and _has_chdir_flag(sub[1:]):
+            return True
+    return False

@@ -80,19 +80,44 @@ def test_no_tausik_dir_allows(tmp_path):
     assert res.returncode == 0
 
 
-def test_fail_open_default_on_db_error(tmp_path):
-    """Default: corrupt DB does NOT brick editing — fail-open."""
+def test_a_broken_db_refuses_by_default(tmp_path):
+    """THE 1.9 FLIP. A gate that cannot evaluate refuses.
+
+    This test asserted the opposite until 1.9, and the reversal is the point:
+    fail-open was the exception contradicting what the project argues for QG-0
+    and QG-2. Announced as breaking on PR #5, which is why the external
+    contribution waited for a release rather than a patch.
+
+    The message is asserted too, because refusing is only half the job — the
+    reader has to be able to tell this from "no active task" and to know the
+    way out.
+    """
     proj = _make_tausik_project(tmp_path, with_active_task=False, broken_db=True)
     res = _run({}, proj)
-    assert res.returncode == 0
+    assert res.returncode == 2
+    assert "TAUSIK_HOOK_FAIL_OPEN=1" in res.stderr, "the refusal must name the way forward"
+    assert "NOT the 'no active task' refusal" in res.stderr
 
 
-def test_fail_secure_blocks_on_db_error(tmp_path):
-    """TAUSIK_HOOK_FAIL_SECURE=1: corrupt DB → block."""
+def test_fail_open_is_available_and_explicit(tmp_path):
+    """The escape hatch is real: a broken DB must not leave anyone unable to edit."""
+    proj = _make_tausik_project(tmp_path, with_active_task=False, broken_db=True)
+    res = _run({"TAUSIK_HOOK_FAIL_OPEN": "1"}, proj)
+    assert res.returncode == 0, res.stderr
+
+
+def test_the_retired_variable_is_reported_rather_than_ignored(tmp_path):
+    """`TAUSIK_HOOK_FAIL_SECURE` now asks for the default, and says so.
+
+    Silently ignoring a variable someone deliberately set is the quiet kind of
+    wrong this project refuses elsewhere: they configured a safety control and
+    would never learn the name stopped meaning anything.
+    """
     proj = _make_tausik_project(tmp_path, with_active_task=False, broken_db=True)
     res = _run({"TAUSIK_HOOK_FAIL_SECURE": "1"}, proj)
-    assert res.returncode == 2
-    assert "FAIL_SECURE" in res.stderr
+    assert res.returncode == 2, "it asks for what already happens, so the verdict is unchanged"
+    assert "no longer does anything" in res.stderr
+    assert "TAUSIK_HOOK_FAIL_OPEN=1" in res.stderr
 
 
 def test_skip_hooks_env_short_circuits(tmp_path):

@@ -52,7 +52,6 @@ _DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
 _SERVERS = (
     ("tausik-project", os.path.join("project", "server.py")),
     ("codebase-rag", os.path.join("codebase-rag", "server.py")),
-    ("tausik-brain", os.path.join("brain", "server.py")),
 )
 
 # OpenCode reads project config from the project ROOT, not from .opencode/.
@@ -316,13 +315,18 @@ def scaffold_opencode(
     written = generate_opencode_config(project_dir, target_dir, venv_python, lib_dir, config)
     print(f"  OpenCode config: {written}")
 
+    # The plugin lands BEFORE the rules, and the order is load-bearing: the rules
+    # body states whether this host enforces anything by COUNTING what is on disk,
+    # so generating it first would have it truthfully report "no mechanism" one
+    # second before the mechanism arrived. Failing here also aborts before any
+    # rules file claims enforcement that never installed.
+    plugin = generate_opencode_plugin(target_dir, lib_dir)
+    print(f"  OpenCode QG-0 plugin: {plugin}")
+
     rules = generate_opencode_rules(
         project_dir, project_name, stacks, context_tier, config, output_mode
     )
     print(f"  OpenCode rules: {rules} (delivered via the `instructions` key)")
-
-    plugin = generate_opencode_plugin(target_dir, lib_dir)
-    print(f"  OpenCode QG-0 plugin: {plugin}")
 
     n_cmds = generate_opencode_commands(target_dir)
     if n_cmds:
@@ -367,6 +371,7 @@ def generate_opencode_rules(
         ide="opencode",
         context_tier=context_tier,
         output_mode=output_mode,
+        project_dir=project_dir,
     )
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:

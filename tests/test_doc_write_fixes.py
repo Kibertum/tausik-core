@@ -25,7 +25,6 @@ PAYLOAD = {
     "review_agents_count": 6,
     "mcp_main_tools": 124,
     "mcp_project_tools": 117,
-    "mcp_brain_tools": 7,
 }
 
 

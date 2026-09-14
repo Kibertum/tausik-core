@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/dev-doc-checks)
+**English** | [Русский](../ru/dev-doc-checks.md)
 
 # Developer doc checks (v14-doc-automation)
 
@@ -71,3 +71,53 @@ back to the filesystem walk rather than failing.
 - **`gen_doc_constants.py` missing** (legacy checkout) → SKIP, exit 0.
 - **Drift detected** → exit 1 with stderr hint:
   `[check_docs] doc-constants drift — run python scripts/gen_doc_constants.py --write and re-commit.`
+
+## What the check actually looks at
+
+The document above described a machine that checked two things: the version in
+`pyproject.toml` and the MCP tool counts. It has grown to seven scans, and until
+this section existed **only one of its seven modules was named anywhere a
+reader would look**.
+
+| Scan | What it guards | Where it lives |
+|---|---|---|
+| `scan_version_refs` | `vX.Y.Z` written into prose drifting from `pyproject.toml` | `doc_drift_scanners.py` |
+| `scan_py_version_constants` | the same version restated as a Python constant | `doc_drift_scanners.py` |
+| `scan_mcp_tool_counts` | `**N tools**`, `N project tools`, and stale `brain = N` sums (the brain server is retired, so any such sum is drift) | `doc_drift_scanners.py` |
+| `scan_closed_list_enums` | a documented list of values that the code's own closed list has outgrown | `doc_drift_scanners.py` |
+| `scan_test_counts` | "N tests" in prose against the number pytest actually collects | `doc_drift_scanners.py` |
+| `scan_code_counts` | repo-state counters — hooks, stacks, roles, review agents, core and official skills | `doc_drift_scanners.py` |
+| `scan_table_count_columns` | numeric CELLS of markdown tables, with their own subject registry | `doc_drift_tables.py` |
+
+The modules behind them:
+
+| Module | Purpose |
+|---|---|
+| `gen_doc_constants.py` | the entry point: `--check`, `--write`, and regeneration of `constants.json` |
+| `doc_drift_common.py` | the shared regex tables, the scan targets, and the text helpers |
+| `doc_drift_scanners.py` | the six scans above, each returning a list of findings |
+| `doc_drift_tables.py` | the column scan and the registry of which column means what |
+| `doc_drift_fixes.py` | the auto-fixer `--write` runs |
+| `code_counts.py` | counts the repository's own state — hooks, stacks, roles, skills |
+| `mcp_tool_counts.py` | counts the MCP surface each server advertises |
+
+## Detection and repair must stay in lockstep
+
+`--write` repairs what `--check` reports. That is a PROMISE, and it was broken:
+the `N project + M brain` pair form (retired with the brain server in 1.9) was
+scanned from review #208 onward and repaired by nobody. Measured in session #234: raising the
+MCP tool count from 145 to 146 left **eight such references across seven files**,
+`--write` finished red with "drift remains after --write", and about fifteen
+edits had to be made by hand for one changed integer.
+
+Worse than the labour: a scan that reports drift it cannot fix reads, to whoever
+runs `--write`, as coverage. `tests/test_doc_drift_fixes_repair_what_they_detect.py`
+now asserts that every count family the scanner knows is also known to the fixer,
+so the next family cannot land half-built.
+
+## Where the repair does NOT go
+
+The fixer never edits inside a fenced code block, and never inside CLAUDE.md's
+`DYNAMIC` section — the same places the scanner does not look. Documentation
+teaches by example, and an "example" silently rewritten to match today's numbers
+stops being the thing it was illustrating.

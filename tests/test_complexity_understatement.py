@@ -232,8 +232,13 @@ class TestMetricSeparation:
         be = SQLiteBackend(str(tmp_path / "m.db"))
         be.event_add("supervision", "hook", "bypass_skip_hooks")
         be.event_add("supervision", "t1", "complexity_understated", "files=5")
+        # Nested split added with the §8.6(j) vector; the separation this test
+        # is about (bypass vs detection) is unchanged.
         assert be.supervision_bypasses_summary() == {
             "total": 1,
+            "manual_intervention": 0,
+            "other": 1,
+            "nested": True,
             "by_action": {"bypass_skip_hooks": 1},
         }
         assert be.supervision_detections_summary() == {

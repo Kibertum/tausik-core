@@ -1,8 +1,8 @@
-**Русский** | [English](/docs/skill-ecosystem)
+**Русский** | [English](../en/skill-ecosystem.md)
 
 # Экосистема скиллов — карта на одной странице
 
-Точка входа для **внешних / репозиторных** скиллов (не 13 core slash-скиллов + `/brain` conditional в `harness/skills/` — они в **[Навыки](skills.md)**).
+Точка входа для **внешних / репозиторных** скиллов (не 13 core slash-скиллов в `harness/skills/` — они в **[Навыки](skills.md)**).
 
 ## Поток (установка)
 

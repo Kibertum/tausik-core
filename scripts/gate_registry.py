@@ -14,19 +14,8 @@ One `GateSpec` per gate now carries all four answers. The precedent is
 `gate_runner.gate_verdict`: the same fact spelled in five places had already
 drifted in both directions before it was consolidated.
 
-TWO PHASES, because there are genuinely two kinds of gate:
-
-* ``scoped`` — takes ``(gate_config, files)`` and returns ``(passed, output)``.
-  Runs inside `gate_runner.run_gates` over the task's declared scope. Every
-  gate a stack can declare is of this kind.
-* ``post_scope`` — takes the whole close context and edits the QG-2 *report*
-  (`gate_block._block`). It answers questions no file list can express: "is
-  there a fresh signed verify green for this task?", "did the changelog gain a
-  line?". These run after the scoped pipeline, on the task-done path only.
-
-`get_gates_for_trigger` filters ``post_scope`` out, so `run_gates` never tries
-to call one with the wrong signature — the phase is what keeps both kinds in
-one registry without one corrupting the other.
+The record itself and the two phases live in `gate_spec` — this module is the
+DATA (which gates exist), that one is the DECLARATION (what a gate record is).
 
 IMPLEMENTATIONS ARE RESOLVED LAZILY, by dotted string. Importing them here
 eagerly would make `default_gates` (which imports this module) pull in
@@ -48,225 +37,19 @@ Two impl address forms:
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass, field
 from typing import Any, Callable, cast
 
-PHASE_SCOPED = "scoped"
-PHASE_POST_SCOPE = "post_scope"
+# The RECORD lives in gate_spec, the DATA lives here. Re-exported so every
+# existing `from gate_registry import GateSpec, PHASE_SCOPED` keeps working.
+from gate_spec import PHASE_POST_SCOPE, PHASE_SCOPED, GateSpec
+
+__all__ = ["GateSpec", "PHASE_POST_SCOPE", "PHASE_SCOPED"]
 
 
-@dataclass(frozen=True)
-class GateSpec:
-    """Everything the framework knows about one built-in gate."""
-
-    name: str
-    phase: str
-    default_config: dict[str, Any]
-    impl: str
-    # A fileless close (`task done --no-file-changes`) has no scope to gate.
-    # Verify-First still runs — it is what *proves* the scope is empty — but
-    # the changelog gate cannot apply: a task that touched no files carries no
-    # changelog diff by construction. Declared here rather than as an `if` in
-    # the runner so the exception is visible next to the gate it exempts.
-    skip_on_fileless_close: bool = False
-    # Post-scope gates that predate this registry own a config key of their
-    # own (changelog: `task_done.changelog_gate.enabled`). The resolver lets
-    # `gates status` report what will actually happen instead of the registry
-    # default, which would be a lie for any project using the legacy key.
-    enabled_resolver: str | None = field(default=None)
-
-
-# --- Scoped gates: the former `default_gates.UNIVERSAL_GATES` ---------------
-# Values are byte-identical to the literal they replace; tests/test_gate_registry
-# asserts that, because a "refactor" that quietly changes a severity or a
-# trigger is a behaviour change wearing a refactor's clothes.
-
-_SCOPED: tuple[GateSpec, ...] = (
-    GateSpec(
-        name="ruff",
-        phase=PHASE_SCOPED,
-        impl="gate_command_runner:run_command_gate",
-        default_config={
-            "enabled": True,
-            "severity": "block",
-            "trigger": ["commit"],
-            "command": "ruff check {files}",
-            "description": "Lint with ruff before commit",
-            "file_extensions": [".py"],
-        },
-    ),
-    GateSpec(
-        name="mypy",
-        phase=PHASE_SCOPED,
-        impl="gate_command_runner:run_command_gate",
-        default_config={
-            "enabled": False,
-            "severity": "warn",
-            "trigger": ["commit"],
-            "command": "mypy {files}",
-            "description": "Type-check with mypy before commit",
-            "file_extensions": [".py"],
-        },
-    ),
-    GateSpec(
-        name="filesize",
-        phase=PHASE_SCOPED,
-        impl="gate_filesize:run_filesize_gate",
-        default_config={
-            "enabled": True,
-            "severity": "block",
-            "trigger": ["task-done", "commit"],
-            "command": None,
-            "description": "Warn if files exceed max_lines threshold",
-            # Interim cap raised 400→500 (task l26-filesize-gate-revisit,
-            # decision #190): the 400 cap deformed architecture (~30 wrapper
-            # modules split only to pass; 5 core files written to exactly 400).
-            # 500 absorbs every documented wrapper-merge with margin while a
-            # genuinely 2× file still blocks. The real fix (measure post-MRO
-            # public class surface, not raw lines) is a deferred follow-up.
-            "max_lines": 500,
-        },
-    ),
-    GateSpec(
-        name="class_surface",
-        phase=PHASE_SCOPED,
-        impl="gate_class_surface:run_class_surface_gate",
-        default_config={
-            "enabled": True,
-            "severity": "block",
-            "trigger": ["task-done", "commit"],
-            "command": None,
-            "description": "Cap a class's composed public surface after inheritance",
-            # Complements `filesize`, never replaces it (task filesize-mro-exempt-mcp).
-            # The line gate counts raw lines per FILE, so a god-object assembled from
-            # mixins is structurally invisible to it: every mixin sits under the cap
-            # while the composed class exposes 129 public members. Worse, the line cap
-            # CAUSED the split — module sizes pile up just under the old 400 boundary
-            # (26 modules at 350-399 vs 22 at 300-349, then 6 above 400), so files were
-            # cut to fit and the composed surface grew as each file looked healthier.
-            # Cap + ratchet baseline live in the committed tausik/gates.json.
-            "max_public_members": 60,
-        },
-    ),
-    GateSpec(
-        name="bandit",
-        phase=PHASE_SCOPED,
-        impl="gate_command_runner:run_command_gate",
-        default_config={
-            "enabled": False,
-            "severity": "warn",
-            "trigger": ["review"],
-            "command": "bandit -r {files} -q",
-            "description": "Security scan with bandit",
-        },
-    ),
-    GateSpec(
-        name="tdd_order",
-        phase=PHASE_SCOPED,
-        impl="gate_tdd_order:run_tdd_order_gate",
-        default_config={
-            "enabled": False,
-            "severity": "warn",
-            "trigger": ["task-done"],
-            "command": None,
-            "description": "Verify test files were modified (TDD enforcement)",
-        },
-    ),
-    # Blocks task-done when a source edit did not reach the deployed profile that
-    # actually runs (hooks/MCP load from .claude/ etc., tests import from
-    # scripts/). BLOCK, not warn: an edit that did not take effect is not done.
-    # Inert when no profile is installed (fresh clone / CI). See
-    # gate_bootstrap_drift.py and memory #229.
-    GateSpec(
-        name="bootstrap_drift",
-        phase=PHASE_SCOPED,
-        impl="gate_bootstrap_drift:run_bootstrap_drift_gate_for",
-        default_config={
-            "enabled": True,
-            "severity": "block",
-            "trigger": ["task-done"],
-            "command": None,
-            "description": "Fail if deployed IDE profiles drift from scripts/ source",
-        },
-    ),
-    # Refuses a close/commit that routes project knowledge into another agent's
-    # memory (~/.claude memory, .cursor/rules, copilot instructions, aider, …).
-    # BLOCK: knowledge that lands there is not "somewhere else", it is gone for
-    # every agent but one. Inert outside a git repository. See memory_sinks.py
-    # for the deny-list and the three enforcement layers.
-    GateSpec(
-        name="memory_route",
-        phase=PHASE_SCOPED,
-        impl="gate_memory_route:run_memory_route_gate",
-        default_config={
-            "enabled": True,
-            "severity": "block",
-            "trigger": ["task-done", "commit"],
-            "command": None,
-            "description": "Block writes that route project knowledge into a foreign agent's memory",
-        },
-    ),
-    # RENAR §3.11 drift detectors (warning-mode). Read-only scans of the RENAR
-    # artifact store; ignore `files`. Warn-only by design — see renar_drift.py.
-    GateSpec(
-        name="renar_drift_schema",
-        phase=PHASE_SCOPED,
-        impl="gate_renar_drift:run_renar_drift_gate_for",
-        default_config={
-            "enabled": True,
-            "severity": "warn",
-            "trigger": ["task-done"],
-            "command": None,
-            "description": "RENAR drift-1: schema validation of SPEC/ADAPT artifacts",
-        },
-    ),
-    GateSpec(
-        name="renar_drift_provenance",
-        phase=PHASE_SCOPED,
-        impl="gate_renar_drift:run_renar_drift_gate_for",
-        default_config={
-            "enabled": True,
-            "severity": "warn",
-            "trigger": ["task-done"],
-            "command": None,
-            "description": "RENAR drift-7: stale TC↔requirement (task↔SPEC) provenance",
-        },
-    ),
-    # Fails a commit when the durable `tausik/` projection drifts from a fresh DB
-    # export — the git-native state must equal its source of truth before it
-    # enters a commit. COMMIT trigger, not task-done: a close mutates the DB (and
-    # can auto-close its parent), so a task-done check would flag its own write.
-    # Read-only; SKIPS (passes) when no `tausik/` tree exists (opt-in). See
-    # gate_state_roundtrip.py and state-git-roundtrip-gate.
-    GateSpec(
-        name="state_roundtrip",
-        phase=PHASE_SCOPED,
-        impl="gate_state_roundtrip:run_state_roundtrip_gate_for",
-        default_config={
-            "enabled": True,
-            "severity": "block",
-            "trigger": ["commit"],
-            "command": None,
-            "description": "Fail if the tausik/ git-native state drifts from the DB export",
-        },
-    ),
-    # Fails a close/commit when a changed SKILL.md breaks the agentskills.io canon
-    # (name/dir + sizes). INERT unless a SKILL.md changed; hygiene, not trust.
-    GateSpec(
-        name="skill_spec_conformance",
-        phase=PHASE_SCOPED,
-        impl="skill_spec_conformance:run_skill_conformance_gate",
-        default_config={
-            "enabled": True,
-            "severity": "block",
-            "trigger": ["task-done", "commit"],
-            "command": None,
-            "description": "Fail if a changed SKILL.md violates the agentskills.io name/size canon",
-            "file_extensions": [".md"],
-        },
-    ),
-)
-
+# The scoped half of the data lives in `gate_registry_scoped` — it is the half
+# that grows with every new gate, and it is what pushed this module past the
+# line cap once each gate had to declare the effect it prevents.
+from gate_registry_scoped import _SCOPED  # noqa: E402
 
 # --- Post-scope gates: QG-2 report gates, previously hardcoded --------------
 # `phase` is carried inside default_config too, so it survives the trip through
@@ -276,6 +59,10 @@ _SCOPED: tuple[GateSpec, ...] = (
 _POST_SCOPE: tuple[GateSpec, ...] = (
     GateSpec(
         name="verify_first",
+        prevents=(
+            "A task closes with no fresh signed verify green for it — the closure that "
+            "certifies nothing, which is the whole subject of QG-2. "
+        ),
         phase=PHASE_POST_SCOPE,
         impl="svc:_enforce_verify_first",
         default_config={
@@ -289,6 +76,11 @@ _POST_SCOPE: tuple[GateSpec, ...] = (
     ),
     GateSpec(
         name="changelog",
+        prevents=(
+            "Disabled by default, so today it stops nothing here. Where enabled it "
+            "prevents a task closing without a CHANGELOG line — a change that shipped "
+            "with no trace outside the commit message. "
+        ),
         phase=PHASE_POST_SCOPE,
         impl="svc:_enforce_changelog",
         skip_on_fileless_close=True,

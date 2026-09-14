@@ -8,7 +8,10 @@ import sqlite3
 from typing import Any
 
 from backend_crud import BackendCrudMixin
+from backend_crud_actz import ActzCrudMixin
 from backend_crud_adapts import AdaptsCrudMixin
+from backend_crud_at import AtCrudMixin
+from backend_crud_graph import GraphCrudMixin
 from backend_crud_knowledge import KnowledgeCrudMixin
 from backend_crud_reasoning import ReasoningCrudMixin
 from backend_crud_specs import SpecsCrudMixin
@@ -17,6 +20,7 @@ from backend_graph import BackendGraphMixin
 from backend_init import init_schema
 from backend_queries import BackendQueriesMixin
 from backend_task_deps import BackendTaskDepsMixin
+from backend_transaction import BackendTransactionMixin
 from tausik_utils import utcnow_iso
 
 logger = logging.getLogger("tausik.backend")
@@ -38,6 +42,7 @@ _TASK_FIELDS = frozenset(
         "acceptance_criteria",
         "scope",
         "relevant_files",
+        "tracker_refs",
         "started_at",
         "completed_at",
         "blocked_at",
@@ -77,8 +82,12 @@ class SQLiteBackend(
     ReasoningCrudMixin,
     SpecsCrudMixin,
     AdaptsCrudMixin,
+    ActzCrudMixin,
+    AtCrudMixin,
+    GraphCrudMixin,
     BackendEventsChainMixin,
     BackendTaskDepsMixin,
+    BackendTransactionMixin,
 ):
     """All DB operations for TAUSIK. Single SQLite file, FTS5 search."""
 
@@ -91,6 +100,9 @@ class SQLiteBackend(
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._in_tx = False
+        # Monotonic, never reset: SAVEPOINT names must be unique for as long as
+        # any of them can still be open. See backend_transaction.
+        self._savepoint_seq = 0
         # (table, slug) pairs written inside the open transaction, projected when
         # it commits. See _project_write for why a mid-transaction write is wrong.
         self._pending_projection: list[tuple[str, str]] = []
@@ -137,27 +149,6 @@ class SQLiteBackend(
         if not self._in_tx:
             self._conn.commit()
         return cur.lastrowid or 0
-
-    def begin_tx(self) -> None:
-        """Begin explicit transaction for multi-step operations."""
-        if self._in_tx:
-            return  # already in transaction, no nesting
-        self._conn.execute("BEGIN IMMEDIATE")
-        self._in_tx = True
-
-    def commit_tx(self) -> None:
-        """Commit explicit transaction."""
-        self._conn.commit()
-        self._in_tx = False
-        self._checkpoint()
-        self._flush_pending_projection()
-
-    def rollback_tx(self) -> None:
-        """Rollback explicit transaction."""
-        self._conn.rollback()
-        self._in_tx = False
-        # Discarded, not projected: these rows no longer exist as written.
-        self._pending_projection.clear()
 
     def _project_write(self, table: str, slug: str) -> None:
         """Keep the git-native projection in step with THIS write. Never raises.

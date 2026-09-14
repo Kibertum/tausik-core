@@ -108,7 +108,7 @@ def load_effective_config(project_dir: str) -> dict:
                 project = data
         except (OSError, json.JSONDecodeError, ValueError):
             project = {}
-    merged, rejections = resolve(project)
+    merged, rejections = resolve(project, project_dir=project_dir)
     for r in rejections:
         logging.getLogger("tausik.config").warning("Config trust tier: %s", r.describe())
     return merged

@@ -1,8 +1,8 @@
-**English** | [Русский](/ru/docs/skill-ecosystem)
+**English** | [Русский](../ru/skill-ecosystem.md)
 
 # Skill ecosystem — one-page map
 
-Single entry point for **vendor / repo skills** (not the 13 core slash skills + `/brain` conditional in `harness/skills/` — those ship with TAUSIK and are documented in **[Skills](skills.md)**).
+Single entry point for **vendor / repo skills** (not the 13 core slash skills in `harness/skills/` — those ship with TAUSIK and are documented in **[Skills](skills.md)**).
 
 ## Flow (install path)
 

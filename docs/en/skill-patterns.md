@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/skill-patterns.md)
+
 # Shared Skill Patterns
 
 Common patterns used across multiple skills. Reference this instead of duplicating.
@@ -12,7 +14,7 @@ Look for the "Session: Xm active / Ym wall" line. If active is near `session_war
 Replace between `<!-- DYNAMIC:START -->` and `<!-- DYNAMIC:END -->`:
 ```
 Current State
-Session: #{id} | Branch: {branch} | Version: {version}
+Session: #{id} | Branch: {branch} | TAUSIK: {version}
 Tasks: {done}/{total} done, {active} active, {blocked} blocked
 {IF handoff: Last session: {summary}}
 {IF warnings: Warnings: ...}

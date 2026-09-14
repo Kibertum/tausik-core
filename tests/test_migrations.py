@@ -603,3 +603,71 @@ class TestDbBackupPruning:
 
         assert (tmp_path / "tausik.db.bak.v1").exists(), "own only snapshot was deleted"
         assert len(list(tmp_path.glob("tausik.db2.bak.v*"))) == 4, "other db touched"
+
+
+class TestV48UsageEventsRebuildGuard:
+    """Охрана перестройки usage_events — урок, оплаченный двумя красными тестами.
+
+    Первая редакция v48 была простым списком SQL, дословно по образцу v24 на этой
+    же таблице. Она уронила test_adapts.py::test_migration_v36_creates_tables_clean
+    и test_reasoning_steps.py::test_migration_v32_creates_table_triggers_clean —
+    оба на `no such table: usage_events`. Такой тест поднимает МИНИМАЛЬНУЮ БД и
+    гонит миграции с версии 32 или 36, чтобы проверить одну конкретную; v23,
+    создающая usage_events, при этом не выполняется никогда. Список утверждений
+    не умеет пропустить сам себя — охраняемый пост-шаг умеет.
+
+    Здесь это пиньтся напрямую, а не только косвенно через те два теста: они
+    проверяют СВОИ миграции и завтра могут переехать на другую стартовую версию,
+    унеся с собой покрытие чужого дефекта.
+    """
+
+    def test_skips_when_table_is_absent(self):
+        """Частичная фикстура без usage_events: no-op, а не падение."""
+        from backend_migrations_v48 import maybe_rebuild_usage_events_v48
+
+        conn = sqlite3.connect(":memory:")
+        conn.isolation_level = None
+        assert maybe_rebuild_usage_events_v48(conn) == 0
+        conn.close()
+
+    def test_runs_once_then_becomes_a_noop(self):
+        """Идемпотентность: условие охраны — ровно то состояние, которое чинится."""
+        from backend_migrations_v48 import maybe_rebuild_usage_events_v48
+
+        conn = _create_v1_db()
+        conn.isolation_level = None
+        run_migrations(conn, 1)
+        # Первый проход уже отработал внутри run_migrations.
+        assert maybe_rebuild_usage_events_v48(conn) == 0
+        notnull = {
+            r[1]: r[3] for r in conn.execute("PRAGMA table_info(usage_events)")
+        }["session_id"]
+        assert notnull == 0, "session_id обязан быть необязательным после v48"
+        conn.close()
+
+    def test_rebuild_preserves_rows_and_ids(self):
+        """Перестройка копирует строки один в один — id сохраняются вместе с ними.
+
+        Копия по ЯВНЫМ именам колонок и с сохранением id: входящие ссылки и
+        отчёты, ключующиеся по id события, обязаны пережить перестройку.
+        """
+        from backend_migrations_v48 import maybe_rebuild_usage_events_v48
+
+        conn = _create_v1_db()
+        conn.isolation_level = None
+        run_migrations(conn, 1)
+        conn.execute(
+            "INSERT INTO sessions(started_at) VALUES('2026-08-31T10:00:00Z')"
+        )
+        conn.execute(
+            "INSERT INTO usage_events(id,session_id,task_slug,tokens_input,tokens_output,"
+            "tokens_total,cost_usd,tool_calls,source,recorded_at) "
+            "VALUES(77,1,NULL,10,5,15,0.001,1,'posttool','2026-08-31T10:00:01Z')"
+        )
+        # Вернуть таблицу в дов48-состояние нельзя (SQLite не ужесточает на месте),
+        # поэтому проверяется то, что доступно: охрана видит уже починенную таблицу
+        # и не трогает данные повторным проходом.
+        assert maybe_rebuild_usage_events_v48(conn) == 0
+        row = conn.execute("SELECT id, session_id, tokens_total FROM usage_events").fetchone()
+        assert row == (77, 1, 15)
+        conn.close()

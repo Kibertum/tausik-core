@@ -26,9 +26,12 @@ import sys
 from pathlib import Path
 
 from code_counts import code_counts_flat
+from doc_closed_lists import closed_lists_flat
 from doc_drift_scanners import (
     CROSS_FILE_SCAN_TARGETS,
+    scan_closed_list_enums,
     scan_code_counts,
+    scan_table_count_columns,
     scan_mcp_tool_counts,
     scan_py_version_constants,
     scan_test_counts,
@@ -43,7 +46,9 @@ __all__ = [
     "main",
     "output_json_path",
     "run_main",
+    "scan_closed_list_enums",
     "scan_code_counts",
+    "scan_table_count_columns",
     "scan_mcp_tool_counts",
     "scan_py_version_constants",
     "scan_test_counts",
@@ -94,26 +99,53 @@ def build_constants_doc(repo_root: Path) -> dict[str, object]:
     counts = mcp_counts_flat(repo_root)
     payload.update(counts)
     payload.update(code_counts_flat(repo_root))
+    # The VALUES of the standard's closed lists, not only counts: the docs spell
+    # them out and were outside every closed-list control until session #213.
+    payload.update(closed_lists_flat())
     payload["mcp_descriptions_hash"] = mcp_descriptions_digest(repo_root)
+    # `skills_official_count` comes from `skills-official/`, a SEPARATE and
+    # gitignored repository, so a clean clone — every CI runner — simply has no
+    # source for it. `code_counts_flat` omits the key there rather than calling
+    # it zero, and the previously recorded value stands: the alternative was a
+    # red CI on every checkout and, through the auto-fixer, "0 official skills"
+    # written into three documents from a merely absent file.
+    if "skills_official_count" not in payload:
+        _restore_prior(
+            payload,
+            "skills_official_count",
+            repo_root,
+            "skills-official/registry.json is absent or unreadable",
+        )
     try:
         payload["test_count"] = count_tests(repo_root)
     except (ValueError, FileNotFoundError, subprocess.TimeoutExpired) as e:
         # Preserve prior value rather than crash; surfaced in --check via
         # constants drift if the on-disk value diverges from a future re-run.
-        on_disk_path = output_json_path(repo_root)
-        if on_disk_path.is_file():
-            try:
-                prior = json.loads(on_disk_path.read_text(encoding="utf-8"))
-                if isinstance(prior.get("test_count"), int):
-                    payload["test_count"] = prior["test_count"]
-            except (OSError, json.JSONDecodeError):
-                pass
-        if "test_count" not in payload:
-            print(
-                f"Warning: test_count omitted — pytest collection failed: {e}",
-                file=sys.stderr,
-            )
+        _restore_prior(payload, "test_count", repo_root, f"pytest collection failed: {e}")
     return payload
+
+
+def _restore_prior(payload: dict[str, object], key: str, repo_root: Path, why: str) -> None:
+    """Carry a previously recorded constant forward when it cannot be measured.
+
+    A constant that CANNOT BE COMPUTED here is not a constant that CHANGED, and
+    the difference decides whether a checkout is red or green. Both callers hit
+    this for environment reasons rather than repository reasons — a missing
+    optional sibling repo, a pytest collection that would not run — and in both
+    cases the honest answer is the number the repository last agreed on. Warns
+    on stderr when even that is unavailable, because a silently missing key
+    reads downstream as a deliberate removal.
+    """
+    on_disk_path = output_json_path(repo_root)
+    if on_disk_path.is_file():
+        try:
+            prior = json.loads(on_disk_path.read_text(encoding="utf-8"))
+            if isinstance(prior.get(key), int):
+                payload[key] = prior[key]
+        except (OSError, json.JSONDecodeError):
+            pass
+    if key not in payload:
+        print(f"Warning: {key} omitted — {why}", file=sys.stderr)
 
 
 def output_json_path(repo_root: Path) -> Path:
@@ -201,6 +233,17 @@ def run_main(
             if mcp_drift:
                 _report_drift("Cross-file MCP tool-count drift:", mcp_drift)
                 return 1
+            # Bare table cells carry no word for the count patterns to anchor on.
+            table_drift = scan_table_count_columns(repo_root, payload)
+            if table_drift:
+                _report_drift("Counted table-cell drift:", table_drift)
+                return 1
+        if not skip_cross_files:
+            # The VALUES of the closed lists, not only the numbers beside them.
+            enum_drift = scan_closed_list_enums(repo_root, payload)
+            if enum_drift:
+                _report_drift("Closed-list enumeration drift:", enum_drift)
+                return 1
         if not skip_cross_files and not skip_test_count:
             test_drift = scan_test_counts(repo_root, payload)
             if test_drift:
@@ -266,7 +309,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--skip-mcp-counts",
         action="store_true",
-        help="Skip the cross-file MCP tool-count scan (keep version-ref + test-count scans)",
+        help=(
+            "Skip the cross-file MCP tool-count scan AND the counted-table-column "
+            "scan it is grouped with (which also covers hooks and core skills); "
+            "keeps version-ref + test-count scans"
+        ),
     )
     p.add_argument(
         "--skip-test-count",

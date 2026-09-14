@@ -113,7 +113,14 @@ class SessionMixin:
             # the child would otherwise inherit the JSON-RPC stdin pipe and could
             # block on it. See defect v14b-defect-mcp-task-done-stdin-hang.
             subprocess.run(
-                [sys.executable, hooks_script, "--auto", "--record"],
+                [
+                    sys.executable,
+                    hooks_script,
+                    "--auto",
+                    "--record",
+                    "--session-id",
+                    str(current["id"]),
+                ],
                 cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 capture_output=True,
                 text=True,

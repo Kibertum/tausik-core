@@ -28,7 +28,7 @@ from bootstrap_opencode import (  # noqa: E402
 CONFIG = "opencode.json"
 
 
-def _mk_servers(target_dir: str, names: tuple[str, ...] = ("project", "codebase-rag", "brain")):
+def _mk_servers(target_dir: str, names: tuple[str, ...] = ("project", "codebase-rag")):
     """Create fake server.py files inside <target_dir>/mcp/<name>/server.py."""
     for name in names:
         d = os.path.join(target_dir, "mcp", name)
@@ -59,10 +59,10 @@ class TestMcpStanzas:
         assert os.path.isfile(path)
         assert not os.path.exists(os.path.join(target_dir, CONFIG))
 
-    def test_three_servers_local_and_enabled(self, project):
+    def test_both_servers_local_and_enabled(self, project):
         project_dir, target_dir = project
         cfg = _read(generate_opencode_config(project_dir, target_dir, venv_python="/v/bin/python"))
-        assert set(cfg["mcp"]) == {"tausik-project", "codebase-rag", "tausik-brain"}
+        assert set(cfg["mcp"]) == {"tausik-project", "codebase-rag"}
         for stanza in cfg["mcp"].values():
             assert stanza["type"] == "local"
             assert stanza["enabled"] is True
@@ -73,7 +73,7 @@ class TestMcpStanzas:
         project_dir = tmp_path / "proj"
         target_dir = project_dir / ".opencode"
         target_dir.mkdir(parents=True)
-        _mk_servers(str(target_dir), names=("project",))  # rag + brain absent
+        _mk_servers(str(target_dir), names=("project",))  # rag absent
         cfg = _read(generate_opencode_config(str(project_dir), str(target_dir)))
         assert set(cfg["mcp"]) == {"tausik-project"}
 
@@ -196,7 +196,7 @@ class TestMalformedConfig:
         with open(path, "w", encoding="utf-8") as f:
             f.write("{ this is not json ,,, ")
         cfg = _read(generate_opencode_config(project_dir, target_dir))
-        assert set(cfg["mcp"]) == {"tausik-project", "codebase-rag", "tausik-brain"}
+        assert set(cfg["mcp"]) == {"tausik-project", "codebase-rag"}
         assert cfg["instructions"] == [".opencode/tausik-rules.md"]
 
     def test_replacing_a_broken_config_is_announced(self, project, capsys):
@@ -390,8 +390,9 @@ class TestScaffoldOrchestrator:
 
 
 class TestRulesPathIsUntrusted:
-    """`.tausik/config.json` travels with the repo. A tampered one (malicious PR, cloned
-    template) must not turn `bootstrap --ide opencode` into an arbitrary-file-write."""
+    """The project tier travels with the repo. A tampered one (malicious PR,
+    cloned template) must not turn `bootstrap --ide opencode` into an
+    arbitrary-file-write."""
 
     @pytest.mark.parametrize(
         "evil",

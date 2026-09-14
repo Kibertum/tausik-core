@@ -7,6 +7,7 @@ landing can no longer drift from reality.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -56,6 +57,41 @@ def count_core_skills(repo_root: Path) -> int:
     )
 
 
+def count_official_skills(repo_root: Path) -> int | None:
+    """Entries in ``skills-official/registry.json``, or None when unreadable.
+
+    The opt-in catalogue is quoted as a bare number in three places (both
+    READMEs, AGENTS.md) and was bound to nothing: AGENTS.md said "25+ official"
+    while the registry held 20, and no check could disagree because no constant
+    existed to disagree WITH. Reading the registry rather than the directory
+    listing on purpose -- the directory also holds `README.md` and
+    `bundles.json`, and a count that walks it answers a different question than
+    the one the docs ask.
+
+    NONE MEANS "THE SOURCE IS NOT HERE", AND THAT IS NOT THE SAME AS ZERO.
+    ``skills-official/`` is a separate repository and is gitignored, so a clean
+    clone -- every CI runner included -- has no registry at all. The first cut
+    of this function returned 0 there, which made ``--check`` disagree with the
+    committed constant and turned every CI run red (measured: `git archive HEAD`
+    into an empty directory, then the literal CI command, exit 1). Worse, a
+    merely corrupted registry would have fed 0 to ``write_cross_file_fixes``,
+    which rewrites documents from constants: "20 official skills" would have
+    become "0 official skills" in three files, silently and in writing. A count
+    that cannot be taken is ABSENT; the caller decides what to do about it, and
+    :func:`gen_doc_constants.build_constants_doc` keeps the previously recorded
+    value exactly as it already does for ``test_count``.
+    """
+    registry = repo_root / "skills-official" / "registry.json"
+    if not registry.is_file():
+        return None
+    try:
+        data = json.loads(registry.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    skills = data.get("skills") if isinstance(data, dict) else None
+    return len(skills) if isinstance(skills, (list, dict)) else None
+
+
 def count_stacks(repo_root: Path) -> int:
     """Count stack profile dirs under `stacks/` (excluding the schema file)."""
     stacks_dir = repo_root / "stacks"
@@ -80,11 +116,20 @@ def count_roles(repo_root: Path) -> int:
 
 
 def code_counts_flat(repo_root: Path) -> dict[str, int]:
-    """Bundle for `gen_doc_constants` to merge into `constants.json`."""
-    return {
+    """Bundle for `gen_doc_constants` to merge into `constants.json`.
+
+    ``skills_official_count`` is OMITTED rather than zeroed when its registry is
+    unreadable -- see :func:`count_official_skills` for why absence and zero are
+    different answers here.
+    """
+    counts = {
         "review_agents_count": count_review_agents(repo_root),
         "hooks_count": count_registered_hooks(repo_root),
         "skills_core_count": count_core_skills(repo_root),
         "stacks_count": count_stacks(repo_root),
         "roles_count": count_roles(repo_root),
     }
+    official = count_official_skills(repo_root)
+    if official is not None:
+        counts["skills_official_count"] = official
+    return counts

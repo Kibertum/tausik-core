@@ -30,6 +30,7 @@ from renar_conformance import (
     gather_signals,
     infer_level,
 )
+from renar_mandatory_clauses import basis_section
 
 if TYPE_CHECKING:
     from project_service import ProjectService
@@ -122,6 +123,21 @@ def _adapt_doc(adapt: dict[str, Any]) -> str:
         f"Source ТЗ: `{adapt['tz_ref']}` · status **{adapt['status']}** "
         f"· delta **{adapt.get('delta_n', 0)}**",
     ]
+    # A `regulatory` finding says an external norm moved AFTER parts of this
+    # interpretation were recorded. The body is append-only (V1), so the
+    # superseded resolutions stay where they are and a reader meets them
+    # first — which is how a withdrawn basis keeps reading as a live one.
+    # The banner is that reader's warning, and it precedes what it qualifies.
+    regulatory = [f for f in adapt.get("findings", []) if f.get("category") == "regulatory"]
+    if regulatory:
+        body += [
+            "",
+            f"> ⚠ **This ADAPT carries {len(regulatory)} regulatory finding(s).** An "
+            "external norm changed after parts of the interpretation below were "
+            "recorded, so a resolution here is not current merely because it is "
+            "written here. Read *Backward findings → regulatory* before treating "
+            "any resolution below as a live basis.",
+        ]
     interps = adapt.get("interpretations", [])
     if interps:
         body += ["", "## Forward interpretations"]
@@ -171,7 +187,8 @@ def _conformance_doc(conn: Any) -> str:
     bundle = gather_signals(conn)
     clauses = eval_mandatory_clauses(bundle)
     verdict = infer_level(bundle, clauses)
-    level = verdict["level"] or "(pre-adoption)"
+    excl = verdict.get("scope_exclusion")
+    level = verdict["level"] or ("(non-conformant)" if excl else "(pre-adoption)")
     front = {
         "artifact": "conformance",
         "renar-version": RENAR_VERSION,
@@ -179,14 +196,41 @@ def _conformance_doc(conn: Any) -> str:
         "level": verdict["level"],
         "pre-adoption": verdict["pre_adoption"],
         "blocked-at": verdict["blocked_at"],
+        "conformance-declaration": "non-conformant" if excl else None,
+        "scope-exclusion": dict(excl) if excl else None,
         "mandatory-clauses-confirmed": {n: c["confirmed"] for n, c in clauses.items()},
+        # The basis travels WITH the confirmations, here as in the YAML manifest.
+        # This view is a second published artifact of the same seven booleans,
+        # regenerated and `--check`ed on its own; leaving the basis behind would
+        # keep publishing constants as measurements in the one place the first
+        # fix did not reach (found by review of that fix).
+        "mandatory-clauses-basis": basis_section(clauses),
         "level-signals": {k: bool(v) for k, v in bundle["signals"].items()},
     }
+    declaration = (
+        [
+            "## Declaration: **NON-CONFORMANT** (§1.5.4)",
+            "",
+            "TAUSIK is an internal product with no independent client "
+            "representative. §1.5.4 withholds the right to claim RENAR-N from "
+            "such a project and requires this manifest to declare "
+            "non-conformance explicitly. The RENAR practices stay in force "
+            "locally; only the claim of a level is withdrawn "
+            "(decisions#292, supersedes decisions#109).",
+            "",
+            "Re-entry is not a step up the ladder: it runs through §1.4.2 and "
+            "requires an ACTZ signed by two independent persons (§5.5.3).",
+            "",
+        ]
+        if excl
+        else []
+    )
     body = [
         "# RENAR Conformance (derived view)",
         "",
         _DERIVED_BANNER,
         "",
+        *declaration,
         f"Level: **{level}**",
         "",
         f"Blocked at: {verdict['blocked_at'] or '(nothing — top level)'} — {verdict['reason']}",

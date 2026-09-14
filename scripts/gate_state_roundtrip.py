@@ -26,8 +26,18 @@ from __future__ import annotations
 
 import os
 
+import gate_outcome
 
-def run_state_roundtrip_gate_for(gate: dict, files: list[str]) -> tuple[bool, str]:
+# What a reader of a CANNOT-RUN row is supposed to DO. Both non-execution paths
+# owe the same answer; a refusal without a next action is a dead end wearing a
+# better name (#182).
+_CANNOT_RUN_REMEDY = (
+    "This gate produced no evidence, so it certifies nothing. Re-run once the "
+    "fault above is gone; if it persists, the round-trip is unknown, not clean."
+)
+
+
+def run_state_roundtrip_gate_for(gate: dict, files: list[str]) -> gate_outcome.GateOutcome:
     """Registry-uniform ``(gate, files)`` entrypoint (gate-registry-single-source).
 
     Both arguments are ignored: the check compares the WHOLE `tausik/` tree
@@ -37,13 +47,21 @@ def run_state_roundtrip_gate_for(gate: dict, files: list[str]) -> tuple[bool, st
     return run_state_roundtrip_gate()
 
 
-def run_state_roundtrip_gate() -> tuple[bool, str]:
+def run_state_roundtrip_gate() -> gate_outcome.GateOutcome:
     """Fail iff the on-disk `tausik/` tree differs from a fresh DB export.
 
-    Returns ``(passed, message)``. Passes (skips) when there is no tree to check
-    — no `.tausik/`, or the projection was never materialized. A slug-less entity
-    that cannot be serialized is a real, actionable failure (block); any other
-    unexpected fault fails OPEN (a gate must never crash the commit it guards).
+    Returns a ``GateOutcome``, which still unpacks as the historical
+    ``(passed, message)`` pair for call sites that destructure it.
+
+    NOT_APPLICABLE (passes) when there is no tree to check — no `.tausik/`, or
+    the projection was never materialized. A slug-less entity that cannot be
+    serialized is a real, actionable FAILED (block).
+
+    Any other unexpected fault is COULD_NOT_RUN and BLOCKS — it does NOT fail
+    open (three-more-gates-sign-non-execution-as-a-pass). The exception is still
+    caught, because a gate must never crash the commit it guards; what changed
+    is that a check which produced no evidence stops being counted as one that
+    found nothing wrong.
     """
     try:
         from project_config import find_tausik_dir
@@ -52,22 +70,32 @@ def run_state_roundtrip_gate() -> tuple[bool, str]:
         project_root = os.path.dirname(tausik_dir)
         tree_root = os.path.join(project_root, "tausik")
         if not os.path.isdir(tree_root):
-            return True, (
+            return gate_outcome.not_applicable(
+                gate_outcome.REASON_NO_PROJECTION,
                 "No tausik/ projection — state round-trip check skipped "
-                "(run `tausik state export` to adopt git-native state)."
+                "(run `tausik state export` to adopt git-native state).",
             )
         db_path = os.path.join(tausik_dir, "tausik.db")
         if not os.path.isfile(db_path):
-            return True, "No tausik.db — state round-trip check skipped."
-    except Exception as e:  # noqa: BLE001 — a gate must never crash the commit
-        return True, f"State round-trip check unavailable ({type(e).__name__}: {e})."
+            return gate_outcome.not_applicable(
+                gate_outcome.REASON_NO_DATABASE,
+                "No tausik.db — state round-trip check skipped.",
+            )
+    except Exception as e:  # noqa: BLE001 — caught, but recorded as non-execution, not as a pass
+        return gate_outcome.could_not_run(
+            gate_outcome.REASON_RUNNER_ERROR,
+            f"State round-trip check unavailable ({type(e).__name__}: {e}).",
+            remedy=_CANNOT_RUN_REMEDY,
+        )
 
     be = None
     try:
         # ExportError is imported HERE, inside the guarded block — a broken
-        # state_export import chain must degrade to fail-open, not propagate out
-        # of gate_runner (which calls impl() with no try/except) and crash the
-        # whole commit-gate run. That would break this module's own invariant.
+        # state_export import chain must be CAUGHT, not propagate out of
+        # gate_runner (which calls impl() with no try/except) and crash the whole
+        # commit-gate run. Caught is not the same as passed: it is recorded as
+        # COULD_NOT_RUN and blocks, since a broken import means the round-trip is
+        # unknown, not clean.
         from project_backend import SQLiteBackend
         from project_service import ProjectService
         from state_export import ENTITY_DIRS, ExportError, build_tree
@@ -80,13 +108,17 @@ def run_state_roundtrip_gate() -> tuple[bool, str]:
         except ExportError as e:
             # A slug-less/unserializable entity is a genuine defect, not noise —
             # the export refuses loudly, so must the gate (block, with the fix).
-            return False, (
+            return gate_outcome.failed(
                 f"State export refused — the DB cannot be serialized: {e}\n"
                 "Fix the entity (usually a missing stable slug), then `tausik state export`."
             )
         drift = check_tree(tree_root, tree, managed_dirs=set(ENTITY_DIRS))
-    except Exception as e:  # noqa: BLE001 — fail-open: never block a commit on an internal fault
-        return True, f"State round-trip check unavailable ({type(e).__name__}: {e})."
+    except Exception as e:  # noqa: BLE001 — caught, but recorded as non-execution, not as a pass
+        return gate_outcome.could_not_run(
+            gate_outcome.REASON_RUNNER_ERROR,
+            f"State round-trip check unavailable ({type(e).__name__}: {e}).",
+            remedy=_CANNOT_RUN_REMEDY,
+        )
     finally:
         if be is not None:
             try:
@@ -97,7 +129,7 @@ def run_state_roundtrip_gate() -> tuple[bool, str]:
     if drift:
         shown = "\n  ".join(drift[:20])
         more = f"\n  … (+{len(drift) - 20} more)" if len(drift) > 20 else ""
-        return False, (
+        return gate_outcome.failed(
             f"State drift: tausik/ does NOT match the live DB ({len(drift)} issue(s)) — "
             "the files that would enter git disagree with the source of truth "
             "(forgot to export, a hand-edit past the DB, or a non-deterministic "
@@ -115,13 +147,15 @@ def run_state_roundtrip_gate() -> tuple[bool, str]:
     if unstaged:
         shown = "\n  ".join(unstaged[:20])
         more = f"\n  … (+{len(unstaged) - 20} more)" if len(unstaged) > 20 else ""
-        return False, (
+        return gate_outcome.failed(
             f"State not staged: tausik/ matches the DB, but {len(unstaged)} change(s) "
             "are unstaged/untracked — the commit would omit them:\n  "
             f"{shown}{more}\n"
             "Fix: git add tausik/   (stage the exported tree before committing)."
         )
-    return True, f"No state drift — tausik/ matches the DB export ({len(tree)} file(s))."
+    return gate_outcome.passed(
+        f"No state drift — tausik/ matches the DB export ({len(tree)} file(s))."
+    )
 
 
 def _unstaged_managed_paths(project_root: str) -> list[str]:
@@ -143,7 +177,13 @@ def _unstaged_managed_paths(project_root: str) -> list[str]:
             stdin=subprocess.DEVNULL,
             timeout=15,
         )
-    except Exception:  # noqa: BLE001 — git missing / timeout / OS error → fail-open
+    except Exception:  # noqa: BLE001 — git missing / timeout / OS error
+        # Deliberately still permissive, and NOT the fail-open this task retired.
+        # This is a HELPER, not a verdict: it answers "which managed paths are
+        # unstaged", and its caller only ever turns a non-empty answer into a
+        # failure. An empty list here says "no evidence of unstaged files", which
+        # is what an absent git honestly gives — the gate's own verdict, and the
+        # blocking decision, are made above and are unaffected.
         return []
     if proc.returncode != 0:
         return []

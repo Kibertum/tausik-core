@@ -61,14 +61,3 @@ def test_no_inline_duplicates_in_production():
     )
 
 
-def test_start_skill_mentions_brain_ignored_filter():
-    """v14b-review57-followups M1: the /start SKILL.md must keep the
-    brain.ignored:<id> filter pointer so opt-in --brain primer skips
-    suggestions the user already dismissed.
-    """
-    skill = ROOT / "harness" / "skills" / "start" / "SKILL.md"
-    text = skill.read_text(encoding="utf-8")
-    assert "brain.ignored" in text, (
-        "Filter pointer `brain.ignored:` missing from /start SKILL.md — "
-        "agents will re-surface dismissed brain suggestions."
-    )

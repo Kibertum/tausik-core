@@ -222,14 +222,16 @@ class TestTaskLifecycle:
     def test_multiple_attempts(self, svc):
         _setup_hierarchy(svc)
         svc.task_add("setup", "t1", "T1")
-        svc.task_start("t1", _internal_force=True)
+        svc.task_start("t1", _internal_force=True)  # attempt 1
         svc.task_block("t1")
-        svc.task_unblock("t1")
+        svc.task_unblock("t1")  # attempt 2: a re-activation counts (#207)
         # Re-block and simulate re-start by setting to planning
         svc.be.task_update("t1", status="planning")
-        svc.task_start("t1", _internal_force=True)
+        svc.task_start("t1", _internal_force=True)  # attempt 3
         task = svc.be.task_get("t1")
-        assert task["attempts"] == 2
+        # This used to expect 2: the unblock in the middle did not count, and
+        # the test pinned that (attempts-counter-never-increments).
+        assert task["attempts"] == 3
 
     # --- v2.0: task_quick ---
 
@@ -554,12 +556,6 @@ class TestKnowledge:
             svc.memory_show(9999)
 
     def test_decisions(self, svc, monkeypatch):
-        # Stub brain disabled so decide() doesn't read the real project's
-        # half-configured brain (would surface the v14b BLOCKED warning
-        # instead of the "recorded" path this dispatch test asserts).
-        import brain_config
-
-        monkeypatch.setattr(brain_config, "load_brain", lambda cfg=None: {"enabled": False})
         msg = svc.decide("Use REST API", rationale="Simpler than GraphQL")
         assert "recorded" in msg
         decs = svc.decisions()

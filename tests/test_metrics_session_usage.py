@@ -65,7 +65,15 @@ def test_metrics_record_session_negative_tokens_rejected(tmp_path: Path) -> None
         svc.be.close()
 
 
-def test_metrics_each_record_appends_usage_events(tmp_path: Path) -> None:
+def test_metrics_each_record_replaces_the_session_mirror(tmp_path: Path) -> None:
+    """The mirror row carries the session's RUNNING TOTAL, so it replaces.
+
+    This test used to assert the opposite — two calls, two rows — and that is
+    exactly how the slice `session_usage_record` documents as safe
+    ("session totals only: WHERE source = 'session_record'") filled with
+    snapshots of one fact. Measured in session #228: 15,517 rows for 155
+    sessions, summing to 88x the truth.
+    """
     svc = _make_service(tmp_path)
     try:
         svc.session_start()
@@ -82,7 +90,10 @@ def test_metrics_each_record_appends_usage_events(tmp_path: Path) -> None:
             cost_usd=0.002,
         )
         n = svc.be._q1("SELECT COUNT(*) as c FROM usage_events") or {}
-        assert int(n.get("c") or 0) == 2
+        assert int(n.get("c") or 0) == 1
+        row = svc.be._q("SELECT * FROM usage_events")[0]
+        assert row["tokens_total"] == 30  # the latest total, not 15 and not 45
+        assert row["source"] == "session_record"
     finally:
         svc.be.close()
 
@@ -260,3 +271,95 @@ def test_metrics_cli_log_usage_and_cost_parsers() -> None:
     assert ad.metrics_cmd is None
     assert ad.cost is True
 
+
+class TestSupersededArithmeticIsNamedNotHidden:
+    """Two arithmetics in one column are tolerable only if the reader is told.
+
+    `sum_usage_tokens` counted every message twice (measured 1.9999x over 23,836
+    live messages) until session
+    `token_accounting.LAST_SESSION_ON_SUPERSEDED_TOKEN_ARITHMETIC`. Those rows
+    cannot be recomputed — transcripts survive for a fraction of the sessions,
+    and rows predating the API's `iterations` field were never doubled at all —
+    so the all-time total will span two scales forever. The report must say so.
+    """
+
+    def test_summary_counts_the_superseded_share_from_the_db(self, tmp_path: Path) -> None:
+        svc = _make_service(tmp_path)
+        try:
+            svc.session_start()
+            svc.metrics_record_session(
+                tokens_input=1000,
+                tokens_output=250,
+                tokens_total=1250,
+                cost_usd=0.0125,
+                tool_calls=3,
+                model="claude-opus-5",
+            )
+            usage = (svc.get_metrics() or {}).get("session_usage") or {}
+            # Session 1 is at or below the boundary, so it is on the old scale.
+            assert usage["superseded_sessions"] == 1
+            assert usage["superseded_tokens"] == 1250
+            assert usage["superseded_cost_usd"] == 0.0125
+        finally:
+            svc.be.close()
+
+    def test_report_names_the_superseded_share(self) -> None:
+        from render_metrics import _usage_lines
+
+        lines = _usage_lines(
+            {
+                "session_usage": {
+                    "sessions_with_usage": 156,
+                    "tokens_total": 132_652_885,
+                    "cost_usd": 1485.8401,
+                    "superseded_sessions": 156,
+                    "superseded_tokens": 132_652_885,
+                    "superseded_cost_usd": 1485.8401,
+                }
+            }
+        )
+        text = "\n".join(lines)
+        assert "superseded arithmetic" in text
+        assert "156 session(s)" in text
+        assert "132,652,885" in text
+
+    def test_the_caveat_retires_itself_when_no_old_row_remains(self) -> None:
+        """It is a self-clearing statement of fact, not permanent boilerplate."""
+        from render_metrics import _usage_lines
+
+        lines = _usage_lines(
+            {
+                "session_usage": {
+                    "sessions_with_usage": 3,
+                    "tokens_total": 100,
+                    "cost_usd": 1.0,
+                    "superseded_sessions": 0,
+                    "superseded_tokens": 0,
+                    "superseded_cost_usd": 0.0,
+                }
+            }
+        )
+        text = "\n".join(lines)
+        assert "superseded" not in text
+        assert "Sessions tracked: 3" in text
+
+    def test_a_summary_without_the_new_keys_does_not_crash_the_report(self) -> None:
+        """Old callers and old payloads keep rendering — absence is not zero-crash."""
+        from render_metrics import _usage_lines
+
+        lines = _usage_lines(
+            {"session_usage": {"sessions_with_usage": 1, "tokens_total": 5, "cost_usd": 0.5}}
+        )
+        assert any("Sessions tracked: 1" in ln for ln in lines)
+        assert not any("superseded" in ln for ln in lines)
+
+    def test_the_boundary_is_a_session_id_not_a_date(self) -> None:
+        """A calendar threshold rots on its own; a max-session-id cannot.
+
+        This is the same failure class that billed Sonnet 5 at another model's
+        rate for months — a number justified by a date nobody re-measured.
+        """
+        from token_accounting import LAST_SESSION_ON_SUPERSEDED_TOKEN_ARITHMETIC as boundary
+
+        assert isinstance(boundary, int)
+        assert boundary > 0

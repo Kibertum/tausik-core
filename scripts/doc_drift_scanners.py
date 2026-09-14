@@ -9,15 +9,17 @@ working unchanged.
 The regex table + line-preserving text helpers live in :mod:`doc_drift_common`;
 the auto-fixer (``write_cross_file_fixes``) lives in :mod:`doc_drift_fixes` and
 is re-exported here so `from doc_drift_scanners import write_cross_file_fixes`
-keeps resolving. The three-module split keeps each file under the 400-line cap
+keeps resolving. The four-module split keeps each file under the 500-line cap (decision #190)
 with no duplication and no circular import (scanners→common, scanners→fixes,
-fixes→common; fixes never imports scanners).
+scanners→tables, fixes→common, tables→common; neither fixes nor tables imports
+scanners).
 
 Covered drift classes:
   - version refs (`vX.Y` / `vX.Y.Z`) vs `tausik_version`
-  - MCP tool counts (`**N tools**`, `N project tools`, brain header, pair)
+  - MCP tool counts (`**N tools**`, `N project tools`, stale `brain = N` sums)
   - test counts (badge URL/label, `pytest suite (N tests)`, `**N tests**`)
-  - repo-state counts (stacks / hooks / review agents)
+  - repo-state counts (stacks / hooks / review agents / roles / skills)
+  - counted table columns (delegated to :mod:`doc_drift_tables`)
 """
 
 from __future__ import annotations
@@ -25,12 +27,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from doc_drift_common import (
+    _CLOSED_LIST_COUNT_RE,
+    _CLOSED_LIST_ENUM_RE,
     _CODE_COUNT_PATTERNS,
-    _MCP_COUNT_PAIR_PATTERN,
     _MCP_COUNT_PATTERNS,
     _PY_VERSION_RE,
     _TEST_COUNT_PATTERNS,
     _VERSION_RE,
+    CLOSED_LIST_COUNT_LOOKBEHIND,
+    CLOSED_LIST_MIN_OVERLAP,
     CODE_COUNT_EXTRA_TARGETS,
     CROSS_FILE_SCAN_TARGETS,
     MCP_COUNT_EXTRA_TARGETS,
@@ -47,11 +52,18 @@ from doc_drift_common import (
 # imports only doc_drift_common, never this module.
 from doc_drift_fixes import write_cross_file_fixes
 
+# Re-exported because gen_doc_constants and repo_coherence import it from here;
+# the registry itself and its exemption maps are read only by their own tests,
+# which import doc_drift_tables directly rather than through this module.
+from doc_drift_tables import scan_table_count_columns
+
 __all__ = [
     "CROSS_FILE_SCAN_TARGETS",
     "scan_version_refs",
     "scan_py_version_constants",
     "scan_mcp_tool_counts",
+    "scan_table_count_columns",
+    "scan_closed_list_enums",
     "scan_test_counts",
     "scan_code_counts",
     "write_cross_file_fixes",
@@ -77,8 +89,13 @@ def scan_version_refs(repo_root: Path, expected_version: str) -> list[str]:
         if not path.is_file():
             continue
         text = _strip_fenced_blocks(path.read_text(encoding="utf-8"))
-        if rel == "CLAUDE.md":
-            text = _strip_dynamic_block(text)
+        # The generated DYNAMIC block (memory tail, decision titles) is not an
+        # authored version claim wherever it appears: CLAUDE.md AND its sibling
+        # AGENTS.md carry the same block. Keyed on the markers, not the file
+        # name — a filename key let a decision titled "... corpus v1.1" in
+        # AGENTS.md read as a TAUSIK version (session #250). A file without
+        # the markers is left untouched by the substitution.
+        text = _strip_dynamic_block(text)
         for m in _VERSION_RE.finditer(text):
             if _is_foreign_version(text, m.start()):
                 continue
@@ -129,11 +146,10 @@ def scan_mcp_tool_counts(repo_root: Path, payload: dict[str, object]) -> list[st
     """Return drift messages for cross-file MCP tool-count refs.
 
     Walks :data:`CROSS_FILE_SCAN_TARGETS`, strips fenced code blocks, and flags
-    every ``**N tools**`` / ``N project tools`` / ``N brain tools`` /
-    ``(N project + M brain`` / ```tausik-brain`, N tools`` whose captured int
-    does not match the corresponding constants.json key.
+    every ``**N tools**`` / ``N project tools`` / ``brain = N tools`` whose
+    captured int does not match the corresponding constants.json key.
 
-    Patterns are deliberately specific-context (require "project"/"brain"/
+    Patterns are deliberately specific-context (require "project"/
     backtick-wrapped server name nearby) to avoid noise on generic phrases like
     "200 tool calls" or "Should have 26+ tools".
 
@@ -162,21 +178,86 @@ def scan_mcp_tool_counts(repo_root: Path, payload: dict[str, object]) -> list[st
                     f"(found={found}) does not match constants.json {key}={expected}"
                 )
 
-        pair_re, (k1, k2), pair_label = _MCP_COUNT_PAIR_PATTERN
-        exp1 = payload.get(k1)
-        exp2 = payload.get(k2)
-        if isinstance(exp1, int) and isinstance(exp2, int):
-            for m in pair_re.finditer(text):
-                got1, got2 = int(m.group(1)), int(m.group(2))
-                if got1 == exp1 and got2 == exp2:
-                    continue
-                line_no = text[: m.start()].count("\n") + 1
+    return messages
+
+
+def scan_closed_list_enums(repo_root: Path, payload: dict[str, object]) -> list[str]:
+    """Return drift messages for closed lists the docs spell out.
+
+    The docs quote the standard's closed lists in full — SPEC types, ADAPT
+    backward-finding categories, ADAPT lifecycle statuses — and the guard that
+    forbids a second literal copy walks ``scripts/``, ``harness/`` and
+    ``tests/`` only, so documentation was outside every closed-list control.
+    Measured: ``docs/{en,ru}/mcp.md`` still said "closed list of 9
+    (ARCH/…/OPS)" after migration v49 widened SPEC types to eleven.
+
+    THE SUBJECT IS DERIVED. An enumeration is matched to the closed list it
+    OVERLAPS most (:data:`CLOSED_LIST_MIN_OVERLAP` shared values at least), not
+    to a phrase near it: the enumeration this exists to catch is one whose
+    content is wrong, so it can only be recognised by partial match. The count
+    written immediately before it, if any, is judged as part of the same claim.
+    """
+    lists = payload.get("closed_lists")
+    if not isinstance(lists, dict) or not lists:
+        return []
+    known = [
+        (name, str(spec.get("label", name)), [str(v) for v in spec.get("values", [])])
+        for name, spec in lists.items()
+        if isinstance(spec, dict) and spec.get("values")
+    ]
+    messages: list[str] = []
+    for rel in (*CROSS_FILE_SCAN_TARGETS, *MCP_COUNT_EXTRA_TARGETS):
+        path = repo_root / rel
+        if not path.is_file():
+            continue
+        text = _strip_fenced_blocks(path.read_text(encoding="utf-8"))
+        for m in _CLOSED_LIST_ENUM_RE.finditer(text):
+            found = [tok for tok in m.group(1).split("/") if tok]
+            name, label, values, overlap = _best_closed_list(found, known)
+            if overlap < CLOSED_LIST_MIN_OVERLAP:
+                continue  # not a quotation of a list we know
+            line_no = text[: m.start()].count("\n") + 1
+            # Compared case-insensitively for the same reason the subject is
+            # matched that way: a doc spelling the list in another case quotes
+            # the same list. Reported in the DOC's own spelling, so the message
+            # points at what the reader will find on the line.
+            found_lower = {v.lower() for v in found}
+            values_lower = {v.lower() for v in values}
+            missing = [v for v in values if v.lower() not in found_lower]
+            extra = [v for v in found if v.lower() not in values_lower]
+            if missing or extra:
                 messages.append(
-                    f"{rel}:{line_no}: MCP {pair_label} drift '{m.group(0)}' "
-                    f"(found={got1} project + {got2} brain) does not match "
-                    f"constants.json {k1}={exp1}, {k2}={exp2}"
+                    f"{rel}:{line_no}: {label} enumerated as '{m.group(1)}' — "
+                    f"missing {missing or 'nothing'}, unknown {extra or 'nothing'} "
+                    f"vs constants.json closed_lists.{name} ({len(values)} values)"
+                )
+            before = text[max(0, m.start() - CLOSED_LIST_COUNT_LOOKBEHIND) : m.start()]
+            count_m = _CLOSED_LIST_COUNT_RE.search(before)
+            if count_m and int(count_m.group(1)) != len(values):
+                messages.append(
+                    f"{rel}:{line_no}: {label} written as a closed list of "
+                    f"{count_m.group(1)} — constants.json closed_lists.{name} "
+                    f"holds {len(values)}"
                 )
     return messages
+
+
+def _best_closed_list(
+    found: list[str], known: list[tuple[str, str, list[str]]]
+) -> tuple[str, str, list[str], int]:
+    """The known closed list sharing most values with *found*, and that count."""
+    # CASE-INSENSITIVELY. A doc that spells the list in another case is quoting
+    # the same list, and a case-sensitive intersection scored it zero — below
+    # the floor, so the enumeration was skipped entirely and its content went
+    # unchecked (external review #40, reproduced on an all-lowercase quotation
+    # of every SPEC type). The message still shows the doc's own spelling.
+    lowered = {v.lower() for v in found}
+    best: tuple[str, str, list[str], int] = ("", "", [], 0)
+    for name, label, values in known:
+        overlap = len(lowered & {v.lower() for v in values})
+        if overlap > best[3]:
+            best = (name, label, values, overlap)
+    return best
 
 
 def scan_test_counts(repo_root: Path, payload: dict[str, object]) -> list[str]:

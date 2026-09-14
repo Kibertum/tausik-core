@@ -1,3 +1,5 @@
+[English](../en/cost-telemetry.md) | **Русский**
+
 # Телеметрия стоимости — атрибуция токенов по задачам
 
 TAUSIK пишет LLM-телеметрию в две связанные таблицы:
@@ -34,17 +36,20 @@ Session rollup отвечает на вопрос "сколько стоила �
 .tausik/tausik metrics cost --since 2026-05-01    # окно
 ```
 
-`metrics cost` исключает строки с `task_slug IS NULL`, чтобы события без атрибуции не загрязняли отчёт.
+`metrics cost` исключает строки с `task_slug IS NULL` из таблицы по задачам, чтобы события без
+атрибуции не загрязняли её и не удваивали суммы. Но с v48 они не пропадают из вида: под таблицей
+печатается явная корзина «вне задачи» — сколько таких событий, сколько токенов и стоимости, и
+сколько из них не имели даже сессии. Корзина печатается и когда таблица по задачам пуста.
 
 ## Схема
 
-`usage_events` (с v1.4 / миграция v24):
+`usage_events` (с v1.4 / миграция v24; `session_id` ослаблен миграцией v48):
 
 | колонка | тип | примечание |
 |---|---|---|
 | `id` | INTEGER PRIMARY KEY | |
-| `session_id` | INTEGER NOT NULL | FK → sessions(id) |
-| `task_slug` | TEXT NULL | FK → tasks(slug); NULL при отсутствии/конфликте |
+| `session_id` | INTEGER NULL | FK → sessions(id) ON DELETE SET NULL; NULL, если сессия не открыта (v48) |
+| `task_slug` | TEXT NULL | FK → tasks(slug) ON DELETE SET NULL; ОСНОВНАЯ атрибуция события (v48) |
 | `model_id` | TEXT NULL | canonical Anthropic id |
 | `tokens_input` / `tokens_output` / `tokens_total` | INTEGER ≥ 0 | |
 | `cost_usd` | REAL ≥ 0 | считается при insert |

@@ -58,20 +58,36 @@ from gate_runner import gate_verdict, run_gates  # noqa: E402
 # (commit e69fdd0). Do not regenerate from the registry — see the module
 # docstring on why an expectation derived from the subject proves nothing.
 _UNIVERSAL_GATES_BEFORE = {
+    # DELIBERATE POST-REFACTOR CHANGE, not drift. `trigger` and `description`
+    # were changed by lint-error-shipped-because-ruff-is-not-a-closing-gate
+    # (release 1.9): `verify` was added so a closure stops certifying a tree no
+    # linter ever read. Everything else is still the frozen pre-registry
+    # literal, which is what this expectation exists to pin — the point of the
+    # snapshot is that a change has to be argued for HERE, in the open, rather
+    # than ride along inside a refactor.
     "ruff": {
         "enabled": True,
         "severity": "block",
-        "trigger": ["commit"],
+        "trigger": ["commit", "verify"],
         "command": "ruff check {files}",
-        "description": "Lint with ruff before commit",
+        "description": "Lint with ruff before commit and at verify",
         "file_extensions": [".py"],
     },
+    # DELIBERATE DEPARTURE FROM THE FROZEN SNAPSHOT, and the only one.
+    # `command` was "mypy {files}" and `description` "Type-check with mypy
+    # before commit" when this snapshot was taken. Both changed in
+    # mypy-gate-measures-differently-than-mypy-itself: handing mypy the CHANGED
+    # files contradicted pyproject.toml, which declares its own source set, so
+    # the gate measured something the project never asked to be measured — and
+    # produced three phantom errors on tests/conftest.py, a file the normal run
+    # does not check at all. Everything else about the gate is still pinned:
+    # enabled, severity, trigger and file_extensions must not drift.
     "mypy": {
         "enabled": False,
         "severity": "warn",
         "trigger": ["commit"],
-        "command": "mypy {files}",
-        "description": "Type-check with mypy before commit",
+        "command": "mypy",
+        "description": "Type-check the project's configured source set before commit",
         "file_extensions": [".py"],
     },
     "filesize": {
@@ -144,7 +160,26 @@ class TestDerivedMetadata:
         first["ruff"]["trigger"].append("review")
         second = reg.defaults_for_phase(reg.PHASE_SCOPED)
         assert second["filesize"]["max_lines"] == 500
-        assert second["ruff"]["trigger"] == ["commit"]
+        assert second["ruff"]["trigger"] == ["commit", "verify"]
+
+    def test_a_linter_runs_at_verify(self):
+        """A closure must not certify a tree no linter ever read.
+
+        lint-error-shipped-because-ruff-is-not-a-closing-gate: `ruff` was
+        enabled and `block`, but triggered only on `commit`. Since commits here
+        need explicit approval, it effectively never ran — and an F541
+        introduced in session #183 survived the full suite, `verify --task`,
+        `task done` and a signed receipt. A lint defect changes no behaviour a
+        test can observe, so tests can never be the thing that catches it.
+
+        Asserted through the public trigger resolution rather than by reading
+        the registry literal, because what matters is which gates a `verify`
+        ACTUALLY runs.
+        """
+        from project_config import get_gates_for_trigger
+
+        names = {g["name"] for g in get_gates_for_trigger("verify")}
+        assert "ruff" in names, "no linter runs at verify — a closure would certify unlinted code"
 
     def test_every_spec_impl_resolves(self):
         """A typo in a dotted impl path must fail here, not at close time."""
@@ -193,17 +228,26 @@ class TestDispatch:
         assert passed is False
         assert results[0]["output"] == "probe says no"
 
-    def test_gate_with_no_impl_and_no_command_is_skip_not_pass(self, monkeypatch):
-        """It used to answer "No command configured." as a PASS — a gate that
-        never executed reporting success, the reading `gate_verdict` forbids."""
+    def test_gate_with_no_impl_and_no_command_cannot_run_and_blocks(self, monkeypatch):
+        """It used to answer "No command configured." as a PASS, then as a SKIP.
+
+        Both readings let a check that never executed sign a receipt.
+        check-result-conflates-could-not-run-with-passed makes it COULD_NOT_RUN:
+        it names its reason and it BLOCKS, because a gate that produced no
+        evidence cannot certify (SENAR 1.4 §8.6(e)).
+        """
+        import gate_outcome
+
         gate = {"name": "hollow", "enabled": True, "severity": "block", "trigger": ["task-done"]}
         monkeypatch.setattr(gate_runner, "get_gates_for_trigger", lambda *a, **k: [gate])
         monkeypatch.setattr(gate_runner, "load_config", lambda *a, **k: {})
 
-        _passed, results = run_gates("task-done", ["a.py"])
-        assert results[0]["skipped"] is True
-        assert gate_verdict(results[0]) == "SKIP"
+        passed, results = run_gates("task-done", ["a.py"])
+        assert results[0]["outcome"] == gate_outcome.COULD_NOT_RUN
+        assert results[0]["reason_code"] == gate_outcome.REASON_NO_GATE_IMPLEMENTATION
+        assert gate_verdict(results[0]) == "CANNOT-RUN"
         assert "ships no implementation" in results[0]["output"]
+        assert passed is False, "a block-severity gate that could not run must not certify"
 
 
 # --- AC4 / AC5: visible in status, excluded from the scoped runner ----------

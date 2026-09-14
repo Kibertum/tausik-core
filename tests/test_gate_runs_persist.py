@@ -29,12 +29,28 @@ from gate_run_record import gate_activity, record_gate_runs  # noqa: E402
 
 
 def _objects(conn: sqlite3.Connection) -> set[tuple[str, str]]:
-    """(type, normalised sql) for gate_runs objects, straight from sqlite_master."""
+    """(type, normalised sql) for gate_runs objects, straight from sqlite_master.
+
+    Punctuation spacing is normalised as well as whitespace: SQLite stores the
+    literal CREATE text and ``ALTER TABLE ... ADD COLUMN`` APPENDS to it, so a
+    table built by migration reads ``... NOT NULL , outcome TEXT)`` where the
+    freshly created one reads ``... NOT NULL, outcome TEXT )``. That difference
+    is typography, not schema — the column sets it produces are identical
+    (asserted separately by `_columns`) — and comparing it verbatim would fail
+    the parity gate for every future ADD COLUMN without any drift existing.
+    """
     rows = conn.execute(
         "SELECT type, name, sql FROM sqlite_master "
         "WHERE name LIKE 'gate_runs%' OR name LIKE 'idx_gate_runs%'"
     ).fetchall()
-    return {(r[0], " ".join((r[2] or "").split())) for r in rows}
+    return {(r[0], _normalise_sql(r[2] or "")) for r in rows}
+
+
+def _normalise_sql(sql: str) -> str:
+    collapsed = " ".join(sql.split())
+    for punct in (",", "(", ")"):
+        collapsed = collapsed.replace(f" {punct}", punct)
+    return collapsed
 
 
 def _columns(conn: sqlite3.Connection) -> list[tuple]:
@@ -69,16 +85,34 @@ def _results(*specs):
 
 
 class TestSchemaPaths:
-    def test_migration_is_derived_from_the_same_ddl(self):
-        """Not mirrored by hand: drift between the paths is impossible."""
+    def test_v39_builds_the_v39_shape_and_does_not_track_later_columns(self):
+        """A migration is a historical fact, not a view of today's schema.
+
+        This used to assert that v39 was DERIVED from the live GATE_RUNS_SQL, so
+        that "drift between the paths is impossible". That invariant held only
+        while `gate_runs` never changed again. When v47 added
+        `outcome`/`reason_code` to the fresh DDL, the derivation silently made
+        step 39 create the NEW shape, and v47's ALTER TABLE in the same chain
+        died on "duplicate column name" — every upgrade from an older version
+        was broken, and this test was green throughout.
+
+        The invariant that actually matters is asserted below and in
+        test_schema_upgrade_parity.py: the END of the chain matches the fresh
+        path. What a single step builds is that step's own business.
+        """
         from backend_migrations_v39 import MIGRATION_V39
 
         assert MIGRATION_V39
         joined = " ".join(" ".join(s.split()) for s in MIGRATION_V39)
         assert "CREATE TABLE IF NOT EXISTS gate_runs" in joined
         assert joined.count("CREATE INDEX") == 3
+        assert "outcome" not in joined, (
+            "v39 must keep building the v39-era table; columns added later "
+            "belong to the migration that added them (v47)."
+        )
 
     def test_migrated_and_fresh_schemas_are_identical(self, tmp_path):
+        """The chain's END, not one step of it, must match the fresh path."""
         fresh = sqlite3.connect(str(tmp_path / "fresh.db"))
         migrated = sqlite3.connect(str(tmp_path / "migrated.db"))
         for c in (fresh, migrated):
@@ -86,9 +120,26 @@ class TestSchemaPaths:
 
         fresh.executescript(GATE_RUNS_SQL)
         from backend_migrations_v39 import MIGRATION_V39
+        from backend_migrations_v47 import MIGRATION_V47
+
+        from backend_migrations import MIGRATIONS
 
         for stmt in MIGRATION_V39:
             migrated.execute(stmt)
+        for stmt in MIGRATION_V47:
+            migrated.execute(stmt)
+        # v51 added `prevents` (SENAR 1.4 §8.6(g): the record must say what the
+        # verdict held back). Replayed from the registered migration rather than
+        # retyped — the point of this test is that the chain's END matches the
+        # fresh path, and a hand-copied statement could drift from the one that
+        # actually runs.
+        for stmt in MIGRATIONS[51]:
+            migrated.execute(stmt)
+
+        # The outcome index is stated after migrations on BOTH paths
+        # (POST_MIGRATION_INDEXES_SQL) because it names a migration-added
+        # column and so cannot live in the pre-migration DDL.
+        migrated.execute("DROP INDEX IF EXISTS idx_gate_runs_outcome")
 
         # Derived from sqlite_master, not from a list written by hand.
         assert _objects(migrated) == _objects(fresh)

@@ -341,7 +341,7 @@ def display_path(path: str, project_dir: str | None = None) -> str:
     """The path as a reader should see it: project-relative, forward slashes.
 
     `os.path.join` of a forward-slash `CLAUDE_PROJECT_DIR` with a relative
-    target yields `d:/Work/.../core\\.clinerules` — mixed separators, in the one
+    target yields `c:/Projects/.../core\\.clinerules` — mixed separators, in the one
     line the reader is supposed to act on. A message naming a path nobody can
     paste is the defect convention #282 exists to forbid.
     """

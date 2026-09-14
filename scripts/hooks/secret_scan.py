@@ -54,6 +54,7 @@ if _HOOKS_DIR not in sys.path:
     sys.path.insert(0, _HOOKS_DIR)
 
 from shell_channel import is_shell_tool  # noqa: E402
+from write_tools import is_write_tool  # noqa: E402
 
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
@@ -129,7 +130,9 @@ def main() -> int:
     # so admitting both here is all it takes. `is_shell_tool` is asked rather
     # than a literal ("Bash","PowerShell") list so a third shell added to
     # `shell_channel` is covered without editing this line (convention #289).
-    if tool_name not in ("Write", "Edit", "MultiEdit") and not is_shell_tool(tool_name):
+    # `is_write_tool` rather than a literal tuple (PR #5): the tuple that stood
+    # here lacked NotebookEdit, so a notebook cell holding a key was never scanned.
+    if not is_write_tool(tool_name) and not is_shell_tool(tool_name):
         return 0
     tool_input = payload.get("tool_input") or {}
     hits: list[tuple[str, str]] = []

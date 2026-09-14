@@ -45,6 +45,13 @@ def resolve_branch(project_dir: str) -> str:
         return "unknown"
 
 
+# The label names the OWNER of the number. This block lands in the PRODUCT's
+# CLAUDE.md / AGENTS.md, one line above the product's own tasks and next to its
+# branch; a bare `Version:` there was read as the product's version — measured
+# on a consumer at 0.1.0 whose CLAUDE.md declared 1.8.0 (GitLab #5).
+STAMP_LABEL = "TAUSIK"
+
+
 def resolve_version() -> str:
     try:
         from tausik_version import __version__
@@ -72,7 +79,7 @@ def build_dynamic_state(svc: Any, project_dir: str) -> str:
     lines = [
         "## Current State",
         f"Session: {session_info} | Branch: {resolve_branch(project_dir)} | "
-        f"Version: {resolve_version()}",
+        f"{STAMP_LABEL}: {resolve_version()}",
         f"Tasks: {done_count}/{len(tasks)} done, {len(active)} active, {len(blocked)} blocked",
     ]
     if active:
@@ -91,6 +98,50 @@ def build_dynamic_state(svc: Any, project_dir: str) -> str:
             pass
 
     return "\n".join(lines)
+
+
+def resolve_project_dir(svc: Any) -> str | None:
+    """Каталог проекта, ВЫВЕДЕННЫЙ ИЗ БАЗЫ, которая даёт содержимое блока.
+
+    АДРЕС ЗАПИСИ И ДАННЫЕ ОБЯЗАНЫ ИМЕТЬ ОДИН ИСТОЧНИК. Оба вызывающих брали адрес
+    из `os.getcwd()`, а содержимое — из переданного `svc`, то есть из двух разных
+    мест, и совпадали они лишь потому, что обычно процесс стоит в своём проекте.
+    Когда не совпадали, получалось ровно то, ради чего написана эта функция:
+    состояние ЧУЖОЙ базы, записанное в НАСТОЯЩИЕ файлы репозитория.
+
+    Замерено, а не предположено (claudemd-dynamic-block-wiped-to-an-empty-project).
+    Аудит-хук на `open` поймал одну запись на всю ленту из 7452 тестов:
+    `tests/test_mcp_integration.py::test_every_tool_name_has_handler` поднимает
+    ВРЕМЕННЫЙ проект и зовёт каждый инструмент MCP, включая
+    `tausik_update_claudemd`; cwd при этом — корень репозитория. Блок между
+    маркерами обоих корневых файлов переписывался состоянием «Tasks: 0/1 done»
+    с полностью снесённым хвостом памяти. Подпись двусоставна и обе половины
+    объясняются этим расхождением: счётчик 0/1 пришёл из временной базы, а
+    «Branch: v1-9-wave» — из git, спрошенного в cwd. Порча идемпотентна
+    (writer не пишет, когда содержимое совпадает), поэтому переживала прогоны
+    молча и попала в ДВАДЦАТЬ коммитов между v1.0.0 и 2026-08.
+
+    Возвращает ``None``, когда сказать, какой проект описывает эта база, НЕЛЬЗЯ —
+    нет backend, нет `db_path`, или база лежит не в `.tausik/`. Вызывающий обязан
+    ОТКАЗАТЬ, а не подставить cwd: молча согласиться значит вернуть тот же дефект
+    под другим именем. Цена ошибки — потеря контекста, который следующий агент
+    читает первым и которому верит.
+    """
+    be = getattr(svc, "be", None)
+    db_path = getattr(be, "db_path", None)
+    if not db_path:
+        return None
+    try:
+        tausik_dir = os.path.dirname(os.path.abspath(db_path))
+    except (TypeError, ValueError):
+        return None
+    try:
+        from project_config import TAUSIK_DIR
+    except ImportError:  # pragma: no cover — путь без scripts/ на sys.path
+        TAUSIK_DIR = ".tausik"
+    if os.path.basename(tausik_dir) != TAUSIK_DIR:
+        return None
+    return os.path.dirname(tausik_dir) or None
 
 
 def resolve_claudemd(project_dir: str) -> str | None:

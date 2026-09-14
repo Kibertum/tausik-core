@@ -14,7 +14,6 @@ Plan a task. Follow steps in order. No improvisation.
 3. **Check knowledge.** Run:
    - `tausik_memory_search` — patterns
    - `tausik_memory_list type=dead_end` — past failures
-   - `brain_search category=patterns limit=3` and `category=gotchas limit=3` (skip if brain MCP missing). Filter ids matching `brain.ignored:` conventions.
 
 4. **Detect stack.** From package.json / requirements.txt / go.mod. Default role = `developer`.
 

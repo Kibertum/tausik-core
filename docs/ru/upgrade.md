@@ -1,4 +1,4 @@
-[English](/docs/upgrade) | **Русский**
+[English](../en/upgrade.md) | **Русский**
 
 # Безопасное обновление
 

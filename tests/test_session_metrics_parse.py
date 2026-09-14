@@ -51,8 +51,10 @@ class TestParseTranscriptModelHandling:
         assert m["model"] == "claude-opus-4-7"
         assert m["cost_usd"] > 0.0
 
-    def test_missing_model_returns_zero_cost_not_opus_rates(self, tmp_path, capsys):
-        """NEGATIVE: previously fell back to 'opus' rates; now returns 0.0 + stderr warn."""
+    def test_missing_model_returns_absent_cost_not_opus_rates(self, tmp_path, capsys):
+        """NEGATIVE: it once fell back to 'opus' rates, then to 0.0. Both were
+        wrong in the same way — a number nobody derived. Now the cost is ABSENT
+        and the tokens, which WERE observed, are kept."""
         sm = _import_module()
         path = _write_transcript(
             tmp_path,
@@ -65,12 +67,13 @@ class TestParseTranscriptModelHandling:
         )
         m = sm.parse_transcript(path)
         assert m["model"] == ""
-        assert m["cost_usd"] == 0.0
+        assert m["cost_usd"] is None
+        assert m["tokens_total"] == 1500, "the tokens were observed and must survive"
         captured = capsys.readouterr()
         assert "session_metrics" in captured.err
         assert "missing 'model'" in captured.err
 
-    def test_empty_model_string_returns_zero_cost(self, tmp_path):
+    def test_empty_model_string_returns_absent_cost(self, tmp_path):
         """NEGATIVE: empty string model is treated as missing, not as alias 'opus'."""
         sm = _import_module()
         path = _write_transcript(
@@ -85,7 +88,7 @@ class TestParseTranscriptModelHandling:
         )
         m = sm.parse_transcript(path)
         assert m["model"] == ""
-        assert m["cost_usd"] == 0.0
+        assert m["cost_usd"] is None
 
     def test_zero_tokens_no_warning_emitted(self, tmp_path, capsys):
         """If transcript is empty (no tokens), no warning fires — nothing was
@@ -94,7 +97,9 @@ class TestParseTranscriptModelHandling:
         sm = _import_module()
         path = _write_transcript(tmp_path, [])
         m = sm.parse_transcript(path)
-        assert m["cost_usd"] == 0.0
+        assert m["cost_usd"] is None
+        # 0 here is a real sum over an empty transcript, not a stand-in for the
+        # unknown: every row was read and none carried usage.
         assert m["tokens_total"] == 0
         captured = capsys.readouterr()
         assert "missing 'model'" not in captured.err
@@ -135,12 +140,71 @@ class TestParseTranscriptModelHandling:
         assert result["cost_usd"] == 0.0
 
 
+class TestParseTranscriptSessionAttribution:
+    """The database rollup must use the same containment rule as token rows."""
+
+    def test_one_transcript_is_split_by_the_target_session(self, tmp_path):
+        sm = _import_module()
+        path = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-09-11T10:10:00Z",
+                    "model": "claude-sonnet-4-6",
+                    "usage": {"input_tokens": 100, "output_tokens": 10},
+                },
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-09-11T11:10:00Z",
+                    "model": "claude-sonnet-4-6",
+                    "usage": {"input_tokens": 200, "output_tokens": 20},
+                },
+            ],
+        )
+        by_timestamp = {
+            "2026-09-11T10:10:00Z": 11,
+            "2026-09-11T11:10:00Z": 12,
+        }
+
+        first = sm.parse_transcript(path, session_resolver=by_timestamp.get, session_id=11)
+        second = sm.parse_transcript(path, session_resolver=by_timestamp.get, session_id=12)
+
+        assert first["tokens_total"] == 110
+        assert second["tokens_total"] == 220
+
+    def test_unattributable_timestamp_is_excluded_not_guessed(self, tmp_path):
+        sm = _import_module()
+        path = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "model": "claude-sonnet-4-6",
+                    "usage": {"input_tokens": 100, "output_tokens": 10},
+                },
+            ],
+        )
+
+        metrics = sm.parse_transcript(path, session_resolver=lambda _timestamp: None, session_id=12)
+
+        assert metrics["tokens_total"] == 0
+        assert metrics["messages"] == 0
+
+
 class TestParseTranscriptCompactionBilling:
-    """AC4 (l26-tokenizer-calibration): server-side compaction billed under
-    usage.iterations must be counted, not dropped by a top-level-only sum.
+    """Compaction billed under usage.iterations is counted ONCE, not twice.
+
+    This class used to assert `1000 + 300 = 1300`, on the belief that
+    `iterations` held only the extra passes. It holds ALL of them, the first
+    included, so the top level is a view of the list rather than a separate
+    quantity — and the old rule doubled every message. Measured over 23,836
+    live messages in session #227: 99.92% carry one iteration identical to the
+    top level, and the inflation was 1.9999x on tokens and therefore on cost.
     """
 
-    def test_iterations_are_added_to_top_level_tokens(self, tmp_path):
+    def test_a_lone_iteration_is_not_added_to_the_top_level(self, tmp_path):
+        """The shape that covers 99.92% of real messages."""
         sm = _import_module()
         path = _write_transcript(
             tmp_path,
@@ -151,16 +215,38 @@ class TestParseTranscriptCompactionBilling:
                     "usage": {
                         "input_tokens": 1000,
                         "output_tokens": 500,
-                        # Separately-billed compaction pass — omitted from the
-                        # top-level counts; a naive sum would report 1000/500.
-                        "iterations": [{"input_tokens": 300, "output_tokens": 100}],
+                        # The API repeats the message here; it is not an extra pass.
+                        "iterations": [{"input_tokens": 1000, "output_tokens": 500}],
                     },
                 }
             ],
         )
         m = sm.parse_transcript(path)
-        assert m["tokens_input"] == 1300
-        assert m["tokens_output"] == 600
+        assert (m["tokens_input"], m["tokens_output"]) == (1000, 500)
+        assert m["tokens_total"] == 1500  # 3000 under the superseded rule
+
+    def test_extra_compaction_passes_are_still_counted(self, tmp_path):
+        """The original intent survives: two passes bill for two passes."""
+        sm = _import_module()
+        path = _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "model": "claude-opus-4-8",
+                    "usage": {
+                        "input_tokens": 1000,
+                        "output_tokens": 500,
+                        "iterations": [
+                            {"input_tokens": 1000, "output_tokens": 500},
+                            {"input_tokens": 300, "output_tokens": 100},
+                        ],
+                    },
+                }
+            ],
+        )
+        m = sm.parse_transcript(path)
+        assert (m["tokens_input"], m["tokens_output"]) == (1300, 600)
         assert m["tokens_total"] == 1900
 
     def test_no_iterations_unchanged(self, tmp_path):
@@ -283,6 +369,22 @@ class TestRecordToDbSelfLocation:
         assert ok is False
         assert "project.py not found" in capsys.readouterr().err
 
+    def test_explicit_session_id_is_forwarded_to_the_cli(self, tmp_path, monkeypatch):
+        sm = _import_module()
+        import _common  # type: ignore[import-not-found]
+
+        root = tmp_path / "src"
+        (root / "scripts").mkdir(parents=True)
+        (root / "scripts" / "project.py").write_text("# stub\n", encoding="utf-8")
+        monkeypatch.setattr(_common, "profile_dir", lambda: None)
+        monkeypatch.setattr(_common, "project_root", lambda: str(root))
+        captured: dict = {}
+        self._stub_run(monkeypatch, captured)
+
+        assert sm.record_to_db({"tokens_input": 1}, session_id=42) is True
+        pos = captured["cmd"].index("--session-id")
+        assert captured["cmd"][pos + 1] == "42"
+
     def test_no_hardcoded_profile_in_deployed_script_join(self):
         """The dead `<profile>/.claude/scripts/project.py` join must be gone.
 
@@ -292,6 +394,55 @@ class TestRecordToDbSelfLocation:
         """
         text = open(_HOOK_PATH, encoding="utf-8").read()
         assert 'os.path.join(project_root, ".claude"' not in text
+
+
+class TestToolRowsForTheOptionalTrace:
+    """The names the OTLP child spans are built from, collected on the walk.
+
+    An OUT-PARAMETER, not another key in the metrics dict: that dict is written
+    to the metrics file and recorded to the database, and telemetry has no
+    business changing the shape of either.
+    """
+
+    def _transcript(self, tmp_path):
+        return _write_transcript(
+            tmp_path,
+            [
+                {
+                    "type": "assistant",
+                    "model": "claude-opus-4-7",
+                    "usage": {"input_tokens": 10, "output_tokens": 5},
+                    "content": [
+                        {"type": "tool_use", "name": "Read"},
+                        {"type": "tool_use", "name": "Bash"},
+                        {"type": "text", "text": "not a tool"},
+                        {"type": "tool_use"},  # nameless — counted, never named
+                    ],
+                }
+            ],
+        )
+
+    def test_rows_carry_the_tool_names_and_the_model(self, tmp_path):
+        sm = _import_module()
+        rows: list = []
+        metrics = sm.parse_transcript(self._transcript(tmp_path), rows)
+        assert metrics["tool_calls"] == 3, "the count includes the nameless block"
+        assert [r["tool_name"] for r in rows] == ["Read", "Bash"], "only named ones become spans"
+        assert {r["model_id"] for r in rows} == {"claude-opus-4-7"}
+        assert [r["id"] for r in rows] == [1, 2], "ids are positional and stable"
+
+    def test_the_metrics_dict_is_unchanged_by_the_collection(self, tmp_path):
+        """NEGATIVE SCENARIO: the extension must not alter what everything else reads."""
+        sm = _import_module()
+        path = self._transcript(tmp_path)
+        without = sm.parse_transcript(path)
+        with_rows = sm.parse_transcript(path, [])
+        assert without == with_rows
+        assert "tool_spans" not in without and "tool_rows" not in without
+
+    def test_omitting_the_list_collects_nothing_and_still_parses(self, tmp_path):
+        sm = _import_module()
+        assert sm.parse_transcript(self._transcript(tmp_path))["tool_calls"] == 3
 
 
 class TestProfileDirAgreement:

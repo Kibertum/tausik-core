@@ -1,4 +1,4 @@
-[English](/docs/reasoning-trace) | **Русский**
+[English](../en/reasoning-trace.md) | **Русский**
 
 # Трейс рассуждений (RENAR)
 

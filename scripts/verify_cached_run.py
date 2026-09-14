@@ -36,7 +36,9 @@ from verify_envelope import (  # noqa: F401
 )
 from verify_constants import DEFAULT_CACHE_TTL_S
 from verify_files_hash import compute_files_hash
+from verify_own_export import coverage_files
 from verify_recent_lookup import lookup_recent_for_task
+from verify_zero_gate import rests_on_a_declaration
 from verify_no_test_mapped import handle_no_test_mapped
 from verify_run_record import (
     RECORD_FAILED_STATUS,
@@ -80,6 +82,7 @@ def run_gates_with_cache(
     details: dict[str, Any] | None = None,
     no_tests_expected: bool = False,
     allow_handle: bool = True,
+    zero_gate_ack: bool = False,
 ) -> tuple[bool, list[dict[str, Any]], str | None]:
     """SENAR Rule 5 cache-aware gate run.
 
@@ -148,7 +151,15 @@ def run_gates_with_cache(
     from gate_runner import run_gates
 
     files = relevant_files or []
-    files_hash = compute_files_hash(files)
+    # verify-handle-dies-on-a-tasks-own-export-file: the WRITE half of the
+    # subtraction. This very run rewrites `tausik/tasks/<slug>.md` (declared
+    # scope, run number, receipt), so a hash that included it could not agree
+    # with itself one moment later. The redemption side subtracts identically —
+    # if only one side did, the circular refusal would become an inconsistent
+    # one, which reads like forgery rather than a defect. `verify_own_export`
+    # carries the reasoning and the named boundary.
+    coverage = coverage_files(files, slug)
+    files_hash = compute_files_hash(coverage)
     cache_command = _build_cache_command(trigger, files)
     cache_ok = is_cache_allowed(files)
 
@@ -159,7 +170,13 @@ def run_gates_with_cache(
     # blind the receipt in the highest-risk path. Cheap when it cannot apply:
     # describe_declared_scope returns "unknown" without touching git when
     # task_created_at or the declared list is missing.
-    scope_desc = describe_declared_scope(files, task_created_at)
+    #
+    # `slug` is passed for the same reason `coverage_files` got it above
+    # (Decision #283): this run rewrites the task's own export, so git reports
+    # that file changed on every close and the receipt would say
+    # "under-declared" about work nobody did. The subtraction is the callee's,
+    # not restated here.
+    scope_desc = describe_declared_scope(files, task_created_at, task_slug=slug)
     if details is not None:
         details["scope_description"] = scope_desc
     git_diff_consistent = scope_desc["status"] != STATUS_UNDER_DECLARED
@@ -224,6 +241,7 @@ def run_gates_with_cache(
     # stable empty-marker that no edit moves, so a green recorded against it
     # would stay valid for the whole TTL across arbitrary tree changes. Neither
     # read nor write may treat it as a certificate.
+    zero_gate_reset = False
     if files and cache_ok and git_diff_consistent:
         try:
             from project_config import load_config
@@ -234,6 +252,29 @@ def run_gates_with_cache(
         hit = lookup_recent_for_task(
             conn, slug, files_hash=files_hash, command=cache_command, max_age_s=ttl
         )
+        if hit is not None and rests_on_a_declaration(hit) and not zero_gate_ack:
+            # review-209-third-door: THE THIRD READER of `lookup_recent_for_task`.
+            # The zero-gate rule was wired into the other two — `has_fresh_verify_run`
+            # and `check_handle` — and this one was left alone because it looked
+            # like a verify-side cache that only ever replays a verify verdict. It
+            # is not: `gate_verify_first`'s auto_verify branch calls this function
+            # to decide whether a CLOSE proceeds, and it is reached precisely when
+            # `has_fresh_verify_run` has just refused. So a row with
+            # no_tests_declared=1 satisfied Verify-First here after being refused
+            # one line earlier, and the task closed with no gate executed and no
+            # acknowledgement. Falling THROUGH (not returning False) is deliberate:
+            # the gates below then actually run, which is the honest answer to
+            # "is there evidence?" — a refusal here would turn a legitimate
+            # re-verification into a dead end.
+            hit = None
+            zero_gate_reset = True
+            if append_notes_fn is not None:
+                append_notes_fn(
+                    slug,
+                    "Gates: cache hit IGNORED — the cached run executed no gate "
+                    "(no_tests_declared=1) and no acknowledgement was presented. "
+                    "Running the gates instead of replaying an empty verdict.",
+                )
         if hit is not None:
             if details is not None:
                 details["cache_hit"] = hit
@@ -299,6 +340,7 @@ def run_gates_with_cache(
             details=details,
             no_tests_expected=no_tests_expected,
             append_notes_fn=append_notes_fn,
+            after_zero_gate_reset=zero_gate_reset,
         )
     # Don't cache an "all-skipped" run as if it were verified — that would
     # let the next caller's gates be silently skipped via cache hit on the
@@ -310,7 +352,16 @@ def run_gates_with_cache(
     # gate (filesize, hadolint) can pass while the scoped gates are skipped for
     # want of declared files — that combination satisfied `has_real_pass` and
     # got cached under the empty-marker hash, which no subsequent edit moves.
-    cacheable = passed and cache_ok and has_real_pass and bool(files)
+    #
+    # `bool(coverage)` rather than `bool(files)` since
+    # verify-handle-dies-on-a-tasks-own-export-file: once the hash is taken over
+    # the declared list MINUS this task's own export, a declaration consisting of
+    # nothing but that export is non-empty while covering nothing, and
+    # `bool(files)` stopped being the question. Such a run is recorded — the
+    # gates did execute against the declared file — but stamped `noncacheable|`,
+    # so neither the strict lookup nor a presented handle can replay it
+    # (`verify_handle_check` honours the same prefix).
+    cacheable = passed and cache_ok and has_real_pass and bool(coverage)
     # Record whenever gates actually ran — cache eligibility governs *reuse*,
     # not observability. Tying the two together meant a blocking failure from
     # this path was never written down, so "how often does this gate block?"

@@ -35,6 +35,7 @@ import service_verification as sv  # noqa: E402
 import verify_cached_run as vcr  # noqa: E402
 import verify_scope_honesty as vsh  # noqa: E402
 from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
+from verify_own_export import own_export_display, parent_story_abspath  # noqa: E402
 
 # The verification_runs baseline cut straight out of backend_schema.SCHEMA_SQL
 # by conftest.canonical_ddl — no longer hand-rolled, so it cannot drift away
@@ -66,6 +67,15 @@ SESSION_112_UNDECLARED = [
 def _git_root(tmp_path):
     (tmp_path / ".git").mkdir()
     return str(tmp_path)
+
+
+TS = "2026-01-01T00:00:00Z"
+
+# The task under test and a source file it honestly declared. `FOREIGN_SLUG` is
+# somebody else's export: the subtraction must not reach it (Decision #283).
+OWN_SLUG = "scope-honesty-counts-a-tasks-own-export-as-undeclared"
+FOREIGN_SLUG = "nine-open-tasks-are-invisible-to-release-scope"
+SOURCE = "scripts/verify_scope_honesty.py"
 
 
 def _runner(log_files=(), diff_files=(), returncode=0):
@@ -390,6 +400,36 @@ class TestRunGatesWithCacheIntegration:
         assert ran == []  # fail fast: no point running gates on a scope we reject
         assert any("src/auth.py" in n for n in notes)
 
+    def test_recording_names_whose_export_to_subtract(self, conn, monkeypatch):
+        """Decision #283 — the recording half of the wiring.
+
+        `run_gates_with_cache` already subtracts this task's own export from
+        the coverage it HASHES (`coverage_files(files, slug)`); the scope
+        description sitting three lines below it used to be asked without the
+        slug, so the row and the receipt called under-declared the very file the
+        hash had agreed to ignore. Only the argument is pinned here — the
+        subtraction is `verify_scope_honesty`'s and is tested against a real
+        projection above.
+        """
+        seen: dict = {}
+
+        def _record(files, created_at, **kw):
+            seen.update(kw)
+            return {
+                "status": vsh.STATUS_COMPLETE,
+                "reason": "test",
+                "undeclared": [],
+                "undeclared_count": 0,
+                "security_undeclared": [],
+            }
+
+        monkeypatch.setattr(vcr, "describe_declared_scope", _record)
+        passed, _results, _status = sv.run_gates_with_cache(
+            conn, "task-a", ["a.py"], task_created_at="2026-01-01T00:00:00Z"
+        )
+        assert passed is True
+        assert seen.get("task_slug") == "task-a"
+
     def test_unknown_scope_still_records_a_row(self, conn, monkeypatch):
         """AC #5 — degradation is explicit, not a missing row or a silent 'complete'."""
         monkeypatch.setattr(
@@ -415,3 +455,307 @@ class TestRunGatesWithCacheIntegration:
             "SELECT declared_scope_status FROM verification_runs ORDER BY id DESC LIMIT 1"
         ).fetchone()
         assert row["declared_scope_status"] == vsh.STATUS_UNKNOWN
+
+
+class TestOwnExportIsNotUndeclared:
+    """Decision #283 — a task's own export is bookkeeping, not the agent's work.
+
+    MEASURED, session #195: the verify of `#1892` printed "NOTE: 1 file(s)
+    changed since task start but not declared in relevant_files", and that one
+    file was `tausik/tasks/<slug>.md` — written by the exporter, from
+    `task start` and from every `task log`. So `under-declared` was the verdict
+    on essentially every honest close and `complete` was unreachable by
+    construction: the ~100%-firing rule Decision #138 already refuses to ship,
+    this time with the verdict signed into the receipt.
+
+    The address is never spelled here either: the tests ask `own_export_display`
+    where the file goes, so a moved projection moves the test with the code
+    instead of leaving a green test about a path that no longer exists (#249).
+    """
+
+    @pytest.fixture
+    def project(self, tmp_path, monkeypatch):
+        """A git root that is ALSO a project, so the export address resolves.
+
+        Both halves are real rather than stubbed: `changed_files_since` refuses
+        a directory without `.git`, and `own_export_abspath` walks up from the
+        cwd to a real `.tausik/`. A monkeypatched resolver on either side would
+        test the test.
+        """
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".tausik").mkdir()
+        monkeypatch.chdir(tmp_path)
+        return str(tmp_path)
+
+    @staticmethod
+    def _export(project, slug):
+        rel = own_export_display(slug, root=project)
+        assert rel and not rel.startswith(".."), "projection root must resolve"
+        return rel
+
+    def test_before_and_after_on_one_input(self, project):
+        """AC3 — the two numbers side by side, same input, same runner."""
+        own = self._export(project, OWN_SLUG)
+        args = ([SOURCE], TS)
+        kwargs = dict(root=project, runner=_runner([SOURCE], [own]))
+
+        before = vsh.describe_declared_scope(*args, **kwargs)
+        after = vsh.describe_declared_scope(*args, task_slug=OWN_SLUG, **kwargs)
+
+        assert before["status"] == vsh.STATUS_UNDER_DECLARED
+        assert before["undeclared"] == [own]
+        assert before["undeclared_count"] == 1
+        assert after["status"] == vsh.STATUS_COMPLETE
+        assert after["undeclared"] == []
+        assert after["undeclared_count"] == 0
+
+    def test_foreign_export_stays_undeclared(self, project):
+        """AC2 — the over-subtraction guard.
+
+        `nine-open-tasks-are-invisible-to-release-scope` closed by declaring
+        nine FOREIGN exports: they are a real product of a planning task, and
+        this run did not touch them. Subtracting all of `tausik/tasks/` would
+        pass this file's other tests and lie about that closure's coverage.
+        """
+        own = self._export(project, OWN_SLUG)
+        foreign = self._export(project, FOREIGN_SLUG)
+        d = vsh.describe_declared_scope(
+            [SOURCE],
+            TS,
+            root=project,
+            runner=_runner([SOURCE], [own, foreign]),
+            task_slug=OWN_SLUG,
+        )
+        assert d["status"] == vsh.STATUS_UNDER_DECLARED
+        assert d["undeclared"] == [foreign]
+
+    def test_undeclared_source_still_under_declared(self, project):
+        """AC6 — the negative. A check nobody can fail is the original defect."""
+        own = self._export(project, OWN_SLUG)
+        d = vsh.describe_declared_scope(
+            [SOURCE],
+            TS,
+            root=project,
+            runner=_runner(["scripts/service_gates.py"], [own]),
+            task_slug=OWN_SLUG,
+        )
+        assert d["status"] == vsh.STATUS_UNDER_DECLARED
+        assert d["undeclared"] == ["scripts/service_gates.py"]
+
+    def test_security_undeclared_is_not_weakened(self, project):
+        """AC5 — the block reaches exactly as far as it did before."""
+        own = self._export(project, OWN_SLUG)
+        d = vsh.describe_declared_scope(
+            [SOURCE],
+            TS,
+            root=project,
+            runner=_runner(["src/auth.py"], [own]),
+            task_slug=OWN_SLUG,
+        )
+        assert d["security_undeclared"] == ["src/auth.py"]
+        assert own not in d["undeclared"]
+        assert vsh.security_block_reason(d) is not None
+
+    def test_emptied_coverage_says_what_emptied_it(self, project):
+        """AC4 / memory #454 — the mirror of the defect being fixed.
+
+        Subtraction can empty the set, and the sentence already sitting on that
+        branch claims something else: "nothing the agent did is visible to git"
+        and "everything visible to git was the framework's own writing" are
+        different facts. Both are `complete`, and a reader must still be able to
+        tell which one happened — otherwise the fix is silent in exactly the
+        place it fired.
+        """
+        own = self._export(project, OWN_SLUG)
+        d = vsh.describe_declared_scope(
+            [SOURCE], TS, root=project, runner=_runner([], [own]), task_slug=OWN_SLUG
+        )
+        assert d["status"] == vsh.STATUS_COMPLETE
+        assert own in d["reason"]
+        assert d["reason"] != "no git-visible changes since task start"
+
+    def test_genuinely_empty_diff_keeps_its_own_sentence(self, project):
+        """The other side of AC4: the old fact must keep the old words."""
+        d = vsh.describe_declared_scope(
+            [SOURCE], TS, root=project, runner=_runner([], []), task_slug=OWN_SLUG
+        )
+        assert d["status"] == vsh.STATUS_COMPLETE
+        assert d["reason"] == "no git-visible changes since task start"
+
+    def test_no_slug_subtracts_nothing(self, project):
+        """Degraded, not broken: a caller with no slug gets the pre-#283 answer."""
+        own = self._export(project, OWN_SLUG)
+        d = vsh.describe_declared_scope([SOURCE], TS, root=project, runner=_runner([SOURCE], [own]))
+        assert d["undeclared"] == [own]
+
+    def test_declaring_the_own_export_is_still_complete(self, project):
+        """The close `verify-handle-dies-on-a-tasks-own-export-file` made legal."""
+        own = self._export(project, OWN_SLUG)
+        d = vsh.describe_declared_scope(
+            [SOURCE, own],
+            TS,
+            root=project,
+            runner=_runner([SOURCE], [own]),
+            task_slug=OWN_SLUG,
+        )
+        assert d["status"] == vsh.STATUS_COMPLETE
+
+
+class TestParentStoryIsNotUndeclared:
+    """Decision #286 — `task start` writes the parent story too.
+
+    MEASURED, session #196: verify #1898 reported exactly one undeclared file,
+    `tausik/stories/knowledge-records-what-failed-19.md`, and `git diff` showed
+    exactly one changed line in it — `status: open -> active`, written by
+    `task start` when it activated a task inside that story. The agent never
+    touched the file.
+
+    This is the fifth site of the class Decision #283 opened and the first
+    OUTSIDE its stated boundary: #283 subtracts the task's own export and
+    explicitly refuses to subtract anybody else's, because a foreign export is
+    the real product of a task that produces records. A parent story is neither
+    foreign nor a product — it changed because this task was activated, and it
+    would have changed identically had the agent done nothing at all.
+    """
+
+    STORY = "evidence-primitives"
+    OTHER_STORY = "knowledge-records-what-failed-19"
+
+    @pytest.fixture
+    def project(self, tmp_path, monkeypatch):
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".tausik").mkdir()
+        monkeypatch.chdir(tmp_path)
+        return str(tmp_path)
+
+    def _export(self, project, slug, story):
+        """Write the task's export where the exporter would, naming its story.
+
+        The address is asked of the module, never spelled here: a projection
+        that moved would move this fixture with it instead of leaving a green
+        test about a path that no longer exists (#249).
+        """
+        rel = own_export_display(slug, root=project)
+        assert rel and not rel.startswith(".."), "projection root must resolve"
+        path = os.path.join(project, rel.replace("/", os.sep))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        lines = ["---", f"slug: {slug}", 'title: "a task"', "status: active"]
+        if story:
+            lines.append(f"story: {story}")
+        lines += ["---", "", "body", ""]
+        # `newline=""` matches the exporter. `state_parse.split_file` demands a
+        # bare `---` fence followed by a single LF, and Python's default
+        # translation writes CRLF on Windows — a fixture that renders
+        # unparsable frontmatter would prove the subtraction never fires
+        # instead of proving that it works.
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write("\n".join(lines))
+        return rel
+
+    @staticmethod
+    def _story_rel(project, slug):
+        path = parent_story_abspath(slug)
+        assert path, "the story address must resolve"
+        return os.path.relpath(path, os.path.normcase(os.path.abspath(project))).replace(
+            os.sep, "/"
+        )
+
+    def test_before_and_after_on_one_input(self, project):
+        """AC6 — the two verdicts side by side, same input, same runner."""
+        own = self._export(project, OWN_SLUG, self.STORY)
+        story = self._story_rel(project, OWN_SLUG)
+        args = ([SOURCE], TS)
+        kwargs = dict(root=project, runner=_runner([SOURCE], [own, story]))
+
+        before = vsh.describe_declared_scope(*args, **kwargs)
+        after = vsh.describe_declared_scope(*args, task_slug=OWN_SLUG, **kwargs)
+
+        assert before["status"] == vsh.STATUS_UNDER_DECLARED
+        assert story in before["undeclared"]
+        assert after["status"] == vsh.STATUS_COMPLETE
+        assert after["undeclared"] == []
+
+    def test_someone_elses_story_stays_undeclared(self, project):
+        """AC3 — the boundary of #283 is narrowed by ONE file, not dissolved.
+
+        A task that really did edit another story's projection is reporting on
+        its own work, and subtracting all of `tausik/stories/` would zero that.
+        """
+        own = self._export(project, OWN_SLUG, self.STORY)
+        mine = self._story_rel(project, OWN_SLUG)
+        foreign = mine.replace(self.STORY, self.OTHER_STORY)
+        assert foreign != mine
+        d = vsh.describe_declared_scope(
+            [SOURCE],
+            TS,
+            root=project,
+            runner=_runner([SOURCE], [own, mine, foreign]),
+            task_slug=OWN_SLUG,
+        )
+        assert d["status"] == vsh.STATUS_UNDER_DECLARED
+        assert d["undeclared"] == [foreign]
+
+    def test_a_task_with_no_parent_subtracts_only_its_export(self, project):
+        """The ordinary case: no `story:` key, and nothing extra is removed."""
+        own = self._export(project, OWN_SLUG, None)
+        assert parent_story_abspath(OWN_SLUG) is None
+        d = vsh.describe_declared_scope(
+            [SOURCE],
+            TS,
+            root=project,
+            runner=_runner([SOURCE], [own, "tausik/stories/some-story.md"]),
+            task_slug=OWN_SLUG,
+        )
+        assert d["status"] == vsh.STATUS_UNDER_DECLARED
+        assert d["undeclared"] == ["tausik/stories/some-story.md"]
+
+    def test_a_missing_export_subtracts_no_story(self, project):
+        """Degraded, not broken: with no projection on disk there is no slug to
+        read, so the story is not subtracted — and with the projection off
+        nothing rewrote that file either."""
+        own = self._export(project, OWN_SLUG, self.STORY)
+        story = self._story_rel(project, OWN_SLUG)
+        os.remove(os.path.join(project, own.replace("/", os.sep)))
+        d = vsh.describe_declared_scope(
+            [SOURCE], TS, root=project, runner=_runner([SOURCE], [story]), task_slug=OWN_SLUG
+        )
+        assert d["undeclared"] == [story]
+
+    def test_emptied_coverage_names_both_files(self, project):
+        """AC4 / memory #454 — the message must say what emptied the set."""
+        own = self._export(project, OWN_SLUG, self.STORY)
+        story = self._story_rel(project, OWN_SLUG)
+        d = vsh.describe_declared_scope(
+            [SOURCE], TS, root=project, runner=_runner([], [own, story]), task_slug=OWN_SLUG
+        )
+        assert d["status"] == vsh.STATUS_COMPLETE
+        assert own in d["reason"] and story in d["reason"]
+        assert d["reason"] != "no git-visible changes since task start"
+
+    def test_security_undeclared_is_not_weakened(self, project):
+        """AC5 — the block reaches exactly as far as it did before."""
+        own = self._export(project, OWN_SLUG, self.STORY)
+        story = self._story_rel(project, OWN_SLUG)
+        d = vsh.describe_declared_scope(
+            [SOURCE],
+            TS,
+            root=project,
+            runner=_runner(["src/auth.py"], [own, story]),
+            task_slug=OWN_SLUG,
+        )
+        assert d["security_undeclared"] == ["src/auth.py"]
+        assert vsh.security_block_reason(d) is not None
+
+    def test_an_undeclared_source_still_reddens(self, project):
+        """AC5 negative — a check nobody can fail is the defect being fixed."""
+        own = self._export(project, OWN_SLUG, self.STORY)
+        story = self._story_rel(project, OWN_SLUG)
+        d = vsh.describe_declared_scope(
+            [SOURCE],
+            TS,
+            root=project,
+            runner=_runner(["scripts/service_gates.py"], [own, story]),
+            task_slug=OWN_SLUG,
+        )
+        assert d["status"] == vsh.STATUS_UNDER_DECLARED
+        assert d["undeclared"] == ["scripts/service_gates.py"]

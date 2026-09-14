@@ -14,21 +14,43 @@ Can be used as a Claude Code hook (PostSessionEnd) or called from /end skill.
 import json
 import os
 import sys
+from collections.abc import Callable
 from glob import glob
 
+# Own directory FIRST: the siblings below are imported by bare name, and
+# scripts/hooks reaches sys.path only when this file is RUN as a script. Imported
+# as `hooks.<name>` — which model_routing does — those names did not resolve, and
+# the caller's except swallowed the ImportError into a silent None.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cost_pricing import calculate_cost_usd  # noqa: E402
 from token_accounting import sum_usage_tokens  # noqa: E402
 
 
-def parse_transcript(path: str) -> dict:
+def parse_transcript(
+    path: str,
+    tool_rows_out: list | None = None,
+    session_resolver: Callable[[object], int | None] | None = None,
+    session_id: int | None = None,
+) -> dict:
     """Parse JSONL transcript and extract metrics.
 
     Returns:
         {tokens_input, tokens_output, tokens_total, cost_usd,
          tool_calls, model, messages, duration_sec}
+
+    ``tool_rows_out``, when a list is passed, is FILLED with one row per tool
+    use — the material for the optional OTLP child spans. An out-parameter
+    rather than another key in the returned dict, because that dict is written
+    to the metrics file and recorded to the database, and a telemetry
+    extension has no business changing the shape of either. Absent, nothing is
+    collected and the walk is exactly as before.
     """
+    if (session_resolver is None) != (session_id is None):
+        raise ValueError("session_resolver and session_id must be supplied together")
+
+    tool_rows = tool_rows_out if tool_rows_out is not None else []
     tokens_input = 0
     tokens_output = 0
     tool_calls = 0
@@ -45,6 +67,18 @@ def parse_transcript(path: str) -> dict:
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
+                continue
+
+            # A Claude transcript can span several TAUSIK sessions.  The
+            # session rollup therefore filters before it counts *anything*;
+            # otherwise the newest session receives a copy of the whole file.
+            # No timestamp is not evidence of ownership, so the resolver's
+            # None is deliberately excluded rather than assigned by proximity.
+            if (
+                session_id is not None
+                and session_resolver is not None
+                and session_resolver(entry.get("timestamp")) != session_id
+            ):
                 continue
 
             # Extract timestamp
@@ -80,20 +114,32 @@ def parse_transcript(path: str) -> dict:
                 for block in content:
                     if isinstance(block, dict) and block.get("type") == "tool_use":
                         tool_calls += 1
+                        # Names for the optional OTLP child spans. Collected
+                        # here because the walk is already happening; kept out
+                        # of `metrics` (see below) so the metrics file and the
+                        # usage row keep the shape everything else expects.
+                        name = str(block.get("name") or "").strip()
+                        if name:
+                            tool_rows.append(
+                                {"id": len(tool_rows) + 1, "tool_name": name, "model_id": model}
+                            )
 
     tokens_total = tokens_input + tokens_output
 
+    cost_usd: float | None
     if not model:
         # No silent Opus fallback — Sonnet/Haiku transcripts would be 5×–19×
-        # over-attributed. Emit a stderr warning (parity with posttool_usage)
-        # and report cost_usd=0.0 so downstream telemetry can flag the gap.
+        # over-attributed. And no 0.0 either: a cost that cannot be computed is
+        # ABSENT, not nought (decision #334). Reporting zero here is what let
+        # 55,471 rows claim work had been free; downstream now sees None and
+        # says "not measured" instead of printing a price nobody derived.
         if tokens_total > 0:
             print(
                 "session_metrics: transcript missing 'model' field; "
-                f"reporting cost_usd=0.0 for {tokens_total} tokens",
+                f"cost is NOT MEASURED for {tokens_total} tokens",
                 file=sys.stderr,
             )
-        cost_usd = 0.0
+        cost_usd = None
     else:
         cost_usd = calculate_cost_usd(model, tokens_input, tokens_output)
 
@@ -113,7 +159,7 @@ def parse_transcript(path: str) -> dict:
         "tokens_input": tokens_input,
         "tokens_output": tokens_output,
         "tokens_total": tokens_total,
-        "cost_usd": round(cost_usd, 4),
+        "cost_usd": None if cost_usd is None else round(cost_usd, 4),
         "tool_calls": tool_calls,
         "model": model,
         "messages": messages,
@@ -129,52 +175,20 @@ def find_latest_transcript(session_dir: str) -> str | None:
 
 
 def auto_find_transcript() -> str | None:
-    """Auto-detect Claude Code transcript for current project.
+    """Newest transcript that PROVABLY belongs to the current project, or None.
 
-    Checks ~/.claude/projects/<project-slug>/*.jsonl
-    Project slug is derived from CWD by replacing path separators with dashes.
+    This used to derive a directory name from the CWD and, when that failed to
+    match, return the most recently touched project ANYWHERE on the machine. On
+    Windows the match never succeeded — Claude Code writes `c--Projects-…` for
+    `C:\\Projects\\…` while the derived slug was `C-Projects-…` — so the fallback was the
+    normal path, and this function routinely returned another project's
+    conversation to the session-metrics parser, the token ledger and the model
+    detector. Matching is now on the `cwd` a transcript records about itself;
+    when nothing matches the answer is None, because a wrong transcript is
+    indistinguishable from a right one to every caller here.
     """
-
-    def _auto_find_in_projects_root(projects_dir: str) -> str | None:
-        if not os.path.isdir(projects_dir):
-            return None
-        # Build slug from CWD (shared across IDEs: path separators -> dashes)
-        cwd = os.getcwd()
-        cwd_normalized = cwd.replace("\\", "/").replace(":", "")
-        slug_candidate = cwd_normalized.replace("/", "-")
-
-        # Search for matching directory first
-        for entry in os.listdir(projects_dir):
-            entry_lower = entry.lower()
-            if slug_candidate.lower() in entry_lower or entry_lower in slug_candidate.lower():
-                project_dir = os.path.join(projects_dir, entry)
-                if os.path.isdir(project_dir):
-                    t = find_latest_transcript(project_dir)
-                    if t:
-                        return t
-
-        # Fallback: most recent transcript in this projects root
-        all_transcripts: list[str] = []
-        for entry in os.listdir(projects_dir):
-            project_dir = os.path.join(projects_dir, entry)
-            if os.path.isdir(project_dir):
-                t = find_latest_transcript(project_dir)
-                if t:
-                    all_transcripts.append(t)
-        if all_transcripts:
-            return max(all_transcripts, key=os.path.getmtime)
-        return None
-
-    home = os.path.expanduser("~")
-    candidates = [
-        os.path.join(home, ".claude", "projects"),
-        os.path.join(home, ".cursor", "projects"),
-    ]
-    for projects_dir in candidates:
-        found = _auto_find_in_projects_root(projects_dir)
-        if found:
-            return found
-    return None
+    found: str | None = latest_project_transcript()
+    return found
 
 
 def write_metrics(metrics: dict, output_path: str | None = None) -> str:
@@ -200,34 +214,28 @@ def _load_config_safe() -> dict | None:
 # Token-row extraction and the token_metrics.jsonl writer moved to
 # `token_rows` at the 400-line cap. Re-exported so existing callers and
 # tests keep importing them from here.
+from session_windows import make_session_resolver  # noqa: E402
 from token_rows import (  # noqa: E402,F401
     TOKEN_METRICS_MAX_BYTES,
     _surviving_lines,
     extract_token_rows,
     replace_session_token_rows,
 )
+from transcript_locator import latest_project_transcript  # noqa: E402
 
 
-def resolve_session_id(project_dir: str | None = None) -> int | None:
-    """Most-recent session id from .tausik/tausik.db. None when DB missing/empty."""
-    proj = project_dir or os.getcwd()
-    db = os.path.join(proj, ".tausik", "tausik.db")
-    if not os.path.exists(db):
-        return None
-    try:
-        import sqlite3
-
-        conn = sqlite3.connect(db, timeout=2)
-        try:
-            row = conn.execute("SELECT id FROM sessions ORDER BY id DESC LIMIT 1").fetchone()
-            return int(row[0]) if row else None
-        finally:
-            conn.close()
-    except sqlite3.Error:
-        return None
+# `resolve_session_id()` — "the newest session in the DB" — used to stamp every
+# row of a re-walked transcript. It is DELETED rather than deprecated: its only
+# caller was the token-row emitter, and there it was the defect itself (one
+# transcript spans several sessions, so each of them received a copy of the whole
+# file). Attribution now goes through `session_windows.make_session_resolver`,
+# which places a row by its own timestamp and answers None outside every session.
+# A function kept "just in case" would be an invitation to reintroduce the bug.
 
 
-def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
+def record_to_db(
+    metrics: dict, project_root: str | None = None, session_id: int | None = None
+) -> bool:
     """Call project.py metrics record-session to write metrics to CouchDB.
 
     Returns True on success, False on failure.
@@ -279,6 +287,8 @@ def record_to_db(metrics: dict, project_root: str | None = None) -> bool:
         "--model",
         metrics.get("model", ""),
     ]
+    if session_id is not None:
+        cmd.extend(["--session-id", str(session_id)])
     try:
         result = subprocess.run(
             cmd,
@@ -311,6 +321,19 @@ def main():
     record = "--record" in sys.argv
     args = [a for a in sys.argv[1:] if a != "--record"]
 
+    session_id = None
+    if "--session-id" in args:
+        index = args.index("--session-id")
+        if index + 1 >= len(args):
+            print("Error: --session-id requires an integer", file=sys.stderr)
+            sys.exit(1)
+        try:
+            session_id = int(args[index + 1])
+        except ValueError:
+            print("Error: --session-id requires an integer", file=sys.stderr)
+            sys.exit(1)
+        del args[index : index + 2]
+
     if not args:
         print("Error: no transcript path provided", file=sys.stderr)
         sys.exit(1)
@@ -336,10 +359,38 @@ def main():
         print(f"File not found: {path}", file=sys.stderr)
         sys.exit(1)
 
-    metrics = parse_transcript(path)
+    # The service closes its session before invoking this hook, and passes that
+    # exact ID.  An IDE SessionEnd hook can instead still have one open TAUSIK
+    # session; use it only when the window proves it is current.  With neither
+    # proof, write the human-readable full transcript summary but refuse to
+    # put an un-attributable total in the authoritative per-session table.
+    if record and session_id is None:
+        from session_windows import load_session_windows
+
+        windows = load_session_windows()
+        if windows and windows[-1][1] is None:
+            session_id = windows[-1][2]
+        else:
+            print("No attributable TAUSIK session; skipping DB record", file=sys.stderr)
+
+    tool_rows: list = []
+    if record and session_id is not None:
+        metrics = parse_transcript(
+            path,
+            tool_rows,
+            session_resolver=make_session_resolver(),
+            session_id=session_id,
+        )
+    else:
+        metrics = parse_transcript(path, tool_rows)
     output = write_metrics(metrics)
+    # `cost_usd` is None when it could not be computed — no model, or no price
+    # for the one named. Printed as words, never as $0.00: the whole point of
+    # storing absence is lost if the reader is shown a price anyway.
+    cost = metrics["cost_usd"]
+    cost_text = "cost NOT MEASURED" if cost is None else f"${cost:.2f}"
     print(
-        f"Metrics: {metrics['tokens_total']:,} tokens, ${metrics['cost_usd']:.2f}, "
+        f"Metrics: {metrics['tokens_total']:,} tokens, {cost_text}, "
         f"{metrics['tool_calls']} tool calls, model={metrics['model']}"
     )
     print(f"Written to: {output}")
@@ -349,22 +400,28 @@ def main():
     # events/metrics path above is unchanged (l26-otel-export, AC1).
     from otel_export import session_otlp_document
 
-    otlp = session_otlp_document(metrics, _load_config_safe())
+    otlp = session_otlp_document(metrics, _load_config_safe(), tool_calls=tool_rows)
     if otlp:
         otlp_path = os.path.join(os.path.dirname(output), "session-otlp.json")
         with open(otlp_path, "w", encoding="utf-8") as f:
             json.dump(otlp, f, indent=2, ensure_ascii=False)
         print(f"OTLP trace: {otlp_path}")
 
-    if record:
-        record_to_db(metrics)
+    if record and session_id is not None:
+        record_to_db(metrics, session_id=session_id)
 
-    sid = resolve_session_id()
-    if sid is not None:
-        rows = extract_token_rows(path, sid)
-        jsonl = replace_session_token_rows(rows)
-        if jsonl:
-            print(f"token_metrics.jsonl: appended {len(rows)} row(s) to {jsonl}")
+    # Attribute each row to the session its OWN timestamp falls in. Stamping the
+    # whole transcript with resolve_session_id() — the newest session in the DB —
+    # gave three consecutive sessions a copy of the same transcript and made
+    # 72.4% of this project's ledger duplicates (see session_windows).
+    rows = extract_token_rows(path, make_session_resolver())
+    jsonl = replace_session_token_rows(rows)
+    if jsonl:
+        attributed = sum(1 for r in rows if r.get("session_id") is not None)
+        print(
+            f"token_metrics.jsonl: {len(rows)} row(s) -> {jsonl} "
+            f"({attributed} attributed, {len(rows) - attributed} outside any session)"
+        )
 
 
 if __name__ == "__main__":

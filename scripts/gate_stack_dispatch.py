@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import os
 
+import gate_outcome
+
 
 # Hardcoded fallback dispatch tables. Used only when stack_registry can't
 # load — keeps gate_applies_to working under partial-bootstrap conditions.
@@ -147,10 +149,19 @@ def infer_stacks_from_files(files: list[str]) -> set[str]:
 
 
 def skipped_result(gate: dict, files: list[str]) -> dict:
-    """Build the result dict reported when a gate doesn't apply to a file set."""
+    """Build the result dict reported when a gate doesn't apply to a file set.
+
+    This is the textbook LEGITIMATE skip: a Python change does not owe the
+    Dockerfile linter a verdict. It carries the NOT_APPLICABLE outcome and its
+    reason, and it stays non-blocking — the task that introduced the outcome
+    type is explicit that collapsing this into "could not run" would replace
+    one indistinguishability with another.
+    """
     return {
         "name": gate["name"],
         "severity": gate.get("severity", "warn"),
+        "outcome": gate_outcome.NOT_APPLICABLE,
+        "reason_code": gate_outcome.REASON_STACK_MISMATCH,
         "passed": True,
         "skipped": True,
         "output": (

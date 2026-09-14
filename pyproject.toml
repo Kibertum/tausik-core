@@ -1,6 +1,6 @@
 [project]
 name = "tausik"
-version = "1.8.0"
+version = "1.9.0"
 description = "Cross-IDE AI agent framework with task lifecycle, quality gates, and project memory"
 readme = "README.md"
 license = "Apache-2.0"
@@ -31,25 +31,81 @@ Changelog = "https://github.com/Kibertum/tausik-core/blob/main/CHANGELOG.md"
 testpaths = ["tests"]
 pythonpath = ["scripts"]
 # Default fast lane — slow integration / subprocess / e2e tests are skipped.
-# Run the full battery via `pytest -m ''` or `tausik verify --full` (env:
-# TAUSIK_VERIFY_FULL=1). See docs/{en,ru}/cli.md for the full contract.
-addopts = "-m 'not slow'"
-# full-pytest-hangs-while-scoped-pytest-is-green. The full suite takes ~9-10
-# minutes of wall clock (5759 passed / 554 s measured in session #135) and the
-# cost is FLAT: the 30 slowest tests are 10% of it, the rest is ~0.09 s x 5700.
-# Three sessions read "slower than my timeout" as "hung" and killed the run at
-# 200/420/600 s, then wrote conclusions about a hang that never happened.
-# A stall is now told apart from slowness mechanically instead of by guessing:
-# any single test over 60 s (11x the slowest real one, 5.3 s) dumps the
-# tracebacks of every thread and exits non-zero. Silence therefore MEANS "not
-# stuck, just long" — budget the ten minutes rather than shortening the timeout.
+# Run the full battery via `pytest -m ''`, or through a gate with the environment
+# variable TAUSIK_VERIFY_FULL=1. See docs/{en,ru}/cli.md for the full contract.
+#
+# These three lines used to offer `tausik verify --full`. THAT FLAG HAS NEVER
+# EXISTED: `verify --help` lists --task, --scope, --relevant-files and
+# --no-tests-expected, and nothing else. The promise was deleted rather than
+# implemented — a config comment is not the place to design a CLI, and the
+# environment variable already does the job under a name that is true.
+#
+# `-n auto` IS PART OF THE LANE, NOT A FLAG SOMEBODY REMEMBERS TO TYPE. Measured
+# on this box (20 cores), not assumed: the full lane serial took 32m24s against
+# 3m48s under `-n auto` — 8.5x, session #186, same tree, 7395/7397 tests. Every
+# earlier speed-up lived in a command line, which means it applied on the machine
+# that typed it and nowhere else; the lane is now parallel by default and serial
+# only if someone asks for `-n0`.
+#
+# The full lane costs 913 s wall / 793 s reported TODAY rather than 3m48s, and
+# that is not a regression of this flag: the 2026-08 tree runs fourteen tests the
+# #186 measurement never reached, because the hang guard was killing them at 60 s
+# (see the threshold note below). More work, more time, same parallelism.
+#
+# THE PRICE, ALSO MEASURED, BECAUSE IT IS PAID ON EVERY VERIFY: booting the
+# workers is a fixed cost, so a NARROW scoped run gets slower —
+# tests/test_gate_outcome.py (20 tests) goes 1.68 s -> 6.80 s. The trade is ~5 s
+# on each scoped gate against tens of minutes on each whole-lane run, and the
+# whole-lane run is the one that was quietly not being done.
+#
+# IT MAKES pytest-xdist A HARD DEPENDENCY OF EVERY RUN IN THIS REPOSITORY:
+# without the plugin pytest dies with `unrecognized arguments: -n` before it
+# collects anything. Five install paths carry it — .github/workflows/tests.yml
+# (two jobs), .github/workflows/test-coverage.yml, .gitlab-ci.yml and both
+# CONTRIBUTING.md blocks — and tests/test_ci_lanes_are_honest.py is the ratchet
+# that reddens the suite here instead of letting a forgotten one die in CI.
+# It is NOT added to requirements.txt: that file is the runtime venv of the MCP
+# server ("every requirement needs an upper bound"), not the test toolchain.
+addopts = "-m 'not slow' -n auto"
+# full-pytest-hangs-while-scoped-pytest-is-green. The cost of the suite is FLAT:
+# the 30 slowest tests are 10% of it, the rest is ~0.09 s x 5700. Three sessions
+# read "slower than my timeout" as "hung" and killed the run at 200/420/600 s,
+# then wrote conclusions about a hang that never happened. A stall is told apart
+# from slowness mechanically instead of by guessing: any single test over the
+# threshold dumps the tracebacks of every thread and exits non-zero. Silence
+# therefore MEANS "not stuck, just long".
+#
+# THE THRESHOLD IS 300 s BY DECISION #275, AND THE NUMBER BESIDE IT IS MEASURED.
+# The previous value, 60 s, promised "11x the slowest real one, 5.3 s". Both
+# halves were wrong: 5.3 s came from the FAST lane, where this guard is not
+# needed, and the guard was armed over the FULL lane, where the slowest test is
+# 93.57 s under the load of the full run (session #190). The real headroom was
+# 0.64x — the threshold sat BELOW the maximum — and the guard killed fourteen
+# healthy tests on every full run for months while every test of it stayed green.
+#
+# That 93.57 s could not be measured until the fix was in: every earlier figure
+# came from a run in which twelve of these tests were being killed at 60 s, i.e.
+# under lighter load than the tree really carries. The defect was hiding its own
+# cost. First clean full run on Windows: 7434 passed, 24 skipped, exit 0, 793 s.
+#
+# 300 s is not a multiple, it is a GAP: this suite has no test whatsoever between
+# 93.57 s and 300 s, whereas 60 s cut through the middle of a cluster of twelve
+# spanning 52-65 s in isolation. A threshold on a slope kills part of the
+# distribution; a threshold in an empty interval does not. The errors are also
+# asymmetric — too low poisons EVERY run, too high costs minutes RARELY — so it
+# is biased high.
+#
+# The promise is no longer maintained by hand. tests/hang_guard_contract.py holds
+# the measurements and a declared 2x ALARM floor, and conftest.py compares it
+# against the slowest test the RUNNING suite actually executed, so drift reddens
+# the run instead of rotting quietly. That is what failed last time, not the number.
 # `faulthandler_exit_on_timeout` needs pytest >= 9.0; older installs warn about
 # an unknown option and tests/test_pytest_hang_guard.py says so in words.
-faulthandler_timeout = 60
+faulthandler_timeout = 300
 faulthandler_exit_on_timeout = true
 markers = [
     "verify_first: opt the test in to v1.4 Verify-First Contract enforcement (default conftest fixture sets auto_verify=True for backward compat)",
-    "slow: subprocess/integration/e2e/stress tests; skipped by default in interactive verify, run via `pytest -m ''` or `tausik verify --full` / TAUSIK_VERIFY_FULL=1",
+    "slow: subprocess/integration/e2e/stress tests; skipped by default in interactive verify, run via `pytest -m ''` or TAUSIK_VERIFY_FULL=1 (there is no `verify --full` flag)",
 ]
 
 [tool.coverage.run]
@@ -141,7 +197,9 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "handlers",
+    "handlers_actz",
     "handlers_adapt",
+    "handlers_at",
     "handlers_cq",
     "handlers_hierarchy",
     "handlers_knowledge",
@@ -204,9 +262,19 @@ module = [
     "bootstrap_venv",
     "bootstrap_check",
     "bootstrap_config",
+    # Reached from scripts/host_mechanisms.py after a runtime sys.path.insert into
+    # bootstrap/: the cross-model parity gate has to RUN the real generators to see
+    # what each host gets, and a list of what they ought to get is the defect it
+    # exists against. The import is unresolvable to mypy; the modules are checked
+    # when bootstrap/ is checked.
+    "bootstrap_generate",
+    "bootstrap_qwen",
+    "bootstrap_opencode",
     "tools",
     "hook_supervision",
     "token_rows",
+    "session_windows",
+    "transcript_locator",
     "_common",
     # Reached only after a runtime sys.path.insert into the codebase-rag
     # package, which cannot join `files` while it holds a second server.py

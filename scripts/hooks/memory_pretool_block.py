@@ -49,6 +49,7 @@ from _common import (  # noqa: E402
     is_tausik_project,
     last_user_prompt_text,
     marker_present_anchored,
+    shell_cwd,
 )
 from memory_sinks import (  # noqa: E402
     DEFAULT_SINKS,
@@ -59,7 +60,10 @@ from memory_sinks import (  # noqa: E402
 )
 
 _BYPASS_MARKER = "confirm: cross-project"
-_PATH_TOOLS = ("Write", "Edit", "MultiEdit")
+# The one list of write tools (PR #5): this copy lacked NotebookEdit, so a
+# notebook written into `~/.claude/**/memory/` passed the routing guard.
+from write_tools import WRITE_TOOLS as _PATH_TOOLS  # noqa: E402
+from write_tools import edited_paths  # noqa: E402
 
 
 def _read_stdin_json() -> dict:
@@ -134,8 +138,7 @@ def _targets(event: dict, project_dir: str) -> list[str]:
     if not isinstance(tool_input, dict):
         return []
     if tool in _PATH_TOOLS:
-        fp = tool_input.get("file_path")
-        return [fp] if isinstance(fp, str) and fp else []
+        return edited_paths(tool_input)
     # Which shells carry a command is `shell_channel`'s answer. The literal
     # `!= "Bash"` that stood here covered exactly one of the two shell tools the
     # agent is handed on win32, so `Set-Content ~/.claude/.../memory/x.md` — the
@@ -147,7 +150,18 @@ def _targets(event: dict, project_dir: str) -> list[str]:
         return []
     from write_confidence import CONFIDENCE_REGEX_FALLBACK  # noqa: PLC0415
 
-    raw_targets, confidence = shell_channel.write_targets_with_confidence(str(tool), command)
+    # The base directory is needed BEFORE the parse, not after it. The parser
+    # opens a script the command names, and that name is relative to the SHELL's
+    # cwd; resolving it afterwards fixes only the targets the command spelled
+    # out and leaves the ones read out of a file resolved against the project.
+    # That hybrid is what this hook shipped: contents read from a file the
+    # command does not run, targets resolved against the shell — an answer
+    # matching no file on disk, missing a real leak in one direction and
+    # inventing one in the other.
+    base_dir = shell_cwd(event, project_dir)
+    raw_targets, confidence = shell_channel.write_targets_with_confidence(
+        str(tool), command, base_dir
+    )
     if confidence == CONFIDENCE_REGEX_FALLBACK:
         if raw_targets:
             from _common import emit_supervision_degradation  # noqa: PLC0415
@@ -168,11 +182,14 @@ def _targets(event: dict, project_dir: str) -> list[str]:
 
     out: list[str] = []
     for raw in raw_targets:
-        # A shell redirect is relative to the shell's cwd — the project dir —
-        # not to wherever this hook process launched. Same resolution
-        # bash_write_gate applies, so the two agree on what a target is.
+        # Same `base_dir` the parse was given, so one directory answers for both
+        # halves of the reading. A shell redirect is relative to the SHELL's
+        # cwd, which the event carries — the same resolution bash_write_gate
+        # applies, so the two gates agree on what a target is, including when
+        # the agent is working in a second checkout where the project dir is
+        # the wrong answer.
         expanded = os.path.expanduser(raw)
-        cand = expanded if os.path.isabs(expanded) else os.path.join(project_dir, expanded)
+        cand = expanded if os.path.isabs(expanded) else os.path.join(base_dir, expanded)
         if cand not in out:
             out.append(cand)
     return out

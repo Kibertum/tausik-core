@@ -48,10 +48,25 @@ def session_capacity_summary(
             "planned_active": 0,
             "remaining": capacity,
         }
+    # THE CALLS THIS SHIFT MADE, from `usage_events` — which carries `session_id`
+    # for exactly this question.
+    #
+    # It used to sum `call_actual` over tasks CLOSED since the session started,
+    # and `call_actual` is a task's WHOLE LIFE. The two agree while a task opens
+    # and closes inside one shift, which is the ordinary case, and that is why
+    # the defect survived. It breaks on a long-lived task: observed in session
+    # #236, `release-18-breaking-change-notes` had accrued 395 calls since
+    # session #177 against a budget of 12, and closing it printed
+    #
+    #     Capacity: 419/200 used, 0 planned, -219 remaining ⚠ overshoot
+    #
+    # sixteen minutes and about twenty-five calls into the shift. The operating
+    # rule is "end the shift on capacity, do not force it", so a gauge that says
+    # 419 after twenty-five calls stops work for no reason — and it does so
+    # precisely when a long-standing task was finally closed.
     used_row = q1(
-        "SELECT COALESCE(SUM(call_actual),0) AS used FROM tasks "
-        "WHERE status='done' AND call_actual IS NOT NULL AND completed_at >= ?",
-        (sess["started_at"],),
+        "SELECT COALESCE(COUNT(*),0) AS used FROM usage_events WHERE session_id = ?",
+        (sess["id"],),
     )
     planned_row = q1(
         "SELECT COALESCE(SUM(call_budget),0) AS planned FROM tasks "

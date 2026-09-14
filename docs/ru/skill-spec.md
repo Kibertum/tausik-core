@@ -1,3 +1,5 @@
+[English](../en/skill-spec.md) | **Русский**
+
 # Спецификация скилла
 
 Формальный контракт для файлов SKILL.md во фреймворке TAUSIK.
@@ -54,7 +56,6 @@ Instructions...
 | Category | Skills | Bootstrap Handling |
 |----------|--------|--------------------|
 | Core (11) | start, end, task, plan, checkpoint, commit, explore, review, test, ship, debug | Всегда копируются, не выбираемы |
-| Core (условный) | brain | Копируется, когда настроен Notion (`brain.enabled = true`) |
 | Extension | docs (и любые имена, добавленные под `bootstrap.extension_skills`) | Выбирается через `--include-official` или `tausik skill install <name>` |
 | Vendor / bundle | 20 скиллов под `skills-official/registry.json`, сгруппированы в 6 бандлов | Подтягиваются per-skill или per-bundle через `tausik skill bundle install <name>` |
 

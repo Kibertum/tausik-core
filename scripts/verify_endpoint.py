@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -204,8 +205,32 @@ def make_handler(project_dir: str) -> type[BaseHTTPRequestHandler]:
     return VerifyHandler
 
 
+class _VerifyServer(ThreadingHTTPServer):
+    """`ThreadingHTTPServer` that refuses to share its port on Windows.
+
+    MEASURED (session #235, this machine): with the stock class, two servers bind
+    the SAME port and both `bind()` calls succeed. `http.server.HTTPServer` sets
+    `allow_reuse_address = 1`, and on Windows `SO_REUSEADDR` does not mean what
+    it means on POSIX — there it permits rebinding a port left in `TIME_WAIT`,
+    here it permits binding an address that is ACTIVELY IN USE by somebody else.
+
+    WHY THAT MATTERS BEYOND THE TESTS. `tausik serve` binds 8765 to answer
+    receipt-verification requests. On Windows any other local process may bind
+    the same port and receive some of that traffic, and the endpoint would never
+    know. A verification endpoint that can be silently shared is not one whose
+    answers can be relied on.
+
+    POSIX KEEPS THE FLAG. There `SO_REUSEADDR` is the ordinary, safe way to
+    restart a service without waiting out `TIME_WAIT`, and turning it off would
+    make a restart fail for a minute — a real regression to fix a problem that
+    platform does not have.
+    """
+
+    allow_reuse_address = sys.platform != "win32"
+
+
 def make_server(project_dir: str, host: str = "127.0.0.1", port: int = 8765) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer((host, port), make_handler(project_dir))
+    return _VerifyServer((host, port), make_handler(project_dir))
 
 
 def serve(project_dir: str, host: str = "127.0.0.1", port: int = 8765) -> None:

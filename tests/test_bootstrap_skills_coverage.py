@@ -36,10 +36,12 @@ def _list_builtin_skills() -> list[str]:
     return out
 
 
-def _run_bootstrap(target: str, *extra_args: str) -> subprocess.CompletedProcess:
+def _run_bootstrap(
+    target: str, *extra_args: str, ide: str = "claude"
+) -> subprocess.CompletedProcess:
     env = {**os.environ, "PYTHONUTF8": "1"}
     return subprocess.run(
-        [sys.executable, _bootstrap, "--project-dir", target, "--ide", "claude", *extra_args],
+        [sys.executable, _bootstrap, "--project-dir", target, "--ide", ide, *extra_args],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -49,28 +51,57 @@ def _run_bootstrap(target: str, *extra_args: str) -> subprocess.CompletedProcess
     )
 
 
-def _enable_brain_for_test(target: str) -> None:
-    """Pre-create .tausik/config.json with brain.enabled=true so the test
-    project doesn't trip the v14b-skill-core-cleanup gate that hides brain
-    from system-reminder when Notion isn't configured."""
-    import json
-
-    cfg_dir = os.path.join(target, ".tausik")
-    os.makedirs(cfg_dir, exist_ok=True)
-    cfg_path = os.path.join(cfg_dir, "config.json")
-    cfg = {"brain": {"enabled": True}}
-    with open(cfg_path, "w", encoding="utf-8") as f:
-        json.dump(cfg, f)
-
-
 class TestBootstrapSkillsCoverage:
+    def test_i_have_adhd_skill_keeps_evidence_outside_presentation_rule(self):
+        skill = os.path.join(_builtin_skills_dir, "i-have-adhd", "SKILL.md")
+        text = open(skill, encoding="utf-8").read()
+
+        assert "https://github.com/ayghri/i-have-adhd" in text
+        assert "not a verbatim copy" in text
+        assert "output-presentation" in text
+        assert "signed verify receipts" in text
+        assert os.path.isfile(os.path.join(os.path.dirname(skill), "LICENSE"))
+
+    def test_codex_skills_match_claude_apply_overlay_and_preserve_agents(self, tmp_path):
+        """Codex receives the same skills, then its session rebuild applies its delta."""
+        claude_project = tmp_path / "claude"
+        codex_project = tmp_path / "codex"
+        assert _run_bootstrap(str(claude_project)).returncode == 0
+        assert _run_bootstrap(str(codex_project), ide="codex").returncode == 0
+
+        claude_skills = claude_project / ".claude" / "skills"
+        codex_skills = codex_project / ".codex" / "skills"
+        assert {path.name for path in claude_skills.iterdir()} == {
+            path.name for path in codex_skills.iterdir()
+        }
+        assert all((path / "SKILL.md").is_file() for path in codex_skills.iterdir())
+        for skills_dir in (claude_skills, codex_skills):
+            deployed = skills_dir / "i-have-adhd"
+            assert "output-presentation" in (deployed / "SKILL.md").read_text(encoding="utf-8")
+            assert "MIT License" in (deployed / "LICENSE").read_text(encoding="utf-8")
+
+        stale_skill = codex_skills / "stale"
+        stale_skill.mkdir()
+        agent_dir = codex_project / ".codex" / "agents"
+        agent_dir.mkdir(exist_ok=True)
+        user_agent = agent_dir / "user-agent.toml"
+        user_agent.write_text('name = "user-agent"\n', encoding="utf-8")
+        assert _run_bootstrap(str(codex_project), ide="codex").returncode == 0
+        assert not stale_skill.exists()
+        assert user_agent.is_file()
+
+        sys.path.insert(0, os.path.join(_repo_root, "scripts"))
+        from skill_profile_rebuild import rebuild_skills
+
+        rebuilt = rebuild_skills(str(codex_skills), ide="codex", force=True)
+        assert not rebuilt["errors"]
+        start_text = (codex_skills / "start" / "SKILL.md").read_text(encoding="utf-8")
+        assert "Use the `tausik_*` MCP tools as the primary interface." in start_text
+
     def test_every_builtin_skill_lands_in_claude_skills(self, tmp_path):
         builtin = _list_builtin_skills()
         assert builtin, "harness/skills/ should contain at least one built-in skill"
 
-        # Brain is gated on Notion config — enable it so this coverage smoke
-        # test still verifies the full source set deploys (v14b-skill-core-cleanup).
-        _enable_brain_for_test(str(tmp_path))
         result = _run_bootstrap(str(tmp_path))
         assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
 
@@ -96,13 +127,13 @@ class TestBootstrapSkillsCoverage:
         assert not empty_dirs, f"Deployed skills with no SKILL.md: {empty_dirs}"
 
     def test_critical_skills_present(self, tmp_path):
-        """Hard list — the 12 always-on core skills + brain (conditional).
+        """Hard list — the always-on core skills.
 
         Workflow primitives: start/end/checkpoint (session), plan/task/ship/
         commit (task lifecycle), review/test/debug (quality), explore/
-        interview (SENAR primitives). Brain (cross-project knowledge UI)
-        is gated on Notion config since v14b-skill-core-cleanup — enable
-        it explicitly so this regression test still covers brain deployment.
+        interview (SENAR primitives), i-have-adhd (response shape). `brain`
+        left with the Notion transport (decision #358) and is no longer a
+        skill this test can wait for.
         """
         critical = {
             "review",
@@ -117,9 +148,8 @@ class TestBootstrapSkillsCoverage:
             "plan",
             "checkpoint",
             "explore",
-            "brain",
+            "i-have-adhd",
         }
-        _enable_brain_for_test(str(tmp_path))
         result = _run_bootstrap(str(tmp_path))
         assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
 
@@ -133,6 +163,8 @@ class TestBootstrapSkillsCoverage:
         are explicitly opted in via --include-official (v14b-skill-core-cleanup
         made registry stubs opt-in to cut system-reminder budget by ~−1k/turn).
         """
+        if not os.path.isfile(os.path.join(_repo_root, "skills-official", "registry.json")):
+            pytest.skip("skills-official/ (a separate, gitignored repo) is not checked out here")
         result = _run_bootstrap(str(tmp_path), "--include-official")
         assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
 
@@ -166,32 +198,9 @@ class TestBootstrapSkillsCoverage:
             "Default since v1.4 must be source-only — opt in via --include-official."
         )
 
-    def test_brain_skipped_without_notion_config(self, tmp_path):
-        """v14b-skill-core-cleanup negative: brain stays in source but is NOT
-        deployed when the project has no .tausik/config.json brain.enabled."""
-        result = _run_bootstrap(str(tmp_path))
-        assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
-        deployed = tmp_path / ".claude" / "skills"
-        deployed_names = {p.name for p in deployed.iterdir() if p.is_dir()}
-        assert "brain" not in deployed_names, (
-            "brain leaked into default deploy without Notion config — gating broken."
-        )
-
-    def test_brain_included_with_notion_config(self, tmp_path):
-        """v14b-skill-core-cleanup positive: brain deploys when brain.enabled
-        is set in .tausik/config.json (matches `tausik brain init` outcome)."""
-        _enable_brain_for_test(str(tmp_path))
-        result = _run_bootstrap(str(tmp_path))
-        assert result.returncode == 0, f"bootstrap failed: {result.stderr}"
-        deployed = tmp_path / ".claude" / "skills"
-        deployed_names = {p.name for p in deployed.iterdir() if p.is_dir()}
-        assert "brain" in deployed_names, (
-            "brain not deployed even with brain.enabled=true — gating logic broken."
-        )
-
     def test_corrupt_config_does_not_crash(self, tmp_path):
-        """v14b-skill-core-cleanup negative: missing/corrupt .tausik/config.json
-        falls back to brain disabled (no crash, no deploy)."""
+        """Negative: a corrupt .tausik/config.json must not crash bootstrap,
+        and the core skills must still deploy (the config is not what gates them)."""
         cfg_dir = tmp_path / ".tausik"
         cfg_dir.mkdir()
         (cfg_dir / "config.json").write_text("{not valid json")
@@ -199,8 +208,8 @@ class TestBootstrapSkillsCoverage:
         assert result.returncode == 0, f"bootstrap crashed on corrupt config: {result.stderr}"
         deployed = tmp_path / ".claude" / "skills"
         deployed_names = {p.name for p in deployed.iterdir() if p.is_dir()}
-        assert "brain" not in deployed_names, (
-            "brain leaked despite corrupt config — fallback should treat as disabled."
+        assert "start" in deployed_names and "plan" in deployed_names, (
+            "a corrupt config took the core skills down with it"
         )
 
 

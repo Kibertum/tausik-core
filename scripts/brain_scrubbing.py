@@ -5,7 +5,7 @@ function: no I/O, no Notion calls, deterministic on the same input.
 
 Four detectors, all `block` severity in v1:
   - filesystem_paths — absolute POSIX paths (/home/..., /Users/...) and
-    Windows drive-letter paths (D:\\Work\\..., C:\\Users\\...).
+    Windows drive-letter paths (C:\\Projects\\..., C:\\Users\\...).
   - emails — RFC5322-ish local@domain detection.
   - private_urls — any URL that matches one of the regexes configured in
     brain.private_url_patterns.
@@ -15,7 +15,7 @@ Four detectors, all `block` severity in v1:
 A non-empty `issues` list means `ok = False`: the write should be
 refused and the issue list returned to the caller verbatim.
 
-Design reference: references/brain-db-schema.md §2 (privacy model).
+Design reference: docs/{en,ru}/knowledge-store.md (publication boundary).
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from urllib.parse import unquote
 # /var/..., /opt/... (common user locations that leak project layout).
 _POSIX_PATH = re.compile(r"(?:(?<![\w.-]))(?:/(?:home|Users|root|var|opt|srv|mnt)/[\w.\-/]{2,})")
 
-# Windows drive-letter paths: C:\Users\..., D:\Work\... (both slashes).
+# Windows drive-letter paths: C:\Users\..., C:\Projects\... (both slashes).
 _WINDOWS_PATH = re.compile(r"(?:(?<![\w.-]))[A-Za-z]:[\\/](?:[\w .\-]+[\\/])+[\w .\-]+")
 
 # Email — RFC5322-ish pragmatic form.
@@ -328,25 +328,15 @@ def scrub(
     return {"ok": not any(i["severity"] == "block" for i in issues), "issues": issues}
 
 
-def scrub_with_config(
-    content: str,
-    cfg: dict,
-    *,
-    union_with_registry: bool = False,
-) -> dict:
-    """Scrub using blocklist + url patterns read from a brain config dict.
+def scrub_with_config(content: str, cfg: dict) -> dict:
+    """Scrub using the blocklist and url patterns of a config dict.
 
-    When union_with_registry=True, merges in names from the global brain
-    registry (~/.tausik-brain/projects.json) so a record generated inside
-    project A cannot accidentally mention project B's name.
+    `project_names` is the caller's explicit list. The machine-wide project
+    registry that used to be unioned in left with the Notion transport
+    (decision #358); a blocklist that spans projects is the publication
+    boundary's job (unify-the-four-privacy-checks-into-one-publication-boundary).
     """
     project_names = list(cfg.get("project_names") or [])
-    if union_with_registry:
-        import brain_project_registry
-
-        for n in brain_project_registry.all_project_names():
-            if n not in project_names:
-                project_names.append(n)
     private_url_patterns = cfg.get("private_url_patterns") or []
     return scrub(
         content,

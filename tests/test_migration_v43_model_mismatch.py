@@ -242,3 +242,50 @@ class TestFtsAndObjectsRecreated:
             "AND action='created'"
         ).fetchone()[0]
         assert n == 1
+
+
+class TestПерестройкаНеУноситКолонкиИзПоздних:
+    """Перестройка v43 идёт в ПОСТ-миграциях — после всей версионной петли.
+
+    Замер, смена #241: цепочка с v1 доводила до 61 и отдавала tasks БЕЗ
+    `tracker_refs`, добавленной миграцией v61 секундами раньше, — при том что на
+    свежем пути колонка была. Причина не в v61: список колонок перестройки
+    заморожен эпохой v43 (конвенция #646, и правильно), а копирование идёт по
+    явным именам, так что DROP TABLE уносит всё, чего в списке нет. За
+    восемнадцать версий это была ПЕРВАЯ колонка, добавленная к tasks после v43,
+    поэтому дефект и дождался её.
+
+    Паритет схемы отвечает на вопрос «сходятся ли два пути». Здесь — другой
+    вопрос: работает ли сама починка, и работает ли она на колонке, о которой
+    никто заранее не знал.
+    """
+
+    def test_колонка_из_поздней_миграции_переживает_перестройку(self, migrated_with_null):
+        bm.run_migrations(migrated_with_null, _V42)
+        columns = {row[1] for row in migrated_with_null.execute("PRAGMA table_info(tasks)")}
+        assert "tracker_refs" in columns, (
+            "перестройка v43 снова унесла колонку из миграции выше себя"
+        )
+
+    def test_чинилка_возвращает_ВЫДУМАННУЮ_колонку(self, migrated_with_null, monkeypatch):
+        """На колонке, которой в дереве нет: механизм обязан работать по
+        МИГРАЦИЯМ, а не по заранее известному списку имён — иначе он починит
+        ровно tracker_refs и промолчит на следующей."""
+        from backend_migrations_v43 import reapply_columns_added_after_v43
+
+        patched = dict(bm.MIGRATIONS)
+        patched[44] = [*patched.get(44, []), "ALTER TABLE tasks ADD COLUMN приснившаяся TEXT"]
+        monkeypatch.setattr(bm, "MIGRATIONS", patched)
+
+        restored = reapply_columns_added_after_v43(migrated_with_null)
+        assert "приснившаяся" in restored
+        columns = {row[1] for row in migrated_with_null.execute("PRAGMA table_info(tasks)")}
+        assert "приснившаяся" in columns
+
+    def test_повторный_вызов_ничего_не_делает(self, migrated_with_null):
+        """Идемпотентность: пост-миграции выполняются при КАЖДОМ открытии базы,
+        и второй ALTER на существующую колонку — это отказ, а не no-op."""
+        from backend_migrations_v43 import reapply_columns_added_after_v43
+
+        bm.run_migrations(migrated_with_null, _V42)
+        assert reapply_columns_added_after_v43(migrated_with_null) == []

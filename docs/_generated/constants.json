@@ -1,16 +1,58 @@
 {
+  "closed_lists": {
+    "adapt_finding_categories": {
+      "label": "ADAPT backward-finding categories (\u00a77.4.4)",
+      "values": [
+        "contradiction",
+        "gap",
+        "hidden-assumption",
+        "feasibility",
+        "regulatory",
+        "terminology",
+        "scope"
+      ]
+    },
+    "adapt_statuses": {
+      "label": "ADAPT lifecycle statuses (\u00a77.8.1)",
+      "values": [
+        "draft",
+        "review",
+        "asked",
+        "answered",
+        "approved",
+        "frozen",
+        "superseded"
+      ]
+    },
+    "spec_types": {
+      "label": "SPEC types (\u00a713.3.4, ADR-013)",
+      "values": [
+        "ARCH",
+        "API",
+        "DATA",
+        "INT",
+        "PROC",
+        "UI",
+        "AI",
+        "SEC",
+        "OPS",
+        "TEST",
+        "DOC"
+      ]
+    }
+  },
   "hooks_count": 22,
-  "mcp_brain_tools": 7,
-  "mcp_descriptions_hash": "eea1ff2d1ed6dbfc",
-  "mcp_main_tools": 126,
-  "mcp_project_tools": 119,
+  "mcp_descriptions_hash": "b3f508e76037cb8c",
+  "mcp_main_tools": 146,
+  "mcp_project_tools": 146,
   "mcp_rag_tools": 7,
-  "mcp_tools_with_optional_rag": 133,
+  "mcp_tools_with_optional_rag": 153,
   "review_agents_count": 6,
-  "roles_count": 6,
+  "roles_count": 7,
   "schema_version": 1,
   "skills_core_count": 13,
+  "skills_official_count": 20,
   "stacks_count": 25,
-  "tausik_version": "1.8.0",
-  "test_count": 7240
+  "tausik_version": "1.9.0",
+  "test_count": 10146
 }

@@ -127,10 +127,18 @@ class TestFilePatterns:
         assert passed
         assert "skipped" in output
 
-    def test_matches_dockerfile_basename_case_insensitive(self):
+    def test_matches_dockerfile_basename_case_insensitive(self, tmp_path, monkeypatch):
         gate = dict(self.GATE)
         py = sys.executable.replace("\\", "/")
         gate["command"] = f'"{py}" -c "import sys; print(sys.argv[1:])" {{files}}'
+        # Настоящие файлы: с версии 1.9 путь, которого нет на диске, в команду
+        # не подставляется, потому что удалённый файл ронял гейт и заставлял
+        # занижать объявленный объём. Предмет теста — фильтрация ПО ИМЕНИ.
+        for name in ("sub/dir/Dockerfile", "x/app.dockerfile", "y/readme.md"):
+            path = tmp_path / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("FROM scratch\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
         passed, output = run_command_gate(
             gate, ["sub/dir/Dockerfile", "x/app.dockerfile", "y/readme.md"]
         )

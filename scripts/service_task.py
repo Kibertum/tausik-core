@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING, Any, cast
 
 from tausik_utils import (
@@ -139,6 +140,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         task["reasoning_steps"] = self.be.reasoning_step_list(slug)
         task["specs"] = self.be.specs_for_task(slug)
         task["adapts"] = self.be.adapts_for_target("task", slug)
+        from memory_relevance import lines_for_task
+
+        task["relevant_memory"] = lines_for_task(self.be, slug, task)
         return task
 
     def task_start(self, slug: str, _internal_force: bool = False, force: bool = False) -> str:
@@ -146,7 +150,11 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
         if task["status"] == "active":
-            return f"Task '{slug}' is already active."
+            from memory_relevance import lines_for_task
+
+            return "\n".join(
+                [f"Task '{slug}' is already active (resumed).", *lines_for_task(self.be, slug)]
+            )
         qg0_warnings: list[str] = []
         capacity_audit = ""
         if not _internal_force:
@@ -162,14 +170,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if not task.get("started_at"):
             updates["started_at"] = utcnow_iso()
             updates.update(model_start_updates(self.be))  # pin model at first activation
-        self.be.begin_tx()
-        try:
+        with self.be.transaction():
             self.be.task_update(slug, **updates)
             self._cascade_start(slug)
-            self.be.commit_tx()
-        except Exception:
-            self.be.rollback_tx()
-            raise
         self._project_task(slug)
         msgs = [f"Task '{slug}' started (attempt #{updates['attempts']})."]
         msgs.extend(qg0_warnings)
@@ -182,6 +185,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         rec_msg = start_recognition_message(self.be, slug, task.get("complexity"))
         if rec_msg:
             msgs.append(rec_msg)
+        from memory_relevance import lines_for_task
+
+        msgs.extend(lines_for_task(self.be, slug))
         try:
             from model_routing_session import record_active_task_recommendation
             from project_config import find_tausik_dir
@@ -204,6 +210,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         no_file_changes: bool = False,
         no_changelog: bool = False,
         verify_handle: str | None = None,
+        zero_gate_ack: bool = False,
     ) -> str:
         report = self._task_done_report(
             slug,
@@ -216,6 +223,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             no_file_changes=no_file_changes,
             no_changelog=no_changelog,
             verify_handle=verify_handle,
+            zero_gate_ack=zero_gate_ack,
         )
         if not report.get("ok"):
             raise ServiceError(_format_task_done_failures(report))
@@ -257,9 +265,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         # block/unblock cycling past the 180-min ACTIVE threshold (SENAR Rule 9.2).
         if not force:
             check_session_capacity(self.be, slug, task)
-        self.be.task_update(slug, status="active", blocked_at=None)
+        # An unblock is a re-activation, so it is an attempt like `task start`
+        # is. It used to set `active` directly and leave the counter alone,
+        # which is one of the two reasons 1239 closes showed `attempts: 1`
+        # (attempts-counter-never-increments); the other is a red verify.
+        attempts = task.get("attempts", 0) + 1
+        self.be.task_update(slug, status="active", blocked_at=None, attempts=attempts)
         self._project_task(slug)
-        return f"Task '{slug}' unblocked."
+        return f"Task '{slug}' unblocked (attempt #{attempts})."
 
     def task_review(self, slug: str) -> str:
         task = self._require_task(slug)
@@ -350,6 +363,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         for f in ("title", "goal"):
             if fields.get(f) is not None:
                 fields[f] = safe_single_line(fields[f]) or fields[f]
+        # GitLab #13: a comma-joined list stored as one path corrupted the QG-2
+        # scope silently; judged before the write by the shared validator.
+        if fields.get("relevant_files") is not None:
+            from relevant_files_input import notice_for_json_list
+
+            notice += notice_for_json_list(
+                fields["relevant_files"], os.path.dirname(self.tausik_dir())
+            )
         self._write_update_atomically(slug, budget_writes, fields)
         return self._task_updated(slug, notice)
 
@@ -367,26 +388,18 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         the shape that produced it, so the shape is closed here.
 
         `_pending_projection` is already rollback-aware, so a discarded write
-        discards its queued projection with it. If a caller has a transaction
-        open, ownership stays with the caller: it will roll back, and committing
-        here would end its transaction early.
+        discards its queued projection with it. Ownership is `transaction()`'s
+        to account for: committing a transaction we did not open would end the
+        caller's early, and this method used to carry its own `owns_tx` copy of
+        that rule -- one of three hand-written copies across nine call sites.
         """
-        owns_tx = not self.be._in_tx
-        if owns_tx:
-            self.be.begin_tx()
-        try:
+        with self.be.transaction():
             for setter, value in budget_writes:
                 setter(slug, value)
             # Preserved exactly: a budget-only call does not touch the field
             # write (which would bump updated_at for no declared change).
             if not (budget_writes and not fields):
                 self.be.task_update(slug, **fields)
-            if owns_tx:
-                self.be.commit_tx()
-        except Exception:
-            if owns_tx:
-                self.be.rollback_tx()
-            raise
 
     def task_delete(self, slug: str) -> str:
         self._require_task(slug)

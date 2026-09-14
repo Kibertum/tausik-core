@@ -7,11 +7,10 @@ Work on tasks from project DB. **Never code without `task start` first.**
 1. **Activate.** `tausik_task_start(slug)`. If QG-0 fails — set goal + AC via `tausik_task_update`, retry. No `--force`.
 2. **Load.** `tausik_task_show(slug)` → goal, AC, plan steps, role, stack.
 3. **Read role + stack.** `harness/roles/{role}.md` and `harness/stacks/{stack}.md`. Search memory: `tausik_memory_search`, `tausik_memory_list type=dead_end`.
-4. **Brain primer.** If `tausik-brain` MCP available: `brain_search` with `category=patterns limit=3` and `category=gotchas limit=3`. Filter `brain.ignored:` ids. Skip silently if missing.
-5. **Announce.** Role + title, goal, plan steps as checkboxes, AC numbered.
-6. **Work plan steps in order.** After each step: `tausik_task_log(slug, "Step N done: ...")` then `tausik_task_step(slug, N)` (1-indexed).
-7. **On failure.** `tausik_dead_end(approach, reason, task_slug=slug)`. Try alternative.
-8. **All steps done.** Suggest: "Run `/ship` to review, test, and close." Do NOT call `/task done` directly.
+4. **Announce.** Role + title, goal, plan steps as checkboxes, AC numbered.
+5. **Work plan steps in order.** After each step: `tausik_task_log(slug, "Step N done: ...")` then `tausik_task_step(slug, N)` (1-indexed).
+6. **On failure.** `tausik_dead_end(approach, reason, task_slug=slug)`. Try alternative.
+7. **All steps done.** Suggest: "Run `/ship` to review, test, and close." Do NOT call `/task done` directly.
 
 ## $ARGUMENTS = "done"
 

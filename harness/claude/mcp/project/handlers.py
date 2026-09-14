@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 from typing import Any, Callable
 
 # Ensure scripts dir is in path (once, at import time)
@@ -29,6 +30,8 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 import handlers_adapt as _adapt  # noqa: E402 — path must be set first
+import handlers_actz as _actz  # noqa: E402 — path must be set first
+import handlers_at as _at  # noqa: E402 — path must be set first
 import handlers_cq as _cq  # noqa: E402
 import handlers_hierarchy as _hierarchy  # noqa: E402
 import handlers_knowledge as _knowledge  # noqa: E402
@@ -69,12 +72,54 @@ def _increment_tool_counter(svc: Any) -> str:
     return ""
 
 
+# ONE TOOL CALL AT A TIME. The server runs every call on its own thread
+# (`asyncio.to_thread(handle_tool, ...)`) over ONE process-wide ProjectService
+# whose connection is opened `check_same_thread=False`. That means two
+# overlapping calls share the connection, the open transaction, and the single
+# `_in_tx` flag every write consults. Measured, both directions, in
+# tests/test_concurrent_dispatch_shares_a_transaction.py: a second call's
+# `commit_tx` makes the first call's half-written change durable, and a second
+# call's plain write joins the first call's transaction and disappears with its
+# rollback. Neither raises: the losing call is told it succeeded.
+#
+# RLock, not Lock: `handle_tool` is re-entered by nothing today, but a handler
+# that dispatches a second tool by name would deadlock on a plain Lock, and
+# that is a silent hang rather than an error.
+#
+# WHY HERE AND NOT DEEPER, since two other placements were weighed:
+#   * inside `SQLiteBackend.transaction()` -- REJECTED, it does not cover the
+#     defect. The measured second case never calls `transaction()` at all: it
+#     is a plain `epic_add`, and `_ex` commits only when `_in_tx` is False, so
+#     it silently joins whatever transaction is open. A lock the losing path
+#     never takes is not a fix.
+#   * a connection per thread -- REJECTED as a rewrite of the DB access model
+#     for a defect whose whole measured surface is this one dispatch path, and
+#     it would trade this bug for cross-connection SQLite write contention.
+# Serialising the WHOLE call also covers the bare-write case above, which is
+# why it beats any per-write lock further down.
+#
+# THE PRICE, MEASURED RATHER THAN GUESSED. The lock itself is free: an
+# uncontended acquire+release is 0.13 us against ~5300 us for one real
+# `tausik_status` dispatch — 1/40000th of a call, below the run-to-run variance
+# of the benchmark that produced both numbers (2000 calls each way).
+#
+# What actually costs is the SERIALISATION, and only when calls contend:
+# `_task_done_report` holds its transaction across a full gate pass, so a
+# concurrent tool call waits that long. That is the honest cost of one shared
+# connection, and a wait is what the silent data loss above is being traded
+# for. Non-MCP threads are NOT covered and do not need to be today: the only
+# other threads in the server are the state-prewarm daemon, which never writes,
+# and the session_open watchdog, whose sections open no transaction.
+_DISPATCH_LOCK = threading.RLock()
+
+
 def handle_tool(svc: Any, name: str, args: dict) -> str:
     """Dispatch tool call to service method. Returns text result."""
-    # SENAR Rule 9.3: track tool call count for checkpoint reminder
-    checkpoint_warning = _increment_tool_counter(svc)
-    result = _dispatch_tool(svc, name, args)
-    return result + checkpoint_warning if checkpoint_warning else result
+    with _DISPATCH_LOCK:
+        # SENAR Rule 9.3: track tool call count for checkpoint reminder
+        checkpoint_warning = _increment_tool_counter(svc)
+        result = _dispatch_tool(svc, name, args)
+        return result + checkpoint_warning if checkpoint_warning else result
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +207,8 @@ for _domain in (
     _cq.CQ_HANDLERS,
     _spec.SPEC_HANDLERS,
     _adapt.ADAPT_HANDLERS,
+    _actz.ACTZ_HANDLERS,
+    _at.AT_HANDLERS,
 ):
     _DISPATCH.update(_domain)
 

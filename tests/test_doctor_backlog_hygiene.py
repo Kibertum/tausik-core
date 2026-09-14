@@ -136,9 +136,25 @@ def test_backend_failure_degrades_to_warn_and_does_not_crash_doctor():
     with pytest.raises(RuntimeError):
         check_backlog_hygiene(_Exploding())
 
-    # ... and the call site turns that into a warning rather than an exit.
-    import project_cli_doctor
+    # ... and the call site turns that into a warning rather than an exit. Asked
+    # of the call site itself rather than of its source text: a grep for the
+    # import proves only where a line is written, and it went red the day the
+    # block moved to a neighbouring module while doctor kept calling it.
+    import tempfile
 
-    src = open(project_cli_doctor.__file__, encoding="utf-8").read()
-    assert "check_backlog_hygiene" in src
-    assert 'f"could not validate: {e}"' in src
+    from service_doctor_external import run_optional_checks
+
+    rows: list[tuple[str, str, str]] = []
+    with tempfile.TemporaryDirectory() as project_dir:
+        run_optional_checks(
+            project_dir,
+            _Exploding(),
+            lambda label, detail: rows.append(("ok", label, detail)),
+            lambda label, detail: rows.append(("warn", label, detail)),
+            lambda label, detail: rows.append(("fail", label, detail)),
+        )
+
+    degraded = [d for sev, label, d in rows if sev == "warn" and label == "Backlog hygiene"]
+    assert degraded, f"the exploding check did not degrade to a warning: {rows}"
+    assert "could not validate" in degraded[0]
+    assert not any(sev == "fail" for sev, _, _ in rows), "a broken check must not fail doctor"

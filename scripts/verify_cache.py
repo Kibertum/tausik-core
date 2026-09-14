@@ -20,7 +20,9 @@ from typing import Any
 from security_pattern import is_security_sensitive
 from verify_constants import DEFAULT_CACHE_TTL_S
 from verify_files_hash import compute_files_hash
+from verify_own_export import coverage_files
 from verify_recent_lookup import lookup_recent_for_task
+from verify_zero_gate import rests_on_a_declaration
 
 
 def is_cache_allowed(file_paths: list[str]) -> bool:
@@ -86,6 +88,7 @@ def has_fresh_verify_run(
     relevant_files: list[str] | None,
     *,
     max_age_s: int = DEFAULT_CACHE_TTL_S,
+    zero_gate_ack: bool = False,
 ) -> tuple[bool, dict[str, Any] | None]:
     """Verify-First Contract: True iff a green `tausik verify` run exists for
     this task with matching files_hash and current verify gate signature,
@@ -121,7 +124,26 @@ def has_fresh_verify_run(
         return False, None
     if not is_cache_allowed(files):
         return False, None
-    files_hash = compute_files_hash(files)
+    # verify-handle-dies-on-a-tasks-own-export-file: coverage is the declared
+    # list MINUS this task's own export, because the verify run rewrites that
+    # file itself (declared scope, run number, receipt) and hashing it asks
+    # whether measuring changed the measured. See `verify_own_export` for why
+    # only the task's OWN export is subtracted and what that costs.
+    coverage = coverage_files(files, slug)
+    if not coverage:
+        # The declared list was non-empty, so the `if not files` guard above did
+        # not fire — but everything in it was this task's own bookkeeping, and
+        # `compute_files_hash([])` is the same empty-marker that guard exists to
+        # reject: no edit ever moves it, so a row keyed on it would stay valid
+        # for the whole TTL across arbitrary tree changes. A scope that covers
+        # nothing is "unknown", not "verified empty" (#226), and a check that
+        # could not compute its own coverage must not certify (#221).
+        return False, None
+    files_hash = compute_files_hash(coverage)
+    # Keyed on the DECLARED list, not the coverage: the command names what the
+    # agent claimed, and the write side (`verify_cached_run`) builds it the same
+    # way. Narrowing it here would make the two spellings disagree and turn
+    # every lookup into a miss.
     cache_command = _build_cache_command("verify", files)
     hit = lookup_recent_for_task(
         conn,
@@ -132,4 +154,18 @@ def has_fresh_verify_run(
     )
     if hit is None:
         return False, None
+    if rests_on_a_declaration(hit) and not zero_gate_ack:
+        # senar-14-fail-closed-when-no-gate-actually-ran. The handle path is not
+        # the only door: this lookup matches on command and files_hash, and the
+        # no-test-mapped branch records its row with a CLEAN command — the
+        # `noncacheable|` stamp that `verify_cached_run` describes is applied
+        # after that branch has already returned. So a run in which no gate
+        # executed was replayable here for the whole TTL. The row is returned
+        # alongside the refusal so the caller can name which run it rejected.
+        #
+        # `zero_gate_ack` opens the same door here as on the handle path. The
+        # acknowledgement is an act of the CLOSER, not a property of how the
+        # green was presented, so making it work on one route and not the other
+        # would turn a rule into a trivia question about which flag was used.
+        return False, hit
     return True, hit

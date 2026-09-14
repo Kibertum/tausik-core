@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 46
+SCHEMA_VERSION = 62
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -71,7 +71,17 @@ CREATE TABLE IF NOT EXISTS tasks (
     tokens_actual INTEGER,
     tier TEXT CHECK(tier IS NULL OR tier IN
         ('trivial','light','moderate','substantial','deep')),
-    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    -- JSON list of external ticket references (`tracker_ref`), e.g.
+    -- ["github#7"]. NULL and [] both mean "nobody filed this" — the normal
+    -- case. Added in v61: closing a task could not remind anyone to answer a
+    -- ticket while the link did not exist as data.
+    --
+    -- LAST on purpose, after created_at/updated_at: the upgrade path adds it
+    -- with ALTER TABLE, which appends. A column placed "logically" mid-table
+    -- here would differ in ORDER from every migrated database, and
+    -- test_schema_upgrade_parity reds on exactly that.
+    tracker_refs TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -274,13 +284,17 @@ CREATE TABLE IF NOT EXISTS session_usage_metrics (
 
 CREATE TABLE IF NOT EXISTS usage_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
     task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
     model_id TEXT,
-    tokens_input INTEGER NOT NULL CHECK(tokens_input >= 0),
-    tokens_output INTEGER NOT NULL CHECK(tokens_output >= 0),
-    tokens_total INTEGER NOT NULL CHECK(tokens_total >= 0),
-    cost_usd REAL NOT NULL DEFAULT 0 CHECK(cost_usd >= 0),
+    -- NULL means NOT MEASURED, and it is a different statement from 0 (v58).
+    -- 99.5% of the rows written before v58 said 0 about a payload that never
+    -- carried usage at all; SUM skips NULL and returns NULL when nothing was
+    -- measured, so the honest rollup falls out of the storage.
+    tokens_input INTEGER CHECK(tokens_input IS NULL OR tokens_input >= 0),
+    tokens_output INTEGER CHECK(tokens_output IS NULL OR tokens_output >= 0),
+    tokens_total INTEGER CHECK(tokens_total IS NULL OR tokens_total >= 0),
+    cost_usd REAL CHECK(cost_usd IS NULL OR cost_usd >= 0),
     tool_calls INTEGER NOT NULL DEFAULT 0 CHECK(tool_calls >= 0),
     source TEXT NOT NULL CHECK(source IN ('session_record', 'manual', 'posttool')),
     recorded_at TEXT NOT NULL,

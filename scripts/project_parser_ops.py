@@ -61,6 +61,26 @@ def add_audit(sub: argparse._SubParsersAction) -> None:
         dest="as_json",
         help="Emit JSON instead of human-readable report",
     )
+    ae = audit_sub.add_parser(
+        "evidence",
+        help="Audit whether closure-receipt test citations still resolve (read-only, never blocks)",
+    )
+    ae.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit JSON instead of human-readable report",
+    )
+    ae.add_argument(
+        "--no-git",
+        action="store_true",
+        dest="no_git",
+        help=(
+            "Skip the git-history question. Without it a rename cannot be told "
+            "from a path that never existed, so every miss is reported as "
+            "unknown_history rather than guessed at."
+        ),
+    )
 
 
 def add_review(sub: argparse._SubParsersAction) -> None:
@@ -123,6 +143,16 @@ def add_doc(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         dest="doc_constants_check",
         help="Exit 1 if constants.json is missing or out of sync",
+    )
+    dr = doc_sub.add_parser(
+        "roadmap",
+        help="Write ROADMAP.md from the live DB (release composition from decisions)",
+    )
+    dr.add_argument(
+        "--check",
+        action="store_true",
+        dest="doc_roadmap_check",
+        help="Exit 1 if ROADMAP.md is missing or no longer matches the live DB",
     )
 
 
@@ -295,6 +325,16 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
         help="Window size — last N distinct sessions (default: 10)",
     )
     mt.add_argument(
+        "--rebuild",
+        action="store_true",
+        help=(
+            "Re-derive the whole ledger from every transcript on disk before "
+            "reporting. The SessionEnd writer only ever sees the transcript that "
+            "just ended, so its coverage can be far narrower than the history "
+            "that exists."
+        ),
+    )
+    mt.add_argument(
         "--json",
         action="store_true",
         dest="as_json",
@@ -314,6 +354,39 @@ def add_hygiene(sub: argparse._SubParsersAction) -> None:
     Archived rows still exist (status stays 'done') but are hidden from
     `task list` unless `--include-archived` is passed.
     """
+    # ON DEMAND ONLY. A repository-wide review is expensive and earns its keep
+    # by being rare; wiring it into task closure would make it noise the agent
+    # scrolls past — the failure this lens exists to avoid, not to join.
+    c_p = sub.add_parser(
+        "coherence",
+        help="Repository-wide coherence material (on demand; collects, does not judge)",
+    )
+    c_p.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the collected material as JSON for a model to judge.",
+    )
+
+    # `symbol` answers with the DEFINITION rather than a location, so the usual
+    # grep-then-read pair collapses into one call. Measured share of what tools
+    # returned before it existed: ~47% was code exploration.
+    sym_p = sub.add_parser(
+        "symbol",
+        help="Show a symbol's definition, location and callers in one answer",
+    )
+    sym_p.add_argument("name", help="Symbol name, or Class.method")
+    sym_p.add_argument(
+        "--lines",
+        type=int,
+        default=None,
+        help="Max lines of the definition to print before saying how many were cut",
+    )
+    sym_p.add_argument(
+        "--no-callers",
+        action="store_true",
+        help="Skip the caller scan (faster; the scan walks the indexed tree)",
+    )
+
     h_p = sub.add_parser(
         "hygiene",
         help="Project hygiene operations (dry-run by default)",
@@ -386,3 +459,29 @@ def add_push_ok(sub: argparse._SubParsersAction) -> None:
         default=60,
         help="Ticket TTL in seconds (default: 60)",
     )
+
+
+def add_ops(sub: argparse._SubParsersAction) -> None:
+    """Register every ops subparser. One list, next to the parsers it names —
+    the caller in `project_parser` no longer re-types it."""
+    from project_parser_config import add_config
+    from project_parser_graph import add_graph
+    from project_parser_publish import add_publish
+
+    for add in (
+        add_dead_end,
+        add_explore,
+        add_audit,
+        add_skill,
+        add_metrics,
+        add_hygiene,
+        add_run,
+        add_doc,
+        add_review,
+        add_config,
+        add_push_ok,
+        add_redact,
+        add_graph,
+        add_publish,
+    ):
+        add(sub)

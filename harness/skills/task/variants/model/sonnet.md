@@ -20,13 +20,6 @@ Work on tasks from project DB.
    - `tausik_decisions_list` — recent decisions.
    - `tausik_memory_list type=dead_end` — avoid repeated failures.
 
-3.5. **Brain primer (cross-project, 1.4+).** If `tausik-brain` MCP configured:
-   ```
-   brain_search(query="<title keywords> <stack tag>", category="patterns", limit=3)
-   brain_search(query="<title keywords> <stack tag>", category="gotchas", limit=3)
-   ```
-   Surface up to 3 patterns + 3 gotchas inline before announcing the task. Filter ids appearing in `tausik_memory_list type=convention` with title `brain.ignored:<id>`. If a result misleads, mark via `tausik_memory_add(type="convention", title="brain.ignored:<page_id>", ...)`. Skip silently if brain disabled.
-
 4. **Adopt role** — follow the role profile's skill modifiers for /task.
 
 5. **Announce:** role + task title, goal, plan steps as checkboxes, AC numbered, stack + role focus.

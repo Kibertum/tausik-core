@@ -146,8 +146,9 @@ def validate_default_gate_command(
     The allow-list alone cannot protect a default gate: every entry on it is
     a legitimate executable, so ``gates.ruff.command = "python -c pass"``
     passes validation and leaves a gate that is enabled, fires on its
-    triggers, and is green forever. Since `.tausik/config.json` travels with
-    the repository, a clone can neuter the framework's own supervision.
+    triggers, and is green forever. Since the PROJECT TIER travels with the
+    repository — `tausik/policy.json` always, `.tausik/config.json` wherever
+    `.tausik/` is tracked — a clone can neuter the framework's own supervision.
 
     Policy: an override of a default gate may change the *arguments*, the
     *path*, and the *wrapper*, never the tool. Accepted:

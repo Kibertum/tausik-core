@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/cost-telemetry.md)
+
 # Cost Telemetry — Per-Task Token Attribution
 
 TAUSIK records LLM usage in two places that work together:
@@ -34,16 +36,19 @@ Failures never block the harness. Five graceful-degradation paths are tested:
 .tausik/tausik metrics cost --since 2026-05-01    # window
 ```
 
-`metrics cost` excludes rows where `task_slug IS NULL`, so no-active-task events stay in the ledger but don't pollute attribution.
+`metrics cost` excludes rows where `task_slug IS NULL` from the per-task table, so no-active-task
+events neither pollute attribution nor double-count. Since v48 they are no longer invisible: an
+explicit «вне задачи» bucket is printed below the table — how many such events, their tokens and
+cost, and how many of them had no session either. It prints even when the per-task table is empty.
 
 ## Schema
 
-`usage_events` (since v1.4 / migration v24):
+`usage_events` (since v1.4 / migration v24; `session_id` relaxed by migration v48):
 
 | column | type | notes |
 |---|---|---|
 | `id` | INTEGER PRIMARY KEY | |
-| `session_id` | INTEGER NOT NULL | FK → sessions(id) |
+| `session_id` | INTEGER NULL | FK → sessions(id) ON DELETE SET NULL; NULL when no session is open (v48) |
 | `task_slug` | TEXT NULL | FK → tasks(slug); NULL when no/multiple active task |
 | `model_id` | TEXT NULL | canonical Anthropic model id |
 | `tokens_input` / `tokens_output` / `tokens_total` | INTEGER ≥ 0 | |

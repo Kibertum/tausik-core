@@ -1,12 +1,15 @@
+**English** | [Русский](../ru/knowledge-store.md)
+
 # The shared knowledge store — what it is, and how it differs from project memory
 
 New in 1.8. A local file, `~/.tausik-knowledge/knowledge.db`, one per person
 rather than one per project.
 
 This page answers two questions: **how it works** and **how it differs from the
-project database**. The Notion brain is a separate page,
-[shared-brain.md](shared-brain.md) — that is a THIRD store, and it is not this
-one.
+project database**. There are two stores and no third: the Notion transport that
+used to mirror this one outward left the framework in 1.9 (decision #358). (The
+routing table bootstrap writes into a project names a third DESTINATION — the
+host's own auto-memory — but that one is the host's, not a TAUSIK store.)
 
 ---
 
@@ -104,21 +107,43 @@ The knowledge block injected at session start reads both as well.
 **Backup and restore:**
 
 ```bash
-tausik knowledge export ~/backup/knowledge   # one readable file per record
-tausik knowledge restore ~/backup/knowledge  # records matched by uuid
+tausik knowledge export --to ~/backup/knowledge     # one readable file per record
+tausik knowledge restore --from ~/backup/knowledge  # records matched by uuid
 ```
 
 The export is not a dump but a file per record: readable by eye, storable in a
 private dotfiles repository, and comprehensible a year later. `restore` matches
 on `uuid`, so running it twice does not duplicate anything.
 
-**One-off import from the Notion mirror:**
+**A backup that leaves the machine goes through the publication boundary.**
+The store is kept unredacted — a memory can name a client outright — and the
+only argument for that is "it never leaves the machine". A plain export refuses
+remote destinations (`s3://`, `https://`, UNC) and stays faithful for restore.
+For a copy that will travel, add `--redacted`:
+
+```bash
+tausik knowledge export --to ~/travel/knowledge --redacted
+```
+
+Every text field then passes `publication_boundary.redact`: absolute paths,
+e-mails, private URLs (`publication.private_url_patterns` in the config) and
+project names (this project's directory name plus `publication.project_names`)
+become typed placeholders such as `[REDACTED:email]`, and the manifest records
+`redacted: true` with a count per detector. Restoring a redacted backup over a
+live store changes nothing — `restore` never overwrites an existing uuid — and
+restoring it into an empty store carries the placeholders, never the originals.
+The boundary is the one place this question is answered: a test walks the tree
+and fails on any module that reads the store and writes files without it.
+
+**One-off import from the retired Notion mirror:**
 
 ```bash
 tausik knowledge import-brain
 ```
 
-Copies the local Notion-brain mirror into the shared store. No network required.
+Copies the local mirror file the Notion transport left behind
+(`~/.tausik-brain/brain.db`) into the shared store. No network required, and
+nothing to configure: the transport itself is gone since 1.9 (decision #358).
 
 **Where is it right now:** `tausik doctor` prints the resolved store path, and
 names the reason when a location is refused.
@@ -129,11 +154,11 @@ names the reason when a location is refused.
 
 This is not a list of gaps. Each item is a decision.
 
-**It does not redact content.** Text enters the shared store as written: no
-scrubber, no path stripping, no name substitution. The Notion brain cannot work
-that way — an entry there leaves the machine, so a linter cleans it and a risk
-classifier judges it. Here there is no cleaning, and the entire justification is
-that **the store never leaves this machine**.
+**It does not redact content on write.** Text enters the shared store as
+written: no scrubber, no path stripping, no name substitution. The entire
+justification is that **the store never leaves this machine** — and the one
+command that makes it leave, `knowledge export --redacted`, is where redaction
+happens (see the publication boundary above).
 
 **It does not leave the machine.** Hence the `TAUSIK_HOME` validation added in
 1.8: a network path (UNC or a mapped volume) and a cloud-sync directory
@@ -153,17 +178,17 @@ clients, one client's directory name was readable from another client's project.
 It now holds a `basename@fingerprint` label. Existing rows are rewritten on the
 next open.
 
-**It is not the Notion brain.** Three stores, three different answers to "where
-does this go":
+**It is not a transport.** Two stores, two answers to "where does this go",
+and both are chosen by you:
 
 | Command | Destination | Leaves the machine |
 |---|---|---|
 | `tausik memory add ...` | project database | no |
 | `tausik memory add ... --global` | shared store on this machine | no |
-| `tausik brain move --to-brain <id>` | Notion | **yes** |
+| `tausik knowledge export --to <dir> --redacted` | a local directory, redacted | only if you carry it |
 
-Since 1.8 there is no automatic routing: the classifier no longer decides what
-gets published. Anything going outward goes by the third command, by hand.
+Nothing routes itself and nothing publishes: the classifier that used to decide
+went in 1.8 (decision #221), the Notion transport in 1.9 (decision #358).
 
 ---
 
@@ -185,8 +210,6 @@ at all and the move is yours.
 
 - [whats-new-1.8.md](whats-new-1.8.md) — what changed in 1.8, including the move
   and the `TAUSIK_HOME` validation.
-- [shared-brain.md](shared-brain.md) — the Notion brain: the third store, and the
-  only one that leaves the machine.
 - [memory-merge-guidelines.md](memory-merge-guidelines.md) — when to merge an
   entry and when to write a new one.
 - [architecture.md](architecture.md) — where the `knowledge_*` modules live.

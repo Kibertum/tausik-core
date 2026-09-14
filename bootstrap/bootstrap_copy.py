@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -48,6 +49,14 @@ def _files_identical(a: str, b: str) -> bool:
             return False
         with open(a, "rb") as fa, open(b, "rb") as fb:
             return fa.read() == fb.read()
+    except OSError:
+        return False
+
+
+def _files_identical_text(path: str, expected: str) -> bool:
+    try:
+        with open(path, encoding="utf-8", newline="") as file:
+            return file.read() == expected
     except OSError:
         return False
 
@@ -112,13 +121,10 @@ def copy_skills(
     vendor_skills: dict[str, str] | None = None,
     *,
     include_official_stubs: bool = False,
-    brain_enabled: bool = True,
 ) -> int:
     """Copy skills to target IDE directory.
 
-    Built-in skills (in harness/skills/) are always copied in full, except
-    `brain` which is gated on `brain_enabled` (set by bootstrap from the
-    project's brain config — `tausik brain init` flips it on).
+    Built-in skills (in harness/skills/) are always copied in full.
 
     Official skills (skills-official/registry.json) are auto-stubbed only
     when `include_official_stubs=True` (CLI flag --include-official). Default
@@ -168,12 +174,6 @@ def copy_skills(
     if os.path.isdir(builtin_dir):
         for name in sorted(os.listdir(builtin_dir)):
             if name.startswith(".") or name.startswith("_"):
-                continue
-            if name == "brain" and not brain_enabled:
-                # v14b-skill-core-cleanup: brain stays in source but is not
-                # surfaced into the system-reminder list until the project
-                # has Notion configured (`tausik brain init`). Saves ~600
-                # tokens/turn for projects that never use the shared brain.
                 continue
             if os.path.isdir(os.path.join(builtin_dir, name)):
                 builtin_names.append(name)
@@ -271,13 +271,33 @@ def copy_mcp(lib_dir: str, target_dir: str, ide: str) -> int:
     return len(os.listdir(mcp_dst))
 
 
-def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
-    """Copy Claude-native named sub-agents (harness/claude/subagents/*.md → <target>/agents/*.md).
+def _codex_subagent_toml(markdown: str, source: str) -> str:
+    """Convert one canonical Claude sub-agent document to Codex's TOML schema."""
+    if not markdown.startswith("---\n"):
+        raise ValueError(f"{source} has no YAML frontmatter")
+    frontmatter, separator, body = markdown[4:].partition("\n---\n")
+    if not separator:
+        raise ValueError(f"{source} has unclosed YAML frontmatter")
+    fields = dict(line.split(":", 1) for line in frontmatter.splitlines() if ":" in line)
+    name = fields.get("name", "").strip()
+    description = fields.get("description", "").strip()
+    if not name or not description:
+        raise ValueError(f"{source} must declare name and description")
+    return (
+        f"name = {json.dumps(name, ensure_ascii=False)}\n"
+        f"description = {json.dumps(description, ensure_ascii=False)}\n"
+        f"developer_instructions = {json.dumps(body, ensure_ascii=False)}\n"
+    )
 
-    Currently Claude-only — Cursor/Qwen have no named-subagent concept.
-    Returns 0 silently for non-Claude IDEs or when the source dir is absent.
+
+def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
+    """Deploy canonical sub-agents for Claude or converted TOML agents for Codex.
+
+    The source remains ``harness/claude/subagents/*.md``. Codex files are
+    regenerated on bootstrap and intentionally overwrite changed generated files.
+    Hosts without named sub-agents still receive nothing.
     """
-    if ide != "claude":
+    if ide not in {"claude", "codex"}:
         return 0
     src = os.path.join(lib_dir, "harness", "claude", "subagents")
     if not os.path.isdir(src):
@@ -288,7 +308,16 @@ def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
     for entry in os.listdir(src):
         if not entry.endswith(".md"):
             continue
-        _conditional_copy(os.path.join(src, entry), os.path.join(dst, entry))
+        source = os.path.join(src, entry)
+        if ide == "claude":
+            _conditional_copy(source, os.path.join(dst, entry))
+        else:
+            target = os.path.join(dst, f"{os.path.splitext(entry)[0]}.toml")
+            with open(source, encoding="utf-8") as file:
+                converted = _codex_subagent_toml(file.read(), source)
+            if not os.path.isfile(target) or not _files_identical_text(target, converted):
+                with open(target, "w", encoding="utf-8", newline="\n") as file:
+                    file.write(converted)
         n += 1
     return n
 

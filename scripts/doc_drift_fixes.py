@@ -18,6 +18,7 @@ import re
 from pathlib import Path
 
 from doc_drift_common import (
+    MCP_COUNT_EXTRA_TARGETS,
     _CODE_COUNT_PATTERNS,
     _DYNAMIC_BLOCK_RE,
     _FENCED_BLOCK_RE,
@@ -51,6 +52,26 @@ def _replace_group1(match: re.Match[str], new_digits: str) -> str:
     g1_start = match.start(1) - match.start(0)
     g1_end = match.end(1) - match.start(0)
     return whole[:g1_start] + new_digits + whole[g1_end:]
+
+
+def _replace_two_groups(match: "re.Match[str]", first: str, second: str) -> str:
+    """The whole match with capture groups 1 AND 2 swapped.
+
+    Written out rather than looping `_replace_group1` twice: replacing group 1
+    first shifts every offset after it, so the second substitution would land in
+    the wrong place whenever the two numbers have different digit counts — 145
+    to 146 is safe, 99 to 100 is not. Offsets are taken from the ORIGINAL match
+    and applied right to left.
+    """
+    whole = match.group(0)
+    base = match.start(0)
+    spans = [
+        (match.start(1) - base, match.end(1) - base, first),
+        (match.start(2) - base, match.end(2) - base, second),
+    ]
+    for start, end, digits in sorted(spans, reverse=True):
+        whole = whole[:start] + digits + whole[end:]
+    return whole
 
 
 def _fix_counts(text: str, pattern: "re.Pattern[str]", expected: int) -> tuple[str, bool]:
@@ -121,7 +142,10 @@ def write_cross_file_fixes(repo_root: Path, payload: dict[str, object]) -> list[
     # structurally: hooks.md is absent from VERSION_SCAN_TARGETS, so the version
     # branch below skips it. Detection (scan_code_counts) and repair therefore
     # stay in lockstep.
-    for rel in (*CROSS_FILE_SCAN_TARGETS, *CODE_COUNT_EXTRA_TARGETS):
+    # MCP_COUNT_EXTRA_TARGETS (the SENAR compliance matrices) were scanned but
+    # never repaired: `--write` then exited red on a headline it could name and
+    # not fix — the loop this module exists to end (review #208, record #24).
+    for rel in (*CROSS_FILE_SCAN_TARGETS, *CODE_COUNT_EXTRA_TARGETS, *MCP_COUNT_EXTRA_TARGETS):
         path = repo_root / rel
         if not path.is_file():
             continue

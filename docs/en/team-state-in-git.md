@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/team-state-in-git.md)
+
 # TAUSIK state in git — contract (team-state-in-git)
 
 > Format spec for the git-native projection of project state. Depended on by
@@ -235,7 +237,7 @@ it rather than keeping their own copy:
 | `epics` | `epic add`, `epic done`, `epic delete` |
 | `stories` | `story add`, `story done`, `story delete` |
 | `tasks` | `task add/quick`, `update`, `start`, `log`, `plan`, `step`, `block`, `unblock`, `review`, `move`, `done`, `delete` |
-| `decisions` | `decide` — every branch, including task-linked and brain-mirrored |
+| `decisions` | `decide` — every branch, including task-linked |
 | `memory` | `memory add`, `dead-end`, `memory delete`, `memory link/unlink`, `memory archive` |
 
 An entity that leaves the projection (deleted, or memory archived) **loses its

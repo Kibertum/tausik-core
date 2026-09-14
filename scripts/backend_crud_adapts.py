@@ -37,6 +37,7 @@ class AdaptsCrudMixin:
         status: str = "draft",
         parent_adapt: str | None = None,
         delta_n: int = 0,
+        trigger_stage: str | None = None,
     ) -> int:
         """Insert an ADAPT header; returns the new row id.
 
@@ -46,8 +47,9 @@ class AdaptsCrudMixin:
         now = utcnow_iso()
         return self._ins(
             "INSERT INTO adapts(slug, title, tz_ref, status, parent_adapt, "
-            "delta_n, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?)",
-            (slug, title, tz_ref, status, parent_adapt, delta_n, now, now),
+            "delta_n, trigger_stage, created_at, updated_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (slug, title, tz_ref, status, parent_adapt, delta_n, trigger_stage, now, now),
         )
 
     def adapt_get(self, slug: str) -> dict[str, Any] | None:
@@ -63,11 +65,34 @@ class AdaptsCrudMixin:
             )
         return self._q("SELECT * FROM adapts ORDER BY created_at DESC, id DESC")
 
-    def adapt_set_status(self, slug: str, status: str) -> int:
-        """Set ADAPT status (draft|signed|superseded); returns affected rows."""
+    def adapt_set_status(
+        self, slug: str, status: str, supersession_rationale: str | None = None
+    ) -> int:
+        """Set ADAPT status (§7.8.1 closed list); returns affected rows.
+
+        Superseding REQUIRES a rationale (ADR-007 p.108), and the rule lives
+        HERE rather than in the service layer because this is the lowest
+        primitive that writes the column — every present and future caller
+        passes through it. Half a dezavuation is worse than none: the status
+        and the ``supersedes`` edge already existed, so a supersession could be
+        recorded mechanically while being unable to cite the requirement it
+        contradicts. That record is syntactically valid and substantively
+        empty — the degenerate control ADR-021 names, in the data schema.
+
+        Raises ValueError (not ServiceError) because this layer has no service
+        vocabulary; ``service_adapts.adapt_delta`` converts it at the boundary.
+        """
+        if status == "superseded" and not (supersession_rationale or "").strip():
+            raise ValueError(
+                "Superseding an ADAPT requires supersession_rationale "
+                "(ADR-007 p.108): a dezavuation that cannot cite the "
+                "contradicting requirement is an empty record."
+            )
         return self._ex(
-            "UPDATE adapts SET status=?, updated_at=? WHERE slug=?",
-            (status, utcnow_iso(), slug),
+            "UPDATE adapts SET status=?, "
+            "supersession_rationale=COALESCE(?, supersession_rationale), "
+            "updated_at=? WHERE slug=?",
+            (status, supersession_rationale, utcnow_iso(), slug),
         )
 
     def adapt_delete(self, slug: str) -> int:
@@ -112,7 +137,7 @@ class AdaptsCrudMixin:
             (adapt_slug,),
         )
 
-    # --- backward findings (closed-7 §7) ---
+    # --- backward findings (closed category list, §7) ---
 
     def finding_add(
         self,
@@ -122,7 +147,7 @@ class AdaptsCrudMixin:
         tz_ref: str | None = None,
         resolution: str | None = None,
     ) -> int:
-        """Insert a backward finding; ``category`` enforced as closed-7 by CHECK."""
+        """Insert a backward finding; ``category`` enforced against the closed list by CHECK."""
         return self._ins(
             "INSERT INTO adapt_findings(adapt_slug, category, description, tz_ref, "
             "resolution, created_at) VALUES(?,?,?,?,?,?)",
@@ -136,7 +161,7 @@ class AdaptsCrudMixin:
             (adapt_slug,),
         )
 
-    # --- dual signature (§7.5) ---
+    # --- architect signature (§7.5; the client's was withdrawn by ADR-011) ---
 
     def signature_set(
         self,

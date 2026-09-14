@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/reasoning-trace)
+**English** | [Русский](../ru/reasoning-trace.md)
 
 # Reasoning Trace (RENAR)
 

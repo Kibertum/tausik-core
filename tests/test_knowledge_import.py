@@ -156,7 +156,7 @@ class TestProvenanceIsHonest:
         assert conn is not None
         conn.execute(
             "INSERT INTO decisions (entry_uuid, decision, origin_project, created_at) "
-            f"VALUES ('local-1', 'своё решение', 'D:/Work/repo', '{_TS}')"
+            f"VALUES ('local-1', 'своё решение', 'C:/Projects/repo', '{_TS}')"
         )
         conn.commit()
         conn.close()

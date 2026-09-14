@@ -12,6 +12,15 @@ through here, or it is asking about the wrapper instead of the command.
 
 from __future__ import annotations
 
+import os
+import sys
+
+# Own directory FIRST: the siblings below are imported by bare name, and
+# scripts/hooks reaches sys.path only when this file is RUN as a script. Imported
+# as `hooks.<name>` — which model_routing does — those names did not resolve, and
+# the caller's except swallowed the ImportError into a silent None.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from pwsh_cmd_parse import Statement, canonical_verb, split_statements, tokenize
 
 # A wrapper may nest (`powershell -Command "pwsh -c '…'"`). Same bound and same

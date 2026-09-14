@@ -1,8 +1,10 @@
 """TAUSIK SpecsMixin — RENAR SPEC-artifact service methods.
 
 A SPEC is a typed, versioned design artifact (RENAR v1.0-draft). ``type`` is a
-CLOSED list of 9 — a new type requires a standard amendment, never a free-text
-value. The closed list is validated here (friendly error) and again by the DB
+CLOSED list — a new type requires a standard amendment, never a free-text
+value. Its length is never written down next to it: every user-facing count is
+formatted from ``len(SPEC_TYPES)``, so the next amendment cannot leave the
+prose disagreeing with the list (see tests/test_spec_types_closed_list.py). The closed list is validated here (friendly error) and again by the DB
 CHECK constraint (hard guarantee). Mixed into ProjectService.
 """
 
@@ -17,7 +19,13 @@ from tausik_utils import ServiceError, validate_content, validate_length, valida
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
-# RENAR SPEC types — CLOSED list of 9 (mirrors the DB CHECK on specs.type).
+# RENAR SPEC types — the standard's CLOSED list (§8.3, mirrors the DB CHECK on
+# specs.type). TEST and DOC were added by ADR-013: binding a TC to a test bench
+# through SPEC-OPS would have invalidated every TC on that SPEC-OPS whenever an
+# unrelated deploy procedure changed (§10.5.4 invalidates `verified` on ANY
+# version increment), so the bench earns its own type and invalidation stays
+# precise. THE ONLY list in the codebase — a second literal anywhere else is a
+# future divergence, not a mirror.
 SPEC_TYPES: tuple[str, ...] = (
     "ARCH",
     "API",
@@ -28,6 +36,8 @@ SPEC_TYPES: tuple[str, ...] = (
     "AI",
     "SEC",
     "OPS",
+    "TEST",
+    "DOC",
 )
 # task↔SPEC link relations — CLOSED list (mirrors task_specs.relation CHECK).
 SPEC_RELATIONS: tuple[str, ...] = ("implements", "constrained_by")
@@ -48,7 +58,7 @@ class SpecsMixin:
         content_ref: str | None = None,
         status: str = "draft",
     ) -> str:
-        """Create a SPEC. ``type_`` must be one of the 9 closed RENAR types.
+        """Create a SPEC. ``type_`` must be one of the closed RENAR types above.
 
         Validated against the closed list here (friendly error) and again by the
         DB CHECK constraint (hard guarantee).

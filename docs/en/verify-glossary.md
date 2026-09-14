@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/verify-glossary)
+**English** | [Русский](../ru/verify-glossary.md)
 
 # Verify / QG terminology — glossary
 
@@ -52,3 +52,56 @@ When changing verify / QG / cache text:
 - [CLI — Verification](cli.md#verification)
 - [MCP — Verify-First Contract](mcp.md#verify-first-contract-v14)
 - [Hooks — Disable / bypass](hooks.md#disable--bypass)
+
+### What the framework wrote itself is not the agent's scope
+
+`verify` compares the declared scope against what git reports, and before 1.9 it
+counted against the agent the files the framework rewrites ITSELF during a
+close: `CLAUDE.md` and `AGENTS.md` (via `update-claudemd`), `ROADMAP.md` (via
+`doc roadmap`), `docs/_generated/*`. They cannot be declared in advance, because
+at declaration time they have not changed yet.
+
+Measured in session #235: of 135 under-declared runs in the last 300, **26 (19%)
+consisted of nothing but framework output**, and another 39 (29%) were mixed.
+
+They are now subtracted, on the same principle that already subtracts a task's
+own export (convention #409, decision #283): a check whose subject is "what did
+the AGENT change" does not count what it wrote itself.
+
+**The decision is taken by the DIFF, never by the name.** `CLAUDE.md` and
+`AGENTS.md` are only PARTLY generated: the framework owns the region between the
+`DYNAMIC` markers and a human or an agent owns the rest. Subtracting by name
+would hide real work, so the subtraction fires only when the change lies
+entirely inside the generated region. An unreadable diff, missing markers or no
+git at all leave the file IN the agent's scope: being unable to check is not
+permission.
+
+`CHANGELOG.md` is written by the agent and is NOT subtracted — its absence from
+a declaration is a real under-declaration, and that is what the check exists to
+show.
+
+### A deleted file can be declared in the scope
+
+A task that DELETES a file must name it in `--relevant-files`: the deletion is
+part of the change. Before 1.9 that was impossible. The list went to the gate's
+command verbatim, `ruff` was handed a path that no longer existed and answered
+`E902 no such file`, and the whole run came back `exit=1` with no handle. The
+only way past it was to leave the deletion out — to under-declare on purpose. A
+mechanism that pushes toward under-declaration has no standing to measure it.
+
+A path that is not on disk is no longer substituted into a gate's command. Three
+boundaries:
+
+- the filter sits where the command's ARGUMENTS are built, not where
+  applicability is decided: `file_extensions` and `file_patterns` judge by NAME
+  and must keep working for a file that is already gone;
+- it applies only to a command that interpolates `{files}`. A gate that never
+  receives the list cannot be broken by a deleted file, and substituting its
+  verdict would be a lie — a missing tool must stay `COULD_NOT_RUN`;
+- if NOTHING survives the filter, the gate returns `NOT_APPLICABLE` with the
+  code `all_files_deleted` rather than "passed". A file gate with nothing to
+  read has checked nothing. Without that branch an empty list becomes `.`, and
+  `ruff check .` would lint the entire repository.
+
+The declaration and the signed receipt keep the FULL list, deletions included:
+the receipt describes the CHANGE, and the change included removing a file.

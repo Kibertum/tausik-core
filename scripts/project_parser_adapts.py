@@ -9,21 +9,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from service_adapts import ADAPT_STATUSES
+from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES, SIGNATURE_ROLES
 
-FINDING_CATEGORY_CHOICES = [
-    "contradiction",
-    "gap",
-    "hidden-assumption",
-    "feasibility",
-    "regulatory",
-    "terminology",
-    "scope",
-]
-SIGNATURE_ROLE_CHOICES = ["client", "architect"]
+# All derived from the service-layer source of truth — no independent literal
+# here. The categories were the one that still WAS a literal: the same file
+# already derived the statuses and said so, and the §7.4.4 list was simply left
+# behind. A `choices=` list is a mirror like any other, and the standard moves
+# under mirrors (ADR-013 did exactly that to the SPEC types).
+FINDING_CATEGORY_CHOICES = list(FINDING_CATEGORIES)
+SIGNATURE_ROLE_CHOICES = list(SIGNATURE_ROLES)
 LINK_TARGET_CHOICES = ["task", "spec"]
-# Derived from the service-layer source of truth (no independent literal here).
-# Drift is impossible: tests/test_enum_single_source.py pins this to ADAPT_STATUSES.
 ADAPT_STATUS_CHOICES = list(ADAPT_STATUSES)
 
 
@@ -43,6 +38,12 @@ def build_adapt_subparsers(sub: Any) -> None:
     ac.add_argument("slug")
     ac.add_argument("title")
     ac.add_argument("--tz-ref", dest="tz_ref", required=True, help="Source TZ id (§7.4.3)")
+    ac.add_argument(
+        "--trigger-stage",
+        dest="trigger_stage",
+        default=None,
+        help="Stage that triggered this ADAPT (ADR-007; tells several ADAPTs of one ТЗ apart)",
+    )
 
     ai = a_sub.add_parser("interpret", help="Add a forward-interpretation entry (§7.4.3)")
     ai.add_argument("adapt_slug")
@@ -61,14 +62,19 @@ def build_adapt_subparsers(sub: Any) -> None:
     )
     ai.add_argument("--scenarios", default=None, help="Built-in/implied scenarios")
 
-    af = a_sub.add_parser("finding", help="Add a backward finding (closed-7 §7)")
+    af = a_sub.add_parser(
+        "finding",
+        help=f"Add a backward finding (closed list of {len(FINDING_CATEGORY_CHOICES)}, §7)",
+    )
     af.add_argument("adapt_slug")
     af.add_argument("category", choices=FINDING_CATEGORY_CHOICES)
     af.add_argument("description")
     af.add_argument("--tz-ref", dest="tz_ref", default=None)
     af.add_argument("--resolution", default=None)
 
-    asg = a_sub.add_parser("sign", help="Record a dual signature (§7.5); architect → ed25519")
+    asg = a_sub.add_parser(
+        "sign", help="Record the architect signature (§7.5) — ed25519 over the body"
+    )
     asg.add_argument("adapt_slug")
     asg.add_argument("role", choices=SIGNATURE_ROLE_CHOICES)
     asg.add_argument("--by", dest="signed_by", required=True, help="Signer identity")
@@ -87,6 +93,12 @@ def build_adapt_subparsers(sub: Any) -> None:
     ad.add_argument("new_slug")
     ad.add_argument("title")
     ad.add_argument("--tz-ref", dest="tz_ref", required=True, help="delta-TZ id")
+    ad.add_argument(
+        "--supersession-rationale",
+        dest="supersession_rationale",
+        required=True,
+        help="Why the parent is superseded (ADR-007 p.108, mandatory)",
+    )
 
     alk = a_sub.add_parser("link", help="Link an ADAPT to a task/spec")
     alk.add_argument("adapt_slug")

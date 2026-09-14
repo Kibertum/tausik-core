@@ -9,6 +9,6761 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.9.0] — 2026-09-14
+
+### Fixed — two slow-lane tests were red only in CI, and said so about the wrong thing
+
+The published full lane (`pytest -m ''`, GitLab #7719) failed two tests that
+every developer machine passes. `tests/test_consumer_first_close.py` asserted
+"Memory tail" in a fresh consumer project's CLAUDE.md — the heading appears
+only when the tail has content, and on the author's machine the content was
+the shared knowledge store, which CI does not have; it now asserts the lines
+the block renders in an empty project. `tests/test_mcp_integration.py` closed
+the server's stdin and then called `communicate()`, which on Linux flushes
+stdin first and raises on the closed file (Windows never flushed); one
+`communicate(input=…)` now carries the message. Neither was a product defect;
+both were tests describing the machine they were written on. Task
+`two-slow-lane-tests-are-red-only-in-ci`.
+
+### Changed — verification is proportionate to the change, and the rules say so
+
+Owner, session #263: "we are turning development into a hell of tests — in
+TAUSIK and in every project it is applied to." Measured in that session: the
+full 10,480-test lane run locally four times as a search tool for bookkeeping
+reds, none finding a product defect; six close-time notes asking a docs task
+for test refs, a `Negative:` line and a `Domain:` line; a number on two pages
+retyped three times because a test re-asserted an exact count. Three things
+change. The shipped rules (`HARD_CONSTRAINTS`, every project's CLAUDE.md /
+AGENTS.md / QWEN.md) now state the rule next to the gates bullet: scoped
+`verify` for what you touched, the full suite in CI and at the release gate,
+a test asserts behaviour — never a number in a document, never a generated
+file's freshness — and QG-0 asks for a negative scenario only from work that
+changes behaviour. The close-time checklist (`gate_ac_check`) prints none of
+its four test-shaped notes for a task whose every relevant file is prose
+(`.md`/`.txt`/`.rst` or under `docs/`); a task with code in scope keeps them
+all. Decision #371 and convention #711 record the rule with the measurements.
+`tests/test_verification_is_proportionate.py`. Task
+`verification-is-proportionate-to-the-change`.
+
+### Fixed — a generated file is rewritten by the act that moves its source, not left for a test to catch
+
+Closing a task moved the counters `ROADMAP.md` prints, the committed map went
+stale, and the next `verify` was red on `tests/test_release_roadmap.py` until
+a human typed `tausik doc roadmap` — four times in session #241, three in
+#263. The projection trigger (`state_triggers.auto_export_entity`) now
+reissues the map whenever an epic, story or task projection changes: only a
+file carrying the generator's own marker is touched (a hand-written
+`ROADMAP.md` is left alone), unchanged content is not rewritten (one render,
+4-7 ms on 1654 tasks), and a rewrite of the versioned file is announced on
+stderr — never stdout, which is the MCP protocol channel. The same class on
+the notes pages: they stated the exact number of CHANGELOG entries and a test
+re-asserted it, so every entry turned the test red until the number was
+retyped on two pages; the pages now state a LOWER BOUND and the test holds
+that the section clears it. `tests/test_roadmap_follows_the_close.py`.
+Task `closing-a-task-reddens-the-next-verify-silently`.
+
+### Fixed — `tausik status` spent 5 s in one unindexed `EXISTS`, and the SessionStart hook timed out on it (v62)
+
+Measured on this project's database (1,654 tasks, 1,504 done): `status` took
+5.3 s, 5.04 s of it in `backend_defect_escape._done_rows` — its
+`EXISTS(SELECT 1 FROM tasks d WHERE d.defect_of = t.slug)` had no index on
+`tasks.defect_of` and scanned the wide `tasks` table per done row, while the
+sibling `EXISTS` over `verification_runs` took 0.0 s on `idx_verify_task`.
+The SessionStart and Stop hooks call `status`: 5.9 s against timeouts of 6 s
+and 5 s, and in a headless probe SessionStart was cancelled — the whole
+auto-injected context never reached the model, silently. Migration v62
+creates `idx_tasks_defect_of`; the same index joins the current set
+(`POST_MIGRATION_INDEXES_SQL`) for fresh installs — a migration is needed
+because `init_schema` runs no DDL on a database already at the current
+version. After: the query 5 ms, `status` 0.3 s, `session_start.py` 0.9 s,
+`session_cleanup_check.py` 0.7 s. `tests/test_migration_v62_defect_of_index.py`
+holds the query PLAN (the statement `_done_rows` issues uses the index on a
+fresh and on a migrated database) and goes red when the index is dropped.
+Task `status-takes-five-seconds-on-a-missing-defect-of-index`.
+
+### Changed — the saving promise is measured once, and the pages say so
+
+Release condition 1 held "no figure exists" until session #263 produced one:
+the paired replay of `docs/ru/research/rag-nudge-replay-protocol.md` (§7 —
+ten fixed read-only questions, one commit, one model, the harness with its
+rag-first nudges against the same harness without them) cost MORE with the
+nudges (Σ cache_creation + Σ output 198,848 vs 195,055, +1.9%; exploration
+result bytes 326,323 vs 292,715, +11.5%) and `search_code`, the tool the
+nudges recommend, was never called on either side. `README.md`,
+`README.ru.md` and the 1.9 notes now state that reading, its source and its
+limit — one pair, one corpus, no generalisation; a repeat of one condition
+varied by 13% — instead of "the figure does not exist yet". The telemetry
+sentence (233 of 57,251 rows carry input tokens; no "without TAUSIK"
+baseline) stays, scoped to telemetry. `tests/test_release_notes_1_9.py`
+reads the §7 table and refuses a page whose figures differ or whose
+"no saving" is not scoped to this pair. Six injection sites carry the
+nudge texts (the protocol named four); the meter `session_metrics.py`
+over-counts multi-block messages ~1.8×; `tausik status` spends 5 s in one
+unindexed `EXISTS` and the SessionStart hook times out on it — the three
+are filed for 1.10, not fixed here. `.agents/` (a host skills directory
+that appeared untracked) is ignored like the other host directories. Task
+`the-19-pages-still-say-no-saving-figure-exists`.
+
+### Added — the TAUSIK mark on the front pages
+
+Two renderings of the mark (a woman with a hairpin in a rounded frame) live
+under `docs/assets/`: the full-colour `tausik-logo.png` at the top of
+`README.md` / `README.ru.md` — the reader's first meeting with the project —
+and the monoline `tausik-mark.png` at the top of the docs index, where a
+single stroke stays crisp and does not compete with the page.
+`docs/assets/README.md` records which goes where and why;
+`tests/test_readme_logo.py` resolves every `<img>` on the three pages to a
+file. Task `the-tausik-logo-goes-into-the-readme-full-colour-o`.
+
+### Fixed — guards see every tool their action is reachable with (GitHub PR #5, Okianiwa — ported)
+
+PR #5 measured, on Claude Code 2.1.215, that four hooks kept four private
+copies of "which tools write", and that two live write paths — NotebookEdit
+and the MCP file editors of serena and windows-mcp — reached no guard at
+all; the PR itself had grown into a 65-commit fork with an unrelated
+subsystem, so the finding is ported and the fork is not merged. One list now
+(`scripts/hooks/write_tools.py`: the built-in editors, the PR's MCP editors,
+the windows-mcp shell, and the payload fields `file_path` / `notebook_path` /
+`path` / `relative_path` / `destination`), read by task_gate,
+scope_write_gate, secret_scan, memory_pretool_block, memory_posttool_audit
+and auto_format; the bootstrap matchers restate it and are pinned to it, with
+the MCP names on their own entries so the built-in lines stay on Claude's
+exact-match branch. A FileSystem move is judged by BOTH its paths — the
+first cut judged the destination alone, and a move of a project file to a
+foreign directory passed with no task (review). Anchoring `^(?:…)$` is NOT
+ported: Qwen Code and Codex read the same dict with unmeasured matcher
+semantics, and the fact is pinned by a test instead. The cross-model parity
+table now unions a hook's entries, so a second line cannot hide a host
+difference. `tests/test_pr5_hook_coverage.py`: the refusals through
+previously unseen tools, the interception ledger that only grows, and the
+Qwen wildcard that gets no second line. Task `port-external-pr5-hook-coverage`.
+
+### Fixed — the tracked AGENTS.md sibling no longer receives other projects' knowledge, and can opt out of the DYNAMIC block (GitLab #14)
+
+`tausik update-claudemd` wrote the whole DYNAMIC block — session number,
+counters, memory tail, "Shared knowledge — from other projects" — into the
+AGENTS.md beside CLAUDE.md. In a project that keeps CLAUDE.md out of git for
+the sake of auto-refresh, AGENTS.md stays tracked: `M AGENTS.md` after one
+/start, a verify warning nothing could honestly clear, and other projects'
+knowledge in this repository's history. Now the sibling receives the block
+TRIMMED — the shared section removed, a tail left with nothing under it
+dropped — and `claudemd.sibling_dynamic: false` in `.tausik/config.json`
+leaves AGENTS.md untouched altogether; the key is read from the `.tausik/`
+beside the file being written, and only the JSON boolean `false` turns it
+off. Both callers (CLI and MCP) and the `claudemd_state` commit gate go
+through one plan (`claudemd_writer.plan_dynamic_writes`), so a sibling the
+policy does not write is not judged, a sibling whose only knowledge would be
+foreign owes no tail, and a sibling that lost its OWN tail is still drift.
+`tests/test_sibling_dynamic_block.py` covers both knob values on both paths,
+the foreign section never in the sibling, the gate's agreement, and two
+mutations. `docs/{en,ru}/configuration.md`. Task
+`update-claudemd-writes-session-state-into-a-tracked-agents-md`.
+
+### Fixed — the version stamp in a product's CLAUDE.md names its owner (GitLab #5)
+
+`tausik update-claudemd` writes `Session … | Branch … | Version: 1.8.0` into
+the PRODUCT's CLAUDE.md and AGENTS.md, one line above the product's own tasks
+and next to its branch — and on a consumer at 0.1.0 the owner read 1.8.0 as
+the product's version, because nothing said whose number it was. The label now
+names the owner: `TAUSIK: 1.9.0` (`claudemd_state.STAMP_LABEL`). The ticket's
+second half — two copies of the format, CLI and MCP — was already one producer
+(`claudemd_state.build_dynamic_state`); `tests/test_claudemd_state_stamp.py`
+pins both: the stamp carries no bare `Version:` label, and neither caller
+spells the stamp itself. `docs/{en,ru}/skill-patterns.md` show the new line.
+Task `framework-version-stamp-reads-as-the-products-version`.
+
+### Fixed — the memory routing table bootstrap lays into every project names all three destinations (GitLab #6)
+
+The `## Memory` block of the generated CLAUDE.md / AGENTS.md / .cursorrules /
+QWEN.md said "two systems" and named two — project memory and the host's
+auto-memory — while 1.8's headline feature, the shared knowledge store
+(`memory add --global`), was absent from the one table an agent routes by, so
+a fact true beyond the project went into project memory and stayed there. The
+table now names three destinations with a criterion each ("here it is done
+this way" / "the tool is built this way" / "this is how I like to work"), the
+routing litmus routes to both stores, the heading states no count, and the
+minimal tier says the same. `tests/test_memory_template_names_three_stores.py`
+derives the row count from the code (the `--global` flag, the sinks list) and
+checks every generated body in both tiers. This repository's own CLAUDE.md
+table gained the same row. Task `claudemd-template-names-two-memory-stores-of-three`.
+
+### Fixed — the closure auditor called 908 committed tests never-existed
+
+Since GitLab #16 (46161e24) the citation extractor reads a pytest node id
+whole — `tests/x.py::TestA::test_b[en]` — and `audit_closure_evidence` still
+split it once and looked `TestA::test_b` up as ONE name of the module, then
+asked git for that string: nothing matched, and `tausik coherence` reported
+908 closure citations as naming tests git never had, against a declared
+remainder of 39 (872 were `Class::method`, 10 were parametrised ids); `task
+done` printed the same accusation on committed tests. The auditor now follows
+the chain link by link — `test_b` in the body of `TestA`, nested classes
+included, the `[param]` cut first — asks git about every missing link and
+gives the worst answer as the verdict, so a renamed class does not excuse an
+invented method under it; a bare `file::test_x` keeps the flat lookup it
+always had. The remainder in `tausik/gates.json` is re-measured at 99 rotted
+/ 36 never-existed and reconciled per citation against the 09-12 pair, which
+re-run today reproduces 87 / 39 exactly: the difference is the leaf the old
+extractor never read, and one journal (this task's) that quoted a wrong chain
+verbatim. `tests/test_audit_closure_evidence.py` reproduces the old lookup on
+the auditor itself. Task `the-closure-auditor-reads-class-method-and-param-c`.
+
+### Fixed — the printed release acts could not be executed in the order written
+
+`tausik publish snapshot` told the owner, after building the snapshot
+`--from v1.9.0`, to run `git tag -a v1.9.0 <snapshot>` — and git refuses that
+with "already exists", because the name already stands on the release commit
+of the development line, which is exactly what the snapshot was built from.
+The 1.8.0 precedent shows the model that works and nothing stated it: one
+NAME, two objects (`v1.8.0` = 3866702f on the history, 623fb4ee on GitHub).
+The banner now prints `git push github <sha>:refs/tags/<tag>` — a refspec
+push, the tag name read from `--from` (the name itself, or the single tag
+pointing at the resolved commit; a placeholder when two do) — and says that
+GitHub's tag is lightweight. `tests/test_publish_cli.py` reproduces the git
+refusal, then runs the printed acts verbatim against a bare remote: `main` and
+the tag land on the snapshot, the local name stays on the history.
+`docs/{en,ru}/publishing.md` step 3 and "the publication step added in 1.9"
+restated the same way, including that `published_tags.json` is updated on the
+development line as the commit after the push, so the snapshot's copy is one
+release behind by construction. Task
+`the-printed-release-acts-collide-with-the-dev-line`.
+
+### Added — a quickstart written for the agent, held to the code
+
+`docs/{en,ru}/agent-quickstart.md`: the human quickstart began with "install
+Python, open VS Code" and its host list stopped at Windsurf, while
+`SCAFFOLD_IDES` carried six hosts; AGENTS.md oriented a newcomer but was not a
+procedure. The new page is the procedure, for an agent reading it first: the
+connect command per host (all six, Codex with its trust condition), the check,
+then one task's whole cycle as exact calls — MCP tool and CLI twin side by
+side — with the replies and the refusals the agent will actually see (QG-0
+without criteria, QG-0 without a negative case, QG-2 without `--ac-verified`,
+QG-2 without evidence, Rule 1 from the hook, the keyless verify line), each
+quoted from a live run in a fresh consumer project. `tests/test_agent_quickstart.py`
+holds every hard fact: the host list equals `SCAFFOLD_IDES`, every `tausik_*`
+named is in TOOLS, every CLI command parses, every quoted refusal is what the
+code prints. README, AGENTS.md, the docs index, the human quickstart (which
+now names all six hosts) and the 1.9 notes point at it.
+
+### Added — the public snapshot is a filtered tree built and verified by code (decision #368)
+
+Publication used to carry EVERYTHING git tracks — `tausik/` included, the
+project's own accounting: measured on the day the owner ruled, `github/main`
+held 2438 files of `tausik/` out of 3576, 70 % of what a consumer cloned, and
+the two leak classes the publication guard declares as a remainder lived in
+that accounting. GitLab keeps the whole history; GitHub receives only the tag
+of the final version, as a snapshot of the tree MINUS one declared exclusion
+list — `publication_snapshot.EXCLUDED_FROM_PUBLIC_SNAPSHOT`: the state
+projection (`tausik/{tasks,stories,epics,decisions,memory,graph-snapshots}`),
+`TODO.md`, `TAUSIK-plan-1.9.md`, `.gitlab-ci.yml`; the ratchet files
+`tausik/*.json` travel, gates and tests read them. `tausik publish snapshot
+--from <ref> --parent <public-head> [--dry-run]` builds the filtered tree
+through a temporary index (the working tree, the index and every ref
+untouched), commits it on top of the public head, and refuses when a leak
+class on the snapshot is not zero, when the parent is not a commit, or when
+the public head would stop being an ancestor; `tausik publish verify
+--snapshot <sha> --from <ref>` is the machine's word for "GitLab is identical
+to GitHub" — a tree comparison that names the paths when it fails. On the 1.9
+tree: 1308 files go out, 3090 stay; the whole-tree remainder pins moved down to
+what remains (internal host 5 → 4 files, dev-machine path 39 → 22) after 43
+sample paths in tests and docstrings and one fixture host were neutralised,
+and both classes are zero on the snapshot. Push and tag stay the owner's acts,
+by hand, after reading what the command printed; `publishing.md` describes the
+procedure in both languages.
+
+### Fixed — every documentation link resolves on GitHub, not only on the site
+
+The language switcher on 65 pages of `docs/en` and `docs/ru` was written as a
+site route — `/ru/docs/quickstart`, `/docs/hooks` — for the VitePress site
+that has since moved to its own repository. On GitHub and in a checkout that
+was a dead link at the top of every page, and nothing said so: the full-tree
+link check was deferred in April and never arrived. Measured in session #251
+over 224 tracked Markdown files: 592 relative links, 116 unresolvable (73 of
+them switchers). The switchers are relative now (`../ru/<page>.md`), the 22
+paired pages that had no switcher got one, five research notes lost their
+last site routes, and `tests/test_docs_links_resolve.py` holds it: every
+relative link on the root pages and under `docs/` resolves, no site route
+remains, every page has its pair in the other language or is a declared
+singleton with its reason, and each pair's switcher points at the pair.
+CHANGELOG history and the research sinks are named as outside the check, on
+purpose.
+
+### Fixed — a test citation is read in the ecosystem's own form, not only `.py` (GitLab #16)
+
+`TEST_REF_RE` required `.py` in both of its branches, so a Rust project citing
+`src-tauri/src/commands/project_extras_tests.rs::name` — a file that existed,
+a test that was green — was refused on a `substantial` tier with "a path that
+does not resolve": untrue twice, since the path resolved and the FORM was what
+went unread, and it nudged agents toward Python-looking paths in a non-Python
+tree. The detector now reads one declared list of forms — a path under
+`tests/`, `test/`, `__tests__/` or `spec/`, or a file named as a test
+(`test_x.py`, `x_test.go`, `x_tests.rs`, `x.test.ts`, `x.spec.js`, `x_spec.rb`,
+`XTest.java`) anywhere in the project; the resolver accepts such a file beside
+the code even when the project has no `tests/` root, judged on the NORMALISED
+path so `tests/../src/x.py` stays a source file; a `::name` is checked in the
+language's idiom (`fn`, `func`, `def`, `it("…")`), the same floor Python's
+`def` sets. The refusal says which of two things went wrong — `CITED BUT FORM
+NOT RECOGNISED` or `CITED BUT NOT RESOLVED` — and the "requires test-ref
+evidence" note is no longer printed on a close accepted by a green
+`verification_run`.
+
+### Fixed — `verify` no longer prints a handle that `task done` is bound to refuse (GitLab #15)
+
+In a project without `tausik key init`, `verify --task` printed "Receipt: not
+emitted — no project key" and, two lines later, a verify handle with a
+ready-to-copy `task done … --verify-handle …` command; presenting it earned
+"verify run #N carries no receipt, so there is nothing to validate". The
+handle was minted on ENTITLEMENT — declared files, a gate that ran, exit 0 —
+with no regard to whether the receipt it stands for was ever signed. It is now
+minted only on a signed receipt; when the run was entitled and the receipt is
+missing, the report carries the reason (`no-key` / `error`) and the one shared
+renderer — CLI and `tausik_verify` alike — prints `Verify handle: none — no
+project key …` with the close command that works. A signing failure with a key
+present earns no handle either: the condition is "receipt signed", not "key
+exists".
+
+### Fixed — the slow lane was red at the tip and nobody had run it since the 7th
+
+`pytest -m ''` — the lane GitLab's `tests-full` job runs and the only one
+that reaches the slow-marked bootstrap and subprocess tests — carried 22
+failures at the tip of the branch, and the job had not executed since
+2026-09-07 because the fast job ahead of it was red. Fifteen were
+`test_caveman_wiring_integration.py` calling `bootstrap_ide(...,
+brain_enabled=False)`, a parameter that left with the Notion transport; the
+same file's rules-file map did not know Codex. Three were the skills-coverage
+suite waiting for a `brain` skill that no longer ships, or for the gitignored
+official registry. One asserted `_now_iso` is defined in two modules — it is
+defined in one now — and two calibrated against THIS repository's live
+database, which a bootstrapped clone has as an empty file. The tests now
+match the tree: no brain, Codex reads `AGENTS.md`, the registry-dependent
+check skips with the reason when the registry is absent, the premise
+parameter names a helper the tree still repeats, and the two live-database
+calibrations skip with the reason on a database that holds no record.
+Verified by the CI procedure on this machine (`--depth 50` clone,
+`bootstrap --no-detect --ide all`, `pytest -m ''`).
+
+### Fixed — a comma-joined `--relevant-files` value is refused instead of stored as one path (GitLab #13)
+
+`task update <slug> --relevant-files "a.py,b.py,c.py"` handed argparse one
+argument, stored it as one path and said "Task updated."; the refusal came
+later from `verify` as "No tests mapped for ['a.py,b.py,c.py']" — a project
+without tests, apparently, not a corrupted declaration — while the QG-2 scope
+was empty and every scoped gate ran over nothing. One validator
+(`relevant_files_input`) now stands on every path that writes the list: the
+service `task_update` (CLI update, `verify --relevant-files`) and the
+`task done` declaration (CLI and MCP, which write through the backend). An
+element that carries a comma and resolves to no file is refused before the
+write, naming the space-separated form; it is NOT split silently, because a
+comma is legal in a file name and an existing path that carries one is
+accepted as typed. A declared path that does not exist yet is a note, not a
+refusal. The `task update` help no longer says "JSON-list" for the input.
+
+### Fixed — three tests read the runner's environment instead of their own subject
+
+The development lane on GitLab had been red since 2026-09-07 for reasons that
+were not the code: `test_the_live_tree_counts_what_it_ships` turned the
+official-skill counter's `None` ("the registry is not checked out here" — the
+state of every clean clone) into `0 >= 20`; the RENAR manifest-chain test
+promised a skip on a shallow checkout and delivered it only when `git log` was
+empty, so `GIT_DEPTH=50` read a truncated history as a broken chain the moment
+fifty commits separated two manifest edits; and the "real redirection is still
+blocked" cases of `test_prose_arguments_are_not_redirections.py` ran the live
+`bash_write_gate` against THIS repository, whose verdict depends on the
+machine — a CI clone after `bootstrap --no-detect` has no database, so the
+hook allowed everything and twelve cases went red, while an active task
+without `scope_paths` would have flipped them the same way on a developer
+machine. Each now measures its own subject: the registry floor skips with the
+reason when the registry is absent and holds when present; the chain test
+skips with the reason only on a shallow clone whose horizon hides the
+predecessor and still fails on a dangling `replaces` in a full clone; the hook
+runs against a project the test builds itself. Verified by the CI procedure
+on this machine: a `--depth 50` clone, `bootstrap --no-detect --ide all`, the
+full lane.
+
+### Fixed — the front page, the agent onboarding and the release notes name Codex as a host
+
+Both READMEs filed Codex under "Windsurf / Codex-style … Expected / manual",
+said the real-time hooks run "in Claude Code and Qwen Code", and spelled the
+flag as `--ide claude|cursor|qwen|kilo` while `SCAFFOLD_IDES` had carried
+`opencode` and `codex` for weeks; AGENTS.md told a Codex agent to "prefer MCP
+if exposed; else mirror CLI"; the 1.9 notes did not contain the word Codex at
+all — with `codex-first-class-19` a release story (#360) and the live
+acceptance closed. Each now carries a Codex row or section with the boundary
+the live run measured: MCP, skills and agents proven on a real host; the native
+refusal proven only under a trusted hook profile, an untrusted profile
+enforcing nothing. OpenCode gets its own row (one QG-0 plugin) instead of
+hiding under "other MCP hosts". The `--ide` list on the front page is now read
+against `SCAFFOLD_IDES` by `tests/test_readme_names_every_scaffolded_host.py`,
+and `tests/test_release_notes_1_9.py` requires the Codex section to sit next
+to its boundary in both languages. The RU README also said "153 tools" where
+the EN said 146 — the two-server count from before the Notion removal.
+
+### Fixed — the Codex hard claim names its precondition: hooks enforce only once trusted
+
+The provider docs' Codex enforcement matrix said `Rule 1 — hard` and
+`Rule 2 — hard` with no condition, and the paragraph above it said the write ACL
+is "ENFORCED there, not merely instructed". The live acceptance run measured
+the missing half (session #251): Codex runs a project's `.codex/hooks.json` only
+after the user has trusted it, and with the generated profile present but
+untrusted the forbidden `Path('outside.txt').write_text(...)` completed — no
+hook fired, the file existed. The same operation under a trusted profile was
+refused before the write. The two states are byte-identical on disk, so no
+profile scan can tell them apart. Both host-interception rows, the paragraph
+and `enforcement-coverage` now say "hard once the user has trusted the project
+hooks in Codex; an untrusted profile enforces nothing", in both languages, and
+`tests/test_codex_support_matrix.py` fails when either row or the sentence
+loses the condition. Nothing about the generator changed; what changed is that
+the promise is no longer wider than the mechanism.
+
+### Fixed — the release map read an additive decision as the whole composition
+
+`ROADMAP.md` took the newest decision that MENTIONS two or more story slugs as
+the composition in force. Decision #363 answered three owner questions and
+happened to mention three slugs, so the map shrank 1.9 from thirteen stories
+to three — while quoting #360, which names ten of them, as the charter one
+section above. `tausik doc roadmap --check` stayed green: it compares the file
+to the generator, and the generator was faithfully wrong. A composition is now
+READ from a line written as one: the newest decision carrying `Состав: a, b, c`
+(`Composition:`) is the composition, `Устав: #N` (`Charter:`) names the charter,
+an unknown slug on the line is a refusal by name and an empty line is a refusal,
+not an empty release. Prose that mentions two slugs no longer restates the
+release once any decision has declared one; the inference stays only as the
+fallback for a journal that never wrote the line, and the map says which of the
+two readings it used. The "not in the release" section shows OPEN stories (the
+deferred cost) apart from DONE stories the composition does not name — a closed
+story's work is in the release tree, and calling it "not in this version" was
+false. Decision #367 restates the 1.9 composition with both lines; the reader
+lives in `scripts/release_roadmap_composition.py`.
+
+### Fixed — Codex PowerShell write gate reads inline Python mutations
+
+The shared shell gate now reads literal Python `-c` programs on the PowerShell
+channel as well as script files, so an out-of-ACL `Path(...).write_text(...)`
+operation is refused before it reaches the filesystem. The deployed profile was
+verified against a live Codex host with trusted hooks.
+
+### Fixed — release roadmap is regenerated from live task state
+
+The committed release roadmap is refreshed after task lifecycle changes, so its
+counters remain subject to the live-database ratchet.
+
+### Fixed — the version-ref drift check exempted the generated block only in CLAUDE.md
+
+`scan_version_refs` stripped the generated DYNAMIC block (memory tail, decision
+titles) for CLAUDE.md by file name, while AGENTS.md carries the same block as
+the sibling target; a decision titled "... corpus v1.1" read as a TAUSIK version
+claim there. The strip is keyed on the markers now, for every scan target; an
+authored stale version in the static body is still a finding (test).
+
+### Changed — RENAR re-assessed under corpus v1.1: eighth clause vacuous, manifest 1.1
+
+The standard's corpus moved to v1.1 and §13.4.3 makes a minor edition a
+re-assessment trigger (decision #364). `renar-version` is now `1.1`
+(manifest-version 22). The eighth mandatory clause §13.3.8 (`implements`-edge on
+subsystem BR) is published as `implements-edge-subsystem: true` with basis
+`vacuous`: the substrate holds no BR class and no `level` column, and the two
+`implements` occurrences here run from work to requirement, not BR → BR. The
+§10.11.1 control point is declared under normative-inapplicability with the same
+premise. The premise is a ratchet, not a sentence: `renar_br_premise.premise_broken`
+reads the canonical schema for a `level` admitting `subsystem`, a BR-named table
+or an `implements` column, and `tests/test_renar_br_premise.py` runs it in CI.
+`level` stays null (§1.5.4). The live-corpus drift test is green again.
+
+### Changed — what's new 1.9 counts its entries and names the context work
+
+The entry figure on `docs/{ru,en}/whats-new-1.9.md` is now the live count of
+Unreleased headings in the matching CHANGELOG and a test recounts it; a stale
+figure fails. A new section names what changes the upgrade experience since
+the page was written: project-scoped user-tier weakening, the Relevant memory
+block on task start, the compaction section in the regenerated rules file
+(preserve-if-exists), `knowledge export --redacted`, the response contract in
+caveman mode.
+
+### Added — the generated half of CLAUDE.md is measured: cost per part and two usage proxies
+
+`scripts/context_block_audit.py` splits the rules file at the generator's own
+markers (handwritten | Current State | memory tail | shared knowledge),
+prices each part against the measured median context (the generated half is
+0.41 % per request, not the paper's +20 %), and reads this machine's
+transcripts for two usage proxies with thresholds declared before the run:
+the state block is re-fetched in the first 8 calls in 43.6 % of 94 sessions
+(threshold < 75 %: stays); a memory id the agent cites that no earlier tool
+result or human message carried, and that the tail carried at some point in
+CLAUDE.md's history, appears in 37.2 % of sessions (threshold ≥ 25 %: stays).
+Session-style numbers are not credited to the tail; ids the tail never
+carried are not credited; task success — the paper's metric — is not
+measured and is named as such next to the figures. Both audit scripts pass
+the tree guards (no IDE-profile literal, stdin-guarded git calls).
+
+### Added — response-contract adherence is measured, and the lever is not built
+
+`scripts/response_contract_audit.py` reads user-facing answers (the last
+assistant text before the next human message; replies to harness
+notifications excluded) from Claude Code transcripts, Codex rollouts filtered
+by cwd, and generic `{"text"}` JSONL, and scores four bilingual markers —
+the contract's own pre-send deletions (intent opener, closing recap, side
+branch, empty hedge) — on prose after protected content (code, quoted
+output, paths, AC/decision lines) is stripped. The failure threshold was
+declared before the run: below 10 % of answers with a marker, no lever.
+Measured on session #249 over 451 answers: 7.1 % (Claude 317 / Codex 134),
+so no adherence lever ships; the instrument, its 25 cases and the figure do.
+The shape (done → verified by → left → your call) is NOT measured by this and
+adherence to it is not claimed. `--threshold` re-measures the same corpus
+later; an empty corpus is named, never reported as 0 %.
+
+### Changed — the output-economy directive is a response contract, not only a length
+
+`output_mode: caveman` now injects a shape (*done → verified by → left → your
+call*, empty parts omitted), five named exceptions (explanation requested;
+destructive action needs confirmation; three failed debugging turns; genuine
+ambiguity; the rule would delete the answer itself) and a pre-send check
+(delete intent announcements, closing recaps, side branches, empty hedges;
+first line = next action, last line = current state) — inside the one existing
+directive, no second mode. The byte-exact and full-prose keep-lists are
+unchanged. The ceiling `CAVEMAN_DIRECTIVE_MAX_CHARS` moves from 700 to the
+measured 888 (~222 tokens, 0.08% of the median context; the documented figure
+was 0.06%). The `/i-have-adhd` skill names the same shape, and
+`tests/test_response_contract_shape.py` fails when the directive and the skill
+disagree on the four parts, the five exceptions or the pre-send deletions.
+
+### Added — memory comes back by relevance, on top of recency
+
+`task start`, resume and `task show` now carry a `Relevant memory (N)` block:
+one FTS5 query built from the task's own declaration (title, slug, the stems
+and path segments of `relevant_files` / `scope_paths`, its story, linked
+decisions' tags) with OR semantics — a new `memory_search_any` beside the
+implicit-AND `memory_search` — ranked by bm25 and then by where a term matched
+(tag 3, title 2, body 1); up to eight live rows, superseded ones yielding to
+their replacement. An empty answer is named with the terms tried and a failing
+search degrades to a named line, never to a failed task start. Measured on
+session #189: the parity task that had to carry memory #425 by hand now gets
+it second. The recency tail in CLAUDE.md is unchanged; this sits on top of it.
+
+### Added — a compaction contract in CLAUDE.md and in the bootstrap template
+
+Compaction can be instructed, and an uninstructed one drops the context whose
+value shows up later — here a paid-for measurement or a retired rule. CLAUDE.md
+and the generated consumer CLAUDE.md (standard and full tiers; a one-paragraph
+pointer in minimal) now list, by name, what must survive a context compaction:
+the active task and its slug, the declared scope and verify receipt, this
+session's measurements with their numbers, retired or superseded rules, owner
+prohibitions, open forks. A test fails when any item leaves either place.
+
+### Fixed — the cross-cutting read after the Notion departure
+
+The six claims of the documentation map now sound the same on every page in
+both languages; `cli.md` documents `--global` on `decide` and `memory add`,
+architecture names the shared-store modules beside the boundary, and the
+backup example in `knowledge-store.md` uses the real `--to` / `--from`
+syntax that the parser has required all along. No page presents Notion as a
+step; the counters equal `constants.json`.
+
+### Changed — the documentation no longer describes the Notion transport
+
+The four brain pages are gone (shared-brain, brain-db-schema,
+brain-artifact-taxonomy, brain-search-ranking, ru+en), and the pages that
+named them — knowledge-store, memory-merge-guidelines, configuration,
+environment, skills, hooks, doctor, mcp, architecture, quickstart, security,
+skill-spec, troubleshooting, the docs index, both READMEs and a dozen
+one-line mentions — say the same six things everywhere: two stores and no
+third, no Notion, nothing to configure but `--global`, `knowledge export
+--redacted` as the only way out, counts from `constants.json`, and the
+scrubber as the boundary's detector set. The map that planned this sits in
+`docs/ru/research/notion-departure-doc-map.md`.
+
+### Changed — the documentation map for the Notion departure
+
+`docs/ru/research/notion-departure-doc-map.md` names every documentation file
+the transport's removal touches (45, counted by the command the map quotes),
+splits them into four non-overlapping zones with one owner per ru/en pair, lists
+the six cross-cutting claims that must read the same on every page, and the
+gates the rewrite has to pass. Planning artifact for kb-docs-swarm and
+kb-docs-consistency; no page is rewritten by it.
+
+### Added — one publication boundary for knowledge that leaves the machine
+
+The four places that used to decide "may this leave?" left with the Notion
+transport; the one path that remains is `tausik knowledge export`, which checked
+a destination's shape and nothing about the content. `publication_boundary` now
+owns both questions: `assert_local_destination` (moved from the exporter) and
+`redact`, built on the scrubber's four detectors but replacing each match with
+a typed placeholder instead of refusing. `knowledge export --redacted` passes
+every text field through it, records `redacted: true` and per-detector counts
+in the manifest, and takes project names from the project directory plus
+`publication.project_names` and URL patterns from
+`publication.private_url_patterns`. A plain export stays faithful. A tree-walk
+test fails on any module that reads the store and writes files without the
+boundary, and its allowlist must be exercised or the suite fails.
+
+### BREAKING — the Notion transport is gone
+
+Decision #358: the shared knowledge base stays local and file-based, and the
+transport that mirrored it to a Notion workspace leaves the framework whole.
+Removed: the `tausik brain` command tree (`init`, `status`, `sync`, `move`,
+`draft`, `publish`), the `tausik-brain` MCP server and its seven tools, the
+`/brain` skill, the `brain_search_proactive` and `brain_post_webfetch` hooks,
+the project registry, the token cascade and thirty-one `brain_*` modules with
+their tests (11 k lines). Every host profile stops registering the server, and
+a bootstrap over a 1.8 checkout REMOVES the stale `tausik-brain` entry it
+finds in `.mcp.json`, `.cursor/mcp.json`, `.qwen/settings.json`,
+`.kilocode/mcp.json` and the Codex `config.toml` block, which is now rewritten
+in place instead of skipped. `snippet extract` keeps only `--scope global`.
+
+What stays: `~/.tausik-knowledge` and every `--global` path; `tausik knowledge
+import-brain`, which still reads the local mirror file `~/.tausik-brain/brain.db`
+(path now resolved by `knowledge_mirror`); the universality hint (regex layer
+only — the FTS layer searched the mirror); `brain_scrubbing` as the scrubber
+the publication boundary will unify; snippet detection. The registry union
+that scrubbing used to fold in is gone with the registry — that blocklist is
+the boundary task's to rebuild. Counts: hooks 24 → 22, core skills 14 → 13,
+main MCP tools 153 → 146. Prose documentation that still describes the
+transport is rewritten by kb-docs-map/swarm/consistency.
+
+### Added — a trusted-tier weakening can be scoped to one project
+
+`~/.tausik/config.json` and the managed tier may carry a `projects` object
+keyed by absolute project directory; an entry applies only when that directory
+is the project being resolved (compared by realpath, case-folded on Windows).
+The 1.8 defect this closes: a workaround written for one consumer project sat
+at the top level of the user tier and silently governed every project on the
+machine. Top-level keys keep their machine-wide meaning, and `doctor` now
+labels them MACHINE-WIDE with the exact `projects["..."]` spelling to move a
+project-only workaround under; entries for other projects are counted, never
+applied. Malformed sections are ignored with a warning; a reader without a
+known project directory applies no entry.
+
+### Fixed — the ownership walk reads the window in one `git log`
+
+`verify` used to run `git diff-tree` for every commit since the task started
+and `git show` for every task export inside each, even when the receipt
+inspected a single path: a task window of 630 commits cost 168 s, tripped the
+pytest hang guard in any scoped batch that carried
+`tests/test_service_verification.py`, and turned 213 green tests into a FAIL.
+The walk now reads commits and their paths with one `git log --name-only`
+and skips every commit that touches nothing under inspection; a commit that
+does is read exactly as before. Measured: 168 s → 0.6 s.
+
+### Fixed — a moved task export no longer competes with the ACL that moved it
+
+Commit-local ownership now resolves each path on the strongest tier of proof
+that names anyone: a `relevant_files` or `scope_paths` declaration stored in the
+same commit, then a parent-tree predeclaration, then the framework's own
+projection of a task export or story. Flattening the tiers had marked 151 of
+200 paths in one backlog commit ambiguous between an export and the task whose
+ACL moved it, so two proofs that a path was foreign cancelled each other and
+scoped receipts stayed under-declared by hundreds of state files. A task never
+holds a work claim on its own export, whichever field spells it. Two same-commit
+work claims, two predeclarations, uncommitted and malformed paths stay
+fail-closed.
+
+### Fixed — verify recognizes uniquely predeclared committed task work
+
+Scoped verification can now attribute a later implementation-only commit to one
+already active, blocked, or done task when its immutable parent-tree export
+uniquely declared that exact path. Ambiguous, planning, malformed, and
+uncommitted cases remain fail-closed.
+
+### Fixed — scoped pytest preserves evidence across an empty late batch
+
+Bounded scoped pytest batches now retain earlier passing evidence when a later
+batch contains only deselected tests (`pytest` exit 5). A wholly empty run is
+still non-evidence, and a real failing batch remains blocking. The full-lane
+marker is applied to every batch.
+
+### Fixed — session token rollups no longer copy a whole transcript into one session
+
+Session-end accounting now binds the closed TAUSIK session ID explicitly and
+counts only transcript entries inside that session's timestamp window. Entries
+without attributable timestamps remain uncounted rather than being guessed into
+the nearest session, so `session_usage_metrics` can support an honest paired
+token-use comparison.
+
+### Added — action-first I-Have-ADHD output skill on every bootstrap host
+
+The shared harness now deploys the MIT-licensed, source-attributed adapted
+`/i-have-adhd` skill to every supported host. It shapes user-facing output
+without shortening TAUSIK journals, signed verify receipts, or QG-2 evidence.
+Its catalog description now fits the 60-character contract and names the
+skill, so the full lane's description tests are green again.
+
+### Fixed — the write gate now reads declared `pathlib` mutations
+
+The shared Python AST reader now catches the declared `Path` mutation family,
+`shutil.copy`/`move`, and `os.replace`, including a simple literal path binding.
+It also reads the body of `python - <<PY` only when Python actually receives it
+on stdin, closing the measured ACL bypass without treating heredoc prose as
+shell commands.
+
+### Added — Codex is a first-class bootstrap target, and its gates actually fire
+
+`bootstrap.py --ide codex` now scaffolds the host, and `--ide all` includes it.
+Membership in `SCAFFOLD_IDES` is a promise backed by a generator, on the terms
+`opencode` established the hard way.
+
+The measurement came from `codex.exe` itself rather than from documentation.
+Codex HAS a hook API — `hooks.json`, `.codex/hooks`, `PreToolUse`, `PostToolUse`,
+`SessionStart`, `SessionEnd`, `UserPromptSubmit`, and the same
+`hook_event_name` / `hookSpecificOutput` / `permissionDecision` protocol Claude
+Code uses. So Rule 1 and the write ACL are HARD under Codex, not advisory —
+once the user has trusted the project's hooks in Codex; an untrusted generated
+profile enforces nothing (measured live, session #251).
+
+**And the same measurement found a live failure.** A `.codex/hooks.json` already
+sat in this repository — not ours; bootstrap never wrote it — with twenty-four
+commands of the form
+`python -X utf8 ${CLAUDE_PROJECT_DIR}/.claude/scripts/hooks/<name>.py`. Codex has
+no such variable: `CLAUDE_PROJECT_DIR`, `CODEX_PROJECT_ROOT`, `workspaceFolder`
+and `CODEX_WORKSPACE` are all absent from its binary. Every one of those paths
+expanded to `/.claude/scripts/hooks/…` and resolved to nothing. Thirteen gates —
+Rule 1, the scope ACL, the shell firewall, the secret scanner — were silently
+dead under Codex while a file on disk listed them all.
+
+The generator therefore writes ABSOLUTE paths, the same decision OpenCode forced
+for the same reason. The cost is named: renaming the project directory requires
+another bootstrap. The cost of the alternative was just measured.
+
+The hook set is not copied — it comes from `build_hooks_dict`, the declaration
+Claude's profile already uses, and a test reds if one host gains a hook the other
+lacks. Hosts do not drift apart at once; they drift over releases, and the
+discovery happens on someone else's machine.
+
+MCP servers are registered in the PROJECT's `.codex/config.toml` — never in
+`~/.codex/config.toml`, which belongs to the user, not to a project's bootstrap.
+The block is APPENDED between markers rather than rewritten: Python 3.11 ships
+`tomllib` for reading only, and a parse-and-reemit would drop the comments and
+section order that "preserve-first" exists to protect. A config that does not
+parse is left untouched and reported — Codex would not read it either, and
+hiding someone's breakage under our block earns the complaint "TAUSIK broke my
+config". A server whose `server.py` is not on disk is not written at all: an
+entry that cannot launch is worse than a missing one, because it looks
+configured.
+
+The proof that it works is not "the file exists": a test starts the server with
+the exact command the config declares and requires an answer to `initialize`.
+
+### Added — Codex sub-agents derive from Claude's canonical instructions
+
+`bootstrap --ide codex` now converts every `harness/claude/subagents/*.md` into
+`.codex/agents/*.toml`. The generated TOML preserves each agent's name,
+description, and complete instructions, so there is no second prompt copy to
+drift. Re-running bootstrap deliberately replaces modified generated agents.
+
+### Added — Codex receives the active skill profile and host guidance
+
+`bootstrap --ide codex` delivers the same active `SKILL.md` set as Claude.
+The `/start` skill now adds a Codex-specific MCP-first delta when its profile is
+rebuilt; coverage proves the overlay is present, stale skills are removed on a
+repeat bootstrap, and user-created `.codex/agents` entries survive.
+
+### Added — Codex support promise is tied to generated enforcement
+
+The EN/RU provider docs now publish the closed five-rule Codex enforcement
+matrix. Its test builds a clean Codex hooks profile, requires a mechanism for
+every `hard` row, and proves that removing the profile makes the host-operation
+claims fail. The IDE guide now also consistently calls Codex scaffolded.
+
+### Fixed — `doctor` reported "codex: none" while 24 hooks sat deployed
+
+The enforcement-coverage scanner looked for `settings.json` only, and Codex keeps
+the same payload in `hooks.json`. So a report ABOUT ENFORCEMENT understated
+enforcement: the reader deciding whether that host is guarded was told the
+opposite of the truth. The file-name list already documented itself as naming an
+artifact SHAPE rather than a host — `hooks.json` joins it there, which is the
+extension point the comment promised.
+
+### Added — Claude and Codex coexist in one project, and it is pinned
+
+Both profiles live side by side: separate directories (`.claude`, `.codex`, both
+gitignored, both regenerated by bootstrap), one shared hook declaration, one
+database. The state lives in `.tausik/`, which belongs to neither host, so a task
+opened under one is visible under the other.
+
+That was already true and nothing asserted it — which is luck, not compatibility.
+A test now pins it, including the asymmetric half: a generator that writes too
+much damages the host deployed EARLIER and not the one deployed later, so both
+orders are checked rather than the convenient one.
+
+### Added — a task remembers which external ticket it came from
+
+`task add` and `task update` take `--ticket` (space-separated, `github#7` or a
+full URL), stored on the task and shown by `task show`. Closing a task with a
+ticket linked PRINTS a reminder to answer its author — and sends nothing
+anywhere. Nothing is closed automatically: the ticket may have described more
+than the task closed, and silently closing someone's finding is worse than
+leaving it open, because an open one is at least visible.
+
+A bare `#7` is refused at write time, and not out of strictness: this repository
+has two trackers whose numbers have collided. GitHub #7 and GitLab #7 are
+different tickets by different authors with different fixing commits.
+
+
+### Fixed — a post-migration rebuild erased every `tasks` column added after v43
+
+`maybe_rebuild_tasks_v43` runs from `run_post_migrations`, i.e. AFTER the whole
+version loop, and rebuilds `tasks` from a column list FROZEN at v43. On a
+database upgrading from below v43 the order was: v44..vNN add their columns, then
+the rebuild drops the table and recreates it without them. Measured on the v1
+chain — `run_migrations` returned 61 and `tasks.tracker_refs`, added by v61
+seconds earlier, was gone, while the fresh path had it.
+
+It waited eighteen versions for a witness: `tracker_refs` is the first column
+anyone has added to `tasks` since v43. `test_schema_upgrade_parity` is what
+caught it, which is the whole reason that test compares the two paths rather than
+trusting either.
+
+The frozen literal stays frozen — a rebuild that read the live schema would mean
+something different every year. Instead the rebuild now re-applies the
+`ALTER TABLE tasks ADD COLUMN` statements of every migration above v43, read from
+the live migration table rather than a second list that would need updating for
+v62. No data is lost by re-adding them empty: the rebuild only fires when
+`model_mismatch` is still nullable, which is only true of a database that has not
+yet passed v43 — so every column it drops was created empty minutes earlier by
+the same run.
+
+Its negative test paid for itself on the first run: fed a non-ASCII column name,
+the parser backtracked past the optional `COLUMN` keyword and captured the word
+"COLUMN" as the column name, which would have made the repair non-idempotent and
+failed the second time any database was opened.
+
+
+### Fixed — the abandoned sweep draft was not merely slow, it was wrong
+
+The first dead-symbol sweep was replaced for being slow. It finished in the
+background after the review had already reported, and claimed 27 dead symbols
+against the working sweep's 14. All thirteen extras were checked by name: every
+one is ALIVE.
+
+The cause is worth writing down, because a reader who trusted that draft would
+have deleted thirteen working functions. Private helpers legitimately share a
+name across modules — `_now_iso` in two, `_cmd_list` in two, `_LABEL` in five.
+The draft subtracted the count of ALL definitions from ONE file's occurrences,
+drove the tally negative, and never registered a hit.
+
+**Two traps in one session, and they point in opposite directions.** Not
+excluding `.tausik/` counts mentions inside the venv as references and shows the
+tree CLEANER than it is — that one cost three missed symbols. This one shows live
+code as dead, and would have cost working code. Both are now written in the
+sweep's own docstring, where the next person to write one will look, and the
+second is pinned by a test over four real names from this tree.
+
+### Removed — 25 dead symbols, including four MCP handlers that looked alive
+
+`audit_unused_python` answers "which MODULE does nothing import" and returns zero
+on this tree. Nobody had asked the narrower question — which FUNCTION, CLASS or
+CONSTANT is defined and mentioned nowhere else — and the answer was 14, cascading
+to 25.
+
+**The costly ones LOOKED alive.** Four functions in the brain MCP server carried
+the names of four MCP tools (`handle_brain_store_pattern` and its neighbours),
+while the dispatcher routed those tools through `_handle_store` and never called
+the named functions. Anyone opening that file would have edited code that does
+not run.
+
+**Two were a second source of truth, not merely dead.**
+`VALID_EPIC_STATUSES` and `VALID_STORY_STATUSES` restated closed lists the
+database already enforces with `CHECK` constraints. Two copies of one list drift
+in silence; the schema is the authority.
+
+**The cascade is why the check has to be repeatable.** Removing two dead entry
+points in `bootstrap` exposed eight functions that only they called, and those a
+constant. `bootstrap/generator.py` turned out to be dead WHOLE and is gone. One
+sweep does not finish the work — it starts it.
+
+The sweep is now a test. What it subtracts is declared out loud — `test_*`,
+`Test*`, `pytest_*`, `cmd_*`, dunders, `main`/`run` are called by convention
+rather than by name — because a check that silently forgives whole classes of
+names reports a cleaner tree than it measured.
+
+### Changed — historical closure-citation rot is a DECLARED REMAINDER, not a permanent HIGH
+
+The lens reported two `high` findings on every run: 31 closure citations naming a
+test that no longer exists, and 20 naming a test git never had. Both are history.
+Closure journals are append-only, and rewriting them would forge the very
+evidence this project exists to keep honest.
+
+A finding that repeats every run and cannot be acted on does not stay unread — it
+teaches the reader to skip its whole SEVERITY. So the historical set is now pinned
+in `tausik/gates.json` with the reason beside the number, and `high` is reserved
+for GROWTH. The set is closed: since this release `task done` checks a task's own
+citations while the author can still fix them.
+
+- **Exceeding the remainder is still `high`**, and the finding counts the excess
+  rather than the total.
+- **A project with no baseline is read strictly** — zero remainder, so every
+  finding is growth. That is the right default for one that has not chosen.
+- **A baseline ABOVE the truth is also reported**: a remainder larger than
+  reality is a lie in the other direction.
+
+**`repo_coherence` was split three ways** in the same change, because it crossed
+the 500-line cap: the SHAPE of a finding (`repo_coherence_shape`), the
+COLLECTORS (`repo_coherence_collectors`), and the assembly plus rendering. The
+two halves change for different reasons — the shape almost never, the collectors
+on every addition. The public surface is unchanged, which existing tests proved
+by failing loudly when the first split broke it.
+
+**Result: the lens reports no `high` finding on this tree.**
+
+### Fixed — a fresh project could not close its first task
+
+Found by walking the consumer path rather than by reading code: a clean project
+(git init, two functions, one test), bootstrap, task, code, **green verify** —
+and `task done` BLOCKED by two gates at once, both on by default and both
+`severity=block`:
+
+- **`test_dedupe`** — "the ratchet could not be read from `tausik/gates.json`".
+  A fresh install has no such file. The gate conflated NOT ADOPTED with
+  CORRUPTED; only the second is a violation. It now passes with the measurement
+  and the exact JSON to paste in order to start ratcheting — and still refuses
+  when the file EXISTS and cannot be read.
+- **`claudemd_state_drift`** — `init` writes CLAUDE.md with an EMPTY dynamic
+  block, which is precisely what drift looks like. On a machine that already has
+  a shared knowledge store the tail is non-empty from the start, so the gate had
+  something to compare against and the fresh block carried none of it. Bootstrap
+  now renders the block before declaring the project ready.
+
+**Why this went unseen.** Both gates are green on OUR tree: we have a
+`gates.json` with a baseline and a rendered block, both for historical reasons.
+A gate that works for the author and refuses for the user is the same class
+`cross_model_parity` exists for, along a different axis — not the host, the AGE
+OF THE PROJECT.
+
+The gate's message was also inaccurate: it said "this project's database has
+knowledge to render" when the tail can come entirely from the machine-wide
+SHARED store — another project's knowledge, legitimately offered to this one.
+
+**The walk is now a test**, and it raises a real project rather than a fixture:
+the defect was exactly the absence of files a fixture would have prepared.
+
+### Verified — the upgrade path from 1.8.0 is sixteen migrations, and it is now tested on volume
+
+The v1.8.0 tag shipped `SCHEMA_VERSION = 44`; the current schema is 60. A
+consumer on the previous release therefore applies v45..v60 in one go, on their
+own data, the first time the database is opened.
+
+What existed before: `test_v1_to_latest` runs the whole chain on a database with
+TWO tasks — it answers "do the statements execute", not "what happens to data
+when there is a lot of it". A live run of v57→v60 on this repository's 78 MB
+database covered three of the sixteen.
+
+**Measured now, v44 → v60 on realistic volume:** 60,000 telemetry rows, 2,000
+tasks, 3,000 memory records — **0.19 s**, no table lost a row,
+`PRAGMA integrity_check` ok, `PRAGMA foreign_key_check` empty. The rebuilt
+`usage_events` carries its new token and cost columns, so the rebuild did the
+thing it was for rather than merely copying the table.
+
+The volume matters because the chain contains TABLE REBUILDS: SQLite cannot
+`ALTER` a CHECK constraint, so v58 copies `usage_events` whole through a
+temporary table. Rebuilding an empty table and rebuilding sixty thousand rows are
+different operations.
+
+**The fixture is built by running migrations 1..44**, not from a snapshot of the
+old schema: a snapshot would drift from the migrations silently and the test
+would then be checking its own copy. Two rounds of NOT NULL and CHECK failures
+during writing proved the point — the required columns and the allowed `source`
+values came from the live v44 schema, not from memory.
+
+**What this does NOT claim:** that another project's data has the same shape.
+That is unknowable from here, and asserting it would be a statement wider than
+the evidence.
+
+### Changed — the tree now says 1.9.0, and the README says what 1.9 is
+
+`pyproject.toml` still read `version = "1.8.0"` while shipping 1.9 — and it is
+the single source, so `constants.json`, `CLAUDE.md` and everything generated read
+1.8.0 with it. `scripts/tausik_version.py` carried the same literal separately.
+
+Bumping it reddened exactly what it should: ten version references in the two
+READMEs. Each was resolved on its merits rather than silenced — the badge is now
+`v1.9.0`, the feature list drops a version marker it did not need, and the
+release narrative section was rewritten for 1.9 with 1.8 left to the changelog
+and to `whats-new-1.8.md`.
+
+The README's 1.9 section states the unmeasured promise in the same breath as the
+promise: the token-saving figure does not exist, the instrument does not produce
+one (233 of 57,251 telemetry rows carry input tokens, and no baseline exists),
+and "there is no saving" would be as unverified as claiming one.
+
+**Two existing guards fired on this work, both correctly.** The version scanner
+was proved able to refuse by substituting a version in the README. And
+`test_crosscutting_registry` caught that the new translation-drift ratchet
+iterates the DOCUMENT TREE without declaring `CROSSCUTTING_SCOPE` — meaning an
+edit under `docs/` would not have run it, because the scoped-pytest gate matches
+tests to sources by name and `docs/ru/cli.md` matches no `test_<basename>.py`.
+
+### Added — an invented closure citation is caught while it can still be fixed
+
+The detector already existed. Across 1,404 closed tasks and 4,026 citations,
+`audit_closure_evidence` reports 20 that name a test git NEVER had and 31 that
+name one which vanished after the closure. What was missing was the ASKING: it
+runs on demand — `tausik coherence`, `tausik audit evidence` — and nobody ran it
+at the moment a reference was written. An invented citation surfaced months
+later, when the journal is append-only and there was nothing left to correct.
+
+`task done` now asks about THIS task's citations, and names the ones that never
+existed.
+
+- **A notice, not a block.** The error direction is over-detection: a citation
+  may fail to resolve because the file is not committed yet or the name was
+  quoted as an example. Refusing a close on that teaches the agent not to cite
+  at all — destroying the evidence in order to check it.
+- **The real defect class is a real file with an invented MEMBER**, measured on
+  the live cases: `tests/test_ci_lanes_are_honest.py::TestNoLaneExcludesByPath`
+  — the file exists, the class never did. A wholly invented FILE is usually
+  classified illustrative, and rightly so: `tests/test_foo.py` in prose promises
+  nothing.
+- **It names the reference rather than counting it.** "2 citations do not
+  resolve" sends the reader back to the journal to find which — the search the
+  notice exists to save.
+- **Measured cost: under 0.04 s per close**, against thirteen gates that already
+  run there.
+- Only `never_existed` is reported. `rotted` is not: a test renamed after THIS
+  closure cannot be missing at THIS closure.
+
+### Fixed — documentation parity: six drifting pairs down to zero
+
+`tausik coherence` reported six document pairs whose two languages had drifted.
+Reading the headings with fenced blocks stripped showed five were real, and three
+of them concerned what THIS release ships:
+
+- **`receipts.md`** — the English version was missing three sections the Russian
+  had: what the receipt says about itself (schema v3), the run handle, and
+  fail-closed verification on presentation. That is v3 machinery shipping in 1.9;
+  an English reader would not have learned of it.
+- **`cli.md`** — the English version was missing `redact`, the memory-redaction
+  command (v1.9, decision #258). The task filing had called this pair's drift a
+  counter artefact from `#` comments inside code blocks; that was wrong, and the
+  positional heading comparison said so.
+- **`model-providers.md`** — the Russian version was missing cost telemetry for
+  non-Claude models (schema v58, this release).
+- **`sessions.md`** — the English version was missing the note that usage
+  telemetry has LEFT the list of things silently disabled without a session
+  (schema v48).
+- **`graph.md`** — the Russian version was missing "how this sits beside the
+  RENAR drift detectors". Both files were written in this release.
+
+**A byte-order mark was breaking a title.** `docs/ru/enforcement-coverage.md`
+began with a BOM, so its `# ` line did not start with `#` and the document had no
+H1 at all. Stripped there and everywhere else it appeared under `docs/`.
+
+**Also fixed:** a prose line in `docs/en/graph.md` began with `#663):` and
+markdown rendered it as a heading in the middle of a paragraph.
+
+Three documents still exist in one language only — `at-generation-procedure.md`
+(EN), `agent-contract.md` and `hooks-events.md` (RU) — and that is stated rather
+than counted as parity.
+
+### Removed — a dead duplicate inside the supervision gate, and a tool nobody could find
+
+Two findings from `tausik coherence` while checking whether 1.9 was ready.
+
+**`record_direct_edit` is gone.** It was a SECOND implementation of three lines —
+it called `build()` and `emit_supervision_bypass()` — and nothing called it: not
+the product, not the tests, not MCP. The live path does the same and lives in
+`project_cli_events.py`. Shipping a release about honesty with a dead function
+inside the supervision gate is not an option. The test that matters here is not
+"the name is gone" — trivially true and says nothing — but that the LIVE path
+still records a bypass afterwards.
+
+**`rag_retrieval_bench.py` is now documented.** It is not dead code: it is the
+instrument that produced the recall numbers this project quotes (recall@3 on the
+`context` set went 0.4870 → 0.8348). But it appeared nowhere in `docs/`, so only
+someone who already knew it existed could find it — the same class as "the graph
+was built and held zero rows". `architecture.md` now says, in both languages,
+what it measures and how to run it.
+
+Both collectors report zero afterwards, checked by running the lens.
+
+### Fixed — a table added only as a migration was missing from every fresh install
+
+Found while checking whether 1.9 was ready to ship, on a real bootstrap into an
+empty project: `meta.schema_version` said 60, the database had 91 tables, and
+`test_red_history` — added hours earlier by the red-history work — was not among
+them.
+
+**Why.** A NEW database runs no migration. `backend_init` stamps
+`meta.schema_version` with the current `SCHEMA_VERSION` and then calls
+`run_migrations(conn, SCHEMA_VERSION)`, which applies only migrations strictly
+ABOVE that number — none. Every table a fresh install has comes from a
+`CREATE TABLE` on the fresh path.
+
+**Why it is worse than an ordinary defect.** The failure is silent by
+construction: `record_reds` swallows the sqlite error so that observation can
+never break a test run. So on every new project the red history recorded nothing,
+the database honestly reported schema 60, and no gate objected — a working
+mechanism nobody calls, reporting success. Exactly the class this release was
+assembled to remove, reproduced by the task that closed the last of it.
+
+**Fixed as a property, not as a case.** `tests/test_fresh_install_has_every_migrated_table.py`
+builds a real fresh database and requires every table any migration creates to be
+present in it. Two lessons came from making it go red on demand:
+
+- rebuild scaffolding is named with a version suffix here (`usage_events_v58`,
+  `artifact_edges_v59`), and without exempting that shape the guard reddened on
+  two legitimate rebuilds — it would have been switched off first;
+- the negative test must inject a migration numbered NOT ABOVE `SCHEMA_VERSION`.
+  The first version used 9999, which *does* run on a fresh database, so the guard
+  appeared unable to fail. The tables that vanish silently are precisely those
+  whose migration is at or below the stamped version — that is, every shipped one.
+
+### Changed — the release notes say the token-saving figure does NOT exist yet
+
+Release condition 1 of `TAUSIK-plan-1.9.md` says the saving promise is not
+published until there is a number, produced by an instrument and given a
+baseline. The notes named the promise — "a substantial token saving" — and
+nowhere said the number was missing.
+
+**Measured now, not carried over.** Of 57,251 telemetry rows, 233 (0%) carry
+input tokens, and no "without TAUSIK" baseline exists at all. Session #225
+measured 0 of 4,777: the instrument moved and did not reach a number.
+
+The promise is neither withdrawn nor quietly reworded. It stays what the release
+undertook to measure, with "NOT YET MEASURED" in the same paragraph rather than a
+footnote — the same defect the compliance matrix was repaired for in this
+release, where a caveat sat under a table printing 100%. A test pins the caveat
+to within 1,200 characters of the promise and goes red when it is removed.
+
+Stating "there is no saving" would be as unverified as claiming one: this is the
+ABSENCE of a quantity (decision #334), not a measured zero and not a refutation.
+
+### Added — the receipt says WHO ran the verification (schema v4)
+
+A verify receipt is signed with the PROJECT key. It answers "which gates passed
+on which state of the code" and, until now, said nothing about who ran them —
+while the entire quality story rests on separation of duties: an external
+reviewer on a DIFFERENT model, and with P8 also "the test author is not the
+implementer". All asserted, none attestable.
+
+**The measurement is harder than the filing was.** Across 1,686 receipts not one
+carries an actor field. `claimed_by` is NULL in all 1,574 tasks. Of the 29 tasks
+recording both a starting and a closing model, **none differ**. On the verify
+path separation of duties does not merely lack attestation — it does not happen,
+and the new field shows that rather than painting over it.
+
+- **The actor is CONTENT of the project-signed receipt, not a second signer.** A
+  second key would mean per-agent key material and an identity registry, both
+  ruled out by the filing. The field is inside the canonical bytes, so an actor
+  edited afterwards breaks the signature.
+- **Three outcomes, never two:** `same`, `different`, `unknown`. A receipt with
+  no actor is not a receipt by a different actor, and a check of the form
+  `!= same` would count all 1,686 legacy receipts as separated.
+- **Role is recorded but is NOT part of the identity.** One agent changing hats
+  is one agent; treating a role change as a different actor is how a separation
+  of duties gets claimed without one.
+- **The boundary is guarded by a test, not by a promise.** The receipt records
+  the actor OF THE VERIFICATION RUN, not who wrote the test versus who wrote the
+  code — that is P8's subject and is out of scope here.
+- **v1–v3 receipts stay valid.** `actor` is deliberately absent from
+  `V3_REQUIRED_FIELDS`: requiring it would stop 1,686 closures reading at once.
+
+### Added — red history: a test never observed failing has not shown it can fail
+
+RENAR §9.18.2. Author isolation proves the test was written before the code; it
+does not prove the test CHECKS anything. An empty test, honestly written by an
+isolated agent, is green from birth and passes every P8 axis.
+
+Failing node ids are now recorded (schema v60, `test_red_history`). What this
+claims is deliberately narrow: a red history does not make a test GOOD — it
+rules out exactly one thing, the test that has never in its life been able to
+fail.
+
+- **Only reds are stored.** A green outcome carries no information, and a row
+  per node per run would be 10,357 upserts every time anyone runs the suite.
+- **Measured cost on a green run: 5.1 ms** across all 31,071 test reports, 0.17
+  µs per call, and nothing accumulated. Against a 264-second suite that is
+  0.002%. A mechanism that slows the ordinary run gets switched off, and then it
+  proves nothing.
+- **The hooks live in `red_history_plugin`, not in `conftest.py`**, and that seam
+  was chosen by a failing test: the end-to-end check runs a nested pytest over
+  one deliberately failing test, and our conftest imports a dozen project modules
+  and will not load outside this repository. Testing a copy of the hooks would
+  have let the real ones rot unnoticed.
+- **A global ratchet was considered and rejected**, with the reason recorded in
+  the source. "Nodes without red history may only shrink" is not well-formed —
+  every new test raises it, so it would go red on ordinary work. What is
+  well-formed is per-closure: a task citing a test it just wrote, never seen
+  failing, has cited something unproven.
+- **It reports and does not block**, because history accumulates only by running
+  the suite: on the day it lands no node has any. The threshold for flipping is
+  named as a number — 200 distinct nodes and 30 days.
+- **Declared residual:** `.tausik/tausik.db` is not version-controlled, so red
+  history does NOT travel between machines or agents. Said in the source, not
+  only here.
+
+Three different numbers were being used for one quantity, and measurement
+separated them: `tests/` defines **7,524 test functions**, pytest collects
+**10,357 nodes**, `constants.json` says 10,240. The task description said 5,722,
+which was true earlier in the release.
+
+### Fixed — `xargs` ran commands the write gate could not see
+
+Measured (session #238): the same write, wrapped and unwrapped —
+`sh -c "echo x > f"` was caught, `echo hi | xargs -0 sh -c "cat > f"` was not.
+Six forms, all at `parsed` confidence: the gate was not guessing, it saw no
+command at all. Direction: a HOLE, not a false block.
+
+`xargs` turned out to be an ordinary wrapper of the same kind as `env`, `sudo`
+and `timeout`, so it joins `_WRAPPER_VALUE_FLAGS` rather than getting a
+mechanism beside the existing one. Only the flags whose value is MANDATORY when
+detached (`-I -n -P -L -s -a -d -E`) are listed: GNU gives `-e`, `-i` and `-l`
+OPTIONAL arguments, and listing those would make `xargs -i cp a b` swallow `cp`
+as a flag value and walk past the real command — going blind, the one direction
+this table must never move.
+
+**The pin announced itself.** A previous session had recorded this gap as an
+open boundary with an assertion that `xargs` finds nothing. That assertion went
+red on the commit that closed it, exactly as intended. `ssh` stays pinned open,
+for a reason `xargs` never had: its payload runs on another host, where this
+project's paths mean nothing.
+
+**The placeholder is reported, not filtered.** `xargs -I{} sh -c "echo x > {}"`
+writes wherever the stream says. The first version of the test asked for `{}`
+to be dropped, by analogy with an unexpanded `$VAR` — and the analogy is false:
+`echo x > $VAR/f` is not known to write at all, while this certainly writes,
+just not to a known path. So the target stays unresolvable and the command
+stops at the gate, which is the correct side for a supervision gate.
+
+### Fixed — an escaped or quoted `>` is data, and the write gate now agrees
+
+Session #211 had the gate block a command that counted closed tasks:
+`if [ "$d" \> "2026-09-04T11:30:36Z" ]; then ... fi`, declaring the DATE STRING
+a write target. There is no write in that command, and the parse confidence was
+`parsed` — the gate was not guessing, it confidently read data as command.
+
+**The root, measured.** `tokenize` runs shlex with `posix=True` — the setting
+that makes `"a b"` one token — and the same pass strips quotes and resolves
+backslash escapes. After it, `\>`, `">"` and a real `>` are one token. The
+evidence separating data from command survives only in the ORIGINAL TEXT, which
+is where `strip_fd_prefixes` already works for the same reason.
+
+So the rule is structural and lives in one place (`scripts/hooks/argument_data.py`):
+an operator character that is quoted or escaped is marked before tokenization and
+restored after redirection splitting. `[`, `test` and Russian prose are all fixed
+by that one rule — no list of words, arrows or builtin names.
+
+A second rule, also grammar: inside `[[ ... ]]` nothing is a redirection, because
+that is a bash compound command. Single `[` is deliberately NOT exempt — bash
+really does redirect in `[ a > b ]`, which is why the idiom requires `\>`.
+
+**Proved from the dangerous side.** This narrows a blocking supervision gate, so
+the matrix of REAL writes matters more than the phantom list: 12 real
+redirections (plain, append, `2>`, `&>`, no-space, inside an `if` body, in a
+subshell, behind `sh -c`, after a closing `]]`, single-bracket unescaped, `tee`,
+`cp`) all still block through the LIVE HOOK, and 5 phantoms no longer do — 17
+cells, 17 correct.
+
+**What the corpus did and did not show, stated plainly.** Across 5,045 long
+journal arguments: for correctly quoted commands, phantoms at `parsed`
+confidence were 0 both before and after. The corpus does not demonstrate this
+fix; the deterministic forms and the live #211 incident do. On naively quoted
+commands the count went 18 → 13, and the remaining 13 are commands whose inner
+quote broke the outer one, making `>` a real operator — there the parser is
+right and the caller is wrong.
+
+**Untouched on purpose:** whether a blocking gate may act on a `regex_fallback`
+guess. Every form fixed here parsed cleanly, so the trust policy moved in
+neither direction, and 4 declared `regex_fallback` phantoms remain.
+
+### Fixed — `gates.json` promised a test that never existed
+
+Its `_baseline_comment` explains why the `class_surface` baseline may not be
+raised, and backed that prohibition with a citation:
+`tests/test_gate_class_surface.py::test_baseline_only_ratchets_down`. No such
+test is in the tree, and git never had one. The real name is
+`test_committed_baseline_matches_reality_and_only_ratchets_down`; the line beside
+it cites `test_the_baseline_only_ratchets_down` in a *different* file, where that
+name is real. The name travelled between files and lost a word.
+
+An agent following the citation finds nothing and must choose between "the test
+does not exist, so the prohibition rests on an assertion" and "I am looking in
+the wrong place". Both are worse than no citation at all.
+
+All 15 `file::node` citations in `gates.json` are now resolved by a test with a
+red proof — one of the 15 was broken, and it is the third invented citation in
+six sessions. Found by the SENAR 9.5 audit.
+
+### Changed — the compliance matrix stops printing a conformance score it cannot compute
+
+The page closed with a paragraph saying the conformance percentage for SENAR v1.3
+**cannot be computed here** and is deliberately left unstated (decision #334) —
+directly beneath a table printing **100%** five times. Readers take the number.
+Session #225 removed the percentage from the prose and never touched the table.
+
+The `Score` column is gone. What replaces it is measurable: **how many rows of
+each section cite code that resolves in the tree.**
+
+| Category | Implemented | Rows citing code |
+|---|---|---|
+| Quality Gates | 13 | 12 of 13 |
+| Rules | 13 | **7 of 13** |
+| Metrics | 6 | 6 of 6 |
+| Explorations | 3 | 3 of 3 |
+
+The gap under Rules is the finding. Six rows assert a mechanism in prose —
+"keyword detection in notes", "QG-0 + QG-2 joint enforcement" — and such a
+statement can be neither confirmed nor refuted by a machine, while the
+"13/13 implemented" total counts them the same as the rest.
+
+### Added — `senar_self_check`: the claim pages must still cite code that exists
+
+Carried by `tausik coherence` and by the ordinary test run. It resolves every
+file and symbol the matrices name and refuses when one is gone — a renamed module
+turns a true claim into an unfalsifiable one without editing a word of the claim.
+
+- **The rubric is declared OURS, in the report itself.** SENAR's normative text
+  is not vendored here, so no check in this repository is an assessment against
+  it. The report says so before it says anything else, and asserts it is neither
+  certification nor external attestation (§13.7 creates no certification scheme).
+- **It can say NO.** A fixture citing a deleted module and a renamed function is
+  refused by name; the same fixture with working citations is accepted. A verdict
+  that is always the same says nothing.
+- **Absence is refusal when a page is NAMED, and silence when auditing a tree.**
+  Asked about `docs/ru/senar-compliance-matrix.md`, a missing page is a broken
+  citation — it took its evidence with it. Applying that rule to a repository
+  audit would tell every consumer project its conformance citations are broken.
+- **Measured**: 45 rows per matrix in a table with a citation column, 33 citing a
+  file or a symbol, 20 unique files and 16 unique symbols, 0 unresolved.
+
+`symbol_index.defined_names()` was added for it: `build_index` walks `tree.body`
+for functions and classes only, so resolving against it alone reported cited
+MODULE CONSTANTS (`SECURITY_KEYWORDS`) as absent while they sat in plain sight.
+
+
+### Added — graph snapshots, and what CHANGED IN THE RELATIONS since a release
+
+```bash
+.tausik/tausik graph snapshot v1.9.0
+.tausik/tausik graph diff v1.8.0 v1.9.0
+```
+
+This asks a question nothing else does: "requirement #12 is no longer covered by
+any test" cannot be expressed by comparing TEXTS, however carefully worded — it
+is a statement about EDGES.
+
+- **Stored whole and compressed; no deltas** (decision #354). Measured: 23,695
+  edges are 2,103 KB raw — comparable to all of `scripts/*.py` at 3,683 KB — and
+  150 KB compressed; a live snapshot came out at **154 KB**. A delta chain needs
+  every link intact, and at that size the fragility buys nothing.
+- **A snapshot carries its own COMPLETENESS**, and the diff says so FIRST. Two
+  snapshots taken before and after a test run was ever observed differ by 6,051
+  `observed_coverage` edges that were missing from the INDEX, not from the code.
+  A first report full of false "vanished coverage" destroys trust permanently.
+- **A changed observation count is not drift**: the edge is the same relation.
+
+**It complements the RENAR text detectors and replaces neither** (decision #354).
+`drift-1` re-validates stored rows against cross-field invariants — a question
+about data validity. `drift-7` catches a task closed against a requirement edited
+AFTER the link — a relation in TIME, and graph edges carry no time. Three
+mechanisms, three questions; collapsing them would lose two.
+
+### Added — `tausik graph read`: what to read to change a file, in under a kilobyte
+
+Measured on the live graph BEFORE this existed — an unranked neighbour list is not
+an answer:
+
+    scripts/verify_scope_honesty.py    42 neighbours, 2,881 KB
+    scripts/gate_test_resolver.py      38 neighbours, 2,779 KB
+    scripts/service_artifact_graph.py  29 neighbours, 2,612 KB
+
+An agent handed that reads all of it and spends MORE than the grep the graph was
+meant to replace. After ranking and cutting, the same three answers are **927,
+945 and 916 bytes** — about one three-thousandth.
+
+- **Rank comes from provenance**: what a RUN observed outranks what a person
+  declared, which outranks what git saw changing together; within a layer the
+  observation count decides. Every line carries its reason, because a ranked list
+  without reasons is indistinguishable from an arbitrary one.
+- **Two questions, not mirror images.** The graph has no direction of dependency,
+  so `read` unions both directions — asking one returned 2 neighbours of 42 on
+  the live tree — while `--affects` uses the one directional relation, `covers`.
+- **Not knowing is visible**: an unknown path gets "NOT in the graph — this is
+  'unknown', not 'unrelated'" and the command that fixes it. An empty list would
+  read as "nothing relates to this", which is a confident wrong answer.
+
+**Where the graph stops and RAG starts is now written down** (decision #353): the
+graph answers STRUCTURAL questions — what relates, what covers, what goes red —
+and RAG answers SEMANTIC ones. A third way to search code beside two others would
+have made things worse without that boundary.
+
+### Added — the graph learns what a test RUN actually reached
+
+Test selection mapped `scripts/foo.py` to `tests/test_foo.py` by NAME. That is
+why `CROSSCUTTING_SCOPE` exists — a hand-written patch for the cases where the
+names do not line up, declared four times in session #157 alone. Names cannot
+see dynamic dispatch, monkeypatching, or the local-imports-inside-function-bodies
+style this codebase uses throughout. A run can.
+
+```bash
+TAUSIK_OBSERVE_COVERAGE=1 pytest tests/     # record
+.tausik/tausik graph build --layer observed # ingest
+```
+
+- **A layer of its own** (`observed_coverage`, migration v59). Observed coverage
+  is neither an inference from git history nor somebody's declaration, and
+  borrowing an existing layer to dodge a migration would have done the one thing
+  this schema exists to prevent: summarise two different claims into one number.
+- **`sys.setprofile`, not `coverage`** — which is not installed and cannot be,
+  the project being stdlib-only. Function granularity is all this needs: the
+  question is which FILE a test reached, never which line.
+- **A pytest plugin, not a global hook.** Installed before `pytest.main` the
+  profiler does not survive into the tests — measured, zero files. Per-test
+  hooks also answer WHICH test reached the file.
+- **Off by default**, and the selection is a SUPERSET: the observed edge is
+  ADDED to the name/import/scope edges, never substituted. An incomplete graph
+  with an exact selection is a false-green machine — a missed test looks passed,
+  a redundant one costs seconds.
+
+Cost, measured on 22 tests of one file: **5.5s** without observation, **14.5s**
+in the first version, **7.7s** after caching the per-filename verdict. The first
+version called `os.path.relpath` on every call event — millions per suite — and
+one test hit a five-minute timeout inside `ntpath.relpath`, taking an xdist
+worker down with it.
+
+### Fixed — the session capacity gauge counted a closed task's WHOLE LIFE
+
+Sixteen minutes and about twenty-five tool calls into a shift, `tausik status`
+printed `Capacity: 419/200 used, 0 planned, -219 remaining ⚠ overshoot`.
+
+The gauge summed `call_actual` over tasks CLOSED since the session started, and
+`call_actual` is a task's whole life. `release-18-breaking-change-notes` had
+accrued 395 calls since session #177 against a budget of 12; closing it dropped
+all 395 onto a shift that had barely begun.
+
+It matters because the operating rule is "end the shift on capacity, do not
+force it". A gauge reading 419 after twenty-five calls stops work for no reason
+— and does it exactly when a long-standing task is finally closed, which is the
+moment the shift was most productive. The defect survived because the two
+readings agree whenever a task opens and closes inside one shift, which is the
+ordinary case.
+
+The count now comes from `usage_events`, which already carries `session_id`. No
+migration: the column was there. After the fix the same shift read `61/200`.
+
+**The scale shifted, and that is worth knowing before reading the new numbers**:
+counting the shift's own calls gives 249 for session #235 where the old formula
+gave 189. Neither is a regression — the old one was answering a different
+question — but a budget of 200 now means something slightly stricter.
+
+### Fixed — a doc-drift scan that reported what it could not repair
+
+`--write` repairs what `--check` reports. That is a promise, and it was broken:
+the `N project + M brain` pair form had been SCANNED since review #208 and
+repaired by nobody — `_MCP_COUNT_PAIR_PATTERN` was imported by the scanner and
+by nothing else.
+
+Measured: raising the MCP tool count from 145 to 146 left **eight such
+references across seven files**, `--write` finished red with "drift remains
+after --write", and about **fifteen manual edits** were needed for one changed
+integer. Worse than the labour — a scan that reports drift it cannot fix reads,
+to whoever runs `--write`, as coverage.
+
+- **The pair is now repaired**, both halves judged independently, with the
+  offsets taken from the original match so a width change (99 -> 146) cannot
+  corrupt the second number.
+- **A test asserts the rule, not the instance**: every count family the scanner
+  knows must be known to the fixer, so the next one cannot land half-built.
+- **The repair respects the scan's boundaries** — never inside a fenced block,
+  never inside CLAUDE.md's DYNAMIC section. Documentation teaches by example,
+  and an example silently rewritten to today's numbers stops being one.
+
+### Fixed — the doc-checks page described a machine from six months ago
+
+`docs/{en,ru}/dev-doc-checks.md` was 73 lines that named **one of the seven
+modules** behind the check, and described it as verifying two things: a version
+and the MCP tool counts. It now checks seven distinct kinds of drift. The page
+lists all seven scans with what each one guards, and the module table in
+`architecture.md` went from two entries to seven.
+
+`doc_drift_tables.py` also opened with "Third module of the doc-drift split"
+and listed three, while the split had become four — the same self-description
+drift these modules exist to catch, inside the module that catches it.
+
+### Fixed — a deleted file could not be declared in the scope, so the framework forced under-declaration
+
+A task that removes a file must name it in `--relevant-files`; the deletion is
+part of the change. Until now that broke the close: the list went to the gate's
+command verbatim, `ruff` got a path that no longer existed and answered `E902`,
+and the run came back `exit=1` with no verify handle. The only way past it was
+to leave the deletion out — to under-declare on purpose.
+
+Measured on a live closure this session: verification_run #2275 failed exactly
+that way, and #2277 and #2278 are both recorded `under-declared` because the
+deletion had to be dropped from the declaration. `declared_scope_status` is the
+number decision #348 put in this release to improve, and the framework was
+pushing the agent toward the answer that number counts as dishonest.
+
+- **The filter sits at ARGUMENT construction**, not where applicability is
+  decided: `file_extensions` and `file_patterns` judge by NAME and must keep
+  working for a file that is already gone.
+- **Only for commands that interpolate `{files}`.** A gate that never receives
+  the list cannot be broken by a deletion, and answering for it would mask the
+  real verdict — a missing tool stays `COULD_NOT_RUN`.
+- **Nothing left is NOT a verdict**: `NOT_APPLICABLE` with the new code
+  `all_files_deleted`, never green. Without that branch the empty list becomes
+  `.` and `ruff check .` lints the whole repository.
+- **The declaration and the receipt keep the full list**, deletions included.
+
+### Fixed — the verify endpoint could share its port with any other local process
+
+Chasing an intermittent `ConnectionAbortedError` in the endpoint's own tests
+turned up a defect in the endpoint itself. `http.server.HTTPServer` sets
+`allow_reuse_address = 1`, and on Windows `SO_REUSEADDR` does not mean what it
+means on POSIX: there it permits rebinding a port left in `TIME_WAIT`, here it
+permits binding an address that is **actively in use by somebody else**.
+
+Measured on this machine: two servers bound the SAME port and both `bind()`
+calls succeeded. After the fix the second is refused with `WSAEADDRINUSE`.
+
+- **Beyond the tests.** `tausik serve` binds 8765 to answer receipt-verification
+  requests. On Windows any other local process could bind the same port and take
+  some of that traffic, and the endpoint would never know. An endpoint whose port
+  can be silently shared is not one whose answers can be relied on.
+- **POSIX keeps the flag**, where it is the ordinary way to restart a service
+  without waiting out `TIME_WAIT`. Turning it off everywhere would be a real
+  regression to fix a problem that platform does not have.
+- **The test fixture now waits on a CONDITION, not a pause**: it waits until the
+  server ANSWERS, because the listening socket exists before `serve_forever`
+  begins accepting. A server that never comes up fails the test with a named
+  reason rather than hanging to a timeout.
+
+**Said plainly: the causal link to the intermittent abort is NOT proven.** The
+port collision reproduces deterministically; the abort did not reproduce in 20
+parallel runs of the file alone, nor in 30 repetitions of a collision-plus-
+teardown sequence built to force it. What is claimed here is a real defect found
+and fixed, plus a frequency measurement — not a diagnosis.
+
+### Fixed — `graph show` now reads the symbols `graph build` writes
+
+Found by the review sweep: `graph build` wrote **13,312 symbol rows** on this
+repository and `symbols_for_artifact` had no caller anywhere in the tree — the
+one dead declaration a mechanical check over every changed module found.
+Storing and never reading is the same defect as building and never invoking,
+one level down. `graph show <path>` now lists what the file defines, bounded at
+twelve names with the remainder stated, and stays SILENT for a file whose
+language has no extractor rather than printing an empty heading.
+
+### Fixed — the framework's own output was counted against the agent's declared scope
+
+`verify` compares the declared scope with what git reports, and counted the
+files the framework rewrites ITSELF while closing: `CLAUDE.md` and `AGENTS.md`
+(via `update-claudemd`), `ROADMAP.md` (via `doc roadmap`), `docs/_generated/*`.
+None of them can be declared in advance, because at declaration time they have
+not changed yet.
+
+Measured (session #235, live database): 846 of 2,278 runs recorded an
+under-declared scope, and in the recent window it is **135 of the last 300
+(45%)**. The top of the undeclared list was AGENTS.md 54, CLAUDE.md 54,
+ROADMAP.md 12 — and **26 of those 135 (19%) consisted of nothing else**, with
+another 39 (29%) mixed.
+
+- **Subtracted on the principle that was already written down** — convention
+  #409 and decision #283, which subtract a task's own export for the same
+  reason: a check whose subject is "what did the AGENT change" must not count
+  what the framework wrote.
+- **By the DIFF, never by the name.** `CLAUDE.md` and `AGENTS.md` are only
+  partly generated; the subtraction fires only when the change lies entirely
+  between the `DYNAMIC` markers. A missing marker, an unreadable diff or no git
+  leaves the file IN the agent's scope — being unable to check is not
+  permission.
+- **`CHANGELOG.md` is NOT subtracted.** The agent writes it, so its absence
+  from a declaration is a real under-declaration, and that is what the check
+  exists to show.
+
+A correction to what the previous entries implied: the other headline number —
+"48% of verify runs executed no gate" — is HISTORICAL. In the last 300 runs it
+is 4%, and in the last 100 it is 7%, of which most explicitly declared
+`--no-tests-expected`. The mechanism that refuses to call an empty run a verdict
+is working; under-declaration was the live half.
+
+### Added — one documentation-coverage gate, in place of a test per kind of thing
+
+`doc_coverage` blocks a close or a commit when a name the framework SHIPS is
+named in no document a reader would go to. Two pairs are covered — CLI commands
+against `docs/{ru,en}/cli.md`, `doctor` checks against `docs/{ru,en}/doctor.md`
+— and adding a third is one line in a registry rather than another test file.
+
+Measured when it landed: **14 of the 53 commands the parser declares appeared in
+neither CLI reference**. Two of them were `graph` and `symbol` — shipped by this
+same release, each with a documentation page of its own, and neither in the
+command reference. All fourteen are now documented; the gate keeps them there.
+
+- **It replaced a hand-written test, it did not join one.** The doctor's own
+  coverage test is gone; its subject moved into the gate's registry, and the one
+  check in it that was NOT coverage — "the docs must not restate a check count
+  by hand" — moved to the new test file intact.
+- **The honesty boundary is in the code and in the docs**: the gate sees whether
+  a name is MENTIONED, not whether what is written about it is true.
+
+### Known — "every backticked name must resolve to a symbol" was tried and refused
+
+Dead end #663, with the numbers: 2,689 backticked mentions in docstrings, of
+which 1,868 do not resolve; 821 survive excluding parameters, database columns
+and module names; 182 if only leading-underscore names count; 17 unresolved; 5
+candidates — and **all five turned out to be deliberate**: "Renamed off
+`_audit_extra`", "This used to count vocabulary. `_TIER_KEYWORDS` held…",
+"verbatim from the CLI's former `_maybe_print_skill_set_warning`".
+
+The docstrings in this project name removed things ON PURPOSE, to explain why
+they are gone. A gate firing on 821 legitimate places is a gate switched off on
+day one, so the mechanism was dropped rather than tuned.
+
+### Added — the graph stays fresh, and the write hook got FASTER doing it
+
+Every file the agent writes re-indexes exactly that file, inside the hook that
+already runs on writes. No new hook: measured, the work is 0.47 ms and a hook
+process of its own is 54 ms — thirty times the work in overhead, plus a second
+thing to deploy and keep in cross-host parity.
+
+Quiet on write, loud on query: the refresh never blocks and prints nothing, and
+when it cannot run the artifact simply keeps its old fingerprint — which
+`graph show` reports as stale, because it recomputes fingerprints from disk on
+every query. A blocking gate on a SECONDARY index would stop primary work.
+
+    the write hook, before this work                   68 ms
+    ... with the refresh through the full backend     301 ms
+    ... with a direct sqlite3 UPDATE                  279 ms
+    ... after removing dead journaling                 50 ms
+
+- **`SQLiteBackend` is not used for this.** Opening it runs `init_schema`;
+  closing it runs `wal_checkpoint(TRUNCATE)` over a 66 MB database. Both are
+  right for a long-lived process and wasted on one UPDATE from a process that
+  exits immediately. `hooks/_common` set that precedent for the same reason.
+- **The refresh never ADDS an artifact.** A file the graph does not know stays
+  unknown until `graph build` runs, so the stored count keeps matching what the
+  build printed.
+
+### Fixed — a per-write journal entry that had been broken on Windows for years
+
+`auto_format` appended "Modified: <path>" to the active task after every write
+by invoking `.tausik/tausik` — the POSIX shell wrapper. On Windows that raises
+`OSError [WinError 2]`, and the surrounding `except OSError` swallowed it: 4
+tasks out of 1,565 carry such a line, all from before the wrapper split.
+
+**It was removed rather than repaired** (decision #351). Reviving it costs 190 ms
+on every write against a 68 ms hook, git already records which file changed more
+precisely and permanently, and a machine-written line dilutes the journal
+entries an agent makes on purpose. What the block was right about is that a hook
+must not hand-roll what `_common` already does correctly per platform — that
+lesson is left in place of the code.
+
+### Added — `tausik graph`, and the graph became the framework's, not this repository's
+
+The substrate shipped one day earlier and then held **0 rows in all three of its
+tables, in the repository that wrote it**. It had no CLI command and no MCP tool:
+outside its own tests, nothing called it. Measured before this task, on the real
+consumer-project fixture and on a real repository holding python, terraform and
+markdown:
+
+    symbol index, consumer   0 declarations, while backend/api/orders.py sat
+                             there full of them. Roots were ("scripts",
+                             "bootstrap", "tests", "harness") — OUR names.
+    artifact kinds           9 suffixes for 25 declared stacks, and exactly one
+                             produced `code`: `.py`.
+    full build               2m27s — roughly 22,000 statements, each paying a
+                             WAL fsync of its own.
+
+- **`tausik graph build | show | status`**, with the MCP twin `tausik_graph`.
+  On this repository: 4,226 artifacts, 13,312 symbols, 17,644 edges, ~9s.
+- **Roots come from the PROJECT** — `source_roots` in its config, else its
+  git-tracked files, else a disk scan — and every answer names which of the
+  three spoke. A tree whose source cannot be located yields an EMPTY list and
+  says so, instead of a confident answer about the wrong directories. Deriving
+  them changes nothing on this repository (same 13,297 declarations, same time)
+  and is the difference between 4 and 0 on somebody else's.
+- **The kind table covers the stacks the framework claims.** Imperative source
+  is `code`, declarative source — terraform, helm, kubernetes, ansible — is
+  `config`, and a test is recognised in any stack's convention (`_test.go`,
+  `spec/`, `__tests__/`, `*.spec.ts`). `other` stays the honest answer for a
+  suffix we do not know; no kind was invented, because that would be a schema
+  migration the spike's verdict says is not needed.
+- **An unsupported language is NAMED, not silently zero.** The build reports how
+  many source files have no symbol extractor here — Python only in 1.9 — and
+  says their co-change and declared edges are built as usual.
+- **The build runs in one transaction**, which is the entire 2m27s → 9s
+  difference. A build nobody runs twice is a build nobody runs, and the
+  framework then ships an empty graph everywhere.
+
+### Changed — two ratchets, and only one of them moved
+
+- **The MCP surface ratchet rose by exactly one tool**, 145 → 146, to
+  `tausik_graph` — argued in decision #350 with its price: +799 bytes of
+  serialized surface (+1.4%), and on a schema-deferring host only the name,
+  ~22 of 3,201 bytes. One tool with a `command` argument rather than three,
+  because the surface is paid for on every turn. The baseline moved to the
+  MEASURED number, not to a round one with headroom: headroom is how a ratchet
+  stops ratcheting.
+- **The class-surface ratchet did NOT move.** Its test pins those numbers
+  against rising at all, so the new symbol-indexing step lives beside the
+  command that needs it instead of becoming `ProjectService`'s 149th public
+  member. A dead backend method (`edge_count_by_layer`, no caller anywhere)
+  was folded into the counts the CLI actually reads, which kept that class
+  level too.
+
+### Changed — a tool TAUSIK ships is named at the moment an alternative is chosen
+
+Measured over this project's own transcripts (session #233, 5,966 tool calls)
+before any of this existed:
+
+    dead-end        0 uses. None — while that same window's journals carry at
+                    least four refuted hypotheses.
+    tausik symbol   2 uses against 226 greps for a definition, one hour after it
+                    shipped.
+    checkpoint      no mechanism at all; the rule asks for one every 30-50 calls.
+    task log        222 uses — one per 26 calls, against "after every step".
+
+Four rules, one defect: the tool exists, the rule demands it, and nothing joins
+them at the moment of choice. Those numbers are what "joined by memory" measures
+to, and none of the four needed a new mechanism to fix.
+
+- **The closure names `dead-end` when the journal shows a refutation.** The
+  general "no knowledge captured" warning offered three options and was satisfied
+  with the cheapest; this one says which of the three the journal is asking for.
+- **A grep for a DEFINITION gets the command to run instead** — `tausik symbol
+  <name>` — through the same hook and the same once-per-subject discipline. A
+  plain text search stays silent: five shapes of ordinary work are asserted quiet,
+  because a notice that fires on routine is one the reader learns to skip.
+- **The checkpoint reminder comes from the counter that already runs.** No second
+  hook to deploy, keep in host parity and pay for on every call, to count
+  something already counted.
+- **The command list states its own count** — 52, derived from the parser — and
+  points at `--help` instead of naming a hand-picked subset. Eighteen commands
+  were named nowhere an agent reads, and they are exactly the ones the window
+  shows unused. The generated file did NOT grow: two commands the workflow
+  section already names were dropped to pay for the line.
+- **`mcp_first_nudge` became `tool_choice_nudge`**, because a name saying
+  `mcp_first` while doing two things is a name that lies. The old path remains as
+  a shim: a host reads `settings.json` at session start, so renaming a deployed
+  hook breaks the RUNNING session — found by breaking this one.
+
+### Known — two things measured and deliberately not acted on
+
+- **138 of 146 MCP tools are unnamed in the rules, and that is correct**: the
+  agent receives them with schemas over the protocol, so restating them in text
+  re-sent every turn would cost budget and add nothing (decision #346).
+- **MCP-first is not tightened until the nudge has a number.** The baseline is
+  pinned — 29.1% of framework calls, 1,216 of 1,530 CLI invocations with a twin —
+  and the decision waits for a full session measured with the nudge in place
+  (decision #347). Changing a mechanism before the number exists is deciding by
+  feel, which is what this release exists against.
+
+### Changed — the route an agent must take is checked, and no rule demands the impossible
+
+Measured over this project's own transcripts before anything was built (session
+#233, 4,011 shell commands): `MCP-first` is stated as a hard constraint, and
+1,216 of 1,530 CLI invocations had an MCP twin and used the shell anyway — 79.5%.
+MCP's share of framework calls was 29.1%. Nothing anywhere counted it.
+
+- **The obvious reading was wrong, and the correction reordered the work.** 79
+  direct `python scripts/*.py` runs looked like an agent ignoring the rules —
+  until the scripts were named: 68 of them went to six scripts that have NO
+  wrapper route at all. "Always through `.tausik/tausik`" was UNFOLLOWABLE there.
+  An unfollowable rule is worse than an absent one: it teaches that the rules
+  here are approximate, and that lesson generalises to the rules that matter. So
+  the route was made followable first, and only then required.
+- **Four states, and the fourth was the defect.** ROUTED, REFUSES, ENTRYPOINT —
+  and INERT: run it directly and nothing happens, quietly. Two modules were in
+  that state and each run produced silence somebody then had to diagnose. They
+  refuse now, and the refusal NAMES the replacement instead of saying "use the
+  wrapper" and leaving the reader to find which command.
+- **MCP-first is named at the moment the shell was chosen.** A new PostToolUse
+  hook, on both hook-bearing hosts, prints the twin's tool name — once per
+  command per session, because a note repeated on every call is one the reader
+  learns to skip, and a skipped note costs the attention the next real warning
+  needs.
+- **It nudges and does not block, deliberately.** 20.5% of CLI invocations have
+  no twin; chaining (`verify && task done`) cannot be expressed on the MCP
+  surface; a long multi-line argument is genuinely easier through `"$(cat file)"`.
+  A false block on routine work trains circumvention and costs more than the miss
+  (convention #291).
+- **`doctor` prints the share**, with no threshold. Its first reading was about
+  the session that built it: 0% MCP against 106 shell calls.
+- **The CLI↔MCP correspondence is derived** from the live dispatch table, never
+  listed beside it — and an unreadable server yields UNKNOWN, not "no twin", so
+  the check cannot accuse an agent of a choice it never had.
+
+### Added — `tausik symbol`: the definition, not its address
+
+Derived from [Graft](https://github.com/trailhq/Graft). What transfers is its
+deterministic half: a symbol graph built by parsing sources with no model
+involved, and a query that returns the SOURCE inside the answer so the file need
+not be opened afterwards. Graft is TypeScript on tree-sitter; this is Python on
+`ast`, with no dependency added.
+
+- **The measurement first said no, then said yes, and the difference was how it
+  counted.** By TOOL NAME, code navigation was 9.6% of tool result payload — a
+  ceiling of about 2.7% of context growth, not worth carrying. Counting by what
+  the commands actually DO: inside Bash (75.3% of the payload) `grep/sed/find/ls`
+  is 49.2%, i.e. 37.1% of everything, at 1,192 calls averaging 1,501 characters.
+  Real total: about 47%. Half the reconnaissance here wears the name `Bash`, and
+  the first count could not see it — decision #335 arriving somewhere new.
+- **The gain is in CALLS, and the number is ours.** On 25 random functions of 8+
+  lines: `grep` + `sed` is 2 calls and 30,517 characters; `symbol` is 1 call and
+  29,442 (−3.5%) without callers, 34,686 (+13.7%) with them. So half the calls,
+  and roughly the same characters. That is the saving decision #338 defines: a
+  call re-sends the whole conversation, and this project's baseline prices a call
+  at 266,645 context tokens.
+- **Graft's own 42%/46% was NOT borrowed.** It was measured on other
+  repositories; quoting it as ours would be reporting someone else's measurement
+  as our own.
+- **The explanation layer is deliberately not copied.** In Graft a model writes
+  plain-English summaries of each part of the system; that needs a key, a network
+  and money, and the measurable half of the saving is in the deterministic part.
+- **The index is derived, never edited**, rebuilt on every query (13,199 symbols
+  in 1.2 s), so it cannot go stale — and sources are PARSED, never imported, which
+  would execute module-level code from every file in the tree.
+- **Absence is never emptiness**: an unknown symbol gets the nearest names and
+  the roots that were actually searched; a cut body says how many lines were cut.
+
+### Added — a published tag is a promise, and the promise is now checkable
+
+Measured in session #233 by asking both remotes rather than recalling #181: the
+public line carries 9 tags, the private one 17, the working clone 22 — and of the
+eight names that exist on BOTH, **all eight point at different objects**. Not one
+agrees. `v1.8.0` is `623fb4ee` publicly and `3866702f` privately.
+
+- **The question the task refused to let anyone answer silently** — is a tag a
+  promise to a consumer or an internal bookmark — is settled by the README and by
+  git. The README tells consumers to add this repository as a submodule; a
+  submodule is pinned by SHA or tag; `git fetch --tags` declines to clobber one;
+  and force-push is already refused here on the same reasoning. It is a promise.
+- **So the past is not repaired.** The thirteen missing tags are NOT backfilled
+  and the eight divergent ones are NOT reconciled — either would relocate
+  somebody else's pin onto a different tree, silently. The divergence is declared
+  in `docs/{ru,en}/publishing.md` with the objects spelled out, so a consumer can
+  find out instead of being corrected without notice.
+- **Held by a mechanism.** `tausik/published_tags.json` records the nine
+  name→object pairs with the date and the method; a test compares a live
+  `ls-remote` against them through the `tags_unmoved` check that already existed.
+  Changing, vanishing AND appearing all count as movement.
+- **`remote_tag_map` is what that check had been missing** — a remote source. It
+  reads PEELED objects (what a checkout actually resolves a tag to) and raises
+  rather than returning an empty dict: an empty answer compares equal to an empty
+  baseline and would report "nothing moved" about a conversation that never
+  happened. An unreachable remote SKIPS with its reason; it never passes.
+- **Two of the task's own details were corrected by the measurement**: `v1.7.0`
+  is present on GitHub (the task said it was absent), and five local tags never
+  reached the private line either.
+- **From 1.9 the release tag is cut as part of the publication**, in the same
+  pass as the publication commit, with the snapshot updated in the same commit —
+  otherwise the next name diverges exactly as the previous eight did.
+
+### Added — the publication procedure exists as a page and a mechanism
+
+Decision #267 settled the roles in August — GitLab develops, GitHub mirrors
+releases — after the earlier "GitHub is the primary place of development" went
+five sessions unexecuted. The procedure itself, however, lived only inside
+decisions: of 57 pages in `docs/ru`, not one was about publication. A decision
+executed by an agent's memory rather than by a mechanism is not executed, which
+those five sessions had already demonstrated.
+
+- **`docs/{ru,en}/publishing.md`**: which remote is which, what publication does
+  to the tree (it carries the whole tracked tree, `tausik/` included), and the
+  fast-forward-child procedure with its authorship rule.
+- **The leak classes were RE-MEASURED, not recalled.** Over 4,208 tracked files:
+  a local path carrying the user's name is now 0 files (session #180 counted 12),
+  other clients' project names 0 (were 44), the internal host 5 files (were 17),
+  and a dev-machine path such as `D:\Work` 39 files — a class #180 never
+  measured. Two of the four are fully cleaned, so "publishing is unsafe" is no
+  longer true as stated in #180.
+- **Held by a ratchet, not by care.** The two cleaned classes are pinned at zero
+  and their return is red. The two remainders are pinned at their measured size:
+  they are weaker (a directory layout and an internal address, not an identity),
+  they live mostly in the project's own accounting, and only GROWTH is red. The
+  gap is declared rather than quietly closed.
+- **A file that DESCRIBES a leak is not a leak** — the page, the task, the test.
+  Three names, listed one by one rather than a widened pattern, because a wide
+  pattern would let a real occurrence hide behind a plausible filename.
+- **The check never touches the network**, asserted over its own AST: a
+  precondition that needs the remote fails exactly when it is needed.
+
+### Fixed — a refusal that named a cause nobody had checked
+
+`push-ok` printed "cannot determine HEAD commit (no git repo or no commits yet)"
+for FOUR different events: a missing repository, a repository with no commits,
+git exiting non-zero for a reason of its own, and git not answering within the
+3-second ceiling. The one recorded failure of the e2e test was therefore
+undiagnosable — the message asserted a state of the world that had never been
+verified. That is decision #334 in the diagnostics.
+
+- **The timeout hypothesis was measured and refuted**, not argued about: 60
+  `git rev-parse HEAD` calls in a fresh repository during a full parallel suite —
+  median 37 ms, p95 92 ms, max 232 ms, and not one of them over the 3 s ceiling.
+  The ceiling is therefore NOT raised; doing so would have been a change made on
+  a guess.
+- **Four outcomes, four messages.** A timeout says it is a timeout and says the
+  repository may be fine. A non-zero exit carries git's OWN stderr instead of our
+  substitute for it. Discarding that line is what turned a five-minute diagnosis
+  into a hypothesis that had to be measured out of existence.
+- **The e2e test is hermetic now** — private HOME, empty global and system git
+  config, and no inherited `GIT_*` reaching either the subprocess under test or
+  the fixture that builds its repository. A test with a hostile `GIT_DIR` in the
+  parent environment proves it, and that probe found the real gap on its first
+  run: the FIXTURE's own `git init` had been inheriting the environment too, so a
+  stray `GIT_DIR` created the repository elsewhere and the subprocess then found
+  no HEAD — the observed failure, exactly.
+- **No retry was added**, and a test asserts that git is called exactly once. A
+  retry would have hidden the cause and left a sensor that measures nothing.
+
+### Added — the development line finally runs the full test lane
+
+GitLab is where development happens (decision #267) and it ran only the fast half:
+every job there inherits `-m 'not slow'` from addopts. The slow-marked modules are
+this project's own regression tests — bootstrap wiring, MCP integration,
+subprocess smoke — and they lived in the GitHub full lane alone, which the working
+branch deliberately never reaches (decision #260). On the branch every line of 1.9
+was written on, they ran nowhere.
+
+- **A third stage, not a second job.** Every runner on this instance is a SHELL
+  executor sharing ONE workspace per project with `GIT_CLEAN_FLAGS=-ffdx`; two
+  pytest jobs in one stage would run concurrently over the same directory and
+  clean the tree underneath each other. Stages are sequential, which is what makes
+  it safe — the same argument the duplicate-pipeline guard in that file already
+  makes.
+- **The fast lane survives, on purpose.** The pain the owner named was waiting.
+  Replacing the fast lane with the full one would have closed the blind spot by
+  putting a nine-minute wait on every push — trading the defect for the pain. A
+  test now guards both directions: losing the full lane is red, and losing the
+  fast one is red too.
+- **The cost is a measured number, and the note's number was stale.** 9m03s for
+  10,023 passed on a 20-core machine with `-n auto`. The task's own notes carried
+  3m48s from an earlier tree; it was re-measured rather than believed, and the
+  figure with its provenance is written into the config so the next reader does
+  not have to.
+- **Its first run found a red.** The freshness ratchet over the committed
+  `ROADMAP.md` is slow-marked and was failing in the tree at the moment the job was
+  written — invisible to the fast lane for as long as the fast lane was the only
+  lane. That is the defect class this job exists for, caught by it immediately.
+- **The lane guard was reading text, and is now reading the fact.** Moving the
+  shared setup into a YAML anchor made `test_every_pytest_lane_deploys_the_profiles_first`
+  declare both GitLab lanes broken — including the one that had bootstrapped since
+  it was written. It resolves anchors now. A guard that reddens when code is
+  reorganised, while the fact it checks is unchanged, teaches the reader to edit
+  the guard.
+
+### Changed — enforcement is now stated BY RULE, not by whole host
+
+Session #230 stopped the over-claim: a host with no mechanism was told its rules
+were instructions. True, and coarser than the truth — on Kilo every task closure,
+every knowledge write and every task opening IS refused, because those go through
+our own tools. Saying only the first half lies in the other direction.
+
+- **Measured before designing** (session #232, AST over the MCP package): 146
+  declared tools, 44 mutating handlers, and NOT ONE reaching the backend
+  directly. The service layer's refusals already travel to the MCP boundary, so
+  the work was proving and declaring that — not moving checks, which the task had
+  assumed.
+- **The proof runs at the boundary.** `tests/test_rule_coverage.py` closes a task
+  through `tausik_task_done` with no receipt, in a project with no profile
+  directory at all, and requires the task to stay open. The refusal arrives as a
+  structured report rather than an exception — deliberately, so a non-Claude tool
+  loop can parse it — and an earlier version of that test demanded an exception
+  and would have called a working refusal a defect.
+- **The split follows who performs the action.** Rules governing what WE do
+  (QG-0, QG-2, the session limit, memory routing) hold on every host. Rules
+  governing what the HOST does (Rule 1, Rule 2, the secret scan) hold only where
+  the artifact carrying that particular rule is deployed. Each rule names its
+  artifact, so OpenCode — one QG-0 plugin — now shows as covering Rule 1 and NOT
+  covering Rule 2 or Rule 10.12. The first version asked "does this host deploy
+  anything?" and reported OpenCode as covering all three: an over-claim produced
+  by the code, which is how over-claims usually arrive.
+- **Both halves are in one paragraph**, because the generated rules file is
+  re-sent to the agent on every turn and is held to an 80-180 line budget for
+  exactly that reason. The budget caught the change at 184.
+
+### Known — Kilo HAS an extension point, and it is not the one we assumed
+
+Re-verified against the host's own schema on 2026-09-08 (`app.kilo.ai/config.json`,
+the `$schema` our generated `.kilo/kilo.jsonc` points at): Kilo defines `plugin`
+— an array of LOCAL PLUGIN FILES that execute code at runtime, the same class of
+mechanism OpenCode uses — and `permission`, with `ask`/`allow`/`deny` per
+operation including `edit` and `bash`.
+
+So "Kilo has no extension point" was never a fact about Kilo; it was a fact about
+what TAUSIK generates, which is exactly how session #230 worded the notice.
+Deploying one is `kilo-has-a-plugin-and-permission-surface-we-do-not-use`,
+deferred to 1.10: the promise "no code without a task on Kilo" would be far wider
+than what has been done, and the 1.9 scope is fixed. The gap stays declared and
+guarded by a test.
+
+### Fixed — model pinning had never fired, on any host, in the project's history
+
+Raised as "the model is not recorded on NON-Claude hosts". Measured on this
+project's own database first, and the truth was simpler and worse:
+
+    sessions:  231 rows, model_id set on 0
+    tasks:    1560 rows, started_model_id on 0, done_model_id on 0,
+              model_mismatch raised 0 times
+
+- **One missing link disabled the whole chain.** `session_start` consulted only
+  environment variables. Claude Code exports none of them and nobody sets them by
+  hand, so `sessions.model_id` was always NULL — and `model_start_updates` reads
+  the session's model, so every task pinned NULL too. RENAR Rule 10.13, per-model
+  cost and per-model metrics were all empty, and nothing said so.
+- **The seam already existed and worked.** `providers.get(...).get_active_model()`
+  is declared by every provider and returns the id — on Claude Code by reading the
+  transcript. Nothing consulted it. The model source is now a chain with a stated
+  order: `TAUSIK_AGENT_MODEL` → host variables → the host's provider → absence,
+  and the resolved answer carries the NAME of the step that gave it, so a wrong id
+  can be traced instead of argued about.
+- **Never inferred from the host's name.** Claude Code pointed at z.ai through
+  `ANTHROPIC_BASE_URL` is running GLM. A provider whose own source is silent
+  yields absence; it does not get to answer "claude, probably" because of what it
+  is called.
+- **The absence is now audible.** `tausik doctor` reports which source named the
+  model, and warns — naming `TAUSIK_AGENT_MODEL` — when nothing does. A session
+  that opened before a source existed gets its own wording, because "close and
+  reopen" is different advice from "declare it".
+- **The transcript read is bounded.** It used `readlines()` on an append-only log
+  with no ceiling to look at its last few lines: 70 ms per call on this project's
+  live file. Now the last 256 KB, with the partial first line dropped — 23 ms, and
+  the same answer.
+- **Proven live, not asserted.** Session #232 is the first in this project's
+  history to carry a model id.
+
+### Fixed — the telemetry said work had cost $0.00, 55,471 times
+
+The task was raised as "on another model, zeros get written". Measured on this
+project's own database before anything was designed, that premise was wrong in
+the direction that mattered: **the zeros were being written here, on this vendor,
+on this model.**
+
+    55,583 usage_events
+    55,288 (99.5%)  tokens_input=0, tokens_output=0, model_id=NULL
+    55,471          cost_usd=0 — and NOT ONE row carried NULL
+         0          tasks with cost_actual_usd > 0; 669 with exactly 0
+
+- **The cause was structural, not vendor-specific.** `_extract_usage` read
+  `tool_response.usage`, and a TOOL result has no usage — usage belongs to the
+  model's message. Bash (26,129 rows), Read (7,385), Edit (6,346), Grep, Write
+  and every MCP tool never carried it and never will. `Agent` is the only tool
+  that ever did, at 75 rows.
+- **Absence is now representable (schema v58).** `tokens_input`,
+  `tokens_output`, `tokens_total` and `cost_usd` are nullable, with their
+  non-negative CHECKs kept (`x IS NULL OR x >= 0`) — relaxing one constraint must
+  not quietly relax its neighbour. SQLite's `SUM` skips NULL and returns NULL
+  when every input is NULL, so a task with nothing measured now rolls up to "not
+  measured" without any consumer needing a special case.
+- **The migration rewrites only what it can prove**: `source='posttool'`, no
+  model, zero on both counts. A row that names a model and reports zero is a
+  MEASURED zero and is left alone — getting only one direction right would be the
+  same defect wearing the opposite sign.
+- **Extraction is adapters by payload shape.** Four known shapes are read; an
+  unknown one yields absence rather than zero, and so does a usage dict whose
+  token fields are missing or unreadable. A payload that genuinely says `0` is
+  still a measurement.
+- **"Free" and "unpriced" are now different answers.** `calculate_cost_usd`
+  returns `None` for a model with no price and `0.0` for one priced at zero;
+  before, both were `0.0` and nothing could tell them apart. `session_metrics`
+  no longer reports `cost_usd=0.0` for a transcript with no model, and the CLI
+  prints "cost NOT MEASURED" instead of `$0.00`.
+- **Budgets no longer read absence as headroom.** An unmeasured cost cannot
+  exceed a budget, and must not be treated as comfortably under one either — the
+  comparison is skipped, and `tasks.cost_actual_usd` is left NULL rather than set
+  to 0.
+
+### Added — a gate that notices when a capability goes host-only
+
+The second promise of 1.9 is "higher development quality on ANY model", and
+nothing was checking it. A capability could land for one host and not another and
+no test, gate or document would say so.
+
+- **`cross_model_parity`**, scoped to the host layer (`bootstrap/`,
+  `scripts/hooks/`, `harness/opencode/`). It RUNS the real mechanism generators
+  into a clean tree and reads what landed — a list in the code of what each host
+  ought to get would record intent and drift from the deployment, the same drift
+  one level up (decision #335).
+- **Hosts are compared only with hosts that share an extension point.** OpenCode
+  enforces through a plugin, Claude through hook commands; asking whether
+  `tausik-qg0.js` is missing from Claude is a question with no meaning, and
+  answering it would have filled the gate with 23 false differences on day one.
+  Whether a host has an extension point at all is a separate statement, already
+  made by each host's enforcement notice and by `doctor`.
+- **It does not demand sameness.** Cursor has no extension point to be equal to.
+  What it demands is that a difference be NAMED, with a reason. A declaration that
+  matches no live difference is refused as loudly as an undeclared difference.
+- **Found by building it — the existing parity test could not see this.**
+  `test_bootstrap_hooks_parity` compared SCRIPT BASENAMES, so Claude and Qwen
+  looked identical at 23 hooks each. Six of those hooks are registered on
+  different MATCHERS: `task_done_verify.py` fires on four tool patterns under Qwen
+  and one under Claude, `task_call_counter.py` counts every tool under Qwen and
+  five under Claude, so the two hosts reach the session call budget at different
+  points on the same work. All four surviving differences are now declared with
+  their reasons; the two `""`/`*` spellings of "every tool" are normalised, since
+  a gate whose output is mostly noise is one nobody reads.
+- **The builder map cannot go stale.** Teach bootstrap to deploy hooks for Cursor
+  and forget to tell the gate, and the deployed profile — an independent witness —
+  makes it red rather than leaving Cursor silently uncovered.
+
+### Known — four host registries disagree, and it is now pinned
+
+`bootstrap_config.IDE_DIRS` and `ide_utils.IDE_REGISTRY` know seven hosts;
+`skill_profile_detect.VALID_IDES` knows four (claude, codex, cursor, qwen) and
+`providers` knows a different four (claude, cursor, kilo, qwen). The live
+consequence, verified: `tausik config set ide_profile kilo` is refused as an
+unknown IDE for a host bootstrap fully scaffolds, and the same holds for opencode.
+Collapsing the registries is `four-ide-registries-collapse-into-one`, deferred to
+1.10. Until then a test pins the exact divergence, so it can neither widen nor
+quietly disappear unnoticed.
+
+### Fixed — two of five hosts were told their rules were enforced, and they were not
+
+Bootstrap handed every host the same rules text, opening with "Quality gates
+(`.tausik/tausik gates status`) enforce these automatically." Measured on this
+project on disk (session #230): claude 23 hook commands over 6 events, qwen 23,
+opencode 1 plugin, **cursor 0, kilo 0**. On two of the five that opening sentence
+was false, and nothing anywhere said so.
+
+- **The claim is now derived from the deployment, not asserted.**
+  `scripts/enforcement_coverage.py` counts what bootstrap actually left in the
+  host's profile — hook commands in `settings.json`, plugins under `plugins/` —
+  and the rules body opens with what that count supports. A rule-to-mechanism
+  table was considered and refused: it would record what we MEANT to deploy and
+  drift from what we did, which is the same drift one level up (decision #335).
+- **Three answers, not two.** A host with a mechanism gets the counted claim; a
+  host without one gets "**ON THIS HOST THE RULES BELOW ARE INSTRUCTIONS, NOT
+  CHECKS**"; and a file that more than one host reads — AGENTS.md, shared by
+  codex and kilo — gets UNKNOWN. Answering "not enforced" there would be a guess
+  about a host nobody has named (decision #334). Which files are host-specific is
+  derived from `ide_utils.IDE_REGISTRY` rather than listed again.
+- **A plugin is called a plugin.** OpenCode enforces through one, and counting it
+  as a hook would have been a small lie of exactly the family being fixed.
+- **The wrong reason is gone.** The single caveat that did exist said Cursor has
+  "no hooks API" — a claim about someone else's platform that was not ours to
+  make, and a wrong reason is worse than none because it closes an open question.
+  What is true, and what now ships, is that TAUSIK generates no real-time payload
+  for that host. The same words were corrected in `MULTIMODEL_NOTE` and in both
+  language versions of `troubleshooting.md`.
+- **`doctor` says it aloud**, and warns on a CONTRADICTION rather than on the gap:
+  a rules file claiming automatic enforcement while its profile holds no
+  mechanism, or denying enforcement the profile does have. Rules files are
+  preserve-if-exists, so every file generated before this release still carries
+  the old claim and a plain re-run will not replace it — that is precisely what
+  the warning is for. It caught this repository's own `.cursorrules` on the first
+  run.
+- **The gap is DECLARED, not closed.** No `hooks.json` is generated for Cursor and
+  no plugin for kilo; both counts stay zero, and a test holds them there.
+
+### Added — the reconnaissance genre gets a role and a receipt contract
+
+Broad investigation for a few numbers burned the main window: probes written,
+run, read, discarded — and everything except the numbers stayed in the context
+forever. Measured on this project (session #230, 2026-09-04..09-07): 56 probe
+scripts and 75 runs of them, 258,677 characters, about 64,669 tokens — 5.7% of
+all tool-argument payload, input side only.
+
+- **The role already existed and was empty.** `tausik role show researcher`
+  printed a path to `harness/roles/researcher.md` that did not exist. The role
+  had reached the database through `seed_v18_roles`, which seeds from role
+  strings found in TASKS: one task typed "researcher" and a role appeared,
+  designed by nobody. It now has the profile, and the profile is the receipt
+  contract — no second `scout` role next to it, because two roles for one genre
+  is the duplication this project refuses.
+- **A receipt has five parts, and one of them is the unknown.** What was
+  measured, by what command, the numbers with their denominators, what they
+  REFUTE, and what remains unknown. The last is mandatory: a summary that hides
+  what the researcher could not measure is a silent error, and an unmeasurable
+  quantity is reported as "not measured", never as `0` (decision #334).
+- **The reverse gap is recorded too**: `ui-ux` ships a profile no task ever used,
+  so the seed never registered it. Both directions now have a test, because a
+  registry checked one way decays into a list of good intentions.
+- **The first version of that test invented a rule** — it demanded the profile's
+  heading match its file name and failed on `ui-ux.md`, whose heading is the
+  human title "UI/UX Developer". The heading is a title; the file name is the
+  slug. It now checks that the file name IS addressable, which is the property
+  the CLI actually depends on.
+
+### Changed — "the directive reaches the agent once" was wrong, and the measurement says where it actually goes
+
+Answered by running things, not by reading them. The SessionStart hook injects
+7,263 bytes (~1,815 tokens) of context and does NOT carry the output-economy
+directive. The directive lives in the RULES FILE, and the harness supplies that
+file as project instructions in EVERY request — observable directly, since
+CLAUDE.md's content sits in this session's own system prompt hours in. Delivery
+is per-turn; what happens once is the WRITE. It survives compaction by
+construction, because rules are in the request prefix and compaction shortens the
+conversation history. Cost: ≤700 characters (~175 tokens) against a median
+per-call context of 276,702 — 0.06%, against a measured ceiling of about 2%
+saved, so it repays roughly thirty times over.
+
+- **What the measurement did find is now guarded.** All five generators that
+  write a rules file call `warn_output_mode_not_applied`; nothing stopped a
+  sixth from forgetting, and a silent generator would leave a user believing
+  compression is on while the existing file was preserved untouched. A test
+  reads the AST — a function that CALLS a body builder and WRITES the result
+  must also call the warning.
+- **The detector's first version checked a name, not a fact**, and reported the
+  body builder as a generator that had forgotten to warn, because its own name
+  appeared in its own source. It now matches calls, and the planted-module tests
+  make both directions fail on purpose.
+- **No second lever was introduced.** The directive and its 700-character cap
+  are unchanged, and a test asserts the SessionStart hook carries no second copy.
+
+### Added — every economy lever this project ships must be DECIDED on by it
+
+TAUSIK claims "this framework is its own user" and shipped levers it had decided
+on none of: `output_mode` unset, `read_ledger` unset, both output thresholds
+unset, `context_tier` set to the value it already defaults to. The divergence was
+found by reading a config field, which is exactly how it should not be found — a
+discrepancy nobody can trip over survives. A test now asserts that each shipped
+lever carries an explicit decision: a value, or a registry entry with the reason
+and a number.
+
+- **Both directions, so the registry cannot rot** (decision #335): an entry
+  naming a lever the code no longer has fails, and a lever the code gained that
+  nobody decided on fails. Each branch is exercised by a test that makes it fail.
+- **`output_mode` stays off, measured.** Model output is 71.6% of context growth,
+  but `caveman` compresses prose only — it exempts code, commands, tool output
+  and the durable record by name. Prose is 1,493,022 of 16,287,948 characters of
+  this project's output (9.2%); 90.6% is tool arguments. Ceiling: 71.6% × 9.2% =
+  6.6%, realistically ~2%. And decisively: the rules generator is
+  preserve-if-exists and this CLAUDE.md is hand-written, so the flag would change
+  nothing on disk while looking as though it had.
+- **`context_tier` stays and is recorded as inert here.** The first attempt
+  deleted the key as a no-op; the next bootstrap wrote it straight back, and
+  correctly — the lever is live for projects whose rules file the generator
+  writes. Fighting the generator for cosmetics manufactures permanent drift; the
+  honest state is a recorded reason, not an absence.
+
+### Added — a read ledger: an unchanged file is not paid for twice (opt-in, off by default)
+
+A `PreToolUse` hook for `Read` refuses a re-read of a file that has not changed
+since it was read earlier in the SAME session, provided the earlier read is
+within a measured window. Everything about it was measured before it was built.
+
+- **The prize is named, not implied.** Read accounts for 370,213 of 17,896,506
+  tokens of context growth — 2.07%. So eliminating every read would save 2.07%,
+  and this mechanism targets ~0.49%. Most re-reading in this corpus never touches
+  the Read tool: 2,196 genuine file reads live inside Bash commands (`cat`,
+  `sed -n`, `head <file>`) with 604 avoidable repeats, about 3.1%. Covering those
+  would mean BLOCKING a call after parsing arbitrary shell, and this project has
+  an open owner-held defect showing shell parsing for gating misfires here. So
+  the hook covers what it can prove and states what it does not.
+- **The window is a number.** Gaps between repeats: Read median 4, p75 58, p90
+  187; Bash median 6, p75 37, p90 148. Twenty calls covers 69.4% and 65.6%.
+  Beyond it every read is allowed — content read 400 calls ago may have left the
+  context through compaction, and denying it would hand the agent an absence it
+  cannot detect. Every uncertainty resolves to ALLOW: no fingerprint, no prior
+  record, a changed file, a partial read, an unreadable config.
+- **mtime AND content hash, because each lies alone.** A checkout restores
+  identical bytes with a new mtime; a hash is too expensive above 2 MB. Same
+  size + same hash means unchanged; a hash on one side only is "not
+  demonstrated" and the read goes through.
+- **The saving is counted, never claimed.** Each refusal increments
+  `saved_reads` in the ledger, and `tausik metrics tokens` prints it when it is
+  non-zero. What a refused read WOULD have cost is not estimated — guessing it
+  would be the invention this report exists to stop.
+- **Registered on Claude and Qwen alike.** The parity test caught the gap: a
+  guarantee that exists on one host and not another is what this release refuses
+  to ship.
+
+### Added — a byte cap on tool output, because a line count cannot see one long line
+
+The truncation nudge counted LINES with a threshold of 250. A minified file, JSON
+on one line, a log without newlines: each enters the context whole while the line
+counter reads "1". The nudge now counts bytes as well (default 24,000), says
+WHICH threshold tripped, and in the byte-only case names the cure a line limit
+cannot give — cap the output itself.
+
+- **The threshold comes from measurement, not taste.** The delta from one call to
+  the next within a session, over 9,844 Bash calls: median 848, p90 2,514, p99
+  6,386. The byte default sits near that p99, so the nudge speaks about calls
+  that cost something instead of every second command.
+- **CORRECTION, same session.** A first version of this entry read that delta as
+  "Bash accounts for 66.4% of all growth". The delta contains the tool's result
+  AND the model's own output on that turn, so the figure credited the command
+  with what the model wrote. Split over the same 14,048 pairs: model output is
+  12,895,606 of 18,009,761 tokens (**71.6%**), tool results plus framing 28.4%,
+  and Bash results specifically **26.3%**. The threshold is unaffected — p99 is a
+  property of the delta — but the claim is: capping command output is worth
+  26.3%, and the larger lever is the shape of the model's own answer.
+- **The measurement corrected the premise it was gathered under.** The growth is
+  BROAD, not tail-heavy: the top 1% of Bash calls is 6.8% of Bash's growth and
+  4.5% of everything. No catastrophic single result appears in the corpus,
+  because the Claude Code harness truncates tool output itself. On a host that
+  does not, it would — so this rule is worth most where the framework promises
+  the most and delivers the least today: on hosts other than this one.
+- **The rule names the commands.** `docs/ru/agent-contract.md` lists the calls
+  whose output size is unknown in advance (`cat` without a range, a wide `rg`,
+  `find`, `ls -R`, a whole `git diff`, `git log` without `-n`) and what to bound
+  each with. It is NOT in CLAUDE.md: that file is loaded every turn, and paying
+  per-turn context to describe a rule about saving per-turn context is the defect
+  wearing the cure's clothes.
+- **The borrowed −50% is not repeated as ours.** The external source that
+  measured this technique claims about half the tokens; that figure is theirs and
+  unverified here, exactly as already noted for caveman's ~65%. The one measured
+  claim made here is the 26.3%.
+
+### Added — the MCP surface has a price, and a ratchet that re-measures it
+
+The MCP protocol sends every tool's name AND schema on each turn unless the
+client defers schemas. Measured on the live tree in session #229: 145 tools,
+56,108 bytes (~14,000 tokens) for the full surface against 3,201 bytes (~800
+tokens) for names alone — a 17.5x difference between a host that defers and one
+that does not. Claude Code defers, which was OBSERVED here; a host without
+deferral pays the whole surface, which follows from the protocol and was not
+observed here. Both figures are stated, and which is which.
+
+- **The number lives in a test, not in prose.** The task that filed this recorded
+  117 tools and 44,501 bytes in session #178. By #229 it was 145 and 56,108 — the
+  surface grew 24% and 26% and nobody noticed, because the number was written
+  down rather than re-measured. `tausik/gates.json` now carries an `mcp_surface`
+  ratchet (may shrink, may not grow) and `tests/test_mcp_surface_ratchet.py`
+  re-derives it on every run, including a test that the ratchet actually goes red.
+- **No free reduction exists, and that is measured.** 145 declared tools against
+  145 dispatch handlers, with the difference empty in both directions. Cutting
+  the surface means dropping a live capability, merging families or splitting the
+  server by area — a product decision (decision #339), not a chore this task may
+  make silently. No economy is claimed from a reduction that has not happened.
+
+### Fixed — the model report named a model that was not running
+
+`LLM Usage by Model` aggregated the `posttool` slice of `usage_events`, where
+`model_id` is filled in exactly ONE row of 54,855 — the PostToolUse payload
+carries no usage. So it reported `claude-opus-4-7` as this project's only model
+and gave it all the spend, while the work had been running on `claude-opus-5`
+and `claude-sonnet-5` for months and said so in every session record. It now
+reads the session slice, where the model and the real tokens live, and names six
+models instead of one.
+
+- **The session mirror is one row per session again.** `session_usage_record`
+  mirrors a session's CUMULATIVE total into `usage_events` and APPENDED it on
+  every call, so the slice its own docstring recommends — "session totals only:
+  `WHERE source = 'session_record'`" — filled with snapshots of the same fact:
+  15,517 rows for 155 sessions, summing to 88x the truth. A documented query
+  that lies is worse than an undocumented one. The mirror of an UPSERT is now an
+  UPSERT, and migration 57 collapses what the appending already wrote (exact,
+  not a guess: every row carries the session's running total, so the newest is
+  the complete answer and the rest are stale copies of it).
+- **No shipped report was inflated by that pile**, and the earlier claim that
+  `metrics cost` was is withdrawn: the per-task rollup, the unattributed bucket
+  and the by-model rollup each filtered `source` or `task_slug`, exactly as the
+  writer's docstring instructed. The 88x only appears when the whole table is
+  summed, which nothing does.
+
+- **The session record is one transaction, not three commits.** `_ex` commits
+  immediately unless an explicit transaction is open, so a crash between the
+  DELETE and the INSERT left `session_usage_metrics` holding a session's total
+  while `usage_events` had no mirror row for it — and an ended session never
+  records again, so the gap was permanent and the by-model report would have
+  lost that session silently. The window predates the replace (the UPSERT
+  committed, then the INSERT could fail the same way); the DELETE widened it.
+
+### Changed — a zero cost is no longer presented as a measurement
+
+- **`metrics cost` said every task was free.** It printed `0.0000` for all 706
+  of them, because per-task rows come from PostToolUse and 76 of this project's
+  54,855 such rows carry any tokens at all. Unmetered tasks now read
+  "не измерено", the column is labelled `calls` rather than `events` — call
+  volume is the only thing those rows actually measure — and a closing line says
+  how many tasks are unobserved and where session-level spend does exist.
+- **The «вне задачи» bucket** printed `0.0000 usd` over 201,897 tokens. Same
+  rule now: tokens with a zero cost were never metered.
+- **A model priced only after the fact.** `claude-fable-5-1` showed 4,282,326
+  tokens at `$0.0000` because it had no price row when those sessions were
+  recorded and acquired one later. The guard asked today's price table whether
+  the model is priceable, which is a different question from whether the row was
+  metered; a stored zero against real tokens is now reported as unmetered
+  regardless.
+
+### Fixed — the framework never knew which model was running
+
+`hooks/session_metrics.py` puts its PARENT directory on `sys.path` but imports
+its own neighbours by bare name, and `scripts/hooks` lands on `sys.path` only
+when a hook is RUN as a script. Imported as `hooks.session_metrics` — which is
+exactly what `model_routing` does — the neighbours did not resolve, the caller's
+`except` turned the ImportError into a silent `None`, and every `task start`
+printed `active: unknown (no transcript readable)` while the transcript sat on
+disk naming `claude-opus-5`.
+
+- **Measured per module in its own interpreter.** Importing all 46 hooks in one
+  process is worthless as evidence: the first module that repairs `sys.path`
+  silently repairs every module imported after it, so the failures depend on
+  alphabetical order. One interpreter per module found five broken:
+  `_common`, `bash_cmd_scan`, `bash_firewall`, `pwsh_cmd_norm`,
+  `session_metrics`. All five now carry their own directory; 46 of 46 import.
+- **The model-mismatch warning works for the first time.** The banner now reads
+  `active: claude-opus-5` and produces a real verdict instead of "unknown". A
+  framework that promises quality on any model could not name the model.
+- **The check does not become a muffler.** With no transcript the banner still
+  says "unknown" rather than inventing a model, and `session_metrics.py` still
+  runs as a script — two live paths, and the fix had no right to cost the other.
+- **No `sys.path` entry may come from ambient input.** A new test resolves each
+  entry through the AST — following named constants, scoped to the function they
+  live in — and fails on anything derived from `getcwd`, `environ` or `argv`. It
+  deliberately does NOT demand `__file__` everywhere: some hooks add the
+  deployed profile's directory on purpose, and a rule that fires where nothing
+  breaks teaches people to ignore it.
+
+### Fixed — every session's token count and cost were doubled
+
+`sum_usage_tokens` added `usage.iterations[*]` to the top-level counts, on the
+belief that the list held only the extra server-side compaction passes. It holds
+ALL of them, the first one included: the top level is a VIEW of the list, equal
+to it at one iteration and equal to its FIRST entry at more than one. Adding the
+two counted every message twice.
+
+- **Measured, not estimated.** Across every transcript this project has — 23,836
+  messages carrying usage — 23,818 (99.92%) have exactly one iteration whose
+  fields repeat the top level character for character. The inflation was
+  1.9999x on input, 1.9999x on output. It reached `tokens_input`,
+  `tokens_output` and `cost_usd` in `session_usage_metrics`, which is what
+  `tausik metrics` reports as this project's LLM spend.
+- **The original intent is preserved.** Compaction passes are real and are
+  billed separately; the 7 multi-iteration messages in that corpus contribute
+  2,247 tokens that a top-level-only sum would miss, and they are still counted.
+  What stopped is counting the first pass twice.
+- **The fixtures were the reason nobody saw it.** The tests asserted
+  `{100, iterations:[35]} -> 135` — an invented shape that encoded the author's
+  assumption rather than the API's behaviour, and stayed green for exactly that
+  reason. They now use shapes taken from live responses, and a new test reads
+  the project's own transcripts and fails if the API's shape ever changes.
+- **An unreadable iteration list reports the top level, not zero.** The top
+  level is the first pass, so it is a floor on the truth; reporting 0 for a
+  message that plainly was not free would be worse.
+
+### Changed — the LLM usage total says how much of itself is on the old scale
+
+Historical rows are NOT rewritten: transcripts survive for only a fraction of
+the sessions, and rows predating the API's `iterations` field were never doubled
+at all, so halving blindly would corrupt rows that were already correct and
+correcting only the recoverable ones would put a third scale in one column.
+`tausik metrics` therefore names the superseded share — how many sessions, how
+many tokens, how many dollars — instead of folding it silently into one number.
+The boundary is a session id captured once (sessions only move forward), not a
+calendar date that rots on its own.
+
+### Fixed — the token ledger measured another project, and called 2 tokens "the input"
+
+Release 1.9 intends to claim a token economy. The instrument that would produce
+that number was broken in five ways, three of which nobody had reported.
+
+- **Rows are attributed by their own timestamp.** The emitter stamped every row
+  of a re-walked transcript with "the newest session in the database", and one
+  Claude Code transcript spans several TAUSIK sessions — so each of them
+  received a copy of the whole file. On this project's own ledger 3,840 of 5,301
+  rows (72.4%) were cross-session duplicates, sessions 221/222/223 all began at
+  the same instant, a 25-minute session carried 1,409 rows spanning 16 hours,
+  and the summed `cache_read` was inflated exactly 2.03x by that alone. A row
+  now belongs to the session whose interval contains its timestamp, and to no
+  session when none does — `session_id: null`, never the nearest guess.
+- **The transcript finder returned other projects' conversations.** It derived a
+  directory name from the CWD and, on no match, fell back to "the most recently
+  touched project anywhere on this machine". On Windows the match never
+  succeeded — Claude Code writes `c--Projects-…` for `C:\Projects\…` while the derived
+  slug was `C-Projects-…` — so the fallback was the normal path. Three consecutive
+  ledger rebuilds read 42, then 32, then 10 transcripts from three different
+  projects. Matching is now on the `cwd` each transcript records about itself,
+  across every supported IDE profile rather than two written by hand; no match
+  yields None. This also fed `session_metrics --auto` and the running-model
+  detector, so both were reading foreign transcripts too.
+- **The full input context is recorded.** With prompt caching on, `input_tokens`
+  is the *uncached remainder* — literally 2 on every one of 5,301 rows here —
+  while the context sits in `cache_read` + `cache_create`. The report called the
+  remainder "the input", which made its `in_total` column a doubled call
+  counter. Rows now carry `context_tokens` (input + cache_creation +
+  cache_read), and that is the quantity a token-economy claim is about
+  (decision #338).
+- **A session's rows survive a second transcript.** Replacement was keyed on the
+  session, and the SessionEnd hook only ever sees the transcript that just
+  ended, so the newest one erased what earlier transcripts had recorded for the
+  same session. The key is now the (session, transcript) pair.
+- **`tausik metrics tokens --rebuild`** re-derives the whole ledger from every
+  transcript on disk and prints a receipt. Coverage went from 7 sessions to 65
+  of 227, with 97.1% of rows attributed.
+
+### Changed — the token report states its denominator and refuses to print zero
+
+- A `COVERAGE` line names how many of the project's sessions carry rows, over
+  what dates, and how many rows fall outside every session. "5 session(s)
+  observed total" had read like completeness against a history of 227.
+- A value that was not measured prints as `не измерено` / `n/a`, never as 0 —
+  an empty ledger now says the economy is unmeasured rather than nothing.
+- The tool column widened from 24 to 40 characters: every
+  `mcp__tausik-project__tausik_*` name collapsed to the same prefix, so a report
+  whose job is to say where the tokens go could not tell twenty of its own tools
+  apart.
+- `docs/ru/cli.md` documented `metrics tokens` with flags it does not have
+  (`--since`, `--until`, `--task`) and attributed its data to a different hook
+  and a different table. Corrected — and then corrected again in
+  `docs/en/cli.md`, which the first pass left describing the same nonexistent
+  machine. The English page is the one an outside reader of the public
+  repository sees; fixing one half of a translated pair leaves the defect
+  standing for the other half's audience.
+
+### Changed — model prices live in your config, and a price is a pair
+
+Model pricing was a hardcoded Python table with the project's config as a
+*fallback for gaps*. That is backwards, and it was measurably harmful: the
+shipped table carried `claude-sonnet-5` at $3/$15 (its rate is $2/$10) and no
+project could correct it without editing Python.
+
+- **Config wins.** `llm_pricing_usd_per_million` in `.tausik/config.json` is
+  consulted first; the built-in table is a shipped seed. Authority is per
+  model — pricing one model does not blank the shipped rate of the others.
+- **A price is `{input, output}`.** The old schema was one number per model, and
+  the consumer applied it to *both* directions. No real tariff charges the same
+  for input and output, so every model priced through the config was wrong by
+  construction, in a direction nobody could see. A bare number is still accepted
+  and now explicitly means "both directions at this rate"; half a tariff
+  (`input` without `output`) is rejected with a warning rather than half-applied.
+- **`metrics` names what it cannot price.** An unpriced model's stored cost is
+  `0.00` because the column is `NOT NULL`, which in the database is
+  indistinguishable from "free". At the reporting end the price table can still
+  be consulted, so those tokens are now reported as unpriced instead of folded
+  into a confident zero.
+
+### Fixed — a third of this project's own tokens were metered at $0.00
+
+Measured on the live ledger: 1,133,486 of 3,102,706 tokens (36.5%) recorded
+`cost_usd = 0.00` because `claude-opus-5` — the model the project actually runs
+on — had no price row. The coverage guard stayed green throughout, because it
+checks the models the framework can **route** to while the price is applied to
+the id the **host** reports; `model_profiles` still names a previous generation.
+
+- `claude-opus-5`, `claude-fable-5-1` and `claude-mythos-5-1` are priced, with
+  their `[1m]` spellings.
+- **Sonnet 5 and Sonnet 4.6 no longer share a rate** ($2/$10 and $3/$15). They
+  shared $3/$15 on the reasoning that $2/$10 was introductory "through
+  2026-08-31" and over-reporting was the safe direction. The date passed and the
+  premise with it — 3064 of 4777 ledger rows are Sonnet 5 and were priced 50%
+  high. A comment that justifies a number by a deadline goes wrong on its own
+  schedule, with nothing to notice.
+- The routing blind spot itself is **not** closed here: doing so means choosing
+  which generation `model_profiles` routes to, which is an owner's decision and
+  touches 159 test files. The reporting change above makes an unknown model
+  visible regardless of that decision.
+
+### Fixed — the product claimed three SENAR editions at once
+
+TAUSIK asserted three different editions of the standard it implements,
+simultaneously: v1.3 in `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `QWEN.md`
+and the bootstrap templates that generate them; **v1.5** in both compliance
+matrices, which closed with "compliance: 100%, all gaps closed"; and no edition
+at all in either README. The owner's decision: **TAUSIK claims SENAR v1.3
+Core**. Later editions are in preparation and are claimed nowhere.
+
+- **Nine claim sites, not three.** The filing named three; measuring the live
+  tree found nine, including `docs/ru/agent-contract.md`, whose heading
+  "SENAR Compliance (v1.3 Core)" the first search missed because a word sits
+  between the standard's name and the number.
+- **The matrices stopped claiming v1.5 and did not inherit a percentage.** Their
+  35 rows were assessed against a later, still-moving draft; the normative text
+  is not vendored into this tree, so a conformance score for the claimed edition
+  **cannot be computed here** and is now reported as absent rather than carried
+  over from a different rubric. Producing it is a separate, named task.
+- **A new guard, deliberately not part of the version-ref scanner.** `SENAR`
+  sits in `_FOREIGN_VERSION_PREFIXES` on purpose — a foreign standard must not
+  be forced to version in step with TAUSIK — so consistency of the *claimed*
+  edition is a separate mechanism (`scripts/senar_version_claim.py`). It scans
+  the published surface rather than checking a closed list, so a version named
+  in a NEW file is caught.
+- **A claim, a citation and a rule number share one spelling.** `SENAR v1.3
+  Core` claims an edition; `SENAR 1.4 §8.6(e)` cites where a requirement was
+  phrased and may legitimately name another edition; `SENAR Rule 9.1` and
+  `SENAR 9.2` are chapters and not editions at all. The first draft of the
+  scanner read all 57 mentions as editions and would have reddened on forty
+  live lines. The genuinely ambiguous fourth shape — a bare `SENAR 1.x` with no
+  `v`, no `Core` and no `§` — is refused with a remedy rather than guessed.
+
+### Fixed — the same defect, found inside the fix for it (review FAIL)
+
+An L3 review of the change below returned FAIL, and it was right. Two blockers
+and one substantive finding, each reproduced before being accepted:
+
+- **CI was red on every clean checkout.** `skills_official_count` was derived
+  from `skills-official/registry.json`, and that directory is a separate,
+  gitignored repository — `git ls-files` returns nothing for it. A fresh clone
+  computed 0 against the committed 20, and `--check` compares exactly.
+  Reproduced with `git archive HEAD` into an empty directory plus the literal CI
+  command. Worse, a merely corrupted registry would have fed 0 to the auto-fixer,
+  which rewrites documents from constants: "20 official skills" would have become
+  "0 official skills" in three files. The counter now answers **None** when it
+  cannot count — absence is not zero — and `build_constants_doc` carries the
+  previously recorded value forward, exactly as it already did for `test_count`.
+- **ROADMAP.md was not regenerated** after the task closed, so the committed tree
+  failed `test_release_roadmap.py`. The entry below claimed a green full suite;
+  that run was taken before the close and did not describe what was committed.
+- **Three of six table subjects found no column anywhere.** `stacks_count`,
+  `roles_count` and `review_agents_count` matched no header in any of the
+  fourteen scanned files, and the meta-test scored them bound because it asked
+  whether the KEY was listed, never whether the pattern reached a document. A
+  mutation making those regexes unmatchable left the suite green. That is this
+  release's own thesis — a scanner that cannot find its subject reports success —
+  reproduced one level up, inside the fix for it.
+
+What the repair changed, beyond the numbers:
+
+- Subjects are matched by keyword in **every** entry now, not only the one the
+  defect was measured on, and **only in the plural**: `Hook` names a column of
+  hook names (fourteen such tables in `docs/{en,ru}/hooks.md`, all bound to
+  `hooks_count` by the first cut), `Hooks` names how many there are.
+- A subject must **locate a real column on the live tree**, asserted through the
+  same parser the scan uses. Speculative machinery can no longer be added.
+- An exemption must be **bound in prose against a real document**, or listed in
+  `STATED_ONLY_WHERE_NOTHING_READS` with its reason. Checking that properly
+  falsified three exemptions written an hour earlier: the stacks, roles and
+  review-agent prose patterns matched nothing at all. Roles are stated only
+  inside fenced repository trees, which every scan strips on purpose; review
+  agents are stated nowhere; stacks are stated as "25 stack-aware verify suites",
+  which an existing negative test rules is a count of gates rather than of stacks
+  — a first attempt to bind it reversed that ruling silently and was withdrawn
+  when the test said so. All three are now declared unread, with the reason and
+  the ruling named, rather than described as bound.
+- Four more live-but-unchecked numbers corrected and bound:
+  `docs/en/architecture.md` said "145 project tools + 7 brain tools = 128" — false
+  on the face of the line — while its RU twin said 152 and *was* checked;
+  `docs/{en,ru}/mcp.md` claimed "128 tools ≈ 51/52 KB" against a measured 152
+  tools / 62 KB / ~15.9k tokens; `docs/ru/agent-contract.md` said "149 tools
+  (145 project + 7 brain)"; `AGENTS.md`'s fenced repository tree still said 12
+  core skills, 25+ official and 5 roles.
+- The `codebase-rag` patterns added below were written from AGENTS.md's phrasing
+  and matched **nothing** in `docs/{en,ru}/mcp.md`, the canonical document they
+  were named for. Both wordings are covered now, proven by giving the constants
+  deliberately wrong values and requiring mcp.md to redden.
+- `main N count` is anchored on the optional server being named on the same line.
+  Unanchored, the auto-fixer rewrote "run the main 3 count validators" into "the
+  main 152 count validators" in a probe.
+- `tests/test_code_counts.py` exists: missing directory, corrupted JSON,
+  non-object root, uncountable `skills` value.
+
+Comments that were not true went with them: the "400-line cap" and "three-module
+split" in `doc_drift_scanners`, the "few dozen lines of headroom" in
+`doc_drift_tables` (it had 99), the stale coverage list in `doc_drift_common`,
+the ONLY-scope claims on two target lists the column scan now walks, and the
+`--skip-mcp-counts` help text, which had quietly grown to disable five more count
+families than it names.
+
+### Fixed — a doc-count scanner that could not find its column was reporting success
+
+TAUSIK derives fourteen numbers from the tree (`gen_doc_constants.py`) and
+checks the documentation against them, so a count in the README cannot drift
+from the code that produces it. Measured this release with that check GREEN:
+`AGENTS.md` carried three cells reading `**100** (93+7)` MCP tools against 152
+(145+7), in the same column as the row above them, which was correct — and
+three lines below a sentence promising that "canonical counts are asserted from
+`len(TOOLS)` in code". Both READMEs carried `21` in the `Hooks` column against
+`hooks_count=22`, ten lines under prose saying `22` that WAS checked.
+
+WHAT THE MEASUREMENT CHANGED: the stale numbers were the symptom. The column
+scan located its column by matching the WHOLE header cell against one spelling
+(`^MCP tools$`), so a header naming the same count in other words — "Main
+`tausik_*` tools (two servers)", "Hooks" — matched nothing, no column was
+found, and the scan passed. A scanner that cannot find its subject reports the
+same thing as a scanner that found nothing wrong, and that silence is what let
+four counts rot in files the guard was walking every run.
+
+- The single hardcoded column becomes a SUBJECT REGISTRY (`doc_drift_tables.py`)
+  covering MCP tools, hooks, core skills, stacks, roles and review agents in
+  both languages. Headers are matched by keyword against a normalised cell, so
+  backticks, emphasis and a parenthetical suffix no longer hide the noun.
+- A table may carry several counted columns; all of them are now read, and the
+  header is the table's FIRST row rather than whichever row matches first.
+- A split spelled out inside a cell (`152 (145+7)`) is two further claims, and
+  both are checked. A parenthetical gloss (`21 (full)`) is a count wearing a
+  label and is read; a decoration (`21+`, `~21`) still is not, for the reason
+  already recorded — nothing says whether it means "at least" or "about".
+- `skills_official_count` is now derived from `skills-official/registry.json`:
+  the opt-in catalogue was quoted as a bare number in three places and bound to
+  nothing, and `AGENTS.md` said "25+ official" against a registry holding 20.
+- `mcp_rag_tools` and `mcp_tools_with_optional_rag` were computed constants
+  with NO document checked against either — which is how "+7 tools → **107**
+  total" outlived the total reaching 159. Both are bound now.
+- The sentence excluding the optional server from the main total names the count
+  without the word "tools", so no pattern read it: `docs/{en,ru}/mcp.md` said
+  152 on line 7 and 128 at the foot of the same file, neither checked, one of
+  them wrong. Bound and corrected.
+- THE HOLE ONE LEVEL UP IS CLOSED: a test pairs every integer in
+  `constants.json` with either a table subject or a written exemption, and every
+  exemption but `schema_version` must name a prose pattern that does check it.
+  Adding a computed count without binding a document to it now fails.
+- `repo_coherence` runs the column scan too; it had never included it.
+
+Named limitation, in the scanner's own docstring: a count written as prose
+inside a non-numeric cell stays invisible (`AGENTS.md` had two wrong counts
+inside a link label). Reading every number in every cell would report the SENAR
+matrix's rule numbers as tool counts, so the split is deliberate — and stated
+where the next reader meets it rather than left to be discovered.
+
+### Added — `tausik coherence`: the repository-wide question no gate was asking
+
+Reviewers look at a task and a diff; gates look at a file, a scope, or a pair of
+documents. Nobody asked whether the WHOLE still holds together after every part
+passed its own check — the only repository-wide gate was `class_surface`, and it
+is narrow and structural.
+
+WHAT THE MEASUREMENT CHANGED: this is not nine new detectors. Nine repository
+audits already existed, each with a clean `collect_*` interface, and each was
+run alone and only when somebody remembered. The whole was never assembled — not
+for lack of material, but for lack of an assembler. So the lens AGGREGATES the
+real producers instead of re-deriving their answers beside them, and what it
+adds is precisely what none of them had: ranking by risk, a volume ceiling, and
+an explicit statement of what was NOT examined.
+
+Collection is deterministic and model-free; the verdict belongs to a model
+reading that output (`tausik-coherence-judge`), the same split already accepted
+for the semantic memory lint. Mixing them would make the evidence as
+unrepeatable as the opinion. It runs ON DEMAND only — a repository review earns
+its keep by being rare, and hanging it on every closure would make it noise the
+agent learns to scroll past.
+
+The output is CANDIDATES. Filing stays a person's decision; a lens that opens
+its own tasks is grading its own homework.
+
+Two failure modes are held by tests rather than by intent. A lens that finds
+NOTHING on a repository where ten defects were found by hand is broken, not
+vindicated — so the calibration runs against the live tree and currently
+surfaces 7 findings, including the two classes this release met in person (322
+duplicate-test groups; 26 rotted and 18 never-existent closure citations). And a
+collector that dies must become a NAMED gap: swallowing it silently would report
+a cleaner repository than was measured, which is the mutation the suite kills.
+
+### Added — code and documentation become entities in the same graph, and every edge says where it came from
+
+Tasks, decisions, memory and SPECs were already entities with edges. Two kinds
+were missing: CODE and DOCUMENTATION. `artifacts`, `artifact_symbols` and
+`artifact_edges` (migration v56) add them to the SAME database — `memory_edges`
+is untouched, because the point was to absorb the missing half, not to stand a
+second graph beside the first.
+
+PROVENANCE IS ENFORCED BY THE SCHEMA, NOT BY THE CALLER. "co-changed in twelve
+commits" and "declared in a task's relevant_files" are different claims, and a
+graph that cannot tell them apart turns a guess into a fact. `layer` is NOT NULL
+over a closed list and `confidence` is NOT NULL, so an edge that cannot say how
+it was obtained cannot be stored. The layer is part of an edge's identity too:
+the same pair may carry both an inferred and a declared edge, and collapsing
+them would destroy the distinction the table exists for.
+
+FRESHNESS IS PER ARTIFACT AND RECOMPUTED PER QUERY. Each artifact stores the
+fingerprint it was indexed at — from the existing `compute_files_hash`, so this
+is not a second answer to "did this file change". `neighbours_of` re-derives
+that fingerprint for the subject and every neighbour, and marks the answer
+partially stale while NAMING the artifacts it no longer describes. A stale
+answer that looks fresh is the worst outcome available, since it is
+indistinguishable from a correct one.
+
+Two layers ship. Layer 0 infers co-change from git history with no parser, so it
+works for docs and configuration as well as code, and its confidence is derived
+from how often two files appeared together — capped below 1.0, because no number
+of observations turns an inference into a declaration. Layer 1 reads
+declarations the repository ALREADY makes (`CROSSCUTTING_SCOPE`, `relevant_files`,
+`scope_paths`) rather than asking anyone to restate them.
+
+MEASUREMENT CHANGED THE DESIGN TWICE, both times against the first draft. Run on
+this repository, layer 1 produced 65,318 edges, because pairing every file a task
+declares relates a 30-file task's files to each other rather than to the task —
+`CHANGELOG.md` "references" `.gitattributes`. The grouping cap that already
+protected layer 0 from sweeping commits now applies to both, and the relation is
+`co_changes` rather than `references`, because "an author grouped these" is what
+a declaration actually says. Separately, querying the busiest module returned
+ZERO neighbours: co-change is symmetric but stored on one side, so the query now
+looks both ways and reports the direction. Hub files remain a named limitation
+rather than a silent one — an edge to the changelog is true and nearly
+uninformative, and down-weighting it belongs to whoever asks the question.
+
+### Changed — `verify_handle_check` split while it still had room, not once the gate stopped it
+
+The module sat at 496 lines against a 500 cap. A review had advised splitting it
+in advance and nothing was filed, so the advice travelled from handover to
+handover instead. Four lines is less than one commented call takes.
+
+Splitting under the gate happens at the worst moment: the change is already
+written, the tests are already green, and the only thing anyone wants is the
+lines back — a neighbouring module lost an explanation that way, with the
+decision made on the remainder rather than on the merits. This release watched
+that happen again while closing an unrelated task, when `_common.py` crossed the
+cap mid-closure.
+
+The seam is the question each part answers, not an arbitrary cut.
+`verify_handle_rules` holds the three things a presented handle must survive —
+the signed document parses and verifies, live coverage matches what it claims,
+git agrees about what changed — and `verify_handle_check` keeps the order they
+run in, the refusal policy and the spend. `check_handle` and `redeem_handle` did
+not move: no caller and no test changed, and the diff is 4 inserted lines
+against 291 removed. Both files now have real headroom (209 and 321) rather than
+one of them having four lines.
+
+### Fixed — the coverage lane measured a run that was partly failing, and said nothing about it
+
+`.github/workflows/test-coverage.yml` ran `pytest … || true` and never ran
+bootstrap. The deployed IDE profiles and `.tausik/` are bootstrap OUTPUT and
+gitignored, so a fresh clone — which is what a runner checks out — has neither,
+and the tests that need them fail. `|| true` turned that into silence, and the
+published percentage described whatever was left.
+
+MEASURED RATHER THAN ESTIMATED, and the first measurement was of the wrong
+thing: a static grep for tests mentioning a profile directory returns 72 files,
+which answers a different question, since most build their own tree in a temp
+directory. So the lane's condition was reproduced instead — `git clone` into a
+temp dir, run the suite there. FOURTEEN test files fail, the same fourteen
+across two runs, plus about 140 additional skips. That matches the review's
+estimate, arrived at by a different route.
+
+The lane now deploys the profiles first, with the same invocation the gating
+lanes have always used. It stays advisory — the coverage report is still
+uploaded when tests fail, which is what `|| true` was for — but the exit code is
+captured and re-reported as a GitHub warning annotation instead of discarded,
+because a failure that produces no signal is the silent error this project
+refuses everywhere else.
+
+`test_ci_lanes_are_honest.py` grew a ratchet for both halves: every lane that
+runs pytest must bootstrap first and must not swallow the exit code. Lanes are
+DISCOVERED from the workflow files rather than listed, so one added later is
+covered. Writing it surfaced its own bug first — the GitHub job-splitting shape
+cut `.gitlab-ci.yml` into fragments and accused a lane that had been correct all
+along, which is the failure direction that quietly erodes trust in a ratchet.
+
+### BREAKING — a write gate that cannot read the DB now refuses instead of allowing
+
+`task_gate`, `scope_write_gate` and `bash_write_gate` used to let a write
+through when they could not query `.tausik/tausik.db`, unless
+`TAUSIK_HOOK_FAIL_SECURE=1` was set. That default is inverted: a DB error now
+BLOCKS, and `TAUSIK_HOOK_FAIL_OPEN=1` is the explicit way back.
+
+**Migration.** Set `TAUSIK_HOOK_FAIL_OPEN=1` if you need the old behaviour —
+for instance while a corrupt database cannot be repaired yet. If you had
+`TAUSIK_HOOK_FAIL_SECURE=1` set, you already have what you asked for and can
+unset it; the gate now says so on stderr instead of ignoring a variable you
+deliberately configured.
+
+WHY IT IS BREAKING AND WHY IT SHIPS ANYWAY. This was announced publicly, in
+those words, to an external contributor on PR #5, and it was the stated reason
+their work waited for 1.9 rather than a patch release: "task_gate becomes
+fail-secure by default and `TAUSIK_HOOK_FAIL_SECURE=1` is replaced by its
+inverse `TAUSIK_HOOK_FAIL_OPEN=1`". The merits were agreed there too — a guard
+that cannot evaluate should refuse, not wave the edit through, which is what
+this project already argues for QG-0 and QG-2; `task_gate` was the exception
+that contradicted it. No task existed for the flip, so 1.9 was on course to
+ship without it and to make the explanation for that delay retroactively
+untrue.
+
+The refusal is written to be told apart from the QG-0 one: it says the gate
+could not evaluate, not that a task is missing, and it names both the repair
+and the override. Answering "open a task" to a corrupt database sends the
+reader somewhere that cannot help.
+
+The policy is decided once, in `_common.fail_open_on_db_error`, rather than by
+three gates each reading the environment — the same consolidation this release
+already applied to transaction ownership and to write jurisdiction. Dropping
+enforcement still emits its degradation event, which from now on counts an
+explicitly requested bypass rather than a silent default.
+
+### Fixed — the brain-isolation guard named its subject in a list, and the list was already short
+
+"Closing a task and starting a session must never depend on a wiki" was
+enforced over a hand-typed pair of files. A rename was already caught loudly,
+deliberately. What a list cannot catch is a NEW carrier of the same
+responsibility: a second close path or a second SessionStart hook is simply not
+on it, so the guard stays green and the hole stays open.
+
+The subject is now derived from the live wiring — SessionStart hooks read out
+of the registration in `bootstrap_hooks` (parsed as the literal it is, so a
+commented-out mention does not count), and close paths found by searching for
+the definitions of the close entry points. Adding either is now enough to be
+covered; nobody has to remember this test exists.
+
+The derivation immediately found a carrier the list had missed —
+`service_task.py` defines `task_done` and had never been under the guard. Three
+modules where the list had two.
+
+DELIBERATELY NOT THE IMPORT CLOSURE, and that was measured before choosing: the
+transitive closure from those roots is 221 of 419 modules, 42 of which mention
+the brain already, legitimately — storing brain configuration is the storage
+layer's job. A guard stated over the closure would have been red the day it was
+written for reasons unrelated to what it guards. The claim is about the module
+that would itself reach outward, so that is what is collected, and the residual
+(a carrier wired dynamically) is named in the test rather than left implied.
+
+A derivation that collapses to nothing is the failure mode a list does not
+have, so the count is asserted before anything is scanned.
+
+### Fixed — the firewall read a heredoc body as a command, so prose could not name a destructive one
+
+A heredoc body is data on its way to a file, but it arrives in the same string
+as the command and tokenizes like live shell. `bash_firewall` therefore read
+prose NAMING a table drop as a table drop: a docstring explaining why a
+migration rebuilds a table could not be written through a heredoc at all. The
+same text as a quoted argument passed fine — the rule already told data from
+command inside an argument, and only inside an argument.
+
+Measured four times in ordinary work. Twice of those while writing this fix:
+the acceptance criteria were refused because they quote the command they are
+about, and so was the commit that carries the tests. A gate that blocks the
+description of its own defect, and that costs one call to bypass by switching
+to the Write tool, teaches bypassing rather than compliance.
+
+Heredoc bodies are now dropped before the destructive-command scan — but only
+when the header does not name an interpreter. That condition is the whole
+safety story and was measured on both sides: `bash <<EOF … EOF` really does
+execute its body, so those stay in scope and are still refused, while
+`cat > f <<EOF` files its body and is not. Removing that condition is a
+mutation the suite catches.
+
+The walk itself moved to `shell_statements.strip_heredoc_bodies`, shared with
+`bash_write_parse`, which had solved the same class for its own rule (a `->` in
+prose manufacturing a phantom redirect target) and kept the solution private.
+Two gates reading one string had learned the same lesson separately; now they
+read it once, and the write gate passes no predicate because a body never holds
+a redirect target.
+
+### Fixed — the write gates asked "is this file ours?" twice and answered differently
+
+`task_gate` (Write/Edit) and `scope_write_gate` (also reused by
+`bash_write_gate`, so it covers the Bash channel) each decided jurisdiction
+with their own copy of the rule. `task_gate` used `commonpath` and read any
+path-arithmetic failure as "not proven outside" → keep gating.
+`scope_write_gate` used `relpath` and read `(OSError, ValueError)` as "outside"
+→ allow. On Windows both raise `ValueError` for paths on different drives, so
+one and the same target was refused via Write and written via a Bash heredoc a
+single call later — measured live while writing a scratch file under
+`C:\…\Temp` with the project on `D:\`.
+
+The root was not a missing notion of "inside the project" — that was added in
+v1.8 and is correct. It was that a DIFFERENT DRIVE, where containment is
+impossible by construction and therefore the strongest evidence of being
+outside, was being handled as the weakest: an exception, read as doubt, and
+resolved fail-closed.
+
+`_common.classify_target` is now the single answer both gates call. It returns
+three outcomes rather than two — `inside` (with the relative path), `outside`
+(proven), `unknown` (undecidable) — because the callers want opposite things
+from the last two, and collapsing them is the bug itself. Only `outside`
+stands a gate down; `unknown` keeps it on, exactly as before.
+
+Nothing loosens for a target inside the tree, and that direction is asserted on
+both channels in one test so a later edit cannot relax one of them alone.
+`scope_write_gate` keeps treating `unknown` as out of jurisdiction, which is
+its pre-existing behaviour and is left alone deliberately: an ACL refines a
+task that already passed QG-0, and QG-0 is the gate that must stay closed on
+doubt.
+
+### Fixed — two MCP tool calls no longer share one transaction and commit each other's half
+
+The server runs every tool call on its own thread over ONE process-wide
+`ProjectService`, whose connection is opened `check_same_thread=False`, and the
+dispatch path took no lock. Two overlapping calls therefore shared the
+connection, the open transaction and the single `_in_tx` flag every write
+consults. `verify_handle._write` already described this hazard in prose —
+refusing to call `conn.commit()` because it "would commit whatever is pending
+on the connection, including a half-written `task_done` from a CONCURRENT
+call". The prose was right and the cause went untreated.
+
+Measured before fixing, both directions, with no exception raised in either:
+a second call's `commit_tx` makes the first call's half-written change durable
+while the first still believes it can abandon it; and a second call's plain
+write — no transaction of its own — joins the first call's transaction and
+disappears with its rollback, having returned success to the agent that made
+it.
+
+`handle_tool` now serialises on an `RLock`. That placement is deliberate and
+the alternatives are recorded beside it: a lock inside
+`SQLiteBackend.transaction()` cannot fix this, because the losing path in the
+second case never calls `transaction()` at all, and a connection per thread
+would rewrite the DB access model for a defect whose whole measured surface is
+this one dispatch path. `RLock` rather than `Lock` so a handler that dispatches
+another tool fails loudly instead of hanging — held by a test, not by hope.
+
+The price is measured, not guessed: an uncontended acquire/release is 0.13 µs
+against ~5300 µs for one real dispatch. What costs is serialisation under
+contention — a call concurrent with `task_done` waits out its gate pass — which
+is the honest cost of one shared connection, and a wait in place of silent
+loss. Non-MCP threads remain uncovered and are named as such: the prewarm
+daemon never writes and the `session_open` watchdog opens no transaction.
+
+### Fixed — a nested refusal now undoes its own half instead of the caller's transaction
+
+`begin_tx` is a no-op inside an open transaction, but `commit_tx` and
+`rollback_tx` act unconditionally. A function that opened and closed a
+transaction unconditionally therefore ended the transaction of whoever called
+it from inside their own: on a refusal it rolled back THEIR rows and handed
+back a closed transaction they still believed they owned, with no exception to
+say so. Measured live in session #211 — an outer `begin_tx` + `epic_add` lost
+its epic to a nested refused `adapt_delta`.
+
+The rule was known and applied by hand at three of nine call sites as
+`owns_tx = not self.be._in_tx` — a service reaching into the backend's private
+flag — and the count of sites kept growing while the rule stayed something
+each caller had to remember. `SQLiteBackend.transaction()` is that rule
+implemented once, in the new `backend_transaction` module.
+
+Outermost, it does exactly what the primitives did (BEGIN IMMEDIATE, commit or
+rollback), and a test asserts that half separately: `_ex`/`_ins` decide whether
+to commit by reading `_in_tx`, and the WAL checkpoint and projection flush hang
+off `commit_tx`. Nested, it opens a SAVEPOINT — so a failure rolls back only
+its own writes and leaves the caller's transaction open. That is new: the
+hand-written guard could decline to touch rows it did not own, but had no way
+to undo its own half, so `adapt_delta` could only DELEGATE the cleanup and "a
+refusal is a non-event" stayed conditional on the caller. The pin in
+`test_adapts.py` that recorded the delegated behaviour has been strengthened to
+the guarantee that replaced it.
+
+`_pending_projection` is truncated to the nested block's entry mark rather than
+cleared, so a nested failure no longer drops the queued git projections of rows
+that are still in the database.
+
+REACHABILITY WAS MEASURED FIRST, AND IT MOVED THE TARGET. No static nesting
+exists anywhere in the tree — no transaction body calls another site — so the
+guard closes a future-edit risk, not a live path. What IS live is concurrency:
+the MCP server hands every tool call to its own thread over one shared
+connection with no mutex, so `exploration_end`, `role_delete` and `task_start`
+can interleave with the long transaction `task_done` holds open. `transaction()`
+makes that interleaving strictly less destructive but does not serialize it;
+the serialization is filed separately as
+`mcp-dispatch-shares-one-transaction-across-threads` rather than absorbed here.
+
+### Fixed — the `tausik_adapt_sign` MCP doc row still described the withdrawn dual signature
+
+The task that withdrew the client signature under ADAPT (ADR-011) updated the
+tool's own `description` in `tools_adapt.py` and the ADAPT section's intro
+paragraphs in `docs/{en,ru}/mcp.md`, but missed the table row itself — it
+still read "architect signs..., client signs...; both roles ⇒ approved" next
+to a method that now refuses `role=client` outright. Both rows now say what
+`adapt_sign` actually does: architect alone ⇒ `approved`; client is refused,
+naming ADR-011 and pointing at ACTZ as where client approval now lives.
+
+### Added — AT/TC routing matrix and an AT-only release gate (RENAR §8A.4 / §10.4.3)
+
+Recording an AT (previous entry) is not yet a verdict: §8A.4/§10.4.3 name a
+four-cell matrix over `(at_outcome, tc_outcome)` and say what a red AT next to
+a green TC actually means — not a code defect, an interpretation error,
+because the code matches a reading the client never signed off on. Red/red is
+a genuine code defect; green/red names two live suspects (a stale TC, or an
+internal norm stricter than the contract) without picking one for the reader;
+green/green is no divergence. `route_at_tc` computes this from the two named
+outcomes — never a table copied into a doc by hand.
+
+TAUSIK has no first-class TC artifact yet (that premise is tracked
+separately, `renar_tc_premise.py`), so `tausik_at_diagnose` / `at diagnose`
+never reads pytest or `verification_runs` itself and never quietly stands in
+for the missing entity — the caller supplies `tc_outcome` explicitly, and the
+routing stays honestly TC-source-agnostic. `at_results` (migration v55,
+append-only — a re-run is a new row, never an overwrite, the same reason
+`final_tz_snapshot` keeps superseded ACTZ points instead of discarding them)
+backs `tausik_at_record_result` / `at record-result`.
+
+`tausik_at_release_readiness` / `at release-readiness` is §8A.4's release
+gate stated purely in AT + final-TZ terms — ready only when every AT's latest
+outcome is green AND fresh against the live final-TZ, no TC input at all,
+distinct from the optional QG-4 (business outcome, not contract conformance).
+Full CLI↔MCP parity (3 new subcommands / 3 new tools, AT now 9/9).
+
+### Added — AT, the acceptance test traceability structurally cannot provide (RENAR §8A)
+
+TC's traceability chain (TC → SR → ADAPT → ТЗ) cannot catch one class of
+defect: a wrong interpretation makes every TC pass, because the system
+perfectly matches the wrong reading, and fails acceptance at the client. RENAR
+§8A (ADR-012, accepted) closes exactly that gap with AT (Acceptance Test) —
+three mandatory properties: derived by an agent isolated from ADAPT/BR/SR/
+SPEC/TC/code, regenerated before every trial from the current final TZ, and
+carrying `tz_text` — a verbatim contract quote, never a paraphrase.
+
+TAUSIK is stdlib-only (no LLM calls from `scripts/`), so isolation is not code
+here — it is a documented procedure
+(docs/en/at-generation-procedure.md, exported as the `at-generation-procedure`
+PROC-type SPEC) instructing whichever agent orchestrates the work to spawn a
+genuinely isolated subagent whose prompt contains only the `tz_ref` and
+verbatim governing text, and to transcribe its output rather than edit it.
+`tausik at create` records the result of that procedure; it does not generate
+one.
+
+`tausik_at_check_freshness` / `tausik at check-freshness` compares each AT's
+recorded `source_as_of` against the LIVE `final_tz_snapshot` for its `tz_ref`
+and names what changed — the same comparison the new `at_freshness` gate
+(warn) runs automatically at `task-done`, surfacing a stale AT without being
+able to regenerate it itself. Full CLI↔MCP parity (6 subcommands / 6 tools).
+
+### Added — the final TZ is a derived view, not a third copy of the text (RENAR §5A.4)
+
+RENAR §5A.4: the acceptance reference is the initial ТЗ plus every signed ACTZ,
+priority to the later signed document — and ADAPT never enters it, which is
+what keeps acceptance legally clean. We had ACTZ as an artifact but nothing
+that could answer "what governs this clause right now," or "what governed it
+on a given date," and nothing that could find the specific fatal case §5A.4
+names: a signed decision no ADAPT reflects, an obligation outside
+requirements.
+
+`actz_points` gained `tz_ref` (migration v53) — which clause of the original
+ТЗ, or of a prior ACTZ point, a given point clarifies. Without it "which ACTZ
+point overrode which" had no substrate: a point recorded WHAT was clarified,
+never WHICH clause. Two read-only projections follow, added to CRUD and
+service layers, CLI (`actz final-tz [--as-of TS]`, `actz orphans`) and MCP
+(`tausik_actz_final_tz`, `tausik_actz_orphans`) with the same full parity the
+rest of ACTZ already has:
+
+`final_tz_snapshot` groups every BOTH-role-signed point by `tz_ref` and picks
+the one with the latest completion time (max signed_at across both roles) —
+priority to the later signed document, computed, not asserted. `as_of` filters
+to points completed at or before a given moment, so the reference is
+reconstructable at any point in time, exactly as the standard requires. It
+deliberately includes SUPERSEDED headers: current status alone can only
+answer "what governs now," not "what governed then." `orphan_signed_points`
+finds signed points no `actz_decided_in` edge references — the fatal case
+found by query, not by eye.
+
+A schema lesson paid for by a crashing migration test: the FRESH-install DDL
+block (`init_schema`) re-runs unconditionally on every call, including
+against a database that already has an OLDER-shaped `actz_points` (no
+`tz_ref`) — `CREATE TABLE IF NOT EXISTS` no-ops safely there, but an index
+statement referencing the new column does not, and it runs BEFORE migrations
+ever get a chance to add the column. The index is a guarded postseed step
+instead (`ensure_actz_points_tz_ref_index`), safe on a fresh table, a
+just-migrated one, or no table at all.
+
+### Added — ACTZ, the contract-contour artifact RENAR §5A requires and we had nowhere for
+
+RENAR §5A (ADR-011, accepted) introduces ACTZ — the contractual clarification
+protocol ("Протокол уточнения ТЗ № N"), lifecycle `draft → sent → signed →
+superseded`, contractual weight. §1.4.2's exit from the internal-product
+non-conformance declaration names it by number (§5.5.3: signed by TWO
+independent persons) and we had no schema, CLI or MCP for it at all.
+
+Modeled on the existing `adapt` entity (schema/service/CLI/MCP/tests
+end-to-end, migration v52, `SCHEMA_VERSION` 52), with two deliberate
+departures a straight copy would have gotten wrong:
+
+Signatures are honest about what this project can actually produce. There is
+ONE project ed25519 key (`.tausik/keys/project.key`), not one per party — a
+genuinely independent second cryptographic signature does not exist as
+infrastructure here, and inventing one would be exactly the fabricated-client
+fiction ADR-011 already withdrew from `adapt sign --role client` for a
+different reason (audience, not honesty). `role=architect` signs for real,
+reusing the same ed25519 primitive as ADAPT; `role=client` records
+`signed_by`+`signed_at` only — an honest audit trail of a recorded approval,
+not a simulated signature. Status is COMPUTED from role coverage (0 signatures
+= draft, 1 = sent, both = signed), never written as an independent fact.
+
+`decided-in` — the edge from an ADAPT backward finding to the ACTZ point that
+resolved it — carries provenance (`linked_by`, `created_at`) that `adapt_links`
+never did, and is refused against a draft/sent target: citing a
+not-yet-contractual point as the decision would misrepresent what actually
+binds anything.
+
+Full CLI↔MCP parity (13 subcommands / 13 tools) — unlike `adapt`, where 3 of
+12 CLI subcommands (verify/unlink/delete) have no MCP tool, a known and not
+repeated gap. The word "акт" is guarded out of every CLI help string, MCP tool
+description and this entity's own doc section (word-boundary + declension
+suffix, no allowlist needed — "актив"/"контракт"/"факт" never open the
+pattern because none of them ENDS right after one of the closed suffixes).
+
+Migration v52 is a single source of truth (`backend_schema_actz.ACTZ_STATEMENTS`),
+consumed by both the fresh-DB path and the migration path — ACTZ has no prior
+schema to be a historical delta against, so the two-literal shape ADAPT's
+v36/v50 pair carries for a real reason had no reason to be copied here.
+
+`class_surface` baseline (`tausik/gates.json`) raised deliberately —
+`SQLiteBackend` 129→148, `ProjectService` 118→132 — the composed surface both
+classes gain from `ActzCrudMixin`/`ActzMixin`, the same shape `AdaptsMixin`
+already contributed for ADAPT. A reviewable ratchet-forward, recorded as a
+decision, not a silent edit of the pinned numbers.
+
+### Added — a direct edit of a task artifact is a recorded gate bypass (§8.6(j))
+
+Editing a task's artifact by a route no gate stands in front of — including a
+direct edit by the supervisor — admits the effect QG-0 declared without a
+positive verdict. Not a prohibition: the standard makes it a regulated
+exception, and the legitimate cases stay open.
+
+NO NEW ENTITY, checked before anything was changed. The Gate Bypass machinery
+already existed (one `events` row per bypass, seven vectors, metrics by action).
+What was missing, measured: the §8.6(j) vector — all seven describe supervision
+being switched OFF, not an edit made around it — and the four fields 3.13
+requires (rationale, risk accepted, remediation, senior approval), which had
+nowhere to live but one free-text `details` where they could be neither
+required, nor told apart from prose, nor counted.
+
+They now ride that same field as JSON, so a record is a superset of what was
+there. A record reads as `complete`, `incomplete` or `unstructured` — three
+states, because calling every pre-existing free-text row "incomplete" would
+accuse history of a defect it predates.
+
+`events emit-supervision --vector direct_edit` REFUSES a record with no
+rationale (exit 2) and names the standard's legitimate cases while doing it. It
+refuses the RECORD, never the edit: the edit has already happened.
+
+The two frequencies are now separated in the metrics output. §8.6(i) bypass
+frequency and metric 8 are NESTED and the standard says they SHALL NOT be added;
+they were being summed into one total. `metrics` prints "of which N manual
+intervention … NESTED: do not add", because two totals on adjacent lines are an
+invitation to add them.
+
+### Added — every gate declares WHICH CHANGE does not happen while its verdict is negative
+
+SENAR 1.4 §8.6(a), SHALL on every configuration including Core: without it a
+claim of conformance to section 8 is invalid under §13.4. The registry carried
+`description` — "Lint with ruff before commit" — which describes the MECHANISM.
+The two are not the same statement, and only one of them can be checked against
+a proposed action.
+
+`GateSpec.prevents` is now filled for all 17 gates, and the honest answers are
+in it: three advisory gates declare that they prevent NOTHING, because they are
+disabled or warn-severity and a gate that cannot refuse holds nothing back.
+Dressing those up would have been exactly the claim this field exists to make
+checkable.
+
+Schema v51 carries the declaration into every `gate_runs` row (§8.6(g): the
+record must identify what the verdict held back). The row keeps the wording that
+was in force when it was written — a declaration edited later must not rewrite
+an old audit row — and an unrecognised gate records NULL rather than an invented
+effect.
+
+The guard pins presence, non-emptiness and the stock phrases the standard
+refuses by name ("ensures quality"); whether a particular sentence actually
+answers the question is left to review, and the test says so instead of passing
+the mechanical half off as the whole.
+
+### Added — duplicate-shape tests are caught by a gate, not by a report nobody ran
+
+`audit_pytest_dedupe` has grouped tests by AST shape for a long time and shipped
+with a `--check` flag. It was documented as review-only, so nothing ran it and
+the number grew unwatched: 294 groups / 683 tests in session #178, **322 / 753**
+when this gate landed. A detector nobody runs does not stop a number from
+growing; it only makes it possible to say afterwards how much it grew.
+
+`test_dedupe` (block, on task-done and commit) reddens on GROWTH and names the
+largest groups by file and line — a count with no address is not actionable. The
+baseline is a ratchet in the committed `tausik/gates.json`, so existing debt
+blocks nobody, and a baseline found ABOVE the measurement is itself a test
+failure: a line nobody lowers is a list.
+
+The subject is DISTINGUISHABILITY, not count. The gate never measures how many
+tests the repo has, so it cannot be satisfied by deleting them — and an
+unreadable baseline REFUSES rather than reporting "no duplicates recorded",
+which would turn a lost file into a green verdict about the tests.
+
+Whether `tests/` should stay exempt from the filesize gate is deliberately left
+to its own decision; it may have been right when there were fewer tests.
+
+### Changed — `verify` is reported once, and the two copies had drifted in BOTH directions
+
+Only the CLI said how long the run took, that no gate had actually executed
+(§8.6(e)), that the declared scope was narrower than the change, whether the run
+was recorded at all — including the case where the write failed and the run
+therefore certifies nothing — and whether the receipt was signed, telling a
+configured-but-failing key apart from having no key.
+
+Only the MCP handler said that some gates SKIPPED. That is the historical defect
+this guards: the handler once returned `gates=['hadolint', 'pytest']`, a list of
+NAMES, so an agent read "pytest" and concluded the tests had run when pytest had
+skipped — and the run was recorded green and signed.
+
+And the cache hit reached only the CLI, so a cached green arrived at the agent as
+a header over an empty gate list: "this came from the cache" was indistinguishable
+from "this executed nothing".
+
+`scripts/render_verify.py` now builds the whole report and both surfaces call it.
+What stays with each caller is what genuinely belongs to it: argparse, the scope
+declaration and the exit code in the CLI; the error envelope in the handler.
+
+The detector in `mcp_handler_shape` gained one narrow exception in the process:
+`"\n".join(shared_renderer(...))` is transport, because a handler that must hold
+the result to wrap its errors was being flagged for the join alone. Joining a
+LOCAL helper's lines is still a second implementation — otherwise the rule would
+wave through rendering hidden behind a private function. With `verify` collapsed,
+the ratchet is down to one entry, and that one belongs to its own open task.
+
+### Changed — `tausik_metrics` returns the whole SENAR report, not a one-line summary
+
+The MCP tool answered with tasks-done, average time and session count. The CLI
+printed throughput, lead time, FPSR, DER, cycle time, knowledge capture rate,
+dead-end rate, cost per complexity, the risk section and the supervision tails.
+CLAUDE.md tells agents to prefer MCP, so the primary reader of these numbers was
+seeing the smallest part of them — not a decision to summarise, just a second
+implementation written early and never grown.
+
+`scripts/render_metrics.py` now builds the report as lines and both surfaces
+call it; the conversion is literal, so the CLI's output is byte-identical to
+before. Unmeasured quantities stay `n/a` rather than becoming `0` — a zero would
+claim a measurement nobody took — and the two report tails that read the machine
+rather than the service degrade to silence instead of killing the command.
+
+### Fixed — the roadmap moves with the release, not with the minute
+
+`ROADMAP.md` printed a per-status breakdown of the remaining work, so `active 1`
+appeared the moment any task was STARTED. Opening a task therefore made the
+committed map stale and reddened the freshness guard on a file nobody had
+touched — three times in a single shift. Who holds what right now is what
+`tausik team` answers; what remains is this artifact's subject.
+
+The column is now `Заблокировано` — being stuck is a property of the plan, and
+it is the one non-done status worth publishing. Two tests pin both halves:
+moving a task planning→active must not change a byte, and closing one must, so
+the fix cannot cure the staleness guard along with the churn.
+
+### Changed — MCP handlers are transport over the CLI's own renderers, and a ratchet keeps them that way
+
+Two independent implementations of one command mean two possible verdicts, and a
+receipt signed on one path says nothing about the other. Seventeen MCP handlers
+built their answer out of the service result themselves, which is a second
+implementation of a command the CLI already implements. Thirteen are collapsed
+onto one shared renderer each; in EVERY case the MCP copy had fallen behind, and
+the MCP surface is the one the agent reads:
+
+- `task next` reported HOW MANY tasks were withheld where the CLI reports WHICH.
+  The handler's own docstring claimed the two printed the same three states.
+- `task logs` cut the timestamp to minutes and printed empty parentheses.
+- `search` capped every scope at ten hits and dropped the FTS snippet.
+- `events` had no rollup and dropped `details`.
+- `memory list`/`search` showed no tags; `search` no `origin_project`; `show` no
+  created-at, tags or task; `graph` no confidence and no invalidation date;
+  `archive`/`dedupe`/`lint` dropped the "what to do next" line.
+
+New `scripts/render_{task,status,memory,session,hierarchy}.py` hold one renderer
+per command, called by both surfaces. `scripts/mcp_handler_shape.py` MEASURES
+which handlers still render the service result — derived by AST from the
+dispatch tables, never listed — and `tests/test_mcp_handlers_are_transport.py`
+holds the measured set to a baseline that may only shrink. Parity is also proven
+by RUNNING both surfaces over one database and comparing, not by reading shapes.
+
+Three are declared, not silently left: `task_show` belongs to its own open task,
+and `metrics` (one summary line versus the whole SENAR report) and `verify` (a
+second COMMAND — receipt, handle, exit code — not a second rendering) are filed
+as their own.
+
+### Added — the release roadmap is generated from the live DB instead of drawn; the PDF is named as a dated snapshot
+
+The release map was a PDF built on 2026-08-12 whose page 4 asked "does it work
+for other people?" as the question of version 1.9. Ten days later a decision
+redefined 1.9 as a refactor of the EVIDENCE CORE and took that question off the
+version. Nothing connected the two: the map went on answering a retired
+question, and there was no way to notice — a PDF has no state to compare
+against.
+
+- `ROADMAP.md` at the root is a GENERATED file under git. The composition is
+  read from the owner's decisions (the newest decision naming two or more
+  release stories), the charter from the decision that the FIRST such decision
+  cites, the counters from the live DB. Neither the composition nor the numbers
+  are written in source: the owner changes scope with a decision, not by
+  editing my code.
+- `tausik doc roadmap [--check]` reissues and verifies. Closing a task moves the
+  counters, so the reissue belongs AFTER `task done` and BEFORE the commit; the
+  staleness message names that same command.
+- `tests/test_release_roadmap.py` regenerates from the live DB and compares to
+  the committed file — the same shape of control as the manifest's freshness
+  guard. Negative: a digit edited into the written map is caught. The generator
+  reads no clock (asserted structurally), and `.gitattributes` pins the file to
+  LF — otherwise the byte comparison would go red in every Windows clone.
+- Three states, not two: no composition decision is a REFUSAL
+  (`RoadmapUnreadable`), not an empty release; a missing trajectory line is
+  "not recorded", not "zero points".
+- `TAUSIK-roadmap.pdf` is NOT deleted, NOT reissued and NOT put under git: it is
+  a dated record of what the release was taken to be when it was built. That is
+  said in both places a reader will land — the map itself and `.gitignore`.
+
+### Fixed — the ADAPT client signature is gone, because RENAR withdrew it; the records it produced are kept and named
+
+`tausik adapt sign --help` advertised "a dual signature (§7.5)". RENAR ADR-011
+withdrew the client signature under ADAPT and said why: the client was signing
+an engineering document they had not read and could not assess. The boundary
+runs by AUDIENCE — what is shown to the client and approved is an obligation
+and lives in ACTZ; what is not shown is interpretation and lives in ADAPT.
+VERIFIED AGAINST THE CORPUS TEXT, not just the ADR: §7.5 is now titled
+"Утверждение ADAPT — подпись архитектора" and carries a paragraph explaining
+the absence. We were publishing a withdrawn edition as current.
+
+- `SIGNATURE_ROLES` is `("architect",)` — what may be RECORDED from now on —
+  and `HISTORICAL_SIGNATURE_ROLES` says what the schema still admits. Signing
+  as the client is refused with a message naming ADR-011 and pointing at ACTZ.
+  Approval now follows the architect's signature alone.
+- NO MIGRATION, and that is the decision rather than an omission. Measured
+  first: `client-ready` — the state the task expected to remove — does not
+  exist in our machine at all, and the live database holds zero signature rows.
+  What remains is consumer databases, and narrowing the CHECK would mean
+  deleting or rewriting THEIR audit records, which is the silent invalidation
+  the task exists to prevent (V1 immutability). So the constraint keeps
+  admitting `client`, the schema says in a comment why, and `renar_drift`
+  NAMES every surviving row as `signature-role-withdrawn` — warn-only, never
+  erasing. A record made under a withdrawn norm is history, not corruption,
+  and a genuinely unknown role is still reported as invalid.
+- Every carrier of the old promise was found by walking, not by memory: the
+  CLI help, BOTH MCP tool descriptions (agents read those), `docs/{ru,en}`
+  cli.md and mcp.md, and two docstrings. The wording stays only in migration
+  v36, which records what it built. Manifest regenerated to v20; neither
+  published artifact mentions a dual signature any more.
+
+The closed lists moved to `scripts/adapt_closed_lists.py` on the way — the
+filesize gate refused the close at 508 lines, and the split is the honest one:
+those tuples are DECLARATIONS the standard governs, `service_adapts` is
+behaviour. It re-exports them, so none of the two dozen importers changed.
+
+Eight declared mutations, eight killed — two after tracing. One survived
+because its killer SKIPPED (the CHECK refuses the corrupt value outright, so
+the test never reached the branch; it now rebuilds the table without the
+constraint, which is the scenario the detector exists for). The other survived
+because `client` is caught a branch earlier — the historical tuple is now
+checked against the LIVE CHECK, so the declaration and the substrate cannot
+drift apart.
+
+### Fixed — our GenAI spans stop speaking a word the conventions do not define, and tool calls nest under the agent run
+
+Release 1.8 already emitted OTLP/JSON: one span per session, every `gen_ai.*`
+name in a single module, exporter off by default, stdlib-only, no network. Two
+things were wrong with it, and MEASURING FIRST is what found them — the task's
+premise ("our evidence speaks only our own schema") was already half answered.
+
+- `gen_ai.operation.name` IS AN ENUMERATION, and we reported `session` — a
+  word of ours inside a standard field. A span shaped like GenAI that declares
+  an operation nobody can interpret has the vocabulary without the meaning,
+  which is the same defect as publishing a closed list of our own invention. A
+  session is now `invoke_agent` and a tool call `execute_tool`, both from the
+  conventions' own list, with `gen_ai.agent.name` beside them. Anything we
+  cannot map honestly — a memory write, a knowledge search — gets NO span:
+  `operation_for` answers `None` rather than inventing a word.
+- ONE SPAN PER SESSION SAID WHAT WE SPENT AND NOTHING ABOUT WHAT WE DID. Tool
+  calls now nest as child `execute_tool` spans under the session's
+  `invoke_agent`, which is the shape the conventions describe. Child span ids
+  are derived (sha256 over parent + row), so an export is reproducible and
+  salted against collision when the same row is exported from two sessions. A
+  row with no tool name, or a window that does not fit inside the parent's, is
+  SKIPPED rather than guessed at; a row with no window of its own inherits the
+  parent's, which says "this happened during the session" and invents no
+  duration.
+- The names come from the transcript walk the metrics hook already performed,
+  handed back through an OUT-PARAMETER rather than a new key in the metrics
+  dict — that dict is written to the metrics file and recorded to the
+  database, and telemetry has no business changing the shape of either. No
+  schema migration; the internal events remain the source of truth.
+
+THE OLD SUITE COULD NOT HAVE NOTICED EITHER, and that is worth saying plainly:
+its `test_golden_document_is_stable` compared a build with ITSELF — determinism
+under a name that promised a pinned reference — and the structural test asserted
+`span["name"]` for truthiness, never for value. Renamed to what it measures, and
+the value is pinned now.
+
+Nine declared mutations, nine killed — one after tracing: `if raw:` versus
+`if raw is not None:` is only reachable with an EXPLICIT zero, and the first
+killer passed a row with the key missing, where both behave alike.
+
+### Added — something notices when the STANDARD moves, instead of us noticing months later
+
+Every other RENAR check here compares the live database against OUR
+declarations — the right question for "do we obey what we think the standard
+says", the wrong one for "is what we think still true". Both gaps this epic
+exists for were found the second way: ADR-011 withdrew the ADAPT client
+signature, ADR-013 widened the SPEC type list, and we learned of it by READING
+in session #178 — months late, while the CLI help published a withdrawn edition
+to users. RENAR is on a wave branch with more ADRs proposed, so the next move
+is a schedule, not a hypothesis.
+
+`tausik drift --detector standard` reads the corpus itself (owner decision
+#255: the local checkout, path in config, never hardcoded) and compares what it
+finds with what we declare: the closed lists the standard fixes (SPEC types
+§8.3, backward-finding categories §7.4.4, ADAPT statuses §7.8.1) and the corpus
+edition against the one our manifest publishes. Values are PARSED OUT OF THE
+TEXT — copying them into the detector would make it the thing it watches for.
+
+- ACCEPTED IS NOT PROPOSED. An ADR is a finding only when its frontmatter
+  status begins with `accepted` and no file this repository tracks mentions its
+  id; proposed, draft and superseded ones never are. A detector that demanded
+  implementation of every proposal would redden permanently and be switched
+  off, which is worse than not having it — the task states that as a hard
+  constraint and a parametrised test holds it. `accepted-pending-adr-012`
+  counts, because that is exactly ADR-011's status.
+- THREE STATES, and the middle one is why this epic exists. No corpus on this
+  machine is NOT CHECKED — printed as its own line, never folded into "no
+  drift". A chapter that is present but will not parse is a FINDING: a detector
+  that reads nothing and reports nothing is indistinguishable from one that
+  read everything (ADR-021). Only a parsed corpus yields a verdict.
+- The corpus is read in the two shapes it actually uses — backticked prose and
+  a pipe-separated frontmatter example — and a pipe line with a part that is
+  not a plain name is unreadable as a WHOLE, never a shorter list published as
+  the standard's.
+- NOT BUILT, and said so rather than left to be assumed: divergence between the
+  local corpus and the edition published at renar.tech is a real finding of a
+  different kind. It needs an outbound request from inside a gate, which
+  nothing here does, and it answers "is our copy current" rather than "have we
+  kept up with our copy".
+
+Measured on the live corpus today: edition and all three lists agree, and of
+the thirteen accepted ADRs none is unmentioned — zero findings. Twelve declared
+mutations, twelve killed; two survived the first pass through MY OWN fault (one
+mutation was written as a no-op, and the synthetic corpus did not carry the
+shape the real §8.3 uses, so removing a normalisation changed nothing) — the
+fixture now mirrors the corpus, which is a real repair the mutation bought.
+
+### Fixed — the CHECK parser reads past SQL comments, and the vacuous clause names every watch it rests on
+
+Found by external review #40 (a third model: the two commits before it were
+written by different models, and the reviewer verified the separation before
+starting). Both HIGH findings were reproduced here before being fixed.
+
+- A `)` INSIDE AN SQL COMMENT ENDED THE VALUE LIST, and the result was a FALSE
+  PASS rather than a crash. `CHECK(type IN ('A','B' /* note ) */, 'FAKE'))` is
+  admitted by SQLite with `FAKE` in it — verified with a live `INSERT` — while
+  the scan stopped at the comment's parenthesis and reported a list that
+  matched the declaration exactly. A guard going green on the violation it
+  exists to catch, in the primitive every closed list reuses. Both comment
+  forms are skipped now, only outside a string (`--` and `/*` can be values),
+  and an unterminated comment is filed as unreadable, never as an empty list.
+- THE BASIS BLOCK DISCLOSED LESS THAN THE CAVEAT IT REPLACED. v17's
+  `measurer-caveats` entry for §13.3.5 named the ADR-013 guard test as a
+  second, broader watch and said it skips in CI; v18's basis entry named only
+  the live-database ratchet, so neither published artifact mentioned ADR-013
+  at all — in the very change whose subject is publishing what a `true` rests
+  on. `TC_PREMISE_WATCH` now names both watches and the CI gap, and a test
+  pins that it does. Manifest regenerated to v19.
+- Closed-list enumerations in docs are matched CASE-INSENSITIVELY, subject and
+  contents alike. A doc spelling the list in another case scored zero overlap,
+  fell below the floor and was skipped entirely, so drift inside it was
+  invisible; the message still quotes the doc's own spelling.
+- A decorated cell (`128+`, `~128`) in the MCP tool-count column stays skipped,
+  now as a DECLARED exclusion with its reason: this column has no lower-bound
+  convention the way `test_count` has one (decision #182), and inventing that
+  rule inside a scanner would be policy written where nobody looks for it.
+
+Seven declared mutations, seven killed, each killer named by the branch it
+reaches.
+
+### Fixed — the ADAPT closed lists have one source, and the detector of second copies is derived from it
+
+§7.4.4's seven backward-finding categories existed as FOUR literal tuples, not
+the three the task recorded — the inventory found one it had missed. All four
+agreed, which is a STATE and not a property: the SPEC type list looked exactly
+like this until ADR-013 moved the standard and five places diverged one by one.
+
+- `renar_clause_reactive_adapt` declared its own tuple a week after the service
+  layer did; it is now an ALIAS. The name earns its place (the clause's text
+  says "backward findings"), the values do not.
+- `project_parser_adapts` kept a literal `choices=` list while, three lines
+  below, the ADAPT statuses already derived from the service constant and said
+  so in a comment. The categories were simply left behind.
+- `tools_adapt` (MCP) mirrored FOUR lists — categories, statuses, signature
+  roles, link targets. It now reads all four from `service_adapts`, exactly as
+  `tools_spec` has since session #200, and the tool description an agent picks
+  a category from is still assembled from the list (count from `len()`, values
+  from `join`) rather than written out. Its docstring claimed "No mirror to
+  keep in sync": true of the TREE, false of the CONSTANTS sitting under the
+  sentence.
+- The detector of a second literal list is GENERALISED, not copied. It lived in
+  the SPEC guard as a hand-written alternation of the type names — a detector
+  of literal copies that was one, and ADR-013 made the cost plain by requiring
+  it to be edited by hand. `ClosedList.literal_list_re()` builds the pattern
+  from the list's own values, so an amendment widens the guard in the same
+  edit. Four consecutive members, because a TRUNCATED mirror is the shape the
+  drift actually takes.
+- The standard's composition is transcribed in ONE test now; the clause
+  module's test asserts identity with the source instead of transcribing the
+  seven again. Two transcriptions are two things to amend.
+- `test_enum_single_source` covers the categories, roles and link targets it
+  never did, and checks the PUBLISHED schema and prose rather than only the
+  module-level list. Its docstring's rule — "the MCP schemas keep literal lists
+  (a JSON schema should be self-contained)" — is retired: it stopped being true
+  in #200 and was a poor rule while it lasted.
+
+Remaining literals are declared with a reason from two classes only: the source
+itself, and a record of what a migration or the canonical DDL built.
+
+### Fixed — the docs' copies of closed lists are checked against the lists, values included
+
+`constants.json` already carried the NUMBERS docs quote (tools, hooks, stacks,
+roles) so a stale one fails `--check`. The VALUES of the standard's closed
+lists were never in it, and the docs carry those too. MEASURED:
+`docs/{en,ru}/mcp.md` said `type` is a "closed list of 9
+(ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS)" — false since migration v49 widened
+SPEC types to ELEVEN per ADR-013 — and nothing reddened, because the guard
+that forbids a second literal copy (`tests/closed_list_counts.py`, `LIST_RE`)
+walks `scripts/`, `harness/` and `tests/` only. Documentation sat outside
+every closed-list control the project has.
+
+- `doc_closed_lists.CLOSED_LISTS` puts the three lists into `constants.json` —
+  SPEC types, ADAPT backward-finding categories, ADAPT lifecycle statuses —
+  DERIVED from the same tuples the service layer and the DB CHECK constraints
+  use, with the count travelling as `len()`. It cannot become the second copy
+  it polices.
+- `scan_closed_list_enums` checks every slash-joined enumeration in the scanned
+  docs against them. THE SUBJECT IS DERIVED, by largest overlap, not anchored
+  to a phrase near the list: the enumeration this exists to catch is one whose
+  CONTENT is wrong, so it can only be recognised from a partial match — and
+  keying on a formulation is the mistake memory #488 records. The count written
+  immediately before an enumeration is judged as part of the same claim, so
+  "closed list of 9" with eleven correct values reddens too.
+- `scan_mcp_table_columns` closes the other blind spot: a bare markdown cell
+  (`| 128 |`) carries no word for the tool-count patterns to anchor on, so
+  README.md's five IDE-table cells were unchecked while the prose two lines
+  below them was not. The column is located by its HEADER, so inserting a
+  column ahead of it does not move the check onto someone else's numbers.
+- The live lie is corrected: both `mcp.md` files now say eleven and name TEST
+  and DOC.
+
+MEASURED AND NOT CHANGED, recorded so the next reader does not re-open it: the
+README test badge ("7115 tests" against a live 8835) IS covered — README.md is
+a scan target and the badge pattern matches — but the rule is asymmetric BY
+DECISION #182: `test_count` is a lower bound, so only an OVERCLAIM reddens.
+Understating is not drift.
+
+Twelve declared mutations. Ten killed; one killed after tracing (dropping the
+lists from the payload left every doc test green, because a payload without
+them degrades the scanner to silence — a test now asserts the live payload
+carries them); one is EQUIVALENT and is documented as such in the source
+rather than counted as killed: relaxing the three-token bound on an
+enumeration changes no verdict, since a two-token run cannot reach the overlap
+floor that actually decides.
+
+### Fixed — every mandatory clause publishes the BASIS its `true` rests on, and three constants became measurements
+
+`mandatory-clauses-confirmed` printed a bare `true` per §13.3 clause and the
+header said every `true` was earned. MEASURED FIRST, by planting the violation
+each clause names into a throwaway database and reading the verdict: a
+`specs.type` CHECK admitting a local type `FOO` with a row of that type,
+a CHECK one short of the standard's list, an `adapt_findings.category` CHECK
+admitting an eighth category with a finding in it, an `adapts.status` CHECK
+re-admitting the pre-v50 `signed`, a manifest declaring `qg-5` and
+`qg-0: absent`, a `spec_tests` class with a positive TC and no negative pair —
+every one of the five constant clauses stayed `true`, while the control
+(§13.3.3, repaired in #200) went red on an empty store. Three of the five had
+an evidence string naming a count, which reads as if a check had run. Sessions
+#200 and #202 had repaired one clause each; "how many more" was never asked.
+
+WHAT EACH CONSTANT BECAME, one decision per clause, with the vacuity premise
+checked separately (the task's requirement — §13.3.1 has a live subject and no
+vacuity at all):
+
+- §13.3.4 `spec-types-closed-list` → MEASURED. `renar_clause_closed_lists`
+  reads the values the `specs.type` CHECK admits out of `sqlite_master` and
+  compares them with the declared `SPEC_TYPES` (no second literal list —
+  `LIST_RE` would catch one), then counts rows outside the list. A local
+  type, a shortfall, an open column, a row outside: each reddens the
+  sub-check that owns it.
+- §13.3.7 `closed-lists-backward-findings` → MEASURED, the same two halves
+  over `adapt_findings.category` against `FINDING_CATEGORIES` and over
+  `adapts.status` against `ADAPT_STATUSES` (v50). The chapter-10 BR/SR/SPEC
+  lifecycle states are NOT measured: the project declares no such list, and
+  `specs.status` (`draft/active/deprecated`) diverges from the standard's —
+  noted for the owner, not built as a guess.
+- §13.3.6 `quality-gates-closed-list` → DECLARED. The `quality-gates` block
+  was a literal inside the manifest builder that the clause never read. It is
+  now `QUALITY_GATES_DECLARED`, published once and judged once: exactly the
+  closed gate ids, `qg-0..qg-2` required, optional gates in an admitted
+  state. `qg-5`, `qg-0: declared`, `qg-3: maybe`, a missing `qg-4` — each
+  reddens and names the half.
+- §13.3.1 `sot-inversion` and §13.3.2 `substrate-v1-v6` → MACHINERY. True
+  because the running framework enforces them, not because a row says so;
+  the artifact names the repository test watching each premise. For §13.3.1
+  that test reads the live gate registry (verify-first blocking and enabled)
+  and the hook source (`task_gate.py` wired on the write tools), and its
+  own negative test proves it is not a tautology.
+- §13.3.5 `tc-pos-neg-pairing` → VACUOUS, with `renar_tc_premise.classes_appeared`
+  named as the ratchet. The `measurer-caveats` entry that carried this alone
+  is RETIRED BY REPAIR: its own last sentence complained that the header
+  published every `true` as earned, and the basis block answers that for
+  every clause. `REGISTRY_EMPTIED_BY` names this task; the empty-registry
+  header stops saying "EARNED" unqualified.
+
+The manifest gains `mandatory-clauses-basis` directly under the confirmations
+(basis ∈ {measured, declared, machinery, vacuous}, `premise-watched-by` for
+every constant), a header paragraph pointing at it, and per-sub-check
+evidence for §13.3.4, §13.3.6 and §13.3.7 beside §13.3.3's. Regenerated to
+v18. `renar_conformance.py` shed the verdict table into
+`renar_mandatory_clauses.py` (484 → 469 lines); the CHECK parser is one
+primitive, and `renar_clause_reactive_adapt`'s private cut now delegates to
+it. Thirteen declared mutations, thirteen killed, each killer named by the
+branch it reaches.
+
+FOUND BY THE REVIEW OF THIS FIX, verified by running before being fixed:
+
+- THE NAMED WATCH DID NOT RUN. `test_the_machinery_sot_inversion_rests_on_is_switched_on`
+  — the ratchet the artifact names for §13.3.1 — imports `bootstrap_hooks`,
+  and only `test_bootstrap_hooks_parity.py` put `bootstrap/` on `sys.path`.
+  That file sorts earlier, so a full run passed while the file alone raised
+  `ModuleNotFoundError`: a watch whose result depends on collection order is
+  not a watch, and the first green figures for this change were produced
+  under that mask. The path insert now lives in the file itself.
+- A SECOND ARTIFACT STILL PUBLISHED BARE BOOLEANS. `renar/conformance.md`,
+  regenerated by `tausik renar export` and checked by `--check`, carried
+  `mandatory-clauses-confirmed` with no basis — the exact thing this entry
+  removes, in the one consumer the change did not reach. The exported view
+  now carries `mandatory-clauses-basis` too, pinned by a test.
+- The CHECK parser degraded quietly on two shapes. A parenthesis inside a
+  value (`'FOO(BAR)'`) truncated the list and returned an EMPTY tuple, which
+  reads as "the CHECK admits nothing" — an error published as a fact; a
+  doubled quote (`'isn''t'`) split one value into two. Both are unreachable
+  for today's lists, and both are corrected in the primitive every closed
+  list reuses: a scanner that tracks the string state, answering `None` for
+  anything that does not close cleanly.
+
+Six further mutations on those branches. One SURVIVED and was traced rather
+than re-declared: removing the paren-depth counter is NOT caught by the
+`'FOO(BAR)'` case, because that parenthesis sits inside a string and the
+scanner never consults the depth — the branch is reached only by a
+parenthesis OUTSIDE a string (`(('A'), 'B')`), and the test that reaches it
+was written before the mutation was called killed.
+
+### Fixed — the changelog gate's switch is a guarded key
+
+`task_done.changelog_gate.enabled` is the changelog gate's real on/off switch:
+the gate predates `gates.<name>.enabled` and `changelog_gate_enabled` reads
+this path. It was not in `config_trust.GUARDS`, so "the project may only
+tighten" did not apply to it. REPRODUCED (external review #38): composing the
+committed `tausik/policy.json` (`true`, de9e027) under a gitignored
+`.tausik/config.json` saying `false` yielded `false` with no rejection — a
+severity=block gate switched off by a file no clone ever sees, while the
+guarded control key `gates.changelog.enabled` under the same inputs stayed
+`true`. The closure of `changelog-gate-double-registration-premise-unconfirmed`
+had called the duplicate harmless because "the stricter wins"; it was
+harmless because the two values happened to match, and the journal now says
+so.
+
+The path is guarded rather than the switch moved: a second location for the
+same switch is a second source of truth. `_weaker_when_false` with the
+framework default `False` (the gate is opt-in), so switching it on is a
+tightening that passes and switching it off under a trusted or committed
+`true` is a named rejection. The sibling `files` list is not a switch and
+stays the local file's.
+
+### Fixed — the version floor is the journal's whole history, not its tip
+
+`next_version` took the maximum of two places a version could be seen — the
+working copy and the manifest at `HEAD` — and one past that. Any `HEAD` that
+carried less than the history did lowered the floor. MEASURED on this
+repository: `main` has never carried `RENAR-CONFORMANCE.yaml` (the artifact
+lives on the release branch), so `tausik renar conformance --write` from `main`
+issued manifest-version 1 while commit 42a0232 holds a v1 with different
+content — the reuse §13.4.1 forbids. A branch cut before the artifact and a
+revert of the commit that added it do the same. Found by the adversarial
+review of the previous fix; recorded then as open, closed now.
+
+THE SHAPE WAS CHOSEN BY MEASURING, not by preference, because the task named
+three candidates with different costs. On the live history (10 commits):
+`rev-list --all` 28 ms, `cat-file --batch` over every listed commit 27 ms —
+two processes whatever the length, since cat-file streams all blobs out of one
+invocation. The process count is flat; the cost is not: each listed blob is
+parsed as YAML, so the read took 125–151 ms end to end here and grows linearly
+with the number of manifest commits (review #38 corrected the first, process-
+only figure). The n+1 shape the task feared (one `git show` per commit, ~25 ms
+each) was never needed. A stored high-water mark would have been a third source
+of truth that can lag the journal. Reading history only when `HEAD` carries
+nothing does not close the defect: a branch cut at v1 carries v1 at its tip
+while v17 exists elsewhere, and would re-issue v2.
+
+- `journal_high_water(root)` is the highest version any commit reachable from
+  ANY ref ever carried, over a cwd-relative pathspec and a `./`-anchored object
+  name, so a nested project reads its own history and not a namesake at the
+  worktree top. Walked with `--full-history`: a path-limited `rev-list`
+  simplifies by default and follows only the parent a merge is treesame to,
+  so a version issued on the side a `-s ours` merge discarded was reachable,
+  unlisted, and handed out again — reproduced by external review #38 (2 of 4
+  commits listed, v3 issued twice) and pinned by a test. Same three answers as the tip reader, for the same reason:
+  `None` when the journal cannot be read (not a repository, cat-file failed,
+  a stream that does not parse), `0` when it answered and never held one, `N`
+  otherwise. A commit that deleted the file lists in rev-list and reads back
+  as `missing`; that is a fact about the commit, not a failure, and the mark
+  survives it.
+- `chain_state` now asks two questions with two reads: the PREDECESSOR is the
+  tip (`replaces` names the entry this branch's audit trail continues from),
+  the FLOOR is history plus tip plus working copy. A branch that never carried
+  the manifest publishes no `replaces` and still does not re-issue v1.
+- `git_exec.run` / `run_git` accept `input=` for batch-mode git. The guarantee
+  is kept, not weakened: the pipe is ours, opened, written and closed by
+  `subprocess.run`, and the child never sees the inherited MCP stdin; the
+  `stdin` keyword stays explicit so the AST guard keeps seeing it. Bytes for a
+  line protocol — a text pipe applies the platform's newline translation on
+  the way in, which Windows demonstrated (`abc\n` hashed as `abc\r\n`).
+- `next_version`'s docstring stops naming the residual as open. What remains
+  outside is stated instead: a commit reachable from no ref is not in the audit
+  journal by git's own definition.
+- Guard over the live artifact: `test_the_committed_history_never_reuses_a_version_number`
+  — no manifest-version maps to two different blobs anywhere in the journal.
+  The existing chain-resolution guard matched `replaces` against a SET of
+  (version, id) pairs and would have accepted an ambiguous hit; this closes
+  that side.
+- Pinned cost: one `--write` runs exactly four git processes — `ls-tree`,
+  `show`, `rev-list --all`, `cat-file --batch` — asserted three commits deep so
+  an n+1 rewrite cannot pass as the same shape. 13 declared mutations, 13
+  killed, each killer named by the branch it reaches.
+
+FOUND BY THE REVIEW OF THIS FIX, and verified by running before being fixed —
+two of them critical, in the author's own new code:
+
+- The batch parser trusted the size field. A negative size walked the cursor
+  backwards, a negative start clamps to the beginning, and the loop re-read the
+  first header forever — a hang no subprocess timeout could reach, in the one
+  module whose docstring is about hangs. An oversized size sliced short and fed
+  a truncated blob to the YAML parser as if it were whole. Both are now
+  `ValueError` — "a size is a promise until the bytes are there" — filed as
+  unreadable, never as empty; the exact-fit boundary and the missing trailing
+  LF are pinned too.
+- The caller rounded an unreadable history down to 0: `history or 0`. With
+  the tip readable and `cat-file` failing, `next_version` from a branch that
+  never carried the manifest went back to 1 — the defect this entry closes,
+  re-admitted silently on a transient failure. `chain_state` now REFUSES: a
+  tip that answered and a history that did not is a `ServiceError`, the CLI
+  prints it and writes nothing. "No repository at all" (both readers `None`)
+  still falls back to the working copy, and a repository without commits is
+  not the refused case either — its tip has no HEAD while its history answers.
+- `run_git` silently replaced a caller's explicit `stdin` with `None` whenever
+  `input` was present — the opposite of the "floor, not ceiling" contract in
+  its own docstring. An explicit `stdin` wins again; incompatibility is
+  `subprocess.run`'s loud error, not this guard's quiet pick.
+- A `rev-list` line that is not hex (U+FFFD from `errors="replace"`) raised
+  `UnicodeEncodeError` through the CLI instead of answering `None`.
+
+Seven further mutations on the review-found branches, seven killed.
+
+### Added — `check-adapt-supersession` exists, over the carrier that turned out to have a subject
+
+ADR-007 promised a gate by that name and §10.11.1 (p.485) names the control
+point; neither existed. The task carrying the debt had been deferred across four
+sessions on a measurement: the reference it named — `source.adapt` on a SPEC —
+cannot exist, because `specs` has none of the three provenance columns and
+decision #307 adds none. Building a gate over a field that cannot hold a value
+is the degenerate control this release is spent removing.
+
+THE SUBJECT WAS FOUND BY READING THE SCHEMA INSTEAD OF THE TASK TITLE. Listing
+every foreign key into `adapts.slug` gives five: four are children of an ADAPT,
+and the fifth — `adapts.parent_adapt` — is one ADAPT naming another, which is
+exactly a delta-ADAPT and its parent (§7.6). Zero such rows exist today, and
+that is not the same as no subject: a column that exists can be filled tomorrow,
+a column that does not exist cannot. The task's own text asked for this
+re-evaluation if provenance never became a field; it never did.
+
+So the work split along the honesty of each half:
+
+- `renar_drift.detect_supersession_drift` catches a delta-ADAPT hanging off a
+  `superseded` parent, and a supersession carrying no rationale. The second is
+  not a duplicate of the write-path guard: `backend_crud_adapts` refuses such a
+  write today, but a primitive cannot repair rows written under an older schema
+  or by a rebuild migration running with foreign keys off — the WRITE stays
+  guarded there, the STATE is checked here.
+- The gate is registered as `check_adapt_supersession` — the name the ADR
+  promised, so the promise is greppable from the ADR — warn-only, read-only,
+  and a test pins the name.
+- The SPEC half is declared inapplicable in `normative-inapplicability` rather
+  than built, with its OWN ratchet: `spec_adapt_reference_possible` reddens when
+  the `source_adapt` COLUMN appears, because that is the moment the reference
+  becomes writable and the gate must be widened.
+
+Deliberately NOT checked, stated in the docstring so the next reader does not
+mistake it for an oversight: a `parent_adapt` naming an ADAPT that is not there.
+The runtime connection sets `PRAGMA foreign_keys=ON` and the state-import path
+already scans for orphans; re-checking it would be a second source of truth.
+
+Teeth proved on synthetic state — the detector is a function of a CONNECTION, so
+showing it can red never requires damaging the live store — with the clean-data
+case asserted separately, since a detector that reports on healthy data is
+indistinguishable from one that reports unconditionally. Eight declared
+mutations, eight killed. Manifest regenerated to v17.
+
+Also caught in the writing: the second declaration first named the OTHER
+declaration's watcher, which would have left the gate half unwatched while
+claiming otherwise. A test now requires each declaration to name a distinct
+watcher that this module actually has.
+
+### Added — obligations of the standard that have no subject here are now declared, not passed over
+
+§13.3.3 p.90 makes it a negative scenario for a SPEC to be produced from a ТЗ
+carrying neither `source.tz-section` nor `source.adapt`, and ADR-006's source
+table (p.76) makes `source.tz-section` mandatory on a SPEC always. All three of
+our SPECs carry no provenance field, and the substrate has no column to hold
+one. The sub-check reads red, correctly, and stays red.
+
+What was missing is the reason. The obligation presupposes a ТЗ, and we have
+none as an artifact: the SPEC anchor `renar-adoption` points at `decisions#109`,
+a record in our own database, and the owner ruled (decision #307, session #209)
+that this is NOT our ТЗ and that the absence is to be stated rather than passed
+over. A missing field says nothing — it is indistinguishable from an oversight,
+which is exactly the ADR-021 degenerate-control shape this release keeps finding.
+
+`scripts/renar_normative_inapplicability.py` publishes a `normative-inapplicability`
+section into the manifest naming the clause, the obligation, why it has no
+subject, whose ruling that was, and where the reasoning lives
+(`renar-first-tz-adapt`). Three properties are enforced rather than intended:
+
+- **A declaration is not compliance.** `spec-provenance-source` stays red; the
+  section supplies the reason next to it and the sub-check's evidence now points
+  at the section. A mutation turning that red green is killed.
+- **Its reach is derived, never enumerated.** A list of three slugs is correct
+  until the fourth SPEC exists. The covered set is computed from the store, and a
+  SPEC that gains provenance leaves it. Both branches of that computation are
+  tested — the one the live project takes has no provenance column at all, so a
+  single case left the other free to enumerate, and a declared mutation capping
+  the result SURVIVED until the case became parametrized.
+- **Its premise is watched.** "No ТЗ exists here" is a claim about the world, and
+  the world is not obliged to keep it true. `premise_broken` reddens the moment a
+  SPEC names a ТЗ section. Like `renar_tc_premise.classes_appeared` it compares
+  against OUR ruling, so it is meaningful only against the live database and is
+  deliberately not what the manifest section rests on.
+
+Kept apart from `measurer-caveats` on purpose, and the split is the point: that
+registry says "our measurer cannot go red on what it exists to catch" — about our
+machinery, exited by a repair. This one says "the obligation has no subject" —
+about the world, exited by the world changing. Emptiness must be declared in both.
+
+The manifest is regenerated to v16 (its own staleness guard demanded it, and
+that guard is what caught the change), which also exercised the journal-read fix
+above end to end on the live artifact: `replaces: CFM-2026-09-04-tausik@v15`,
+read from the journal rather than from disk. Eight declared mutations, eight
+killed — two only after surviving first.
+
+### Fixed — the journal read is scoped to this project, and a git error is no longer filed as an absence
+
+Two defects in the journal reader added immediately above, both found by
+adversarial review of that fix and both confirmed by measurement before being
+touched. In this repository the project root IS the worktree top, so the
+committed artifact was never affected — these bite the projects TAUSIK is
+installed into.
+
+- **`git show HEAD:<name>` resolves `<name>` against the TOP LEVEL of the
+  worktree, not against cwd.** git says so itself: from `scripts/`,
+  `git show HEAD:project.py` fails with "path 'scripts/project.py' exists, but
+  not 'project.py'" and hints at `HEAD:./project.py`. The project root comes
+  from `find_tausik_dir()`, which walks upward looking for `.tausik/` and is
+  under no obligation to land on the worktree top — a package inside a monorepo
+  is the ordinary layout. So a nested project either failed to find its own
+  committed manifest (and the failure was indistinguishable from an empty
+  journal) or, where a different project's manifest sat at the top, adopted
+  THAT one — a back-link resolving cleanly into someone else's audit record,
+  which is worse than the unresolvable link this work started from. Every
+  fixture git-inited at the project root, so none could see it.
+- **Absence is now asked as its own question.** `git_exec.run` does not raise on
+  a non-zero exit, by design, and git answers 128 to nearly everything — so
+  reading absence off `git show`'s exit code filed every failure it can have (a
+  pruned blob, a locked object file, a partial clone that could not fetch) as
+  "the journal is empty", the one verdict that deliberately refuses to fall back
+  to the working copy. `git ls-tree --name-only HEAD -- <name>` separates the
+  three states without ambiguity — non-zero is an error, zero with no output is
+  a genuine absence, zero with output means there is a blob to read — and its
+  pathspec is cwd-relative, so it scopes the question at the same time.
+
+`chain_state()` now answers both the version and the link from ONE read: asked
+separately they cost four git subprocesses per `--write` and, had HEAD moved
+between them, would have been computed from two different journal states. The
+count is asserted, not described — a second reader added later turns a test red.
+
+Nine mutations, nine killed — two of them only after surviving first, and each
+survivor named a real hole rather than a bookkeeping slip.
+
+- Dropping `./` from the blob read is invisible whenever the project has no
+  committed manifest of its own: the `ls-tree` probe short-circuits before the
+  read. The case that exposes it — this project's manifest committed AND a
+  different one at the top — was missing, and is now a test.
+- `link = ... if version and mid else None` had an unverifiable half. Every
+  producer of a (version, id) pair yields either `(0, None)` or `(n>0, "id")`,
+  so nothing in the suite could tell `version and mid` from a bare `mid`. The
+  pair is not guaranteed: a manifest carrying `manifest-id` and no
+  `manifest-version` parses to `(0, "id")` and would publish `<id>@v0`, a
+  version that can never legitimately exist. Found by the review running a
+  mutation the author had not declared.
+
+Known and NOT closed, recorded rather than overstated: `next_version` reads the
+journal's TIP, not its history, so a HEAD without the manifest (a branch older
+than the artifact, a revert) lowers the floor and can re-issue a version the
+history already holds — measured: `main` carries no manifest today. The
+docstring no longer claims otherwise, and the fix is filed as its own task
+because its shape (history scan vs. stored high-water mark) is a choice that
+needs measuring.
+
+### Fixed — the manifest's back-link is read from the audit journal, not from the file on disk
+
+`replaces` (§13.4.2) is the back-link that makes the conformance manifest chain
+navigable. Session #208 fixed one way of composing it wrongly — today's date
+plus the counter — and this fixes the other, which did more damage.
+
+MEASURED OVER THE LIVE ARTIFACT (the git history of `RENAR-CONFORMANCE.yaml`,
+which §13.4.1 makes the audit journal): 9 versions in the journal, 8 back-links,
+FIVE resolving to nothing. The date explains none of the five. `manifest-version`
+advanced on every `--write`, while the journal recorded only what was committed,
+so v4, v5, v6, v8, v10 and v12 were issued onto disk and named as predecessors
+without ever having become audit records. The predecessor was read from the
+working copy; the working copy is not the journal.
+
+Also measured, and also wrong in the same call site: `manifest_version` came
+from the working copy alone, so deleting `RENAR-CONFORMANCE.yaml` reset the
+counter to 1 and re-issued v1 over different content — directly under a comment
+reading "§13.4.1 immutability: never reset the version".
+
+- `journal_manifest(root)` reads the predecessor out of `HEAD`, through the
+  `git_exec` chokepoint (stdin closed). It distinguishes "the journal holds no
+  manifest" — a fact, returned as `(0, None)`, which withholds the link — from
+  "the journal could not be read" (no git, no commits), returned as `None`,
+  which falls back to the working copy. Collapsing the two is what a single
+  reader could not express, and each direction of the collapse is a mutant the
+  suite now kills.
+- `next_version()` takes the maximum of what the journal holds and what the
+  working copy holds, plus one: §13.4.1 forbids REUSE, not gaps.
+- `build_manifest()` no longer composes `replaces` at all. It has no access to
+  the journal, so any link it produced was a guess; the field is now a parameter
+  and its honest default is `None`. The CLI passes the journal's link into
+  `generate()` instead of patching it onto a rendered manifest and re-rendering
+  — one renderer, one chance to be right.
+- Tests: `tests/test_renar_manifest_chain.py` grows synthetic-repository cases
+  for each branch (journal outranks disk, deleted working copy, empty journal,
+  repository without commits, unparseable committed manifest, git unavailable)
+  plus the first end-to-end tests of `renar conformance --write` itself — the
+  seam carrying the link into the artifact had no test on it. Two tests in
+  `tests/test_renar_manifest_artifact.py` that pinned the date formula now pin
+  the opposite: the library never invents a link, and carries a supplied one
+  verbatim. Nine declared mutations, nine killed.
+
+The committed artifact is NOT regenerated here: measuring a chain and repairing
+how it is built are separate acts, and a regeneration mid-repair would write a
+new journal entry with the code under test.
+
+### Added — the MCP server's path arithmetic is now asserted, in the layout where it is true
+
+`tools_spec.py` puts `../../scripts` on `sys.path` and imports `service_specs`
+from it. Nothing asserted that the target existed. Inserting a path that is not
+there raises nothing, so a bootstrap change moving `scripts/` one level inside a
+profile would have surfaced as an ImportError at server startup, with the cause
+already out of view.
+
+THE PREMISE WAS WRONG IN BOTH DIRECTIONS, and measuring it is most of this
+entry. The reported defect was "adds a possibly nonexistent dir". Six copies of
+the module exist: in all five deployed profiles the directory is there
+DETERMINISTICALLY, and in the source tree it is absent ALWAYS. Two levels is the
+correct arithmetic for the deployed layout — `.claude/mcp/project/` ->
+`.claude/scripts` — which is the only layout that runs as a server. The earlier
+guess of three levels came from the source tree, where the repository keeps
+`scripts/` at its root; the two layouts differ, and one literal cannot be right
+for both. Sessions #209 and #210 each miscounted this, which is what a silent
+no-op buys.
+
+So no "fail loudly" patch was added: in the source tree the directory is absent
+legitimately, the insert is a harmless no-op there, and the only importers are
+tests — where pytest supplies the path itself, via `pythonpath = ["scripts"]` in
+`pyproject.toml`. Raising would break the source tree and fix nothing in a
+profile. The invariant is asserted where it
+holds instead — every DEPLOYED profile, found by walking rather than by a typed
+list, must resolve the insert to its OWN `scripts/` and that directory must
+carry `service_specs.py`.
+
+Resolvability alone turned out not to be the test. Three levels up from a
+deployed profile lands on the repository root, whose `scripts/` ALSO contains
+`service_specs.py` — so both counts resolve in this checkout, and only the
+ownership question separates them. A profile that reached the repository's
+scripts would pass here and fail wherever it is installed without the source
+tree beside it.
+
+The check takes its root as a parameter so the broken shapes could be built
+synthetically: a profile with no `scripts/`, and a `scripts/` that exists but is
+empty — the second being exactly what a check written on `isdir` alone would
+wave through. Breaking a real profile to prove the same point would have meant
+writing outside the task's declared scope, and the write gate refused it; the
+synthetic version outlives the session anyway.
+
+### Fixed — a guard's subject was a typed list, so a new module escaped it by being born
+
+`tests/test_no_hard_yaml_import.py` keeps PyYAML optional: a module-level
+`import yaml` anywhere the CLI imports breaks every `tausik` command on a clean
+install, which the v1.5.0 fresh-clone smoke found the hard way. The guard named
+its subject in a hand-written list of three module names.
+
+Splitting `renar_conformance.py` for the filesize gate walked straight into
+that. The new `renar_conformance_yaml.py` took `_require_yaml` — the lazy
+import the guard exists for — while the listed module kept its entry, so the
+risky code moved to a file the list had never heard of. The guard would have
+stayed green over a module it no longer covered.
+
+The list is gone. The invariant is now stated over the trees themselves —
+`scripts/`, `harness/`, `bootstrap/` — so a file added to any of them is under
+the guard with no edit to the test. Measured before the rewrite rather than
+assumed: 438 files, no offenders.
+
+A tree walk over a clean tree is green whether or not it works, so the detector
+was separated from the walk. It is a pure function over source TEXT, exercised
+on a deliberately broken sample, on the lazy form it must NOT flag (flagging
+that would push callers back to hard imports), and on unparseable source; a
+separate assertion proves the walk visited any files at all, since a broken
+glob would otherwise pass by finding nothing. Verified on the real tree too: a
+module-level `import yaml` injected into `renar_export.py` reddens it.
+
+`gate_test_resolver.top_level_imports` was NOT reused, and the reason is
+measured rather than stylistic — it walks the whole AST, so it sees imports
+inside functions, and an import inside a function is precisely the SUPPORTED
+form here. The difference is written down where the next reader would otherwise
+unify the two.
+
+#### The rewrite broke the guard a second way, and only the full lane saw it
+
+Recorded because the near-miss is the useful part. Turning the test into a
+tree-walker severed the edge the scoped-pytest resolver maps changes by: it
+selects tests through their IMPORTS, and a test that reads files instead of
+importing product code is reachable from no change at all. Every scoped run
+stayed green; the full lane failed on
+`test_crosscutting_registry::test_new_tree_iterator_must_declare_or_optout`.
+The mechanism exists because session #209 lost exactly this trade — a test
+widened to walk a tree went invisible to the scoped run — so the registry
+refuses to let it happen silently.
+
+The first fix failed silently in turn. `CROSSCUTTING_SCOPE` was declared as
+`[f"{t}/" for t in _TREES]`, to avoid restating the directory list;
+`read_crosscutting_scope` reads that constant with `ast.literal_eval` and never
+imports the module, so anything that is not a literal reads as NO DECLARATION.
+An anti-duplication reflex produced the very silence this release keeps
+removing. The declaration is now the literal and the tuple is derived FROM it,
+with the constraint written beside it so the next reader does not fold it back
+into an expression. Declaring the scope then required `_INVISIBLE_BASELINE` in
+`test_crosscutting_registry.py` to shrink by the same entry — the ratchet
+refusing to let one file count as declared and invisible at once.
+
+### Changed — `renar_conformance.py` gave its serialization its own module
+
+499 lines against a cap of 500. Session #210 lost a closing iteration to it:
+one replaced query line expanded to six, the filesize gate refused, and the
+explanation had to be deleted to buy the lines back. A file with no headroom
+taxes the next change in comments.
+
+`MANDATORY_FIELDS`, `_require_yaml` and `render_yaml` move to
+`renar_conformance_yaml.py`, re-exported from the parent so no caller changes —
+the same split `backend_schema_adapts` and `verify_files_hash` already did for
+the same gate. The seam was not invented for the occasion: `renar_export` was
+ALREADY importing `_require_yaml` across the module boundary, so the primitive
+was shared while living in whichever module happened to define it first.
+
+The parent drops to 459 lines, 41 of headroom. Behaviour is unchanged by
+construction and by assertion: the same key order, the same header text, the
+same RuntimeError when PyYAML is absent.
+
+### Fixed — a refused supersession left an orphan that blocked its own repair
+
+The rationale guard added for ADR-007 p.108 lives in `adapt_set_status`, the
+lowest primitive that writes the column, so it necessarily refuses AFTER
+`adapt_delta` has written the delta header. The two writes auto-committed
+separately, which made the refusal a HALF-WRITE rather than a cancellation.
+
+What the refusal actually left behind: the parent stayed live — correct, and
+the only half the tests asserted — while the child survived as an orphan with
+`delta_n > 0` and `status='draft'`. Because `adapt_create` refuses a slug that
+already exists, retrying the SAME slug with a proper rationale then failed
+FOREVER; the caller's only recovery was to abandon the intended slug and leave
+the garbage row in place. A guard that cannot be satisfied on the second
+attempt is not a guard, it is a trap.
+
+It also lied in the conformance manifest. `renar_conformance.gather_signals`
+counts a current change-set as `delta_n > 0 AND status != 'superseded'`, which
+the orphan satisfied — so a REFUSED supersession inflated `delta_adapts_count`
+and presented itself as a live delta of a parent nobody had superseded. The
+cost was not confined to the caller's convenience.
+
+Both writes now share one transaction, and BOTH failure paths unwind it: the
+guard's own `ValueError`, and anything else raised between the two writes. The
+second path matters more than it looks — without a rollback there, the
+connection would stay inside an OPEN transaction and every later write in the
+process would silently ride along in it.
+
+The transaction is taken only if this call OPENS it. `begin_tx` no-ops inside
+an existing transaction but `commit_tx` and `rollback_tx` do not, so unwinding
+unconditionally would have replaced the orphan with something worse: a nested
+refusal rolling back the CALLER's rows and handing back a closed transaction it
+still believed it owned, silently. Measured on an outer `begin_tx` + `epic_add`,
+which lost its epic exactly that way before the ownership check went in; the
+`owns_tx` shape is borrowed from `service_task._write_update_atomically`, where
+this hazard was already named. The consequence is stated rather than glossed:
+the no-orphan guarantee holds when this call owns the transaction, and is
+delegated to the caller's rollback when it does not — undoing only our own part
+would need a SAVEPOINT the backend does not offer.
+
+The rule did not move. Fixing this by validating the rationale early in the
+service would have put a second copy of it above the primitive that owns it —
+the duplication the original change deliberately avoided.
+
+FOUND BY THE PLANNED L3, and the review is the reason this entry exists: the
+closure it examined reported 17 of 18 mutations with 30 new tests, and none of
+them asked about the child. Asserting only the half a guard was written for is
+how a half-write stays invisible.
+
+### Fixed — a migration docstring explained the step with an effect that does not exist
+
+`backend_migrations_v49` stated that without dropping the FTS triggers first,
+the copying INSERT "would produce a second set of records in FTS". It would
+not. The copy addresses `specs_v49` while the triggers hang on `specs`, so it
+cannot fire them; they die with the table at the drop below in any case. The
+`DROP TRIGGER` statements buy explicit ORDER, not correctness, and the text now
+says so. Not a word of SQL changed — a historical migration is a snapshot of
+what was built.
+
+A docstring is a JOURNAL: it tells a future reader why the step is shaped this
+way. A wrong explanation outlives correct code and spreads by copying, which is
+exactly what happened — the sentence was carried into v50 verbatim in the same
+shift that wrote it. What stopped it there was a mutation, not a reading.
+
+MEASURED, NOT INFERRED FROM WORDING. The task suspected three migrations on the
+strength of identical phrasing. An inventory taken by the LOWEST PRIMITIVE
+(`DROP TRIGGER`, not the sentence) found four sites and one carrier: v5 drops
+audit triggers before recreating them, v9 drops them for tables being removed,
+and v24 and v48 rebuild `usage_events`, which has neither an FTS table nor
+triggers. The premise was wrong for two of the three named migrations.
+
+#### The control mutation found something larger than the docstring
+
+Two tests in this file carried "the rebuild" in their names and ran on a FRESH
+schema, where `SCHEMA_SQL` supplies triggers and indexes whatever the migration
+does. Mutants that deleted the trigger recreation from v49 — and, separately,
+the index recreation — SURVIVED with the whole file green. Everything the
+rebuild does after the copy was guarded by nothing. Both now run on a fixture
+carried by the real migrations through v49 and stopped there, and both mutants
+die.
+
+A third assertion was written for this release and then DELETED rather than
+shipped green: "one FTS row per spec". `fts_specs` is external-content
+(`content='specs'`), so a row count reads the content table and the assertion
+could never fail. Measured against a deliberately doubled index, the count, a
+MATCH, and FTS5's own `integrity-check` all reported a healthy table. What
+stands in its place performs that measurement instead of narrating it, and
+pins the declaration that makes counting meaningless — so it reddens on the one
+change that would make a duplication guard worth writing.
+
+### Fixed — the closed list of ADAPT statuses diverged from the standard BOTH ways
+
+§7.8.1 closes the ADAPT status list at `draft | review | asked | answered |
+approved | frozen | superseded`. Ours enumerated `draft, signed, superseded`,
+and the divergence ran in both directions at once.
+
+We carried `signed`, a value the standard's closed list does not contain — our
+own status, added to a list declared closed. That half is a nuisance. The other
+half is not: we LACKED `approved`, and §13.3.3 p.77 requires exactly that status
+on the findings-present branch ("the ADAPT is mandatory in status `approved`
+with an Architect signature"). The DB CHECK would have REJECTED the write, so
+conformance with a mandatory clause was UNREACHABLE — not unmet through
+inattention, but impossible to reach without a schema migration. Our own clause
+measurer said so in its evidence, and the regenerated manifest now says only
+that a row is in the wrong state.
+
+`signed` maps to `approved` rather than being deleted. Ours meant "both
+signatures collected"; the standard keeps two separate facts — `approved` is the
+STATUS, and the Architect signature is a separate requirement of the same branch
+living in `adapt_signatures`. Migrating preserves the acceptance and returns the
+signature to its own place.
+
+SQLite cannot widen a CHECK with ALTER, so v50 rebuilds `adapts` the way v24,
+v48 and v49 rebuilt their tables. The list stays CLOSED: a status outside it is
+still rejected by the database — including our own `signed`, which is what
+separates widening a list from opening it.
+
+THE SUBSTRATE MIRROR HAD NO GUARD. `tests/test_enum_single_source.py` pinned the
+argparse layer and the MCP tool schema to `ADAPT_STATUSES`, but the DB CHECK —
+the only one of the four mirrors that decides what the system will actually
+ACCEPT — was pinned by nothing. It agreed with the Python domain by coincidence
+rather than by control. It is pinned now, and the inventory that found it was
+taken by the LOWEST PRIMITIVE rather than by the constant that names it.
+
+TWO ADR-007 FIELDS ARRIVE IN THE SAME REBUILD, because rebuilding `adapts` twice
+would be strictly worse. `trigger_stage` is how the standard tells several ADAPTs
+of one ТЗ apart; without it the 0..N cardinality was inexpressible. And
+supersession was HALF-BUILT, which is more dangerous than absent: the
+`superseded` status existed, the `supersedes` edge existed, but
+`supersession-rationale` (ADR-007 p.108) had nowhere to live, so a dezavuation
+could be recorded mechanically while being unable to cite the requirement it
+contradicts — a record syntactically valid and substantively empty. The rule
+"no reason, no supersession" now lives in `backend_crud_adapts.adapt_set_status`,
+the lowest primitive that writes the column, so every present and future caller
+passes through it.
+
+Also fixed one floor below: `_check_adapt_approved` reported the unreachable
+status only as a rider on a row-level failure, so a corpus with no offending
+ADAPT returned GREEN while the required state could not be held at all. A
+control that cannot go red on an empty corpus has forgotten how to fail — the
+degeneracy that module exists to remove.
+
+NOT included, and excluded by measurement rather than convenience: the
+`adapt-supersession` control point and the `check-adapt-supersession` gate
+(§10.11.1). The dangling reference such a gate must catch lives in a SPEC's
+`source.adapt` field, and the live corpus carries no provenance column at all —
+a gate with no subject is the degenerate control this very change repairs.
+Filed separately, blocked on SPEC provenance.
+
+#### Breaking, and named here because a renamed identifier is a silent break
+
+Three observable names changed with the status. Each is a rename, not a
+removal, and none of them can be detected by a caller except by breaking:
+
+- `tausik adapt delta` gains a REQUIRED `--supersession-rationale`; the MCP tool
+  `tausik_adapt_delta` gains it as a required property. A call that worked
+  yesterday now fails with a message naming ADR-007 p.108 rather than silently
+  recording an empty dezavuation.
+- `RENAR-CONFORMANCE.yaml` raw-count key `adapts_signed_count` →
+  `adapts_approved_count`. Anything parsing the manifest by that key reads a
+  missing field, not a wrong number.
+- Drift finding kind `adapt-signed-incomplete-signature` →
+  `adapt-approved-incomplete-signature`. The name follows the value it keys on;
+  leaving it would have made the identifier describe a status that no longer
+  exists.
+
+`tausik adapt create` also gains an OPTIONAL `--trigger-stage`, which breaks
+nothing.
+
+### Fixed — a run in which no gate executed was a positive verdict
+
+SENAR 1.4 §8.6(e) is a SHALL on every configuration, and the standard says
+expressly that it is not weakened on any of them: the absence of a negative
+finding is not a positive verdict. Measured live in session #177,
+`verify --task <slug> --no-tests-expected` printed "no gate actually executed",
+recorded the run with `no_tests_declared=1`, exited 0 and minted a handle that
+closed the task. The label was honest and the verdict was not — §8.6(e) is a
+property of the verdict, not of the sentence printed beside it.
+
+The escape stays, because an earlier version of this branch blocked
+documentation and config work with no way out, but it is now a SECOND, EXPLICIT
+ACT: `verify` records the declaration and mints the handle, and `task done`
+must accept the emptiness knowingly with `--gates-not-applicable`
+(`gates_not_applicable` over MCP). One declaration is a claim; a claim plus a
+knowing acceptance is a decision, and a decision is auditable.
+
+THREE DOORS WERE OPEN, NOT ONE. `verify_cached_run` documents that a run which
+passed but is not replayable — "empty scope, all gates skipped, or a
+security-sensitive file set" — is stamped `noncacheable|`, and the handle
+validator refuses such a row. But the all-skipped branch returns BEFORE that
+stamp is applied, so its row carried a clean command and was replayable for the
+whole cache TTL. The first class the prefix named was the one class it never
+covered.
+
+Three code paths decide "is there a fresh green run for this task", and all
+three read the same primitive: the handle validator, `has_fresh_verify_run`,
+and a lookup inside `run_gates_with_cache` itself. The first version of this
+fix wired the rule into two of them and published the claim that there were
+only two — the third was found by the adversarial review of the fix (record
+#26) and is reachable exactly when the second has just refused, because
+`config.task_done.auto_verify=true` falls through to it. All three now refuse,
+and the acknowledgement opens all three: it is an act of the closer, not a
+property of how the green was presented. The consumers were inventoried by the
+convenient wrapper's name rather than by the primitive, which is why one reader
+was invisible; a test now walks `scripts/` and `harness/` and counts direct
+calls to the primitive through the AST, so a fourth reader added anywhere in
+those trees is a red test. A call reached through an alias or `getattr` is
+still outside what that test can see, and the test says so.
+
+TWO KINDS OF NON-EXECUTION STAY APART. A gate skipped because it does not apply
+is legitimate; a gate that APPLIED and produced nothing is not, and
+`--no-tests-expected` can no longer launder the second into the first. The
+distinction is read from `GateOutcome`, which already spelled it. A run holding
+both is reported as the worse of the two.
+
+`--no-file-changes` was audited for the same emptiness and is clear: the only
+gate carrying `skip_on_fileless_close` is `changelog`, which ships disabled,
+while Verify-First keeps running and takes its own route — one that requires
+git to prove the declared scope has no uncommitted changes. That verdict rests
+on evidence, and on git's evidence rather than the agent's word.
+
+### Fixed — two detectors called an example a citation, and one root fed both
+
+`memory lint` (stale_file) and `audit evidence` are independent, and both
+counted a conventional EXAMPLE name as a real reference. Measured in session
+#209 before the change: `audit evidence` reported 25 refs as NEVER_EXISTED, of
+which 13 were examples quoted by tasks whose very SUBJECT is fake or rotted
+citations (`tests/test_does_not_exist.py`, `tests/test_foo.py::test_bar`,
+`tests/../scripts/prod.py`) and only 3 were genuine — the headline
+over-reported real rot by a factor of two, next to a ROTTED bucket of 22 that
+a reader was being taught to skim past. `memory lint` reported 7 stale_file
+findings of which 5 were not stale.
+
+The notion now lives in one module, `scripts/illustrative_paths.py`, which
+both detectors import; the private placeholder regex that used to sit inside
+`memory_cleanup` is gone, because a second copy of that list is how the two
+drifted apart. Three mechanical rules, each chosen from the corpus rather than
+from taste: a placeholder basename, a placeholder member name (so a real file
+quoted with an example member is caught without widening the file-name list),
+and a path anchored to a working directory (`./probe.sh`, `a/../b.py`).
+
+`audit evidence` gives examples their own ILLUSTRATIVE bucket, counted and
+printed beside the other three with the rule that fired next to each entry —
+not folded away, because a number that silently drops entries is the next
+version of the same problem. `memory lint` additionally stops reporting
+git-IGNORED paths: `.claude/settings.local.json`, `.qwen/QWEN.md` and
+`.kilo/AGENTS.md` are absent by design and restored by the next bootstrap. The
+probe fails open, so a git that cannot answer leaves the finding standing.
+
+Measured after: NEVER_EXISTED 25 -> 12, ILLUSTRATIVE 13, ROTTED unchanged at
+22; stale_file 7 -> 2. Both genuine misses the corpus proved real
+(`tests/test_ble001_enforced.py::test_ble001_selected_in_pyproject`,
+`tests/test_knowledge_export.py::TestTheDestinationMustBeLocal`) stayed in
+NEVER_EXISTED, and the genuine stale reference `docs/skills.md` stayed in the
+lint. One finding is deliberately NOT silenced: memory #322 names
+`tausik/tausik.db` while explaining that the database is not there. Telling
+that from a stale reference needs the sentence's intent, and guessing intent
+is how a detector becomes a silencer.
+
+### Fixed — the Windows .cmd wrapper stored a truncated argument and reported success
+
+`.tausik/tausik.cmd` is the documented Windows entry point, and a caller with
+no POSIX shell reaches it with an argument list. Windows turns that into
+`cmd.exe /c <wrapper> <args>`, and cmd.exe acts on `>`, `<`, `&`, `|` and `^`
+inside those arguments before the batch file runs. Measured on Python 3.11.2:
+through the wrapper 5 of 9 hostile arguments were corrupted, the same 9 passed
+straight to python were all intact, and two corruptions were silent —
+`48->49` reached the CLI as `48-` with exit code 0 and the output diverted
+into a stray file named `49`, while `a&b` reached it as `a` with the tail
+executed as a command. Session #200 lost a handoff exactly that way.
+
+The wrapper now hands python the untouched command line and
+`scripts/cmdline_fidelity.py` compares it with the argv that arrived, exiting
+3 and naming both — plus any stray file cmd.exe had already created — instead
+of acting on a truncated value. It does not reconstruct the intended argv,
+though `CommandLineToArgvW` could: a recovered `>` is indistinguishable from a
+deliberate `cmd /c "tausik.cmd status > out.txt"`, and recovery would feed `>`
+and `out.txt` to the CLI as arguments. Redirection typed by hand in an
+interactive console is untouched — there `%CMDCMDLINE%` holds only the shell's
+own startup line — and `TAUSIK_CMDLINE_GUARD=off` covers the deliberate case.
+
+The capture itself had to be written with delayed expansion: the plain
+`set "X=%CMDCMDLINE%"` form carries quotes that close the protecting pair
+early, so a `>` in the value redirected the `set` line and stored
+`SCHEMA 48->49 next` as `SCHEMA 48- next` — the guard then refused three
+healthy arguments out of nine. With `!CMDCMDLINE!` the false-positive count is
+zero across those nine plus ten more shapes (`!PATH!`, `100% done`, Cyrillic,
+parentheses, semicolons), all of which reach python verbatim.
+
+### Fixed — three documents still said 124 tools and the drift guard was green: the guard now reads those forms
+
+The periodic review of this session's four commits (records #19–#23) found the
+`epic update` closure's AC4 unmet in three places the count guard could not
+see: `docs/ru/architecture.md` at "117 project + 7 brain = 124", the SENAR
+compliance matrix headline "MCP coverage 124 tools" beside its own
+"(121 project + 7 brain)", and five README table cells at 124 while the RU
+twin read 128. `gen_doc_constants --check` exited 0 on all of them: the pair
+pattern required an opening parenthesis and the bold pattern required the
+count to be the bold-delimited token. The three are corrected and the guard
+learned the forms — a pair without a parenthesis, "= N tools" after a pair,
+and the "MCP coverage N" headline — with a probe per form: reverting any of
+the three lines turns `--check` red. Same review, same fix: `update` refuses
+an empty title or description (blanking the description wrote the edit event
+and reset `stale` to 0 — the one way to pass the report by destroying what it
+measures); the same-second boundary of the count is pinned by a test (strict
+`>`, a `>=` mutation had survived); an explicit `--stale-over 0` is a filter
+and no flag is "print all"; the plural event `entity_type` is stated next to
+the constant. The AR record shape gains its fourth mandatory §7.4.6 field,
+`produces_adapt`: with three, `adapts` already carried two and a migration
+giving it a verdict would have published "AR issued in adapts" — an ADAPT is
+what an AR PRODUCES (§7.4.1) and can never carry that field innocently; the
+test creates exactly that migration and stays red-free. The PowerShell
+rewrite's docstring now says what was measured (the gate over-detects; pwsh
+forwards a native command's argument verbatim), and the quote-carrying path
+residual is recorded in enforcement-coverage. The review of this fix found
+one more, and the gravest of the session: the manifest's `replaces` link was
+composed from TODAY's date and the previous version number, correct only
+while every regeneration fell on the predecessor's day — seven did, and the
+first cross-day one named a manifest that never existed, breaking the §13.4.2
+chain in the very artifact whose founding commit promised a chain that does
+not break. The link now reads the predecessor's own id, and a live test
+resolves the committed manifest's `replaces` against git history. Two more
+forms the guard was blind to — `project-scoped tools (N)` in mcp.md and the
+README prose — are covered; the README table cells are not, and dropping
+their per-row count is the owner's call. Task
+`review-208-doc-counts-blind-and-update-guards`.
+
+### Added — `epic update` / `story update`, and a stale-description count that names and never blocks
+
+An epic's or a story's description is how a fresh agent reads the INTENT of a
+group of tasks, and until now it could not be changed: the commands were add,
+list, done, delete. Found by dogfooding in #189, twice in one session — an
+epic description still describing three layers after a replanning had added
+three more, a story description asserting a premise decision #267 had
+withdrawn — and worked around by keeping the intent in decisions, which helps
+only while someone reads them. `epic update <slug> [--title] [--description]`
+and `story update` now exist, with the MCP twins `tausik_epic_update` /
+`tausik_story_update`; ONE implementation, `hierarchy_edit.update`, carries
+the validation `add` has (length, single line), and both the CLI and the MCP
+handler are asserted by AST to call it and nothing below it. A module, not
+more class surface: the first draft put five members on ProjectService and
+two on SQLiteBackend, and the class-surface ratchet — which only turns down,
+and is right to — said no. A description edit is journaled as a
+`description_updated` event, which is what the report measures against — no
+new column, no migration: `epic list` and
+`story list` print `stale`, the number of tasks created since the description
+was last edited (with no edit ever, since the group was created), and
+`--stale-over N` narrows the list. A report, deliberately not a gate: closing
+an epic with twenty-five stale tasks goes through, and a test says so, because
+a description rewritten to pass a check is worse than one honestly old. Six
+mutations, each killed by a named test — the event not written, the CLI and
+the MCP handler reaching past the service, the edit event ignored by the
+count, a title edit counted as a description edit, and `done` turned into a
+gate. Task `epic-and-story-descriptions-cannot-be-updated`.
+
+### Fixed — the first 1.9 pipeline ran on Linux and reddened twice: a test premise raced the kernel clock
+
+Session #205 switched the CI trigger to every branch push; session #208 made
+the first push of the wave and pipeline #6658 ran the lane on a Linux runner
+for the first time: 2 failed, 8506 passed, 156 skipped. Both failures were
+Linux-only and both sat in code of this release. The first:
+`test_identical_rewrite_is_not_a_change` (the third bootstrap link, #207)
+proved the snapshot keys on content by rewriting a file with the same bytes and
+asserting its mtime had moved — and let the WRITE set the mtime. On the
+runner's filesystem the create and the rewrite fell into one timestamp tick,
+the premise "mtime differs" was false, and the test reddened on its premise
+while the gate it describes was right; NTFS hands out 100 ns stamps, so the
+30 Windows runs never showed it. The test now moves the mtime itself, after
+the rewrite, by five seconds. Two mutations, each killed: the snapshot keyed
+on mtime reddens the gate assertion; the premise set to the old mtime reddens
+the premise. Thirty runs in a row on each platform, zero failures.
+Task `snapshot-test-races-the-clock-on-linux`.
+
+The second failure was a real hole, not a premise: `python .\helper.py` — the
+third of the five PowerShell spellings the #201 follow-up measured — passed
+the write gate with 0 on Linux while the other four refused. The dialect
+handed `.\helper.py` to the dialect-neutral resolver as it stood; on POSIX
+the backslash is a character of the file name, no such file, and fail-soft
+read "unresolved" as "writes nothing". PowerShell accepts the backslash as a
+separator on every host, so the dialect now spells the separator for the host
+(`_paths_for_host`) before the resolver joins it — only for path-shaped
+tokens, never for a `-c` payload or a `-m` name, and on Windows the identity.
+The Bash channel is untouched: there the same backslash is an ESCAPE, and a
+new two-cell control plants `.helper.py` and `helper.py` with opposite
+verdicts so the exit code says which file each dialect read. Measured in a
+fresh Linux clone provisioned as the CI job is: the reddened cell green, and
+the dialect at its previous version reddening three tests. Mutations: the
+normalization leaked into the Bash lexer reddens the control; the `-c` rule
+dropped reddens the unit test; on Windows the removal of the normalization
+stays green, which is the boundary of that platform, recorded.
+Task `pwsh-channel-backslash-script-path-unresolved-on-posix`.
+
+### Fixed — AR is an artifact class by its §7.4.6 record shape, not by three guessed table names
+
+`renar_clause_reactive_adapt` decided whether adversarial-review records (AR)
+exist as a class by looking for one of three table names it had made up —
+`adversarial_reviews`, `ar_records`, `renar_ar` — and the conformance manifest
+printed that list to the external reader as `probed [...]`, offering a guess as
+evidence of absence. It is the defect #202 found on TC, facing the other way:
+there a guessed name could publish a false `true`; here `ok` is `false`, so an
+AR created under a fourth name would have kept the manifest saying "AR does not
+exist" — under decision #295 an unreported strengthening of our own claim.
+
+The task left one question open: what tells an AR from an ordinary review
+without inventing a fourth name? Measured, not reasoned:
+`reference/02-schemas.md` §7.1 and `standard/07 §7.4.6` make the record fields mandatory — `tz-ref`,
+`verdict`, `status` (with `issued`) and `produces-adapt`, measured at the
+time and put into the cut by the periodic review — and the live database
+has no `verdict` column and no status domain
+holding `issued`; `reviews` carries `task_slug` and `run_type`, a task
+closure, not a ТЗ verdict. So the
+cut is the SHAPE, in the substrate's spelling (`tz_ref` is how `adapts`
+already stores `tz-ref`), over `renar_tc_premise.artifact_classes` — FTS
+shadow tables excluded by derivation, not by prefix. Shape is not the
+column-name guess that module warns against: there the column was the duty,
+here the columns are the identity of the class. Classes carrying part of the
+shape are named in the evidence with what they lack (`adapts lacks verdict`),
+and so is `reviews`, by the fields it lacks; two AR tables are both named and
+their issued counts summed. Fixtures in three test modules now create the AR
+with all three fields. Six mutations, each killed by a named test — among them
+the name probe put back (an AR under `tz_review_verdicts` goes unseen). The
+manifest no longer prints a `probed` list.
+Task `ar-existence-is-probed-by-three-guessed-table-names`.
+
+### Fixed — tracebacks named a path that does not exist: stale bytecode is now reported and purgeable
+
+Session #187 read a traceback pointing at
+`C:\Projects\Personal\claude\tests\...` — a directory that is not on the disk.
+The hypothesis (the repository once lived there, the tree moved, the caches
+under `__pycache__/` stayed, and CPython validates a `.pyc` by the source's
+mtime and size, never its path) was CHECKED before anything was written, by
+reading `co_filename` out of the caches with `marshal`: of 2561 `.pyc` under
+the tree, 543 record a directory that is not the one owning their
+`__pycache__`, 527 of them the nonexistent old tree (tests 432, scripts 69,
+bootstrap 16, hooks 6, harness 4), across cpython-311/313/314 and pytest 8/9
+tags — months of accumulation. A traceback that lies about where the fact
+is found is a silent error of the class this project refuses.
+
+New `scripts/pyc_hygiene.py` lists every cache whose recorded directory is
+not its owner, compared after `normpath`/`normcase` (`tests\..\scripts` is
+the same place and is not reported; a relative recorded path is not a claim
+about location and is not either). `tausik doctor` gains a "Stale bytecode"
+row naming the count and the old trees, and `tausik doctor --fix-bytecode`
+purges exactly the listed files — the interpreter recreates them — never
+walking vendors/, research/ or .tausik/. Held, not one-off: the row is in
+every doctor run. Measured effect beyond tracebacks: none — the 12 modules
+that mention `__pycache__` all exclude it, and the gates walk sources. Five
+mutations, each killed. Wiring the flag left `project_cli_doctor.py` at
+exactly the 500-line cap (review #207); the "Bootstrap drift" row moved to
+`service_doctor_drift.format_scripts_drift_line`, text unchanged and pinned,
+and the file is back at 489. Task `tracebacks-name-a-repository-path-that-does-not-exist`.
+
+### Fixed — `tasks.attempts` now counts attempts, so FPSR stops flattering the history
+
+Measured in #189: of 1239 closed tasks exactly one had `attempts > 1`, and
+`task show` printed the field as a fact. The task's diagnosis named the wrong
+mechanism — the counter DID move on `task start`, since v1.0.0 — and that is
+not where second attempts happen. They happen when a blocked task is
+UNBLOCKED (which set `active` directly and left the counter alone) and when a
+verification of the active task comes back RED (which recorded the run and
+nothing else). Neither counted, so FPSR — `attempts = 1` over closed tasks —
+reported a first-pass rate the history could not support. One existing test
+pinned the defect (start, block, unblock, start expected 2); it now expects 3
+and says why.
+
+An attempt is now an activation (`task start`, `task unblock`) or a red
+verification of the task in flight: `verify --task` with a non-zero exit,
+including the task-done gate run, on the CLI and MCP alike, because every
+such run passes through the single write point into `verification_runs`
+and the counter is moved there. A green run, a red run against a task that is
+not active, and a fixture database without a `tasks` table leave it alone.
+History is not rewritten: `0` still means "never activated / not counted",
+`1` "one activation, no red verify". Expect FPSR to fall from here on — it
+was not measuring what its name says. Four mutations, each killed.
+Task `attempts-counter-never-increments`.
+
+### Added — every registered gate is verified by mutation, not by passing
+
+A green gate proves that it did not object, not that it would object to
+anything. The standard's senar-14 branch set the example ("six deliberate
+divergences introduced one at a time, each caught"), and this repository paid
+for the lesson twice in a row: sessions #205 and #206 each shipped a
+regression in a BLOCKING gate under green tests that asked the gate only about
+inputs it was already known to handle.
+
+`tests/test_gates_catch_their_violation.py` turns the discipline into a rule
+with a closed list. Every gate in `gate_registry.GATE_REGISTRY` (15) is in
+exactly one of two tables. COVERED (6: `filesize`, `class_surface`,
+`memory_route`, `bootstrap_drift`, `skill_spec_conformance`,
+`state_roundtrip`) is driven through the registry's own `impl_for` on BOTH
+ends — a real violation built under `tmp_path` must come back failed, a clean
+input built the same way must come back passed, because a gate that is red on
+every input passes a red-only check as well as a correct one. EXCUSED (9) —
+service-bound, external-tool verdicts, warn severity — carries a reason and
+the names of a red and a green test in the module that does drive it, checked
+against that module's AST so a rename reddens the table instead of leaving a
+dangling excuse. A gate added without a row fails the closed-list test.
+
+The mutation cannot be left in the tree by construction: everything is built
+under `tmp_path`, and a write anywhere else during the table run is caught by
+intercepting `open`, `sqlite3.connect` and `subprocess` — the three channels
+the builders actually use (review #207 found the first version watching one
+and promising all) — not by a `git status` snapshot, which under xdist lost
+the race to a neighbouring worker and let a planted file survive (measured
+here before the check was replaced). Every note carries the channel it came
+through, and the test asserts by that tag that all three fired: review #208
+proved by mutation that the widened spy, which told the channels apart by
+the shape of a path (`.db`, `proj`), stayed green with the `open` patch
+removed. Five mutations of the table itself, each killed by a named test,
+three more on the widened spy, and five on the tagged one — among them the
+inverse: renaming a builder's directory no longer reddens the test.
+PreToolUse hook gates and stack-declared command gates are declared out of
+scope in the module docstring, not forgotten.
+Task `verify-a-gate-by-mutation-not-by-passing`.
+
+### Fixed — `bootstrap_drift` now checks the third link: the process that is running
+
+The chain "edit `scripts/` → redeploy → takes effect" has three links, and the
+gate checked two. Session #191 measured the third: after `bootstrap --ide all`
+a fresh `gates status` listed the new gate, while the MCP server started
+BEFORE the redeploy closed two tasks in a row without it. The server judges
+with the registry and handlers it imported at start; rewriting the files under
+it changes nothing it executes, and both sides told the truth about different
+code. The task's original diagnosis — "the gate stands OFF" — had already been
+closed by decision #287 (`tausik/policy.json`); re-diagnosed before any code
+was written, as memory #530 requires.
+
+New `scripts/running_source_drift.py` takes a content snapshot of the tree the
+process runs from at process start (the MCP server pins it at the top of
+`main`, for its `scripts/` tree and its own `mcp/` tree). At task-done the
+gate asks whether that tree changed since; if it did, the close is refused
+with the one fix there is: restart the server, or close via the CLI, which is
+a fresh process. Hash, not mtime — an identical redeploy touches every mtime
+and changes nothing that runs, and a gate that blocked after every routine
+bootstrap would be switched off within a session. First snapshot wins: a
+reference any caller can move is not a reference. Measured on a copy of the
+real profile (380 files): a child process with one file edited under it
+returns the block naming the file; snapshot 40–70 ms warm, comparison 40 ms.
+Five mutations of the check, each killed by a named test. Reports, never
+restarts (decision #189).
+Task `bootstrap-drift-gate-off-source-edits-never-reach-the-cli`.
+
+### Fixed — the write gate read a literal `open()` out of a comment and blocked on it
+
+The detector behind the Bash write gate matched the TEXT of a Python source,
+so a literal `open(path, "w")` inside a string, a docstring or a comment was
+reported as a write the command never performs. Found in #203 when the gate
+refused its own measurement harness; measured in #207 over the repository's
+878 Python files: the text reading named a target in **six files, and all six
+were phantoms** — there is not one executed literal write with a constant path
+in the tree, and the gate was blocking on the six that are quoted or commented
+out. A false block is the costlier direction: it stops the work, and an agent
+that is stopped by a phantom learns to distrust the refusal.
+
+Python source is now PARSED (`ast`), and only a real `open(...)` call node with
+a literal path and a literal write mode counts. The table is one of FORMS, not
+examples: bare `open` and attribute `io.open`/`codecs.open`; positional and
+`mode=` mode; positional and `file=` path; raw strings and implicit
+concatenation; modes `w`/`a`/`x` and `+` (the text reading missed `r+`);
+inside `def`/`with`/`class`/an argument. The `-c` payload is read by the same
+parser, and ONLY the code is read: the arguments after it are the program's
+`argv`, so `python -m pytest -k "open('x','w')"` no longer names a file the
+command does not write. Glued (`-cCODE`), clustered (`-uc`) and
+after-a-valued-option (`-W ignore -c`) spellings are all read.
+
+What remains of the phantom is confined and declared, not silent: a source the
+parser cannot read (a syntax error, a NUL byte, nesting past the limit) falls
+back to the old text reading rather than to nothing, and command text around a
+NON-Python interpreter (`ruby -e`, `xargs python -c`) is still read as text.
+Measured cost: 1.9 ms per file over the repository, 10 ms on its largest test
+module. Six mutations of the detector, each killed by a named test.
+Task `write-gate-reads-open-literals-out-of-strings-and-comments`.
+
+### Fixed — the PowerShell channel did not read the script a command runs
+
+Session #201 closed this on Bash and put PowerShell in that task's
+`scope_exclude` deliberately, so the work would not sprawl. The exclusion was
+honest and the follow-up was filed. What it cost, measured here before anything
+was changed: on the PLATFORM'S PRIMARY SHELL, `python helper.py` wrote a file
+outside the active task's ACL and the gate returned **0**. So did the `&` call
+operator, both slash spellings, and `Start-Process`. Nine cells with the Bash
+channel as a control in each — **5 wrong before, 0 after**.
+
+The declared residual is corrected rather than quoted. `pwsh_cmd_parse` claimed
+this channel had been raised "from the everyday spelling walks through to you
+must actively obfuscate"; the measurement says the everyday spelling walked
+through, with no obfuscation anywhere. The cut was never obfuscation — it is
+INLINE code versus code IN A FILE, and running a script from a file is the
+ordinary way to run code (memory #495: a declared residual is a claim about the
+system, checked by measuring the most ordinary command it covers).
+
+Only the dialect-specific part is new. Which paths a Python source opens is
+answered by `python_source_writes`, shared verbatim with the POSIX channel —
+including the narrowness that keeps `python -m pytest x.py` from being read as
+running `x.py`, a trap the POSIX side had already sprung. What differs between
+the shells is only WHICH TOKENS name the program, and `Start-Process` is the
+one spelling that hides it.
+
+The seal against a third recurrence is a test over the DIALECT TABLE, not over
+a list of shell names: every entry must answer alike about the same command, so
+a shell added tomorrow fails on the day it is added rather than becoming the
+route around the guard. That this repair needed no change to the dispatcher is
+the uniform signature from earlier today paying for itself.
+
+### Fixed — five tests called `bash` by bare name, and on `windows-latest` that is a WSL launcher
+
+The release verification lane went red on 2026-08-25 across all three
+`windows-latest` jobs and **stayed red for nine days**, while ubuntu, macos,
+lint and the full lane were green throughout. The cause is in the log rather
+than inferred: `subprocess.run(["bash", "./probe.sh"])` resolved to
+`System32\bash.exe`, the WSL launcher, which with no distribution installed
+exits 1 and prints its complaint in UTF-16. Nothing was wrong with the product.
+The tests were wrong about which program the name `bash` denotes.
+
+The name is no longer trusted. A candidate is PROBED — asked to run a real
+script file from a real working directory, the exact shape the callers use — and
+the first that answers correctly wins; a host with none skips honestly instead
+of going red about someone else's tooling. The launcher fails that probe by
+construction, so nothing has to recognise it by name or by the text of its
+error. Git Bash is tried first, which settles the case where a WSL distribution
+IS installed and both shells work.
+
+Worth recording: this developer's machine cannot reproduce the CI condition —
+WSL here has a distribution, so the launcher passes the probe and only the
+ordering decides. The stub is therefore BUILT in the test rather than described,
+and the probe and the ordering are each tested for the thing they actually do.
+
+A ratchet replaces the repair of five tests: an AST scan forbids any test from
+passing a shadowable interpreter name as `argv[0]`, with a baseline that may
+only shrink. It immediately found a sixth call the preceding inventory had
+missed — a `cmd` invocation — because that inventory searched for the name it
+expected instead of the class it was after.
+
+### Added — `push-ok` says what the published lane last concluded
+
+A gate whose redness nobody reads is indistinguishable from a gate that is
+switched off, and nine days of red proved it about attention rather than about
+code. The verdict now appears at the chokepoint of publishing: `push-ok` is the
+one command that already stands before every push and already needs the
+network, which `doctor` — run offline and in clean clones — does not.
+
+It reports; it does not block. Publishing over a red lane stays the owner's
+call, and a refusal here would be argued with once and disabled thereafter.
+What it will not do is stay quiet: no `gh`, no network, no GitHub remote, a
+timeout or a malformed answer each prints as "not checked" **with the reason**,
+because a check that could not run must never read as a check that passed —
+the defect this release keeps finding, and one it would be perverse to add here.
+The deadline is well inside the push ticket's sixty-second life.
+
+### Fixed — the `env -S` repair itself closed two of four spellings
+
+Review again, on the repair below, which had announced the class closed. Two
+live bypasses, both verified against a real GNU `env` that writes the file and a
+live gate that returned 0:
+
+* The GLUED short form `-S<value>` — ordinary getopt syntax — was not recognised
+  at all, so `env -Stee\ secret.txt` walked through in ONE step with no nesting.
+  It is now read as a rule over the short flags in the table rather than a case
+  for `-S`.
+* The recursion bound failed OPEN. Past it, `_strip` returned the still-wrapped
+  tokens whose head is `env` — not a writer, not a shell — so every consumer saw
+  nothing: four levels of nesting were blocked, five were allowed. A limit that
+  turns a block into an allow one step past an arbitrary constant is the bug it
+  was guarding against, wearing a number. Termination is now STRUCTURAL — each
+  unwrap strictly shrinks the token stream, and recursion continues only while
+  it does — so a chain of any depth resolves and none can loop.
+
+The guard that enforces the shrinkage is unreachable through the public entry,
+which a surviving mutation showed. It is kept as the termination proof and
+tested through the private entry rather than left as decoration or deleted.
+
+### Fixed — `env -S` carries a command, not a value, and consuming it opened a bypass
+
+A regression in the entry below, found by review in the same session that wrote
+it. `-S` / `--split-string` was added to the wrapper table alongside `-u` and
+`-C` as though its value were inert. It is not: GNU `env -S "tee out"` splits
+the value into a command line, runs the first word as the program, and appends
+the argv that follows. Consuming the value as opaque dropped the real program,
+so `env -S tee secret.txt` went from **exit 2 to exit 0** — a blocking gate made
+weaker by the commit meant to strengthen it, reaching both the scope ACL and the
+memory-route gate through their shared parser. Verified against a real GNU
+`env`, which does write the file, and against the pre-commit parser, which
+blocked it.
+
+The repair is the distinction rather than the exclusion: a flag either carries
+DATA, and is skipped, or carries a COMMAND, and is split and re-entered
+(bounded, and fail-soft on a value that will not split). Removing `-S` from the
+table would have left it working only by accident.
+
+Why the 19-form matrix missed it: every cell asked "is the interpreter found"
+of a form that carried an interpreter, and `-S` can carry any writer at all. The
+matrix is now 22 forms, and the `-S` cells are asserted through the live gate
+rather than the parsing function alone.
+
+Also from that review: `shell_roots.destinations` did not honour `--`, so
+`cd -- -weird-dir` lost a real destination — the widening losing the very root
+it exists to add. It now reads `--` the way `bash_write_parse._positionals`
+already did.
+
+### Fixed — a wrapper's own flag was mistaken for the command it wraps
+
+Review #6 filed this as "the `env` wrapper is not unwrapped at all". Measuring
+first said otherwise, and the real mechanism is narrower and worse.
+`_strip_prefixes` does run, and does drop `env`, `sudo`, `timeout` and friends —
+it just never consumed the VALUE those wrappers' flags take. `sudo -u bob python
+helper.py` dropped `sudo`, skipped `-u`, stopped at `bob`, called that the
+command, and never reached the interpreter. Nineteen wrapper forms measured,
+**8 blind**, and every blind cell was a flag with a separate value.
+`nice -n 5 python helper.py` was passing by accident: `5` was being eaten as
+`timeout`'s duration, not as `-n`'s argument.
+
+What that buys an agent is a silent write outside the declared scope — the gate
+returns 0 and records no degradation, so the bypass leaves no trace to count.
+
+The repair extends the table that already exists rather than adding one beside
+it: `_TRANSPARENT_PREFIXES` is now derived from the keys of a map from wrapper
+to the flags that take a value, so a wrapper cannot be added without its flags
+being considered. (`bash_cmd_scan._INTERPRETERS` overlaps in membership but is
+not a second copy — it answers which programs EXECUTE their arguments, and this
+file already records why borrowing it would be wrong.)
+
+Both directions are asserted, because over-consuming is the symmetric way to go
+blind: eating a token a wrapper does not take would swallow the command itself,
+so `env -i`, `stdbuf -o0` and `--chdir=/tmp` sit in the same matrix as the forms
+being repaired, and a mutation that eats one token too many fails on them. After:
+19 of 19 seen, 4 mutations, none surviving. **Residual, stated rather than
+quietly fixed:** `xargs` executes its arguments but is not treated as a
+transparent prefix, because its operands come from stdin and pretending
+otherwise would misread the command.
+
+### Fixed — `~` in a script or destination path was joined as a literal directory
+
+Of the five sites that resolve an externally supplied path, three expanded `~`
+and two did not, so `python ~/helper.py` produced a path nothing has, the
+fail-soft read it as "this script writes nothing", and the script was invisible
+to the gate while the same file named absolutely was seen. The second site is
+the `cd` destination in `shell_roots`, introduced by the entry below one commit
+earlier — the same omission, found by taking the inventory by call site instead
+of trusting that the new code was new enough to be right.
+
+### Fixed — the memory-route gate read a script out of a tree the command never enters
+
+The three fixes below threaded the shell's directory into `write_targets`. Its
+twin `write_targets_with_confidence` did not get the argument, and that twin is
+the only entry the memory-route hook calls — so one gate was repaired and the
+other, judging the same commands with the same parser, was not. The dispatcher
+decided which one got the directory with `if module is bash_write_parse`: a
+dialect enumeration inside the module written to abolish dialect enumerations,
+covered by no test.
+
+The miss is a hybrid rather than a plain gap. The script's CONTENTS came from a
+file the command does not run, while the targets found inside were resolved
+against the shell's directory, so the path judged matches no file on disk.
+Measured on the live hook with the same script name in two checkouts: a write
+into home-scope memory from the second tree passed **ungated**, and in the
+mirror case an innocent command there was **accused of leaking** because the
+main tree's same-named script was read. Six cells, five wrong.
+
+Threading the argument fixes two of those five. The other three are the `cd`
+case, and they are the more interesting failure: the union introduced above
+judges the pre-command directory and the project root, which covers a command
+walking INTO the project and nothing else. With two checkouts open the command
+walks into a THIRD directory that is neither. That union was still a guess about
+a root — the same guess, in its fourth form.
+
+So the guessing stops. `shell_roots` reads the destination `cd`, `pushd`,
+`chdir` and `env -C` name in the command text and returns every directory a
+relative path may resolve against; a destination behind an unexpanded variable
+yields nothing and the project root stays in the list, so an uncomputable move
+widens instead of narrowing. Every dialect now takes the same argument, so the
+dispatcher has nothing left to decide and a third shell cannot arrive without
+it — asserted over the dialect table itself rather than over a list repeated in
+a test. After: six cells of six correct, four mutations, none surviving.
+
+### Fixed — a command that moves the shell no longer escapes the gate
+
+The two fixes below made the event's `cwd` the single root for a relative path.
+That directory is where the shell stood *before* the command ran, and a command
+can move: in `cd <project> && python helper.py` the shell is somewhere else by
+the time the script is named. Measured on the live gate — `cd … &&`, a
+`( … ; … )` subshell and `pushd` each went from **exit 2 to exit 0**, while the
+same command with no `cwd` field at all — the pre-fix resolution — still
+returned 2. For that shape the old root was accidentally right and the fix made
+it wrong: a block turned into an allow, the exact under-detection both of those
+tasks' criteria forbade, and `_script_file_writes` fails soft on a missing file
+so nothing was reported.
+
+The cure is not to work out where the shell ends up. When the command moves,
+both roots are judged and the union kept: for a containment gate a surplus
+candidate costs a task the write would have needed anyway, while choosing the
+wrong root loses the write in silence. Both write vectors need it separately —
+the script the parser opens, and the target the gate resolves — and a mutation
+removing either survived the other's tests until each got its own.
+
+The detector is asked of the token stream, not the text, so `cp cd.txt out` and
+`echo "cd /tmp"` are not directory changes; a false positive here only drags in
+a second root, but treating every mention as a move would blunt the measurement
+the base directory exists to make.
+
+Found by review, not by the tests: neither of the two commits below contains a
+single command with a `cd` in it. `env -C … python …` was checked separately and
+is **not** part of this regression — it was never gated, before or after,
+because the `env` wrapper is not unwrapped to find the interpreter at all. It is
+filed with the other pre-existing gaps rather than folded in here.
+
+### Fixed — the script a command runs was also looked up in the wrong tree
+
+The fourth site of the identification below, found immediately after the fix
+above shipped — and missed by that fix's own inventory. `_script_file_writes`
+opens the script a command names, to read the writes inside it, and resolved
+that path against `project_dir` too.
+
+It was missed because the inventory grepped for the VARIABLE NAMES the other
+three sites happened to use. This one calls it `script`. Redone by call site,
+`join(project_dir, …)` appears three dozen times across the hooks, and every
+other one joins a CONSTANT internal path — `.tausik/tausik.db`, `.claude/skills`
+— which is correctly project-relative. Exactly one joined a path arriving from
+outside, and it is this one. Four is what was measured, not a bound.
+
+Measured with the same script name in two trees: standing in the second
+checkout, `python helper.py` reported the MAIN tree's target — and kept
+reporting it after the script was deleted from the tree the command actually
+runs in. A phantom and a miss in a single answer.
+
+The base directory is now threaded from the event through `shell_channel` to the
+parser, and only to the POSIX dialect: the PowerShell parser reads command text
+alone and opens no script, so handing it a directory would claim a coverage it
+does not have. A caller that supplies nothing still gets the previous behaviour,
+pinned by its own test so this cannot quietly stop gating.
+
+### Fixed — a relative write target belongs to the shell's directory, not the project's
+
+Three hooks — `bash_write_gate`, `memory_pretool_block`, `task_gate` — turned a
+relative target into an absolute path by joining it to `project_dir`, each with
+a comment asserting that the shell's cwd *is* the project dir. That holds for
+ordinary work and stops holding the moment the agent opens a second checkout.
+Session #204 met it live: inside a `git worktree`, a command touching
+`.tausik/tausik.db*` was refused as a write to the **main** repository, which it
+never touches. Decision #299 makes "does this work from someone else's clean
+clone" a release requirement and memory #501 says a `git worktree` is the honest
+way to measure it — so the gate obstructed precisely the check it now has to
+allow. The workaround was absolute paths, discovered by being blocked.
+
+What the event actually carries was measured before anything was designed,
+rather than assumed: a PreToolUse payload in this harness has `cwd`, and it
+tracks a `cd` from an earlier call. `_common.shell_cwd` reads it, and every
+relative target now resolves against it.
+
+The direction of this defect was over-detection — a foreign tree mistaken for
+this one — so the risk in fixing it is turning it into under-detection. Two
+things hold that line, and both are asserted by tests. Containment is still
+decided on the RESOLVED absolute path, so standing in a sibling directory and
+writing `../core/scripts/x.py` is still caught. And when the event cannot say
+where the shell stands — no `cwd`, a blank one, a directory that does not exist,
+a payload that is not even an object — the resolution falls back to
+`project_dir` and the write stays gated, because a gate that cannot establish
+the facts must keep judging, not stop.
+
+Two corrections that measurement forced, both before this shipped. The task's
+own record quoted the blocked command as `rm -f .tausik/tausik.db*`; `rm`
+produces **no** write target here at all, so that command cannot have produced
+that refusal through this gate — and a test written around it would have passed
+whether or not the defect existed. The tests use a command that really is a
+writer. Separately, an emptiness check in the new helper turned out to be
+unreachable — `isdir` already rejects `""` and `"   "` — and was removed rather
+than pinned by a test, on the same reasoning as the entry below.
+
+### Fixed — a newline was not a command separator, so the write gate could be walked past
+
+`bash_cmd_scan._SEPARATORS` has always listed `"\n"` among the operators that end
+one command and start the next. **It could never match.** Tokens arrive from
+`shlex(..., whitespace_split=True)`, which treats a newline as whitespace and
+drops it — so the entry was dead code written for a tokenization that does not
+happen, the same shape as the `\d*` the previous release found in the
+redirection pattern.
+
+Everything on the second line was therefore absorbed as positional arguments of
+the command on the first. Measured over 9 separator forms × 10 writing commands
+= 90 cells: the operator forms (`;`, `&&`, `||`, `|`) lost nothing, and the four
+forms where only a newline separates — bare newline, blank line, indented line,
+CRLF — **lost the real target in 9 of 10 cells each, 36 in all**. Not a phantom
+target: a MISS. The single writer that survived a bare newline survived because
+a redirection target is recovered from the text and never depended on the token
+stream at all.
+
+That matters more than a false positive would. This gate is a containment
+control — it holds writes inside the task's declared scope. Verified against the
+live hook rather than the parser alone: a single-line write outside the ACL is
+refused, and **the same write with any command on a line above it went through
+and put 723 KB outside the declared scope**. A multi-line Bash call is the
+ordinary way to work, so nobody had to be clever to defeat this; you fell through
+it by accident.
+
+Statement boundaries are now recovered in `scripts/hooks/shell_statements.py`
+from the raw text, before tokenization — the same move as `shell_redirection`
+and `python_invocation`, and for the same reason: a signal the tokenizer
+destroys has to be read where it still exists. A newline outside quotes becomes
+a `;`, reusing a separator the splitter already handles instead of adding a
+second mechanism to keep in step with the first. What is deliberately *not* a
+boundary: a newline inside single or double quotes (a multi-line commit message
+is one argument, and splitting it would manufacture commands out of prose) and a
+newline after a backslash (a line continuation is the opposite of a boundary).
+All 90 cells now see the write, and none of the quoted-prose cases gain one.
+
+One mutation survived the first version of this and changed the code rather than
+the tests. The boundary branch originally handled CRLF separately; a mutation
+that removed it stayed green, and the first explanation — "a missing test" — was
+wrong on measurement: shlex counts `\r` as whitespace too, so the branch could
+not affect any result. It was removed as dead rather than pinned by a test,
+because writing a check for a condition that cannot fail is precisely the defect
+this entry is about. The carriage return in the *continuation* branch is a
+different matter — without it a `\`+CRLF continuation splits in two and the
+destination on the second line stops being one — so that case stayed, with a
+test that goes red without it.
+
+### Fixed — the development gate did not build the branch development happens on
+
+`.gitlab-ci.yml` opens by calling itself "the development gate: one Linux, every
+push". Its rules said something much narrower — a branch push started a pipeline
+only when the branch *was* the default branch. Release 1.9 is written on
+`v1-9-wave`: not `main`, no tag since v1.8.0, no merge request open. None of the
+three rules could fire.
+
+Measured against the GitLab API rather than read off the file: **0 pipelines for
+79 pushed commits**, and no pipeline of any kind in this project for 20 days.
+The gate was declared, wired, and unreachable.
+
+That gap is not bookkeeping. The two defect classes closed just before this one
+live *only* in an environment that is not the maintainer's working copy — eleven
+ratchets that never executed in a clean checkout, and a blocking gate switched
+off for everyone who cloned the repository. The environment that would have
+shown them is exactly the one these rules declined to build, which is why both
+were found by hand, months late.
+
+The rules now say what the header always said: every branch push builds. The
+default-branch rule is gone because `$CI_COMMIT_BRANCH` subsumes it — `main` is
+a branch, and two ways to say one thing leave the next reader working out
+whether the narrower one still means something. A `when: never` guard suppresses
+the duplicate pipeline an open merge request would otherwise start; on this
+instance every runner is a shell executor sharing one workspace per project, so
+a duplicate is not merely a wasted slot — the two runs clean and rebuild the
+same directory underneath each other.
+
+The ratchet is `tests/test_ci_runs_where_development_happens.py`, and it
+evaluates rather than greps: it parses `workflow.rules` into ordered
+`(condition, when)` pairs and computes whether GitLab would start a pipeline for
+a given branch. A condition written in a grammar it does not implement raises
+instead of quietly returning false — a rule nobody can evaluate is the exact
+shape of the bug being guarded. It lives in its own module because the
+neighbouring workflow ratchets are `slow`-marked while GitLab runs the fast
+lane, and a guard on the GitLab trigger that GitLab itself never executes would
+repeat the mistake it exists to prevent.
+
+### Fixed — a fresh clone was not green, and one blocking gate was not even on
+
+Run this repository's CI steps in a clean `git worktree` — checkout, then
+`bootstrap.py --no-detect --ide all` — and the suite came back red. Not
+mysteriously: **four causes**, each needing a different answer, and the count of
+failures moved between runs because some test creates the project database as it
+goes, so a database-dependent control passed or failed depending on where the
+random order put it.
+
+**A blocking gate was off for everyone but this machine.** `changelog` is
+declared `severity=block`, and its switch lived in `.tausik/config.json` — which
+`.gitignore` keeps out of every clone. Measured side by side: `gates status`
+said `[ON]` in the working copy and `[OFF]` in a bare checkout. The move to the
+committed `tausik/policy.json` had already happened for `auto_verify` and
+`gates.bootstrap_drift`; this key was left behind, in the very file whose own
+note says a tightening that must survive cloning does not live there.
+
+**Two tests read doctor's summary line instead of their own subject.** Their
+subject is one row — the trust-tier warning — but the last assertion asked the
+global verdict, which any unrelated check flips. With no database, `Project DB —
+not found` is a real FAIL, the verdict switches from `OK with N warning(s)` to
+`N FAIL, M WARN`, and both went red over a finding that was not theirs. They now
+assert what they actually owe: the row is a warning, and doctor's failure count
+equals the failures it printed — so nothing yellow was counted as red behind the
+display.
+
+**Six ratchets could not reach their own detector.** `gate_state_roundtrip`
+answers NOT_APPLICABLE / `no_database` before running, and answers correctly — a
+fresh clone is not at fault for being fresh. But the tests that drop `check_tree`
+to prove the runner records non-execution never got that far. They now build a
+synthetic project with a canonical `init_schema` database, so the control reports
+on the project rather than on the machine it ran on. Proof it now measures: with
+the gate mutated to sign a fault as NOT_APPLICABLE, five of them go red **in the
+bare checkout**, where before they were red for an unrelated reason and could
+have caught nothing.
+
+**One control is genuinely working-copy-only** and now says so. The SPEC-body
+audit pins what the LIVE repository reports; a bare checkout has no SPEC bodies
+to report on. It is rostered in `tests/test_no_silent_db_gated_skips.py` and
+stands down through the shared reason constant — dormant out loud, not silent,
+and not failing.
+
+A bare checkout now runs 7646 passed / 148 skipped / 0 failed.
+
+### Fixed — a redirection could take the place of the file a command actually writes
+
+`bash_write_gate` read the `2` of `cp a b 2>/dev/null` as one of the command's
+own arguments. For `cp`, `mv` and `install`, whose destination is the LAST
+positional, that number then *became* the destination as far as the gate could
+see: it refused writes to a file named `2` and never looked at the real path.
+
+The cause was not the command table but the pattern `^\d*>>?\|?$`, which
+expected the descriptor to arrive glued to the operator. It never does —
+`shlex(punctuation_chars=True)` always splits it off — so the `\d*` was dead
+code written for a tokenization that does not happen, and the orphaned digit
+stayed behind as an argument.
+
+Measured before the fix, not argued: a sweep of 10 writer commands x 15
+redirection forms invented a target in **70 of 150 cells** and lost the real one
+in **30**. The lost half never showed as a bypass only because the phantom digit
+is itself an in-tree path outside the task's scope — the right verdict for the
+wrong reason, reported against a file no command was writing.
+
+Two further forms the defect report did not mention turned up in the same sweep:
+`<` was not treated as a redirection at all, so `cp a b <in` reported the file it
+only READS as written and lost the destination; and arguments standing after a
+redirection (`cp a >log b`) were dropped, because the argument list was truncated
+at the first redirect.
+
+Redirection parsing now lives in `scripts/hooks/shell_redirection.py`. Descriptor
+numbers are removed from the command TEXT before tokenization, since adjacency is
+what bash itself decides on and is exactly what tokenization discards:
+`cp a b 2>out` and `cp a b 2 >out` tokenize identically and mean different
+things. Quoted and escaped text is left alone. All 150 cells are now exact, and
+`cp a 2 >out` — which writes a file genuinely named `2` — still is.
+
+### Fixed — the ratchets behind published claims did not run where the project is merely checked out
+
+`.tausik/` is gitignored and `bootstrap.py` — CI's only preparation step — does
+not create the project database. Both verified by running the CI steps in a clean
+`git worktree` rather than argued from the source. Every control that opened
+`.tausik/tausik.db` therefore stood down in CI, silently: **eleven test instances
+across four files**, not the two the defect was filed for. Among them the ratchet
+that `RENAR-CONFORMANCE.yaml` names, in its own evidence line, as the reason a
+published `true` is safe.
+
+It was not even consistent. Some test in the suite creates that database in the
+repository root as it runs, so a gated control ran or skipped depending on where
+it landed in the order — under `-n auto` and random ordering, a coin toss. A
+ratchet that sometimes measures nothing and always reports green is worse than
+one switched off, because the green gets believed.
+
+The fix cuts by the question a control asks, not by the file it lives in:
+
+- **"What does this project declare?"** is answered by git and must run
+  everywhere. Three controls moved: the ADR-013 vacuity ratchet now reads the
+  canonical schema `init_schema` builds (measured equivalent first — the live
+  database and the canonical schema yield the same 30 artifact classes, nothing
+  extra either way, and the canonical one carries no residue), and the two
+  disclosure ratchets read task status from the git-tracked `tausik/` projection
+  through the emitter's own parser rather than a second one.
+- **"What does this working copy hold?"** genuinely needs a live database. Those
+  eight stay dormant in a checkout — and now say so, citing one shared reason
+  that reads `DORMANT here, not passing` instead of vanishing into a skip count.
+
+`tests/test_no_silent_db_gated_skips.py` keeps it from happening again, and it
+walks the AST rather than grepping: the `claudemd` group hid for exactly as long
+as a phrase search, because it worded its skip differently — a grep found three
+sites out of ten. A newly gated control now fails until someone rosters it on
+purpose, and a roster entry for a control that is no longer gated fails too. That
+mirror duty caught an error in the roster on its first run.
+
+Five mutations, five killed **in the clean checkout** — the only place where
+killing them proves anything here.
+
+The disclosure this touches was re-pointed, not retired: closing the CI gap
+removed one of its two grounds, and the clause behind it is still a constant, one
+of five among seven mandatory clauses. `mandatory-clauses-are-constants-published-as-earned`
+now carries that remainder.
+
+### Fixed — the Bash write gate held on `python script.py` and on nothing next to it
+
+One token, or a version number in the interpreter's name, and the gate that holds
+the task write-ACL stopped applying. Found by the SENAR 9.5 sweep on code shipped
+two sessions earlier, and measured through the real hook rather than read out of
+the source: of 17 ordinary ways to say "run this Python script", 10 walked past
+**both** of the gate's rules — the scope ACL (SENAR Rule 2) and the "no active
+task" refusal (QG-0) — while 2 more produced a false block.
+
+`python helper.py -m foo` was allowed. So were `python3.11 helper.py`,
+`pythonw helper.py`, `py -3 helper.py` and `python helper.py -c`. None of this
+needed obfuscation: `-c` is an everyday flag of an everyday program, and
+`python3.11` is the standard way to name an interpreter on most systems.
+
+Two causes, one class — the previous fix closed the form it had **measured** and
+never asked what stood next to it:
+
+- the scan for `-m`/`-c` read the whole argument list, so a flag belonging to the
+  **script** was mistaken for one belonging to the interpreter. Position decides
+  now: before the first positional the flag means "there is no script file";
+  after it, it means nothing about the interpreter;
+- the interpreter names came from a literal set, and the script reader sat behind
+  a check owned by a **different** gate whose set is narrower still. `py` and
+  `python2` were therefore listed, believed and unreachable — a constant claiming
+  coverage its caller did not permit.
+
+Names are now derived from the shape of the name, not enumerated; `-m`/`-c` are
+matched as letters, so the glued (`-mpytest`) and clustered (`-um`) spellings are
+covered — an exact-token set had been **false-blocking** both, reading a test file
+the command never writes; and the script reader answers to this module's own
+notion of Python. The invocation rules live in `scripts/hooks/python_invocation.py`,
+split out the way `bash_cmd_norm` and `write_confidence` already were.
+
+Seven mutations, seven killed, each checked to redden the tests for **its own**
+duty rather than merely to redden something. The residual is stated in the other
+direction too, and it is open rather than implied: the matcher reads text, so a
+literal `open(..., "w")` inside a string or a comment is still reported as a write
+— measured when the gate refused this task's own test harness.
+
+### Fixed — §13.3.5 reddened on a duty that is not its own, and stayed green on the one that is
+
+Found by the SENAR 9.5 quality sweep, on code shipped an hour earlier in the same
+session, and both halves were measured on a copy of the live database rather than
+argued.
+
+`pairing_clause` derived the published `tc-pos-neg-pairing` verdict from
+`tc_evidence`, whose only finding is a SPEC-DOC artifact. Adding a SPEC-DOC — an
+ordinary action that migration v49 had just legalised — flipped a mandatory clause
+to `false` and drove `infer_level` to pre-adoption, telling an external tracker
+that we violate a clause about TEST-CASE pairing because a document exists. In the
+other direction, a `spec_tests` table with `assertion_ref`, `polarity`,
+`environment_ref` and a row in it left the clause `true`: the very mutation the
+module was written to defeat survived in the PUBLISHED path.
+
+Separating the two questions was right; wiring the leftover one into the clause was
+not. The SPEC-DOC finding stays where it belongs — the ADR-013 guard test — and the
+clause is now the constant it honestly is. That constant is disclosed rather than
+dressed up: `MEASURER_CAVEATS` carries an entry naming the open task, the registry's
+emptiness declaration is retired, and the manifest header again tells the reader
+that not every `true` is earned.
+
+The evidence string was corrected too. It claimed the arrival is watched "in the
+same suite that must be green before this manifest can be committed" — measurably
+false: `.tausik/` is gitignored and no CI workflow creates the database, so that
+guard skips in CI entirely. It now names the environment where the watch really
+runs, and the gap is filed as its own task.
+
+### Fixed — two declarations rested on "TC does not exist", and nothing watched for it
+
+ADR-013 admitted the SPEC-TEST and SPEC-DOC types, and each brought a CONDITIONAL
+duty we declared inapplicable: `TC.environment-ref` (§9 p.119) and a doc lint for
+SPEC-DOC. The premise is true and was re-measured — no TC table exists under any
+name, `specs` holds no DOC or TEST row, and `scripts/docs_lint.py` returns 0
+unconditionally. What was missing is the machine that expires the declaration.
+
+The guard test written for it promised to red "the moment either subject
+appears". A mutation showed it did not: a table `spec_tests` carrying
+`assertion_ref`, `polarity` and `environment_ref`, with a row in it, left the
+test GREEN. The cut was a guess at two table names (`test_cases`, `tc_*`) while
+the promise was about a subject — the third time in three sessions that an
+announced boundary named the wrong one.
+
+The same premise had a SECOND consumer, and it is published: `tc-pos-neg-pairing`
+in the conformance manifest was the literal `True` among derived neighbours, with
+its premise in a comment no measurer read. Nothing in the tree watched it.
+
+`scripts/renar_tc_premise.py` now measures the premise once for both. A cut by
+column name was rejected on merit rather than taste: `environment-ref` is the
+field the duty DEMANDS, so a detector keyed on it reddens on a compliant TC and
+stays silent on a violating one. The bounded question is whether an artifact
+class ABSENT at declaration time has appeared, which no naming can dodge; FTS
+shadow tables are excluded by deriving them from the virtual table that owns
+them, never by an `fts_` prefix that a TC table could hide behind.
+
+That ratchet is a statement about OUR declaration, not about a database, and the
+suite proved it: wired into the published clause it announced an arrival for
+every fixture, including one that creates tables by DDL on purpose. It now has a
+single consumer — the repository's guard test, against the live database — and
+the clause rests only on facts of the database it describes. The evidence string
+says so, so the published field does not claim a check that happens elsewhere.
+
+### Fixed — the Bash write gate said it checked writes and checked names in a string
+
+`bash_write_gate` decides which paths a command writes by PARSING THE COMMAND
+TEXT. A write performed inside a script the command runs is not in that text, so
+it went through the task ACL untouched. Measured live in session #200 on one
+path: `cp x .claude/mcp/project/tools_spec.py` was refused with the ACL printed,
+and `python helper.py`, writing that same path, returned zero and made the edit.
+
+The larger defect was the promise. The gate's own docstring called the gap
+"obfuscated writes" and claimed the bar had been raised to "must actively
+obfuscate" — but running a script from a file is the ordinary way to run code.
+The documented residual named the wrong cut, "a literal `open()` versus a
+computed path", when the real one was INLINE versus IN A FILE. A gate that
+overstates what it prevents is worse than one that prevents less: the agent
+reading the refusal concludes the ACL is closed. The boundary paragraph now says
+what is actually true, and says why it used to say otherwise.
+
+The hole is closed for the measured shape. `python [options] script.py` has the
+script read and its literal write targets put through the same ACL decision as a
+direct write. Narrow on purpose: the interpreter must be Python in command
+position and the script the first positional, because the expression that reads
+it reads Python — a parser that cannot read a substrate should not report on it,
+so shell and Node scripts stay in the declared residual. `-m` and `-c` are
+refused a script file outright, which is what stops `python -m pytest
+tests/test_x.py` from being blocked by literal `open(..., "w")` calls inside a
+test file that the command never performs.
+
+Fail-soft throughout: an absent, unreadable or oversized script yields nothing
+rather than raising. The asymmetry is deliberate — a miss leaves the gate where
+it already stood, while a false block on an everyday command stops the work, and
+a gate that stops the work is one an agent learns to switch off. Three
+mutations, three killed.
+
+### Fixed — the ADAPT finding-category count is derived too, and the detector is now one implementation for both lists
+
+§7.4.4 closes the backward-finding categories at seven and we carry seven, so
+nothing was observably wrong. That is precisely the state the SPEC type list was
+in before ADR-013 widened it — every written copy correct, until the day it was
+not, and then each one lying separately in its own file. Eleven sites in eight
+files wrote the count by hand, including the service error a user reads, the
+`tausik adapt finding` help text, the drift-report message, the §13.3.4 clause
+evidence and the MCP tool description an agent reads to pick a category.
+
+**The detector was generalised rather than copied.** A second matcher for a
+second closed list would have been this very defect one level up, so the matcher
+moved to `tests/closed_list_counts.py` and takes its subject as data; both
+guards now run one implementation. That immediately paid: the new hyphenated
+form caught `"type ... not in closed-9"` in `renar_drift.py` — a stale,
+user-visible message about the SPEC types, four lines under a comment promising
+that importing the constants "cannot silently desync the detector from the
+validator". It could, and did, because the count was written rather than
+imported.
+
+The hyphen forced a real distinction. `closed-7` is a count; `ADR-013` is not,
+though both put a digit after a hyphen. The discriminator is the word in front
+of it, not the punctuation.
+
+**A mutation found the hole this time too.** Writing the literal `7` back into
+the service error message survived the whole suite: `ruff` wraps that f-string,
+so the count landed on a line naming nothing, and the matcher's single-line
+subject rule — documented fifteen minutes earlier as a deliberate limit — turned
+out to remove the guard from the one message the change exists to protect. The
+subject window is now two lines, and the docstring records the measurement
+instead of the assumption. Four mutations, four killed.
+
+Consolidating the category *list* itself is a separate change and is filed as
+one: it lives in three literal copies plus a fourth enumeration in prose.
+
+### Fixed — six sentences still counted the SPEC types by hand, and the detector that was supposed to catch them read one phrasing
+
+The entry below consolidated the SPEC type list into one place and derived its
+length from `len(SPEC_TYPES)`. Self-review found the repair incomplete within
+minutes of closing it: the §13.3.4 clause evidence in `renar_conformance.py`
+still read `"9 closed SPEC types enforced"` — the very string a since-withdrawn
+measurer caveat had cited as proof the confirmation was unearned. Fixing a
+measurer and fixing its EVIDENCE are two edits, and the second is the one that
+gets forgotten.
+
+**The detector was the larger defect.** It searched for the literal phrase
+`closed list of N`, so it was checking a formulation rather than a property, and
+five further sentences saying the same thing in other words walked straight past
+it — including one in `service_specs.py`, the single source the list had just
+been consolidated into, and one spelled out as a word (`"our closed list has
+nine"`) that `\d+` cannot see at all. All six are now derived or rephrased.
+
+The matcher is now a pure function over a string, and it reads the property: a
+count of the closed list, written out, in either word order, as a digit or as a
+word, in English or Russian. It stays silent on the only acceptable form — a
+count formatted from `len(SPEC_TYPES)`, which leaves no literal to drift — and
+on digits that count nothing (`v49`, `§8.3`, `ADR-013`). Counts that are
+genuinely historical, such as a migration recording what it built, are declared
+in `ALLOWED_WRITTEN_COUNTS` with the reason, never baselined away.
+
+Mutation testing earned its place here. Stripping the guard that separates a
+count from a version tag left the suite green: every "green" sample happened to
+be rejected by some *other* part of the matcher, so that branch was declared but
+measured by nothing. Four samples were added in which the guard is the only
+thing standing between the line and a match. Declaring a green branch and
+measuring one are different things, and only the mutation showed the difference.
+
+### Fixed — the closed SPEC-type list reaches the standard's eleven (schema v49)
+
+`tausik spec add --help` printed "Closed list of 9 RENAR types" and the DB CHECK
+enforced nine. §8.3 closes the list at ELEVEN: ADR-013 added `SPEC-TEST` (test
+benches and data) and `SPEC-DOC` (delivered documentation). The standard's
+argument is mechanical — §10.5.4 invalidates `verified` on ANY version increment,
+so binding a TC to a bench through SPEC-OPS would have dropped every TC on that
+SPEC-OPS to `approved` whenever an unrelated deploy procedure changed. A separate
+type keeps invalidation precise.
+
+The shortfall had stopped being cosmetic. ADR-023 wrote "во всех ОДИННАДЦАТИ
+типах" into §8.4.1, and a rule about eleven types cannot be executed by a system
+that knows nine — for two of them there was no subject to execute it on.
+
+**The list now lives in exactly one place.** It was in five: the service
+constant, the baseline DDL, the v35 migration, the MCP tool schema, and the
+completeness denominator — with the count hand-written beside it in four more
+strings. That duplication is the mechanism by which the prose came to disagree
+with the code, so the count is now formatted from `len(SPEC_TYPES)` everywhere,
+the MCP module reads the list instead of mirroring it, and a test reds on any
+second literal list AND on any hand-written count — including one whose number is
+currently correct. A correct literal is the same defect with the clock reset.
+
+`scripts/spec_completeness.py` keeps its independent transcription of the
+standard's eleven on purpose: a denominator computed from the numerator can never
+report a shortfall.
+
+Migration v49 rebuilds `specs` (SQLite cannot widen a CHECK with ALTER — the path
+v24 and v48 took). The list is WIDENED, not opened: a type outside the eleven is
+still rejected, asserted on the migrated schema and not only the fresh one, and
+both schemas are checked to declare the same CHECK.
+
+ADR-013 brought two CONDITIONAL obligations with those types —
+`TC.environment-ref` on SPEC-TEST when `automation.kind: dynamic`, and a doc lint
+for SPEC-DOC. Both are inapplicable today (TC does not exist here as a class; we
+hold zero SPEC-DOC), and that is DECLARED rather than skipped: a test reds the
+moment either subject appears, so the declaration expires by machine rather than
+by memory.
+
+### Changed — an empty measurer-caveats registry is now a declared state
+
+`spec-types-closed-list` was the last entry, and it left the registry the only
+way an entry may: its measurer was repaired. That empties the registry, and an
+empty registry is the dangerous state — "nothing disclosed" and "nothing to
+disclose" render identically. So `REGISTRY_EMPTIED_BY` must name the repair that
+emptied it, and that task must exist and be underway; the manifest drops the
+`measurer-caveats` key entirely rather than publishing `{}` (which would read as
+searched-and-found-none); and the header no longer claims unearned confirmations
+that no longer exist, while stating explicitly that an empty registry is a claim
+about our MEASURERS and not a claim of conformance.
+
+
+### Fixed — §13.3.3 is no longer confirmed by counting ADAPT rows
+
+`mandatory-clauses-confirmed.adapt-per-tz` was computed as `adapts > 0`. That
+measurer reddens on none of the violations the clause exists to catch, which is
+the degeneracy ADR-021 names. It now reads `false`, and it reads false because
+four NAMED sub-checks say so, each carrying its own verdict and its own evidence
+(`scripts/renar_clause_reactive_adapt.py`, published under
+`assessment-evidence.clause-13-3-3` so a red says WHICH half of the clause broke):
+
+- **adversarial-review-issued** (§13.3.3 p.73, p.80) — AR does not exist as an
+  artifact class, so no derivation carries a recorded verdict. The `reviews`
+  table is deliberately not counted in our favour: it reviews task closures and
+  code, an AR is the verdict of a ТЗ review (decisions#291).
+- **adapt-approved-when-findings** (p.77) — our one ADAPT carries backward
+  findings and is `draft`. Stronger than a wrong value: `adapts.status` has no
+  `approved` in its CHECK, so the required state is unreachable, not merely
+  absent.
+- **architect-signature-when-findings** (p.77 → §7.5) — zero Architect signatures.
+- **spec-provenance-source** (p.90, the negative scenario stated literally) —
+  three live SPECs and no provenance column on `specs` at all.
+
+Vacuity was NOT available here, and that is why this is a repair rather than a
+one-line declaration beside `tc-pos-neg-pairing`. The clause's first half is
+vacuous for us (our ADAPT's `tz_ref` names a decision record; ТЗ is not a class
+here), but its second half has a live subject — SPEC exists and three of them
+violate the obligation. A clause with a live subject may not be declared
+vacuously true.
+
+`adapt-per-tz` accordingly leaves `measurer-caveats`: an entry departs that
+registry only when its measurer is repaired, in the repair's own commit.
+`RENAR-CONFORMANCE.yaml` is reissued at v3. Nothing was sent to the standard's
+tracker: the correction moves us toward MORE non-conformance, and a correction
+that only weakens our own claim leaves the corpus holding nothing overstated on
+our behalf (decisions#295). The reverse direction would oblige a message.
+
+
+### Added — the manifest now says which of its own confirmations are unearned
+
+Committing `RENAR-CONFORMANCE.yaml` to the repo root turned
+`mandatory-clauses-confirmed` into a PUBLISHED statement — and two of its seven
+`true`s are printed by measurers this same session proved incapable of going red
+on the violations they exist to catch.
+
+`adapt-per-tz` is measured as *count of ADAPT rows > 0*. §13.3.3 wants an
+adversarial review per ТЗ issued as an AR, an approved ADAPT signed by the
+Architect when findings exist, and `decided-in` on a signed ACTZ. Measured live:
+AR does not exist as an artifact class; our one ADAPT is `draft` with NON-EMPTY
+backward findings; it carries zero Architect signatures; SPECs have no
+provenance column at all. A row count goes red on none of the four.
+
+`spec-types-closed-list` is confirmed `true` while its own evidence string reads
+"9 closed SPEC types". §13.3.4 closes the list at eleven.
+
+**This is a disclosure, not a repair, and it says so in the artifact.** Both
+fixes are separate open tasks and both are heavier — one hit the session
+capacity gate, the other needs a schema migration. Before this change the false
+confirmation was an internal defect; after publishing the manifest it became a
+statement to whoever reads it, which is the very failure the RENAR-1 withdrawal
+was about (decisions#292) — a value printed without the right to print it. Only
+this time we were the ones printing it, into a file we had just told an external
+tracker to read.
+
+The caveat is kept from becoming a parking space for defects: every entry must
+name a task that exists AND is still open, so a test fails the moment a caveat
+outlives its fix or points at nothing. The header points the reader at the
+section, because a caveat sitting below the block it qualifies is read second or
+not at all.
+
+### Fixed — the self-correcting CLI hint was itself wrong, and now every hint is executed before it is printed
+
+`SelfCorrectingParser` prints known-good invocations on an argument error so an
+agent recovers in one retry instead of guessing. The entry for `tausik task add`
+advertised three positionals — `<story-slug> <task-slug> "Title"` — while the
+real signature takes one positional and passes story and slug as options. An
+agent followed the hint and got the identical error a second time, then fell
+back to `--help`. The hint lengthened the path to a fix rather than shortening
+it, which is worse than no hint: it looks authoritative.
+
+This matters more than a typo would, because the project's own rule — *do not
+guess CLI arguments; read the hint or `docs/ru/cli.md`* — is enforced through
+exactly this channel. A wrong hint undermines the mechanism, not a string.
+
+Measured before the fix: 2 of 23 registry entries did not parse. The second was
+`tausik memory add {context,convention,dead_end,gotcha,pattern} <title>
+<content>` — a signature sketch, not an invocation, since `{a,b,c}` is the set
+of allowed values rather than a value. An unrunnable entry in a registry of
+known-good invocations is the same defect in a milder form, so it is replaced by
+a real call that shows `--task`.
+
+`tests/test_cli_examples_parse.py` now feeds every entry to the real parser.
+The registry is hand-written text sitting next to a parser that changes, so
+drift is the default state rather than an accident; executing the claim removes
+it. The test carries its own red-proof in-process (a wrong-arity example must be
+rejected, a correct one accepted) and refuses to pass on an empty registry —
+zero examples and twenty-four healthy ones must not look alike.
+
+### Added — RENAR-CONFORMANCE.yaml at the root, and a version chain that does not break
+
+The task was filed as "the manifest is absent where the standard requires it".
+decisions#292 moved that ground: §1.5.4 permits *either* form — "the manifest
+either does not exist or explicitly declares non-conformance" — so absence is no
+longer a violation, and §13.9.2's ban on claiming conformance without a manifest
+no longer reaches us, because there is no claim.
+
+The file exists by choice, not by compulsion. A state nobody outside the repo
+can read is a state that gets described wrongly by whoever tries — which is
+precisely how ADR-020 §3 came to describe our claim from stale data, and we said
+so in the ticket.
+
+**The real defect was never the missing file: it was the missing way to keep
+versions.** §13.4.1 calls the manifest immutable in the V1 sense — each claim
+makes a new version, and previous versions are NOT deleted, they stay in the
+substrate as an audit journal. `--write` bumped `manifest-version` and then
+overwrote the file, so the counter climbed while every earlier version vanished.
+
+The journal is **this file's git history**, and the manifest now says so in its
+own header. The substrate's V1 immutable history (§3.3.1) is exactly the
+guarantee §13.4.1 asks for, so no parallel file-history mechanism is invented.
+`replaces` carries the back-link in the clause's own form
+(`<manifest-id>@v<N-1>`); it had been hardcoded to `null` at every version.
+
+One thing worth naming: the standard overloads `replaced-by`. §13.4.1 uses it to
+point at the next manifest version; §13.8.2 uses it as the `<unknown-state>`
+sentinel. We are in the sentinel case, so it carries the sentinel — and a test
+pins that `replaces` keeps pointing backwards regardless.
+
+A stale committed manifest is worse than a missing one: it is a published false
+statement rather than a gap. `test_committed_manifest_is_not_stale` holds the
+file to what the live DB yields today, scoped to the claim-bearing fields —
+comparing the date-dependent ones would make it fail with the calendar rather
+than with the project.
+
+### Fixed — every normative citation now resolves, and a test keeps it that way
+
+The task said "fourteen citations point at chapter 14 instead of 13, an offset
+of exactly one chapter". Measured against the live corpus — 534 headings, 31
+distinct citations across our sources — the premise was narrower than the
+defect. Twelve citations were wrong, in three classes, and only one of them is
+an offset.
+
+**Resolving to unrelated text is worse than dangling.** `§14.4.2` read in our
+code as "the manifest schema"; in the corpus it is *ISO/IEC/IEEE 29148:2018*.
+`§14.4.3` read as "the honesty contract"; it is *ISO/IEC 25010:2023*. A reader
+who follows a dangling reference learns something is broken. A reader who
+follows this one lands on a real, authoritative section and believes it. The
+same class caught `§12.5.1` (cited for "a draft ADAPT is not a fixed TZ", but
+titled "Outcome 1 — reduced decomposition lead time") and `§12.6.1`.
+
+**`§12.9` does not exist, and it was carrying the level ladder** — eight
+citations, including the one over `_LEVEL_REQUIRED` itself. The subject lives in
+chapter 11: the per-level observable signals, §11.4.3 through §11.8.2. The only
+§12.9 anywhere in the corpus is in `reference/12-document-templates.md`, titled
+"SPEC templates — deferred".
+
+**A blind 14→13 shift would have been wrong.** Chapter 14 exists — it is
+"Normative references" — and §13.4.2 legitimately cites §14.4 and §14.6. Each
+replacement was made against the target heading read verbatim, not by
+arithmetic.
+
+`§0.2.3` cited "the audit", a document the corpus no longer carries. There is
+nowhere to move it, so the anchor is dropped and the document named in prose —
+an unresolvable anchor is worse than an honest sentence.
+
+`tests/test_renar_citations_resolve.py` builds its section index from the live
+corpus (headings, plus closed-list table row ids — §4.11.1 is a row of the §4.11
+drift table, not a heading) and fails on any citation that resolves to nothing.
+It states plainly what it cannot do: it cannot tell "resolves" from "resolves to
+the right subject", so the first class above stays a reading act.
+
+Its own red-proof found a hole in it. Pointing the corpus path at a typo made
+the control SKIP — and a skip in a green suite is indistinguishable from a pass,
+which is precisely the failure the control exists to prevent. Absence and
+misconfiguration are now separated: no sibling checkout at all skips and says
+the control is dormant; a sibling checkout with a bad path fails loudly.
+
+### Changed — the RENAR-1 claim is withdrawn, and the generator can no longer print a level we have no right to print
+
+A conformance level has two conditions and they live in different documents. The
+VALUE — do the §12.9 signals hold? — lives in our own data. The RIGHT — does the
+standard's scope of application admit this project at all? — lives in §1.5. A
+generator that reads only its own data sees the first and is blind to the second
+BY CONSTRUCTION, and that blindness is not a bug in a query: it is a whole
+half of the question that never gets asked.
+
+We had been printing `Level: **RENAR-1**` on the strength of `core-mode`, a
+mechanism the standard removed in ADR-005 more than two months ago. The removal
+was carried out: `core-mode` appears zero times across `standard/`, `guide/` and
+`reference/`. What stands in its place is §1.5.4 — an internal product with no
+independent client representative "may apply a subset of RENAR practices
+locally, but has no right to claim RENAR-N; the manifest either does not exist
+or explicitly declares non-conformance", and attempting to claim RENAR-N is
+named non-conformant outright.
+
+**The fork was closed by withdrawal (decisions#292).** Exiting into §1.4.2 needs
+an ACTZ signed by two independent persons (§5.5.3) — a human signature act, not
+something an agent may assume. Waiting for ADR-017 (`status: proposed`) is not a
+neutral state: it leaves RENAR-1 printed meanwhile. Withdrawal is the only path
+executable now, and it forecloses nothing — §1.5.4 itself routes the project
+into §1.4.2 the moment a two-party ACTZ exists.
+
+**The fix is in what the machine is capable of printing, not in the text of an
+artifact.** `renar_conformance` evaluates a scope precondition AHEAD of the
+level ladder: while the §1.5.4 exclusion holds, no state of the signals yields a
+RENAR-N. The red-proof drives a store that reaches RENAR-2 and forces every
+§12.9 signal True — the verdict still refuses a level; the counter-control lifts
+the exclusion and watches the same store print one again.
+
+The manifest declares non-conformance explicitly: `level: null`,
+`conformance-declaration: non-conformant`, the excluding clause named, and
+`replaced-by: "<unknown-state>"`. That sentinel is BORROWED from §13.8.2 as an
+encoding — the §13.4.2 schema offers no representation for "no level is held" —
+and the code says so. It is not a claim that the §13.8 loss-of-conformance
+procedure ran: §13.8 describes the degradation of a conformance once HELD, and
+we never held the right for a day (decisions#293).
+
+Two reader-facing consequences. `renar/conformance.md` prints the declaration
+ABOVE the level line, not below it — a caveat trailing the number it qualifies
+is read second or not at all. And an ADAPT carrying a `regulatory` finding now
+opens with a banner: the body is append-only, so a reader meets the withdrawn
+resolution first, and that is precisely how a dead basis keeps reading as a live
+one.
+
+The promise standing in the external tracker was kept the same day
+(renar#47, note_4855) — after the tree was green, so what was reported was a
+fact rather than an intention.
+
+Note for readers of the entry below: its "our RENAR-1 does not cut it off"
+describes the state before this change. The ADR-023 obligation it names is
+unaffected — §1.5.4 removes our claim to a level, not the practices.
+
+### Added — a control that asks whether a SPEC body describes its subject exhaustively
+
+ADR-023 is the one of the four unassessed accepted ADRs that actually BINDS us:
+its §5 puts into §8.4.1 the provision that *the mandatory body describes the
+subject of the specification exhaustively; limiting coverage to a subset of
+elements by a subjective selection criterion is forbidden*. It carries no
+RENAR-level caveat, so our RENAR-1 does not cut it off — and nothing checked it.
+Measured on the live registry: SPEC artifacts are touched by exactly two gates,
+both `warn`, and both ask something else. `renar_drift_schema` validates the
+SCHEMA; `renar_drift_provenance` checks the FRESHNESS of task↔SPEC links;
+`renar_drift.py:91` compares `s["type"] not in SPEC_TYPES` — the type, not the
+exhaustiveness of the description.
+
+**By subject, never by vocabulary, and that is the whole design.** ADR-023 §4
+takes apart why a ban on words ("key", "critical", "core") is wrong in BOTH
+directions: the same adjectives are legitimate when they name a property OF the
+subject and illegitimate when they narrow what must be described, so a blacklist
+fails the criterion even if it catches every case we have today. Instead a SPEC
+declares, in the committed `tausik/spec_coverage.json`, the ENUMERABLE SET that
+constitutes its subject and how to enumerate it from the live code. An adjective
+removes no member: a body may call one element "the most critical" and stay
+green, while a body describing two of four guarded keys is red however neutrally
+it is phrased.
+
+**It names the SPEC and the element, never a percentage.** "83% covered" tells a
+reader nothing to act on; the criterion asks which element is missing.
+
+**Reach is stated as a number and the number is nine.** The standard names
+eleven SPEC types; our closed list has nine, because SPEC-TEST and SPEC-DOC do
+not exist here. Reporting "all types covered" would be the exact narrowing
+§8.4.1 forbids — picking the convenient subset and calling it the whole.
+
+**Its first finding is a real one.** Two SPEC bodies describe their subjects
+exhaustively; `renar-adoption` is reported UNCHECKED by name, because nothing
+names the enumerable subject its body owes a description of and its
+`content_ref` points at a record rather than a readable file. The absence of a
+negative finding is not a positive verdict.
+
+Eight mutations, all killed — one narrows a REAL body on disk and requires the
+live control to name the spec, then restores it byte-for-byte under a sha256
+check and requires green again.
+
+
+### Added — a degeneracy measure for our own blocking gates
+
+Three findings of one class inside a single shift (#191), which is the signature
+of a missing practice rather than a coincidence: `bootstrap_drift` was severity
+`block` and stood `[OFF]`; `claudemd_state_drift` shipped in this release as
+`block` and `[ON]` with nothing named that would tell us it had degenerated into
+a tautology; and the eight `commit`-trigger gates were executed by exactly one
+consumer, a git hook, while `core.hooksPath` pointed at a repository that does
+not exist (memory #439).
+
+**The rule.** Every blocking gate that is IN FORCE names a test that hands it a
+VIOLATION and requires red — not "is covered by tests", because a gate's happy
+path is usually well covered and a gate that has forgotten how to fail passes all
+of it. The proofs live in the committed `tausik/gates.json` under `red_proofs`,
+one entry per gate with the test node and the violation it feeds. Eleven blocking
+gates are in force here; all eleven are covered, and all eleven proofs were run
+live rather than read.
+
+**The teeth are citation resolution.** `scripts/gate_degeneracy.py` resolves
+every cited test node against the tree's AST. Without that the registry would be
+a list of strings anybody could satisfy by typing one — and the session #196
+audit already counted the price of trusting such strings: 19 rotted and 25
+NEVER-EXISTENT test citations across 1258 closed tasks (memory #463).
+
+**It refuses on four independent grounds and each names the gate:** `DISABLED`,
+`NO_PROOF`, `UNRESOLVABLE_PROOF`, `STALE_ENTRY`. A measure that answers "yes" on
+every input is the exact defect this was opened against, so nine mutations were
+run against it: five strip the measure of one branch each, one empties a
+registry entry, and three deprive a REAL gate (`filesize`, `memory_route`,
+`class_surface`) of its ability to go red. All nine were killed — the last three
+are what make the registry evidence instead of a list.
+
+**`DISABLED` is reported first, and the ordering is an argument.** A gate that is
+declared blocking and switched off is WORSE than a degenerate one: a degenerate
+gate still executes, still occupies a line in the receipt, and can be caught the
+moment somebody reads what it actually asserted. A gate that is off emits no line
+at all, and nothing is indistinguishable from "ran and found no problem". A
+stack-scoped gate that is off because the project does not use that stack is not
+this case — that is scoping, not silence, and it is reported as dormant (14 here).
+
+**Borrowed from ADR-021, not owed to it.** The verdict on that ADR (#191) was
+*not applicable as a conformance norm*: its line 27 puts the norm in §13.9.4, the
+procedure for amending the STANDARD, and §3.1 explicitly rejects the "for every
+mandatory control" form. We are not amending the standard, so reporting
+"conforms to ADR-021" would be false. The idea is taken because the debt is real.
+Decision #288.
+
+
+### Fixed — this repository's own strictness lived in a gitignored file
+
+Two keys had restored this repository's enforcement: `task_done.auto_verify:
+false` (closing a task on an inline run bypasses the signed receipt) and
+`gates.bootstrap_drift.enabled: true` (a source edit that never reached the copy
+that runs). Both were written into `.tausik/config.json`, and `.gitignore:25`
+ignores `.tausik/` wholesale. The strictness of a release whose thesis is
+evidence existed in exactly one working copy.
+
+**Measured, not inferred.** A fresh `git worktree` of HEAD, resolved against a
+user tier carrying `task_done.auto_verify: true` — as this machine's does, for an
+unrelated project — returned `auto_verify` **True** and `bootstrap_drift`
+**False**, with **zero** rejections, because an absent project tier has nothing
+to reject. `tausik doctor` in that state says *"no project-scope key weakens
+enforcement"*, which was true and useless.
+
+**The two rejected repairs are on the record.** Making the strict values
+framework DEFAULTS cannot work: `auto_verify: False` already is the default, and
+a default loses to any trusted tier that speaks — only the project tier is
+compared, strictness-wise, against the trusted ones. Un-ignoring
+`.tausik/config.json` would commit a GENERATED file: `_meta.generated_at`,
+`_meta.lib_commit`, `installed_skills` and `brain.database_ids` would dirty the
+tree on every bootstrap.
+
+**The fix: the project tier is now two files.** `tausik/policy.json` joins the
+non-dotted, branch-coupled projection that already carries `gates.json` — whose
+own comment states the precedent verbatim, *"so a fresh clone carries it"* — and
+is composed UNDER `.tausik/config.json` by the config loader (`config_policy`),
+rather than left for a third gate to re-implement. The local file wins on
+ordinary keys; on a **guarded** key the stricter of the two wins, so a gitignored
+file cannot quietly undo a committed rule. Same measurement after: **False** and
+**True**, from a copy with no `.tausik/` at all. Decision #287.
+
+**No new authority.** `policy.json` is not a fourth tier — it is the project
+tier, the UNTRUSTED one, judged by the same guards and permitted only to tighten.
+Measured rather than asserted: a hostile `policy.json` and the identical hostile
+`.tausik/config.json` resolve to the same values, rejection for rejection. The
+move buys reach, not power.
+
+**One sentence had been describing two incompatible worlds.** *"`.tausik/config.
+json` travels with the repo"* appeared in eight places and underpins the
+executable-validation threat model. It is true for consumer projects, false here.
+All eight now name the *tier* rather than one of its two files.
+
+
+### Fixed — a task's parent story counted as work the agent did not declare
+
+`tausik verify` reported one undeclared file on a closure whose declared scope
+was exact, and `git diff` showed exactly one changed line in it:
+`status: open -> active` in `tausik/stories/<parent>.md`, written by
+`task start` when it activated a task inside that story.
+
+This is the fifth site of the class Decision #283 opened, and the first OUTSIDE
+its stated boundary. #283 subtracts the task's own export and explicitly refuses
+to subtract anybody else's, because a foreign export is the real product of a
+task that produces records. A parent story is neither foreign nor a product: it
+changed because this task was activated, and it would have changed identically
+had the agent done nothing at all. The status flips on the first activation
+inside a story, so it lands on tasks that open their story — which is exactly
+where `complete` was unreachable for reasons the agent could not fix.
+
+**Three candidates, and the two rejected ones are on the record.** Subtracting
+any projection file the FRAMEWORK wrote reads better and cannot be built: an
+uncommitted change carries no author, and a hand edit inside the projection is
+byte-for-byte what the exporter writes — the same limit `verify_own_export`
+already declares for `--no-file-changes`. Refusing to subtract at all restores
+the uselessness #283 removed: a status nearly every closure shares. So the
+subtraction stays narrow — this task's parent, and nothing else.
+
+The parent EPIC is not subtracted, and that is measured rather than assumed:
+across a session of two `task start`, one `task done`, one `task add` and one
+`task move`, git never reported an epic projection changed. An epic lists its
+stories, not its tasks.
+
+The story slug is read from the task's own export with `state_parse` — the
+framework's own reader for its own format — rather than from a query, because
+neither caller of the scope description holds a connection and a path comparison
+should not acquire one. Both ways the projection can be stale are safe: with
+auto-export off nothing rewrote the story file either, and a task moved between
+stories has its export rewritten by the move.
+
+Measured, replaying the recorded input of the run that found this: undeclared
+went 2 → 1 → 0 as the two subtractions were added, and the closure that reported
+a file nobody wrote now records `complete`.
+
+### Fixed — the memory recap printed a retired entry next to the one that retired it
+
+The dynamic block of `CLAUDE.md` picked the newest five entries per section BY
+AGE and asked the memory graph nothing. So it carried, two lines apart, "#441
+ADR inventory recounted by machine: thirteen accepted, seven assessed" and "#432
+ADR inventory: twelve accepted, three assessed" — while
+`memory#441 --[supersedes]--> memory#432` had been in the database since the
+session that wrote both.
+
+That recap is the FIRST thing a fresh agent reads; it is injected into the
+context at session start. Two mutually exclusive facts arrived with no sign of
+which was alive, and the expensive outcome is not "reads the wrong one" but
+"believes the older one, because the rest of the history repeats it" — measured:
+the count "twelve accepted" is why `four-accepted-adrs-were-never-assessed`
+treated four ADRs as unassessed instead of ten.
+
+The mechanism existed and the consumer never asked. `memory lint` has reported
+`superseded` findings from these same edges since v15p; the renderer simply
+called nothing.
+
+Both recaps — the CLAUDE.md tail and `tausik_memory_block` — now read the graph
+through `memory_supersedes.live_head`, in every section: context, decisions,
+conventions, dead ends. Repairing one section would have traded the
+contradiction for a disagreement between sections, which is harder to notice and
+no more true.
+
+**Hidden, and the survivor says so.** Marking the dead entry instead was the
+alternative, and its argument is real — an entry that simply vanishes is
+indistinguishable from one that was lost. Its price settled it: a section is
+five lines, and spending one on knowledge already known to be wrong is a cost
+paid by exactly the projects that maintain their memory. So the retired entry is
+dropped, its line goes to the next LIVE entry, and the replacement carries
+`(supersedes #432)` on the line it occupies anyway.
+
+**Only a live edge, and only from a live entry.** A retracted edge
+(`memory unlink` soft-invalidates) retires nothing; neither does a replacement
+that was itself archived, because the older entry is then the best knowledge
+left. A chain `A supersedes B supersedes C` prints only A without walking the
+graph. An unreadable graph retires nothing at all — the recap degrades to what
+it printed before.
+
+Measured on this repository: with the sections widened to eight, the context
+recap dropped #432, marked #441, and filled the freed line with the next live
+entry; the conventions recap did the same for #421 under #425.
+
+### Fixed — every receipt said "under-declared", because a task's own export counted against it
+
+`tausik verify` printed `NOTE: 1 file(s) changed since task start but not
+declared in relevant_files` on a closure whose declared scope was exact, and
+that one file was `tausik/tasks/<slug>.md` — the task's own export. The
+framework writes it itself: `task start` records `started_at`, and every
+`task log` re-serializes the row. So git reported it changed on essentially
+every close, `declared_scope_status` was `under-declared` for any task that
+kept a journal, and `complete` was unreachable by construction.
+
+That is the failure mode Decision #138 already refuses to ship — a rule firing
+on ~100% of honest work gets disabled on first contact — except this verdict is
+signed into the receipt and read back when a verify handle is redeemed. A status
+everyone shares distinguishes nothing.
+
+`describe_declared_scope` now subtracts the task's own export before comparing,
+through the same `verify_own_export` seam the coverage hash has used since
+v1.8's `verify-handle-dies-on-a-tasks-own-export-file`, so the two cannot come
+to disagree about which file is the task's own. Both callers — the recording
+side and the handle redemption — name whose export to subtract; a caller with no
+slug subtracts nothing and gets the previous answer.
+
+**Only the current task's own export.** Somebody else's is a real product of a
+planning task, and it stays listed: subtracting all of `tausik/tasks/` would
+zero the coverage of a closure that declared nine foreign exports. And when the
+subtraction is the only reason nothing is left, the reason says so — "no
+git-visible changes since task start" and "everything that changed was the
+framework's own bookkeeping" are different facts about a run, and the second has
+no right to print as the first.
+
+Measured on this repository: the closure of this task is the first here to
+record `declared_scope_status=complete` with `undeclared_count=0`.
+
+### Fixed — `doctor` reported nothing was weakening enforcement while a trusted tier was
+
+`tausik doctor` printed `OK Config trust tier — no project-scope key weakens
+enforcement` at the moment `task_done.auto_verify=true` from
+`~/.tausik/config.json` was closing tasks past the signed QG-2 receipt in this
+repository, and `gates.bootstrap_drift.enabled=false` was holding a blocking
+gate off. The sentence is **literally true** — the weakening did not come from
+the project tier — and that is exactly why it misled: a reader takes it to mean
+nothing is weakened at all.
+
+**The mechanism was right; the report was blind.** Trust tiers are asymmetric on
+purpose: a project may tighten freely and may not weaken, measured in session
+#193 as zero rejections for tightening and two forced restorations for
+weakening. But the baseline a candidate is measured against IS the trusted
+tiers, so once the user tier weakens a guarded key there is nothing left for the
+project to weaken — and a tier compared against itself is never weaker than
+itself. Protection from below, none from above, and the module docstring already
+called that an honest threat boundary. What was missing was not protection: the
+weakening had no machine-readable trace of any kind, and was found by reading
+`~/.tausik/config.json` with human eyes.
+
+**Three states now, not two.** Nothing weakened — `OK`, and the line no longer
+says "project-scope", because it now covers all three tiers. A project-scope key
+dropped on read — `WARN`, wording unchanged, it was always correct. A guarded key
+a trusted tier holds weaker than the framework default — `WARN` naming the tier
+(`user` / `managed`), the key, the value in effect, the framework default, the
+file that supplies it, and the reason recorded beside it. Weakening with a
+recorded reason and weakening without one are different events, so a key with no
+`_reason` / `_disabled_reason` / `_<key>_reason` beside it prints `NO REASON
+RECORDED` rather than a blank.
+
+`WARN` and never `FAIL`, deliberately. The tiers above the project are the
+machine owner's word, set for reasons that are legitimate elsewhere — the two
+keys above were set for another project and are correct there. `doctor` is not
+entitled to call somebody's decision an error; it is obliged to make it visible.
+No resolution rule, effective value, gate behavior, schema or datum changes.
+
+New reader: `scripts/config_trust_weakening.py`. It shares `GUARDS` with the
+resolver rather than re-deriving which keys are guarded — a second answer to
+that question would drift the first time a guard is added.
+
+### Fixed — a task that declared its own export file could never be closed
+
+A task is free to name `tausik/tasks/<slug>.md` in `--relevant-files`, and for a
+task whose product IS records — an analysis, a set of verdicts, decisions,
+planning — that is the natural scope to declare. Until now such a declaration
+made the task impossible to close **in principle**. The `verify` run writes into
+the task itself (the declared scope, the run number, the receipt); the exporter
+re-serializes the task from that write; and the handle presented a moment later
+covered a file the act of verifying had already moved. Retrying did not
+converge — each run pushed the hash further along: `870e9d910c7c ->
+edd0acd46e7b -> e8d9e08ecc20`, measured across two runs in session #191.
+
+The refusal was accurate about its facts and useless as an instruction. It said
+"the files this receipt covers have changed since verify run #N", which is true
+of an ordinary stale scope and of an unsatisfiable one alike, so an agent caught
+in the loop had every reason to blame the cache — and no way to learn that the
+condition could not be met by any sequence of commands.
+
+**The repair, and what it does NOT do.** Exactly one file is now subtracted from
+the coverage a receipt claims: the task's own export. This is convention #409
+applied where it already applied next door — a check whose subject is "what did
+the AGENT change" must subtract what the framework itself wrote. A task's export
+is not the task's product; it is a render of the task's own bookkeeping, and
+hashing it asks whether measuring changed the measured. It always did.
+
+Somebody else's export is untouched and stays a legitimate subject: a planning
+task that re-parents ten tasks really does produce those files, the current run
+does not write them, and their hash therefore means exactly what it says.
+Subtracting all of `tausik/` would have zeroed such a receipt's coverage and
+lied about what was checked.
+
+The subtraction happens on **both** sides — when the run is recorded
+(`verify_cached_run`) and when a handle is redeemed (`verify_handle_check`) —
+plus in the non-handle freshness lookup (`verify_cache`). A repair applied to
+only one side would have turned a circular refusal into an inconsistent one,
+which reads like forgery rather than like a defect.
+
+**The boundary is stated, not hidden.** A HAND edit to that same export, made
+between `verify` and the close, is no longer noticed. That is the identical
+limit `--no-file-changes` already declares for the projection, and for the same
+reason: an uncommitted change carries no author, so a hand edit inside the
+projection is byte-for-byte what the auto-export writes.
+
+**A declaration consisting of nothing but the own export now refuses, by name.**
+After subtraction it covers zero files, and `compute_files_hash([])` is a stable
+empty-marker no edit ever moves — the exact stale-green class the empty-scope
+guards exist to reject. The refusal names the cause and both exits: declare the
+files the task actually changed, or close with `--no-file-changes`. The run is
+still recorded (observability is not cache eligibility, decision #146) but
+stamped `noncacheable|`.
+
+The address is derived, never listed: the directory comes from the exporter's
+own resolver (`state_triggers.projection_dirs`) and the suffix from
+`state_serialize.MANAGED_SUFFIX`, so a literal `"tausik/tasks/"` — a second
+declaration of the layout, free to drift from the first (#249) — appears
+nowhere, including inside the refusal messages. An unresolvable projection
+subtracts nothing and restores the previous behaviour exactly: here fail-open is
+the strict direction, costing convenience and never coverage.
+
+New: `scripts/verify_own_export.py`, `tests/test_verify_own_export.py`.
+Documented under QG-2 in `docs/ru/agent-contract.md`.
+
+### Added — `doctor` tells a dead commit hook apart from one switched off on purpose
+
+`core.hooksPath` in this repository's `.git/config` pointed at
+`C:\Projects\Personal\claude\.git\hooks` — a repository that does not exist on the
+machine. Git treats a hook it cannot find exactly like a hook that is not there:
+it runs nothing and reports nothing. So every commit skipped `memory_route` (a
+BLOCKING control against project knowledge leaking into another agent's memory),
+mypy, and the incremental RAG reindex — while `tausik gates status` kept
+printing eight gates as `[ON]`.
+
+**How many commits went past it is not known, and is not guessed here.** The
+mtime of `.git/config` is 2026-08-26 08:54, which is an upper bound on when the
+value was last written and nothing more. Inventing a count would be the same
+species of error as the defect.
+
+The setting itself was repaired by the owner on 2026-08-31. That fixed the
+setting, not the defect: nothing in the project would have noticed, and nothing
+would notice a recurrence. `doctor` now distinguishes **three** states, because
+a boolean would have to call one of them by the wrong name:
+
+* **alive** — the path resolves a `pre-commit`; the value is printed.
+* **off by choice** — `core.hooksPath` unset. A PASS, and deliberately so:
+  docs/ru/hooks.md:107 prescribes exactly this for CI runners without mypy.
+  Reddening there teaches the reader to skip the line on every CI box, which is
+  how a real red gets missed.
+* **dead** — the path is *set* and no `pre-commit` resolves under it. Nobody
+  decided this. It is the only warning, it names the offending path, and it
+  prints the documented repair for both a dev checkout and a consumer project.
+
+The check **probes** for the hook file rather than running it. The measurement
+in the task used `git hook run pre-commit`, which executes mypy, the reindex and
+the gates — a diagnostic that runs what it diagnoses is a side effect, not a
+diagnostic. A test pins this: a hook that would write a file and exit 1 is still
+only found, never executed.
+
+### Fixed — the remaining three gates stop signing non-execution as a pass
+
+`claudemd_state_drift` was fixed first; the trick was the whole layer's, not one
+file's. `bootstrap_drift` and `state_roundtrip` (both `block`) and `renar_drift`
+(`warn`) answered every caught exception with
+`(True, "… check unavailable …")` — a check announcing its own non-execution,
+counted as evidence. All of them now return `could_not_run(RUNNER_ERROR, …)`
+with a remedy, and their honest empty states return `not_applicable` with codes
+of their own (`no_source_dir`, `no_projection`, `no_database`).
+
+**The `warn` gate was decided, not swept along.** Its fail-open costs less, so
+it earned a separate answer. Measured rather than assumed: `gate_runner` raises
+a blocking failure only when `outcome.blocks AND severity == "block"`, so a
+`warn` gate that reports CANNOT-RUN stops nothing at all. The truthful receipt
+is free — while `PASSED` would put a false green exactly where a reader checks
+whether drift was looked for. Both halves are pinned by tests.
+
+**Mutation found a fifth site the plan did not have.** `run_renar_drift_gate`
+answered an unmapped gate name with `(True, "Unknown RENAR drift gate … —
+skipped")`. That is not a skip: the caller named a gate this module has no
+detector for, so nothing was checked, and the word "skipped" filed it beside the
+honest empty states of a fresh clone. It is now `COULD_NOT_RUN` with
+`no_gate_implementation` — the code the runner already uses for its own version
+of that event.
+
+Each of the five sites was reverted separately and each reddens the suite on its
+own; a per-file mutation would have signed one site with another's red.
+`test_internal_fault_fails_open_never_raises` was **inverted, not deleted**: it
+asserted `passed` on a raised exception, i.e. it pinned the defect. Two claims
+were tangled there and only the first is true — the exception must not escape
+(kept), therefore the run counts as a pass (false). They are now separate tests.
+
+### Fixed — this repository takes back the strictness a foreign project's config had relaxed
+
+Two keys in the machine-wide `~/.tausik/config.json` were set for a *different*
+project and were quietly in force here:
+
+* `task_done.auto_verify = true` — a switch whose safe position is off. It
+  closes a task on an inline run, **skipping the signed receipt** the whole
+  Verify-First contract rests on. The framework default is `false`.
+* `gates.bootstrap_drift.enabled = false` — a `block` gate, silenced.
+
+Both were set for legitimate reasons, recorded in that file: a security
+classifier that marks a payments codebase sensitive so verification never
+caches, and a drift-gate misfire on a submodule layout. Both notes say the tier
+is shared across every project on the machine, and the drift one says outright
+that in the TAUSIK repository itself "the gate works correctly and disabling it
+here is a loss".
+
+**The cost, measured this session.** Five deployed IDE profiles were carrying
+pre-v48 code from the previous shift; they were found by comparing files by
+hand. An enabled `bootstrap_drift` names that in one line — and did, once
+switched back on.
+
+The fix touches no one else's project. `.tausik/config.json` now sets both keys
+to the strict value, each with a `_reason` field stating why this repository is
+stricter than the user tier and what would retire the override. The trust rule
+allows exactly this: layers merge `project < user < managed`, but a project
+value for a guarded key applies when it is *at least as strict*.
+
+Both directions were measured, since a rule that only ever says yes is not a
+rule. Tightening applies with zero rejections. An attempt to *weaken* from the
+project tier (`risk.l3_block_on_high=false`, `qg0.scope_hard_gate=false`) is
+refused by name — "project scope may only tighten …; True applied" — and the
+strict value is forced back.
+
+**A boundary worth stating.** By weakening a guarded key, the user tier moves
+the baseline the project is compared against, so afterwards the project has
+nothing left to weaken and no rejection is raised. The mechanism guards against
+weakening from *below*, not from *above* — its docstring calls this an honest
+threat boundary. What is missing is not protection but visibility: `doctor`
+reported "no project-scope key weakens enforcement", literally true and
+therefore misleading. Tracked separately.
+
+### Fixed — the visibility ratchet measured a universe that excluded its own subject
+
+The full lane was red — one test out of 7374 — and had been since 2026-08-30.
+`test_crosscutting_registry` reported that `tests/test_claudemd_audit_hook.py`
+is selected by no change to any source file, so a scoped run silently skips it.
+
+**Why it survived two sessions.** Both closed on a scoped run over their
+declared `relevant_files`, and a tree-wide ratchet is invisible to that
+selection (convention #421). The test that complains about invisibility was
+itself invisible to the selection that would have caught it, so the red reached
+`origin` and stood there.
+
+**Declaring a scope was not enough, and the reason is structural.** The audit
+hook lives at `tests/tools/claudemd_audit/sitecustomize.py` by decision #279,
+and `_tracked_sources()` built its universe of possible changes as "every
+tracked file *outside* `tests/`". With the whole of `tests/` struck out, a
+change to the hook was not a change at all, so no `CROSSCUTTING_SCOPE` could
+ever match. The gate was not catching a gap — it was measuring the wrong
+universe, the same class as convention #444.
+
+`tests/tools/` is now counted as source. It is: hand-edited, tracked, and
+covered by tests of its own — tools, not tests. **The detector's claim is
+untouched** (every test must still be reachable by some edge); only the set of
+files that count as a possible change grew. Measured before the edit: the
+universe gains exactly one file, 19 invisible tests become 18, exactly one test
+becomes visible, none becomes invisible, and no `_INVISIBLE_BASELINE` entry goes
+stale — so the frozen list neither grew nor rotted.
+
+### Fixed — a `block` gate that could not run was signed as a gate that passed
+
+The `claudemd_state_drift` gate answered every caught exception with
+`(True, "CLAUDE.md dynamic-state check unavailable (...)")`. The receipt for
+session #192's close therefore recorded it as
+`{"outcome": "PASSED", "passed": true, "reason_code": ""}` while its own text
+said the check had not executed — a check announcing its own non-execution,
+counted as evidence, at the one severity the project calls mandatory.
+
+**Nothing but a person reading the line could tell it from a real pass.** No
+counter separated the two, and the immediate trigger was ordinary: the MCP
+process held code from before the 47→48 migration, so `SQLiteBackend` refused
+the newer database and the gate fell into its `except`. Any environment fault —
+a stale process, a broken import, an unreachable database — produced a green
+receipt the same way.
+
+This is the class of defect migration v47 was written for: `gate_runs.outcome`
+and `reason_code` exist precisely so "could not run" stops being stored as
+"passed". The gate was not using them. The machinery needed no change — the
+runner already lifts a gate's answer through `gate_outcome.coerce` and persists
+both fields; the gate was still returning the legacy boolean pair, which
+`coerce` is obliged to read as `PASSED`.
+
+**Non-execution now blocks and says why.** Both fail-open sites return
+`could_not_run(REASON_RUNNER_ERROR, ...)` with a remedy, per SENAR 1.4 §8.6(e):
+the absence of a negative finding is not a positive verdict. The exception is
+still caught — what changed is how it is recorded, not that the gate stays out
+of the commit's way.
+
+**The honest skips stay passes, and stay distinguishable.** A checkout with no
+database, no `CLAUDE.md`, no `DYNAMIC` markers, or an empty knowledge base has
+nothing to judge and is not at fault for it. Those four leave through
+`not_applicable` — non-blocking, and with four *separate* reason codes
+(`no_database`, `no_instruction_file`, `no_dynamic_block`,
+`empty_knowledge_base`), because one code shared by four events would move the
+indistinguishability rather than remove it.
+
+Counted while fixing it: of the seven fail-open sites a first pass had listed,
+only four are gate verdicts. The other three (`gate_qg0_check`,
+`gate_qg0_renar`, `gate_registry`) return `True` to mean *the check stays
+enabled* — fail-**closed**, and deliberately so. The remaining three verdict
+sites (`bootstrap_drift` and `state_roundtrip`, both `block`; `renar_drift`,
+`warn`) are unchanged here and tracked separately.
+
+### Changed — usage is attributed to the TASK, not the session (schema v48) (BREAKING)
+
+`usage_events` declared `session_id INTEGER NOT NULL REFERENCES sessions(id)`
+and `task_slug TEXT` — the session mandatory, the task optional. That is exactly
+backwards for what the table exists to measure. The attribution target already
+existed and was never the session: `tasks` carries `cost_actual_usd`,
+`tokens_actual`, `started_model_id`, `started_at`. The `NOT NULL` was inherited
+from v23, where the table was conceived as a session ledger, and it outlived the
+per-tool attribution that arrived one version later in v24.
+
+**What it cost, measured.** `scripts/hooks/posttool_usage.py` had nowhere to put
+an event when no session was open, so it dropped the event whole — `if
+session_id is None: return 0` — *while `task_slug` was already known one line
+above*. Work done without an open session therefore recorded a ZERO rather than
+an error, and `docs/ru/sessions.md` documented four more mechanisms failing the
+same silent way alongside it. The worst of them is not the empty one: the brain
+slice "for this session" was computed over all time and presented itself as
+session-scoped — not empty, but WRONG.
+
+**Migration v48** rebuilds `usage_events` (SQLite cannot drop `NOT NULL` in
+place — the same reason v24 rebuilt this same table). `session_id` becomes
+optional; the hook writes the row with `session_id=NULL` instead of discarding
+it. The foreign key to `sessions` also changes from `ON DELETE CASCADE` to
+`ON DELETE SET NULL`: under the old meaning an event belonged to its session, so
+cascading was coherent; under the new one it would delete spend attributed to a
+task that is still alive and whose `cost_actual_usd` is summed from those very
+rows.
+
+**The event that belongs to nothing does not get to vanish either.** An event
+with neither task nor session is now written, and `tausik metrics cost` prints
+an explicit *«вне задачи»* bucket for it, broken out by how many of those had no
+session at all. The bucket prints even when the per-task table is empty — that
+window is precisely where unattributed work is most likely to exist and most
+likely to be missed, and the old early return would have printed *"No usage
+data"* over a non-empty bucket. It excludes `source='session_record'` mirror
+rows, without which the report would re-run the ~2× double count that
+`test_usage_events_double_count.py` was written to pin.
+
+**Why BREAKING.** The schema moves 47 → 48. Migrations here are one-way by
+design; no downward migration exists and none is needed by the data — v47 code
+always wrote a non-NULL `session_id` and none of its reads depend on `NOT NULL`.
+Reverting the code additionally needs one manual line, because `backend_init`
+refuses a database newer than the code:
+`UPDATE meta SET value='47' WHERE key='schema_version'`.
+
+### Fixed — the `mypy` gate measured something the project never asked to measure
+
+The gate was declared `mypy {files}` and handed mypy the **changed** files.
+`pyproject.toml` declares its own source set — `files = ["scripts",
+"harness/claude/mcp/project"]`, `exclude = ["scripts/hooks/"]`. Two sources of
+truth about *what* is checked: the same defect class this release already fixed
+in `CLAUDE.md`, where the address came from one source and the content from
+another.
+
+A file handed to mypy as an argument is checked **outside** that source set, so
+imports that resolve in the normal run stop resolving. Measured:
+`python -m mypy` → *Success: no issues found in 341 source files*;
+`python -m mypy tests/conftest.py` → three errors (`service_gates` not found at
+:71, `backend_schema` not found at :207, `no-any-return` at :212). `exclude`
+does not apply to explicit arguments either, so `scripts/hooks/` — left out on
+purpose — would have been checked too.
+
+Those three errors travelled from handoff to handoff as *"pre-release type debt
+in conftest"*. The diagnosis was wrong: there was nothing to fix in the types.
+Worse, the false positive was **conditional** — the same file checked together
+with a `scripts/*.py` file comes out clean, because the other argument drags the
+package path back in. A gate whose verdict depends on what else happened to be
+in the commit is not a type check.
+
+The command is now plain `mypy`: one source of truth, and it catches strictly
+more — a change in one module that breaks the types of another is invisible to a
+per-file run.
+
+**Second half of the same defect.** `gate_command_runner` applied
+`file_extensions` / `file_patterns` **only** when the command interpolated
+`{files}`. For a gate without that placeholder the declaration meant nothing and
+was silently ignored, so the gate would run on every commit regardless of what
+changed. Scoping is now honoured either way — *"I check the whole project"* and
+*"I run on every commit"* are different claims, and only the first was intended.
+A gate that declares no scope still runs on everything, and that is pinned by
+its own test.
+
+Cost, measured rather than asserted: the project-wide run is 0.46 s against
+0.19-0.42 s for the per-file form — up to +0.27 s. A commit touching no `.py`
+costs 0.00 s, exactly as before, because the gate is skipped.
+
+One existing ratchet was **inverted on purpose** and says so in its own
+docstring: `test_no_placeholder_filter_not_applied` pinned the behaviour now
+identified as the defect. The protection it actually carried — a gate declaring
+no scope must never be skipped — is kept in two tests. Nothing depended on the
+old behaviour: all three command gates interpolated `{files}`, so the branch was
+unreachable in production and only that test observed it.
+
+### Added — the audit hook that named the writer now lives in the tree
+
+The tool that found the `update-claudemd` defect existed only in a scratch
+directory: `sitecustomize.py` with an `open`-event audit hook. It is now
+`tests/tools/claudemd_audit/sitecustomize.py`.
+
+It is **not** a root `sitecustomize.py`, and that is the whole design decision.
+The name is what makes the tool work — the interpreter imports it on its own
+when it is on `sys.path`, so the hook stands up in subprocesses nobody
+instrumented, which is exactly where the corruption came from. The same
+property is why it must not sit at the repository root: a module by that name
+there would shadow the system `sitecustomize` for every Python process started
+from this tree. It lives in its own directory and is armed explicitly:
+
+```
+export PYTHONPATH="$PWD/tests/tools/claudemd_audit:$PYTHONPATH"
+export CLAUDEMD_AUDIT_ROOT="$PWD"
+export CLAUDEMD_AUDIT_LOG="$PWD/.tausik/tmp/claudemd-audit.jsonl"
+```
+
+Without **both** environment variables it does not install at all — it never
+calls `sys.addaudithook`, rather than installing and staying quiet. Nothing is
+blocked and nothing is repaired; one JSON line per write is all it does.
+
+It does not replace `tests/claudemd_watch.py`. The sha256 trap answers *did the
+file change*; on the real lane it produced 42 events inside one second across 19
+xdist workers and could not name an author. The hook answers *who changed it*:
+two events on the whole lane, one pid, with the stack that pointed straight at
+`handlers_skill.py` → `claudemd_writer.py`. Both are cheap in different ways and
+both stay.
+
+21 regression tests in `tests/test_claudemd_audit_hook.py` cover both directions
+— that it catches a write, including one from a *grandchild* process, and that
+it stays silent on reads, on other files, on a same-named file in another
+directory, and when it is not armed. Every one of them runs against a temporary
+directory: a test that asserts something about writes to the real `CLAUDE.md`
+would corrupt that very file when it fails.
+
+### Fixed — `update-claudemd` wrote into whatever directory the process stood in
+
+`CLAUDE.md`'s dynamic block was being overwritten with the state of an **empty**
+project — `Tasks: 0/1 done`, the whole memory tail gone. It reached **twenty
+commits** between the v1.0.0 release (2026-04-10) and 2026-08-26.
+
+Both writers — the MCP handler `tausik_update_claudemd` and the CLI
+`update-claudemd` — took the **address** from `os.getcwd()` and the **content**
+from the service they were handed. Two sources where there must be one. While the
+process stands in its own project they agree; when they do not, one project's
+state lands in another project's real files.
+
+Caught with a stack, not deduced. An `open`-event audit hook installed through
+`sitecustomize` (so it covers subprocesses too) recorded exactly **two writes
+across the whole 7452-test lane** — `CLAUDE.md` and `AGENTS.md`, one pid — and
+named the caller: `tests/test_mcp_integration.py::test_every_tool_name_has_handler`,
+a contract test that stands up a *temporary* project and calls every MCP tool,
+while pytest's cwd is the repository root. The test is sound; the product was not.
+
+Both halves of the corruption's signature are explained by that one split. The
+`0/1` counter came from the temporary database; `Branch: v1-9-wave` came from git
+asked in the cwd. Had the address been derived from the database, the branch would
+have read `unknown` — a temp directory is not a git repository.
+
+Two things kept it invisible for four months. `test_mcp_integration.py` is
+`pytest.mark.slow`, and the default lane is `-m 'not slow'`, so only a full run
+triggered it. And `apply_dynamic_section` does not write when the content already
+matches, so the corruption is idempotent: it happens once and then every later run
+looks clean.
+
+The fix is one invariant, in one place: `claudemd_state.resolve_project_dir(svc)`
+derives the destination from the database that supplies the content
+(`<project>/.tausik/tausik.db` → `<project>`). When it cannot tell which project a
+database describes, both callers **refuse** and say so rather than falling back to
+the cwd — falling back is the same defect under another name. A side benefit,
+tested: running `update-claudemd` from a subdirectory of your project now works,
+where the cwd lookup used to find no file at all.
+
+### Added — a gate that refuses a `CLAUDE.md` block which is not this project's
+
+`CLAUDE.md` is the first file a fresh agent reads and the only one it reads
+guaranteed. Its `DYNAMIC` block claims to be a rendering of the project database.
+Nothing checked that claim, and the bill is measured rather than feared: the block
+has been overwritten with the shape of an **empty** project — `Tasks: 0/1 done`,
+the whole memory tail gone — and that wipe reached **twenty commits** between the
+v1.0.0 release (2026-04-10) and 2026-08-26, passing through v1.2.0, v1.3.x,
+v1.4.0 and v1.7.0. Full green suites, signed verify receipts and QG-2 closes with
+every blocking gate went over the live corruption without a word.
+
+The failure is expensive precisely because it is quiet. A wiped block does not
+look broken; it looks like a young project. The agent gets no error — it gets the
+wrong context and works from it confidently.
+
+The new `claudemd_state_drift` gate (block, on `task-done` and `commit`) asks one
+question with no threshold in it: **if the live database has knowledge, does the
+block carry a memory tail?** Counters are deliberately *not* compared — the block
+is refreshed at checkpoint and session end, so lagging counters are the normal
+state of every session, and a gate that reddens on ordinary staleness is a gate
+that gets switched off in a day. The tail is a boolean fact staleness cannot flip:
+a block rendered from a database that holds knowledge always carries one, whenever
+it was rendered. A block without one came from a different database.
+
+Paths and markers come from the writer's own resolvers, and "does this project
+have knowledge" is answered by the producer of the tail itself — the guard asks
+the thing it guards instead of keeping a second copy of the rule (dead end #427).
+
+The first design was killed by measurement and is recorded here so it is not
+retried: it accepted any `Tasks:` line found in the file's git history and
+reddened on strangers, per the convention that git history filters false
+positives. The corrupted line **is** in that history — ten times. History works as
+a filter only when the history is clean by construction; this artifact rotted
+inside it.
+
+Proved on real bytes, not fixtures: green on the repository's own files, red after
+the block is wiped in place (restored from a byte copy, `sha256` identical before
+and after), and red on three of the twenty corrupted snapshots pulled out of git
+history across four months — so the gate would have caught this for the whole life
+of the project, not only in the shape it wore today.
+
+### Changed — the test suite runs in parallel by default (`-n auto` in `addopts`)
+
+Nineteen of twenty cores idled through every full run. Measured, not assumed
+(session #186, same tree, same box): the full lane took **32m24s serially against
+3m48s under `-n auto` — 8.5x**. This is the only lever that acts on the whole
+suite, because the suite's cost is FLAT: the 30 slowest tests are 10% of it and
+the rest is ~0.09 s x 5700, so there is no fat tail to cut. Deleting a thousand
+tests — weeks of judgement, and a real chance of removing a live guard — would
+have bought about five minutes. One config line buys twenty-eight.
+
+It went into `addopts`, not into a command line, deliberately. Every previous
+speed-up in this project lived in whatever command someone happened to type,
+which means it applied on one machine and nowhere else. `pytest tests/` now
+parallelises for CI, for the agent and for a first-time contributor alike; `-n0`
+turns it off for a debugger.
+
+**The price is stated because it is paid on every verify**: booting the workers
+is a fixed cost, so a *narrow* scoped run gets slower — `tests/test_gate_outcome.py`
+(20 tests) goes 1.68 s -> 6.80 s. Roughly five seconds on each scoped gate against
+tens of minutes on each whole-lane run.
+
+`pytest-xdist` is therefore a hard dependency of every run in this repository:
+without it pytest exits on `unrecognized arguments: -n` before collecting
+anything. There were **five** install paths to fix, not the two that are obvious —
+`.github/workflows/tests.yml` installs deps twice, `.github/workflows/test-coverage.yml`
+is a third workflow that runs pytest with its own list (and swallows failures with
+`|| true`, so it would have reported "no coverage data" instead of dying),
+`.gitlab-ci.yml`, and both `CONTRIBUTING.md` blocks — a new contributor's very
+first `pytest` would otherwise have failed. A ratchet in
+`tests/test_ci_lanes_are_honest.py` derives the requirement from `addopts` itself
+and names any lane that installs pytest without it; proved by mutation (removing
+the plugin from two of the five files fails the test and names both). It is **not**
+in `requirements.txt`: that file is the MCP server's runtime venv, where every
+requirement needs an upper bound, not the test toolchain.
+
+One consequence had to be fixed with it: `TAUSIK_VERIFY_FULL=1` used to inject
+`--override-ini=addopts=`, which wiped the marker filter *and everything standing
+beside it*. The one run in the project that is supposed to be the full battery
+would have been the only one back on a single core. It now injects `-m ''`, which
+beats the addopts marker because it is parsed later — measured as identical
+selection (7459 collected, against the fast lane's 7317) while the parallelism
+survives. Consumers keep whatever else their own `addopts` holds, too.
+
+### Fixed — `pyproject.toml` stopped promising a `tausik verify --full` that has never existed
+
+The comment above `addopts`, and the `slow` marker's own description, both told
+the reader to run the full battery with `tausik verify --full`. `verify --help`
+lists `--task`, `--scope`, `--relevant-files` and `--no-tests-expected` — and
+nothing else. The flag was deleted from the text rather than added to the CLI: a
+config comment is not the place to design a command, and `TAUSIK_VERIFY_FULL=1`
+already does the job under a name that is true. Two comments that referenced the
+false promise as "a separate, still-open defect"
+(`scripts/gate_command_runner.py`, `tests/test_gate_outcome.py`) were corrected
+with it, so nothing in the tree points at the flag any more.
+
+**The other half of this task was refused, and the measurement is why.** It asked
+for `asyncio_default_fixture_loop_scope = "function"` to silence a
+`PytestDeprecationWarning` said to appear on *every* run. Measured on the current
+toolchain, all three of its premises fail: under pytest 9.0.2 that warning is
+never printed (pytest-asyncio raises it in `pytest_configure`, before the warnings
+plugin is catching, and it is visible only via `python -W error::DeprecationWarning`);
+the tree contains **zero** async tests, so the future default it warns about
+cannot reach us; and pytest-asyncio is not declared in any install path — it is
+ambient on one developer's machine, not a dependency of this project. Adding the
+key would therefore have traded an invisible warning on one machine for a visible
+`PytestConfigWarning: Unknown config option` in every environment WITHOUT the
+plugin — every CI cell, and every contributor who follows CONTRIBUTING.md
+(measured with `-o asyncio_default_fixture_loop_scope=function -p no:asyncio`).
+The config is left alone.
+
+### Fixed — a test's own subprocess budget was the hang guard's mistake, one floor down
+
+Turning the suite parallel made the next instance of the same defect visible on
+the very first full run: `tests/test_bootstrap_real.py` gave each real bootstrap
+spawn (venv + `pip install`) a `subprocess.run` timeout of **120 s**, written as a
+bare literal four times. `test_bootstrap_init_creates_session` costs **63.23 s
+alone**, so that looked like 1.9x of headroom — but this file only ever runs
+inside the FULL lane, where this tree's measured load inflation is **1.7-1.8x**
+(#189/#190: 43.43 -> 77.09 and 55.23 -> 93.57 for the same test alone versus under
+the full run). 63.23 x 1.8 is 114 s. The budget stood four seconds above the
+expected worst case, so the lane passed twice in #190 and failed the third time
+with `subprocess.TimeoutExpired ... timed out after 120 seconds` — a coin toss
+reported as a bug in bootstrap.
+
+Sized in isolation, armed under load: exactly what the 60 s hang guard did, so the
+number now lives beside it in `tests/hang_guard_contract.py` rather than as four
+literals. **200 s** is 3.2x the isolated cost — the margin decision #275 chose for
+the guard (300 / 93.57). Two properties are asserted rather than remembered: the
+inner budget stays strictly **below** `faulthandler_timeout` (cross them and the
+guard kills the process first, so the report says "worker crashed" instead of
+naming the subprocess that overran), and a wedged child is still cut. Proved by
+mutation — moved to 400 s, the ordering test fails and names both numbers.
+
+### Fixed — the hang guard stopped killing healthy tests, and its promise is now machine-checked
+
+`faulthandler_timeout` was **60 s**, and the comment beside it promised that this
+was "11x the slowest real one, 5.3 s". Both halves were false in the same way:
+5.3 s was measured on the FAST lane, where the guard is not needed, and the guard
+was armed over the FULL lane, where the slowest test takes **93.57 s under the
+load of the full run**. The real headroom was **0.64x** — the threshold sat
+*below* the maximum.
+
+That 93.57 s could not be known until the fix landed, which is the sharpest part
+of this bug: every previous measurement came from a run in which twelve of these
+tests were being killed at 60 s, so the tree was carrying less than its true load
+and reported a smaller worst case (77.09 s). **The defect was concealing its own
+cost.**
+
+The cost was not theoretical. A full local run on Windows never reached a summary
+line: fourteen tests were killed every time, each with `Timeout (0:01:00)!` and a
+dump of every thread's stack — which reads exactly like the hang the guard was
+installed to stop three sessions from imagining. Twelve of those fourteen (all of
+`test_bootstrap_skills_coverage.py` and all of `test_bootstrap_real.py`) ran
+**nowhere at all**: `--ignore`d in CI, deselected as slow in the fast lane, killed
+in the full one. Measured with the guard lifted, all of them pass — 22 tests in
+824 s, exit 0. They were slow, not broken.
+
+The threshold is now **300 s**. The argument is not a multiplier but the shape of
+the distribution: this suite has ~5700 tests around 0.09 s and a cluster of twelve
+spanning 52–65 s in isolation, and **no test at all between 93.57 s and 300 s**.
+60 s cut through the middle of that cluster (seven of them exceeded it even
+unloaded, so they were doomed always rather than occasionally); 300 s sits in the
+empty gap. The errors are asymmetric too — a threshold that is too low poisons
+*every* run, one that is too high costs minutes *rarely* — so it is deliberately
+biased high. The full lane on Windows now reaches a summary line with no
+workaround for the first time: **7434 passed, 24 skipped, exit 0, in 793 s**.
+
+The half that survives is not the number. `tests/hang_guard_contract.py` now holds
+the measurements and a declared **2x alarm floor**, and `conftest.py` compares it
+against the slowest test the *running* suite actually executed, failing the run
+with an explanatory section when the margin is eaten. Previously both sides of
+every check were frozen constants, which is precisely why a false promise stayed
+green for months. Verified by mutation: the same passing test exits 0 normally and
+exits 1 under a threshold that leaves it inside the margin.
+
+Also removed: the undocumented `--ignore` of the two bootstrap modules in
+`.github/workflows/tests.yml` and `.gitlab-ci.yml`. Git shows both flags arrived in
+a combined v1.3 release commit without a word of justification and were never
+decided on their merits. Note precisely what this buys: the twelve tests return to
+GitHub's `test-full` job. On GitLab they stay unrun, because that lane has no full
+run at all — a separate, still-open defect.
+
+### Changed — scoped test selection follows IMPORTS, so half the suite stops being unreachable
+
+A scoped run is only worth trusting if you know what it cannot see. Measured on
+this repository: of 408 test files, **200 (49%) could not be selected by ANY
+change to ANY of the 3142 tracked source files**. The basename heuristic maps
+`scripts/foo.py` to `tests/test_foo.py`, and a guard named after the RELATION it
+pins — `test_ddl_fixture_parity`, which holds `backend_schema.SCHEMA_SQL` against
+the fixtures — is named after neither side, so nothing ever mapped to it.
+
+`resolve_test_files_for_relevant` now has three additive edges instead of one:
+basename, **import** (a test that imports the changed module is selected, whatever
+the two files are called), and declared `CROSSCUTTING_SCOPE`. The import edge
+revives 180 of those 200, and it costs nothing in scope discipline: the median
+module still pulls 1 test, 281 of 285 pull 20 or fewer, and exactly three pull
+more — `project_backend` 121, `project_service` 105, `tausik_utils` 58 — because
+those changes genuinely are broad.
+
+**Depth one, deliberately.** Imports are not followed transitively, and a test
+pins that so it cannot be "fixed" on intuition: following the chain takes the
+median module's fan-out from 1 test to 177 of 408, which is the full lane wearing
+a scope's clothes.
+
+The workaround this retires was a line in the shift handover telling humans to
+hand-mix five file names into every scoped run (memory #421, now superseded by
+#425). It had already been forgotten once — that is how it came to be written
+down. Five names in a person's head are now zero.
+
+### Changed — the visibility ratchet gained a second detector: tests no change can select
+
+`tests/test_crosscutting_registry.py` asked one narrow question — does this test
+WALK a source tree? — and was blind to guards that walk nothing and simply assert
+two artifacts agree. It now also asks the only question that matters: **is there
+any change that would select you?** Not by modelling the resolver's rules but by
+calling the resolver over the whole universe of tracked sources (~1.2 s), so the
+gate cannot keep passing while selection changes underneath it.
+
+That distinction was not theoretical. The first implementation re-derived the
+edges locally; mutation testing ripped the import edge out of the resolver and the
+ratchet stayed green. A guard that models the thing it guards will drift from it.
+
+18 tests remain selectable by nothing — they import no product code and only read
+files and configs. They are frozen in `_INVISIBLE_BASELINE`, a ratchet that may
+only shrink. A new test reachable by neither basename, import, nor declaration
+now reddens the build; the entire cost of a false positive is one line of
+`CROSSCUTTING_SCOPE`.
+
+### Added — `tausik audit evidence`: closure-receipt citations no longer rot in silence
+
+The closure gate checks the FORM of a citation (`path::name`) and never checked
+that it leads anywhere. One test rename turned a receipt into prose and nothing
+noticed. The new subcommand resolves every citation in closed-task journals and
+prints what broke. Read-only and non-blocking: renaming a test is legitimate;
+the point is that decay becomes VISIBLE, not that refactoring gets punished.
+
+Three decisions paid for by measurement rather than argument:
+
+* The extractor is the PRODUCT'S — `service_ac_evidence.parse_evidence_lines`,
+  the same code the closure gate reads citations with. A private regex saw 474
+  citations where the product's sees 2683, and audit and gate would have become
+  two judges of one question (convention #301).
+* Path resolution is a named policy: a bare file name is looked up across the
+  test tree. Gluing it to the repo root produced 202 false "file not found" out
+  of 977.
+* The command prints NO single "broken" count, because there are two causes with
+  different cures, and git history — not an exemption list — tells them apart:
+  `ROTTED` means the target was in history and is gone (renamed or deleted after
+  closure); `NEVER_EXISTED` means it was never there, i.e. either a synthetic
+  path legitimately quoted by a task whose subject IS the citation format, or an
+  address invented at closure time. Merging them would plant a dozen permanent
+  false alarms, and a control that cries wolf stops being read.
+
+For a name miss in a live file the report offers a plausible successor and calls
+it a CANDIDATE outright: name similarity suggests, it does not rule.
+
+Baseline at introduction: 1236 closed tasks, 512 citing a test, 2683 citations
+(985 unique), 945 resolving; `ROTTED` 16, `NEVER_EXISTED` 24. Seven references
+with a manually confirmed successor were reconciled by APPENDING a line to the
+journal — original receipts are not rewritten, closure history stays history.
+Two automatic candidates were rejected on review as different checks, and the
+rejection is recorded.
+
+A known limitation is stated in the module docstring: a reconciled reference
+does not retire from the report, so the counters are a floor rather than a
+health bar; the signal is the delta between runs.
+
+### Fixed — drift-7 dated the link, not the verification (Sortula #49 → #10)
+
+The provenance detector compared `spec.updated_at` against
+`task_specs.created_at` — when the task was LINKED to the requirement, which
+says nothing about when it was verified. A task finished a day AFTER a SPEC
+edit was declared stale, and the gate failed on every `task done`. The old
+docstring called the comparison "a valid recency test", and it was: the
+arithmetic was right and the operand was wrong. Worse than noise — the false
+positive MASKED a real one, which surfaced at the consumer only once this was
+fixed.
+
+The honest reference point already existed in the schema:
+`verification_runs.ran_at`, the moment the task was actually verified, which is
+what the detector's name claims to be about. A task with no recorded run falls
+back to `tasks.completed_at` — an honest second approximation, since a task
+cannot have been verified after it was closed. Falling back to the link time is
+forbidden: it is not a worse approximation, it is not an approximation of
+verification time at all.
+
+A row datable by neither is now reported as `undateable-verification` instead
+of passing quietly, because "could not be checked" is not "checked and fine".
+The strict comparison is unchanged and deliberately so: a spec verified and
+last-edited in the same instant is still not flagged.
+
+### Changed — the `ruff` gate now also runs at `verify` (behaviour change)
+
+`ruff` was already enabled and already `block`, but its only trigger was
+`commit`. A task could therefore be verified, closed, and its receipt signed
+over a tree no linter had ever read. Measured rather than supposed: an F541
+introduced in one session survived the full suite (7386 passed), `verify
+--task`, `task done` with six gates, and a signed receipt — because no closing
+gate runs a linter, and a lint defect changes no behaviour a test can observe.
+Tests were never going to catch this; that is the point of having a linter.
+
+It runs at `verify` rather than `task-done` because that is where evidence is
+produced, and it is scoped by `{files}` exactly like the pytest gate — so the
+cost is a lint of the declared scope, not of the tree.
+
+MIGRATION. A project with existing lint debt will see `verify` block where it
+previously passed. The gate names the violations and `ruff check --fix` clears
+the mechanical ones. To opt out, set `gates.ruff.trigger` back to
+`["commit"]` — or `gates.ruff.enabled: false` — in `.tausik/config.json`.
+
+### Fixed — a gate could fail to start, and say nothing (GitLab #9)
+
+Two silent halves of one class. On Windows, `subprocess` spawns through
+`CreateProcess`, which does not consult PATHEXT — so a gate configured as
+`npm test` died with `[WinError 2]` although npm was installed and on PATH.
+CreateProcess appends `.exe` by itself, which is why this never showed up for
+`python` or `ruff` and always showed up for npm, yarn and pnpm: those ship as
+`.CMD` launchers. All 26 command-carrying gates across every shipped stack name
+their tool by bare name, so this was the whole class, not one gate.
+
+argv[0] is now resolved on PATH in the one place both spawn paths share. The
+allow-list is untouched: `npm.cmd` was NOT added to it — GitLab #9 names that
+as the worst available fix, since it treats the symptom, makes the user
+responsible for knowing the platform, and has to be repeated for every tool
+after npm. The same approved name is resolved instead, so the guard keeps
+guarding. A name that resolves to nothing is left exactly as written, so a
+genuinely missing tool still reports COULD_NOT_RUN rather than being replaced
+by something launchable.
+
+The second half: a command override that failed validation was consumed by a
+`logger.warning` and dropped, and the gate then ran the BUILT-IN DEFAULT and
+reported that run as its verdict. The refusal was invisible precisely because
+the default produced a result of its own for the reader to look at instead. A
+refused override is now the gate's outcome — COULD_NOT_RUN, naming the
+refusal — and the default is not run in its place. Reporting one check's
+verdict under another check's name is the substitution this framework exists to
+refuse.
+
+### Fixed — the result of a check could not tell "did not run" from "passed"
+
+A gate result was `(passed: bool, output: str)`, with a third state smuggled
+through the string channel as a private sentinel. Two booleans cannot spell
+four events, so the missing one leaked in both directions. A gate with no
+implementation and no command answered PASS, then SKIP — a check that never
+executed, signing a receipt. And a scoped run over a `slow`-marked test file
+answered `[FAIL] pytest (block)` on `5 deselected`: no test failed, none ran.
+pytest had already said so in its exit code (5, `EXIT_NOTESTSCOLLECTED`); the
+runner collapsed every nonzero code into `False` and threw the distinction
+away. The refusal named neither the cause nor the cure, and the distance
+between "blocking failure" and "all green" was one environment variable it
+never mentioned.
+
+The outcome is now a type with four values: PASSED, FAILED, NOT_APPLICABLE and
+COULD_NOT_RUN. The task asks for three; the fourth exists because a legitimate
+skip — a change that honestly matches no test — must stay expressible and must
+not block. Collapsing it into the blocking state would replace one
+indistinguishability with another, which is the failure this work exists to
+stop.
+
+COULD_NOT_RUN blocks by default (SENAR 1.4 §8.6(e): the absence of a negative
+finding is not a positive verdict) and cannot be constructed without a reason —
+refused at construction, because a reasonless non-execution has already lost
+what made it actionable. `gate_runs` stores the outcome and the reason;
+pre-existing rows stay NULL rather than being backfilled with a guess about
+which of the two skip meanings they carried.
+
+The sentinels are retired as transports. The type unpacks as the historical
+`(passed, output)` pair, so the ~48 call sites that destructure it were not
+touched — callers that need the distinction read `.outcome` instead of the
+first slot.
+
+Undeclared scope stays non-blocking on purpose: certification of an unscoped
+run is already refused upstream, and blocking there would redden every
+`gate_runner <trigger>` call without `--files`. It is now distinguishable by
+its own reason code, which is where the real indistinguishability was.
+
+### Fixed — a migration built today's schema instead of its own
+
+`backend_migrations_v39` derived its DDL from the live `GATE_RUNS_SQL`, so that
+"drift between the paths is impossible". That invariant held only while the
+table never changed again. Adding two columns to the fresh-DB DDL made step 39
+create the NEW shape, and the `ALTER TABLE` that followed it in the same chain
+died on `duplicate column name` — an upgrade from any older version could not
+complete at all. The test guarding the coupling was green throughout, because
+it asserted exactly the harmful invariant.
+
+A migration is a historical fact: it builds what the schema looked like AT THAT
+VERSION. The equivalence that matters is between the fresh path and the END of
+the chain, not any single step of it.
+
 ### Fixed — the MCP server accepted an undeclared argument and dropped it silently
 
 `tausik_task_add` declares `story_slug`; the call arrived with `story`. It

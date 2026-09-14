@@ -26,6 +26,16 @@ verify_run_record load-bearing rather than merely tidy.
 
 from __future__ import annotations
 
+# `prevents` (v51, SENAR 1.4 §8.6(g)): WHAT this verdict held back. The
+# registry carries the declaration; the row keeps the wording that was in
+# force when it was written, because a declaration edited later must not
+# rewrite what an old audit row says. NULL means the row predates the
+# distinction, or the gate is not one the registry declares.
+#
+# Stated HERE and not inside the CREATE TABLE: sqlite keeps the statement
+# text verbatim, comments and all, so an inline comment makes the fresh DDL
+# differ from the migrated one and the schema-parity check goes red.
+
 GATE_RUNS_SQL = """
 CREATE TABLE IF NOT EXISTS gate_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,7 +47,10 @@ CREATE TABLE IF NOT EXISTS gate_runs (
     passed INTEGER NOT NULL CHECK(passed IN (0, 1)),
     skipped INTEGER NOT NULL DEFAULT 0 CHECK(skipped IN (0, 1)),
     duration_ms INTEGER,
-    ran_at TEXT NOT NULL
+    ran_at TEXT NOT NULL,
+    outcome TEXT,
+    reason_code TEXT,
+    prevents TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_gate_runs_name ON gate_runs(gate_name);

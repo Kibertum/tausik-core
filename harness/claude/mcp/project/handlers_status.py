@@ -74,57 +74,50 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
 
 
 def _handle_metrics(svc: Any) -> str:
-    m = svc.get_metrics()
-    parts = [f"Tasks: {m['tasks_done']}/{m['tasks_total']} ({m['completion_pct']}%)"]
-    if m["avg_task_hours"]:
-        parts.append(f"Avg time: {m['avg_task_hours']}h")
-    parts.append(f"Sessions: {m['sessions_total']} ({m['session_hours']}h)")
-    return ", ".join(parts)
+    """Transport. The copy this replaces answered with ONE summary line while the
+    CLI printed the whole SENAR report — and MCP is the surface agents prefer."""
+    from render_metrics import metrics_lines
+
+    return "\n".join(metrics_lines(svc))
 
 
 def _handle_search(svc: Any, args: dict) -> str:
-    results = svc.search(args["query"], args.get("scope", "all"))
-    lines = []
-    for scope, items in results.items():
-        if items:
-            lines.append(f"--- {scope} ({len(items)}) ---")
-            for item in items[:10]:
-                if "slug" in item:
-                    lines.append(f"  {item['slug']}: {item.get('title', item.get('decision', ''))}")
-                elif "query" in item:
-                    lines.append(f"  {item['query']}")
-                else:
-                    lines.append(f"  {item.get('title', str(item)[:80])}")
-    return "\n".join(lines) if lines else "No results."
+    """Transport. The copy this replaces capped each scope at ten hits and
+    dropped the FTS snippet — the part that says WHY a row matched."""
+    from render_status import SEARCH_LIMIT, search_lines
+
+    return "\n".join(
+        search_lines(
+            svc,
+            args["query"],
+            args.get("scope", "all"),
+            args.get("limit", SEARCH_LIMIT),
+        )
+    )
 
 
 def _handle_events(svc: Any, args: dict) -> str:
-    events = svc.events_list(
-        entity_type=args.get("entity_type"),
-        entity_id=args.get("entity_id"),
-        n=args.get("limit", 50),
-    )
-    if not events:
-        return "No events."
-    lines = []
-    for ev in events:
-        actor = f" by {ev['actor']}" if ev.get("actor") else ""
-        lines.append(
-            f"[{ev['created_at']}] {ev['entity_type']}/{ev['entity_id']}: {ev['action']}{actor}"
+    """Transport. The copy this replaces had no rollup (an audit log arrives in
+    full however long it is) and dropped `details` — what actually changed."""
+    from render_status import EVENTS_LIMIT, events_lines
+
+    return "\n".join(
+        events_lines(
+            svc,
+            args.get("entity_type"),
+            args.get("entity_id"),
+            args.get("limit", EVENTS_LIMIT),
+            full=bool(args.get("full", False)),
+            top_n=args.get("top_n"),
+            max_lines=args.get("max_lines"),
         )
-    return "\n".join(lines)
+    )
 
 
 def _do_team(svc: Any, args: dict) -> str:
-    data = svc.team_status()
-    if not data:
-        return "No active tasks."
-    lines = []
-    for group in data:
-        lines.append(f"{group['agent']}:")
-        for t in group["tasks"]:
-            lines.append(f"  [{t['status']}] {t['slug']}: {t['title']}")
-    return "\n".join(lines)
+    from render_status import team_lines
+
+    return "\n".join(team_lines(svc))
 
 
 def _do_usage_event_log(svc: Any, args: dict) -> str:

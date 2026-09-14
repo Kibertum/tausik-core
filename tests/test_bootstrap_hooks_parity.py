@@ -1,8 +1,6 @@
 """r14-qwen-parity-or-honesty: Qwen Code hooks must match Claude Code.
 
 Pre-1.4 the Qwen bootstrap quietly omitted four hooks that Claude shipped:
-- brain_search_proactive (PreToolUse on Web*)
-- brain_post_webfetch (PostToolUse on WebFetch)
 - task_call_counter (PostToolUse on every tool)
 - activity_event (PostToolUse on every tool)
 
@@ -101,11 +99,9 @@ def test_critical_hooks_present_in_both(claude_settings, qwen_settings):
         "secret_scan.py",
         "bash_firewall.py",
         "git_push_gate.py",
-        "brain_search_proactive.py",
         "auto_format.py",
         "memory_posttool_audit.py",
         "task_done_verify.py",
-        "brain_post_webfetch.py",
         "task_call_counter.py",
         "activity_event.py",
         "session_start.py",
@@ -137,9 +133,13 @@ def test_shell_matcher_covers_every_dialect_the_parser_knows():
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
     import shell_channel
-    from bootstrap_hooks import SHELL_MATCHER
+    from bootstrap_hooks import MCP_SHELL_MATCHER, SHELL_MATCHER
 
-    assert SHELL_MATCHER == "|".join(shell_channel.SHELL_TOOLS)
+    # Two lines since PR #5: the built-in shells stay a pure alternation (the
+    # exact-match branch), the MCP shell — a name with `-` in it — is
+    # registered on its own entry. Together they must be the parser's list.
+    registered = set(SHELL_MATCHER.split("|")) | set(MCP_SHELL_MATCHER.split("|"))
+    assert registered == set(shell_channel.SHELL_TOOLS)
 
 
 def test_every_shell_gate_is_registered_for_every_shell_tool(claude_settings, qwen_settings):
@@ -161,16 +161,23 @@ def test_every_shell_gate_is_registered_for_every_shell_tool(claude_settings, qw
         "memory_pretool_block.py",
     }
     for label, settings in (("claude", claude_settings), ("qwen", qwen_settings)):
+        # A gate may be registered on more than one entry (PR #5: the MCP shell
+        # sits on its own line); what must cover the parser's list is the UNION.
+        registered: dict[str, set[str]] = {}
         for entry in settings.get("hooks", {}).get("PreToolUse", []):
             scripts = {os.path.basename(h["command"].split()[-1]) for h in entry["hooks"]}
             for gate in scripts & command_reading_gates:
-                tools = set(entry["matcher"].split("|"))
-                missing = set(shell_channel.SHELL_TOOLS) - tools
-                assert not missing, (
-                    f"{label}: {gate} reads a shell command but is not registered "
-                    f"for {sorted(missing)} — that channel reaches no gate. "
-                    f"matcher={entry['matcher']!r}"
-                )
+                registered.setdefault(gate, set()).update(entry["matcher"].split("|"))
+        for gate in command_reading_gates:
+            missing = set(shell_channel.SHELL_TOOLS) - registered.get(gate, set())
+            assert not missing, (
+                f"{label}: {gate} reads a shell command but is not registered "
+                f"for {sorted(missing)} — that channel reaches no gate."
+            )
+        for entry in settings.get("hooks", {}).get("PreToolUse", []):
+            scripts = {os.path.basename(h["command"].split()[-1]) for h in entry["hooks"]}
+            if not scripts & command_reading_gates:
+                continue
             # A narrowing `if` clause is a second copy of the gate's own
             # decision and can only name one dialect; the push gate carried one
             # and that is how the PowerShell push went ungated.

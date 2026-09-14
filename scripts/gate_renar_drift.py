@@ -8,13 +8,18 @@ from __future__ import annotations
 
 import os
 
+import gate_outcome
+
 _GATE_TO_DETECTOR = {
     "renar_drift_schema": "schema",
     "renar_drift_provenance": "provenance",
+    # ADR-007's own name for the gate it promised, kept verbatim (in the
+    # registry's snake_case spelling) so the promise is greppable from the ADR.
+    "check_adapt_supersession": "supersession",
 }
 
 
-def run_renar_drift_gate_for(gate: dict, files: list[str]) -> tuple[bool, str]:
+def run_renar_drift_gate_for(gate: dict, files: list[str]) -> gate_outcome.GateOutcome:
     """Registry-uniform ``(gate, files)`` entrypoint (gate-registry-single-source).
 
     Two detectors share one implementation and are told apart by gate name, so
@@ -25,7 +30,7 @@ def run_renar_drift_gate_for(gate: dict, files: list[str]) -> tuple[bool, str]:
     return run_renar_drift_gate(str(gate.get("name") or ""))
 
 
-def run_renar_drift_gate(name: str) -> tuple[bool, str]:
+def run_renar_drift_gate(name: str) -> gate_outcome.GateOutcome:
     """Run a RENAR drift detector against the project artifact store.
 
     Read-only: opens its own short-lived connection to the project DB (WAL lets
@@ -35,7 +40,14 @@ def run_renar_drift_gate(name: str) -> tuple[bool, str]:
     """
     which = _GATE_TO_DETECTOR.get(name)
     if which is None:
-        return True, f"Unknown RENAR drift gate {name!r} — skipped."
+        # Not a skip: the caller named a gate this module has no detector for,
+        # so nothing was checked. REASON_NO_GATE_IMPLEMENTATION is exactly that
+        # event, and it already exists for the runner's own version of it.
+        return gate_outcome.could_not_run(
+            gate_outcome.REASON_NO_GATE_IMPLEMENTATION,
+            f"Unknown RENAR drift gate {name!r} — no detector is mapped to it.",
+            remedy="Fix the gate name in the registry, or map a detector to it.",
+        )
     try:
         import sqlite3  # noqa: PLC0415
 
@@ -44,12 +56,30 @@ def run_renar_drift_gate(name: str) -> tuple[bool, str]:
 
         db_path = get_db_path()
         if not os.path.isfile(db_path):
-            return True, "No project DB — RENAR drift check skipped."
+            return gate_outcome.not_applicable(
+                gate_outcome.REASON_NO_DATABASE,
+                "No project DB — RENAR drift check skipped.",
+            )
         conn = sqlite3.connect(db_path, timeout=10)
         try:
             findings = run_detector(conn, which)
         finally:
             conn.close()
-    except Exception as e:  # noqa: BLE001 — warn gate must never crash task-done
-        return True, f"RENAR drift check unavailable ({type(e).__name__}: {e})."
-    return (not findings), format_findings(findings)
+    except Exception as e:  # noqa: BLE001 — caught, but recorded as non-execution, not as a pass
+        # COULD_NOT_RUN even though this gate is severity=warn. Measured, not
+        # assumed: gate_runner:254 raises a blocking failure only when
+        # `outcome.blocks AND severity == "block"`, so a warn gate that says
+        # CANNOT-RUN stops nothing. The receipt stops lying at zero cost — and
+        # recording it as PASSED would put a false green in the one place a
+        # reader checks whether RENAR drift was actually looked for.
+        return gate_outcome.could_not_run(
+            gate_outcome.REASON_RUNNER_ERROR,
+            f"RENAR drift check unavailable ({type(e).__name__}: {e}).",
+            remedy=(
+                "This gate produced no evidence, so it certifies nothing. Drift "
+                "is unknown, not absent. Re-run once the fault above is gone."
+            ),
+        )
+    if findings:
+        return gate_outcome.failed(format_findings(findings))
+    return gate_outcome.passed(format_findings(findings))

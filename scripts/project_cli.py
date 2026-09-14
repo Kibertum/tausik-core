@@ -7,6 +7,7 @@ import os
 import sys
 from typing import Any
 
+import hierarchy_edit  # one implementation for CLI and MCP; see its docstring
 from project_config import TAUSIK_DIR, find_tausik_dir, get_config_path, save_config
 from project_service import ProjectService
 from tausik_utils import ServiceError, format_status_compact_json
@@ -126,30 +127,49 @@ def cmd_status(svc: ProjectService, args: Any) -> None:
     print(render_status_cli(view))
 
 
+def _stale_rows(rows: list[dict[str, Any]], args: Any) -> list[dict[str, Any]]:
+    """`--stale-over N` keeps rows whose description fell behind by more than N tasks.
+
+    N is None when the flag is absent: every row prints with its number — the
+    report names, it never hides, and it is not a gate anywhere. An explicit
+    `--stale-over 0` is a filter like any other N: rows with stale > 0.
+    """
+    over = getattr(args, "stale_over", None)
+    if over is None:
+        return rows
+    return [r for r in rows if int(r.get("stale", 0)) > int(over)]
+
+
 def cmd_epic(svc: ProjectService, args: Any) -> None:
     if args.epic_cmd == "add":
         print(svc.epic_add(args.slug, args.title, args.description))
     elif args.epic_cmd == "list":
-        _print_table(svc.epic_list(), ["slug", "title", "status"])
+        rows = _stale_rows(hierarchy_edit.list_with_staleness(svc, "epics"), args)
+        _print_table(rows, ["slug", "title", "status", "stale"])
+    elif args.epic_cmd == "update":
+        print(hierarchy_edit.update(svc, "epics", args.slug, args.title, args.description))
     elif args.epic_cmd == "done":
         print(svc.epic_done(args.slug))
     elif args.epic_cmd == "delete":
         print(svc.epic_delete(args.slug))
     else:
-        print("Usage: tausik epic [add|list|done|delete]")
+        print("Usage: tausik epic [add|list|update|done|delete]")
 
 
 def cmd_story(svc: ProjectService, args: Any) -> None:
     if args.story_cmd == "add":
         print(svc.story_add(args.epic_slug, args.slug, args.title, args.description))
     elif args.story_cmd == "list":
-        _print_table(svc.story_list(args.epic), ["slug", "title", "status", "epic_slug"])
+        rows = _stale_rows(hierarchy_edit.list_with_staleness(svc, "stories", args.epic), args)
+        _print_table(rows, ["slug", "title", "status", "epic_slug", "stale"])
+    elif args.story_cmd == "update":
+        print(hierarchy_edit.update(svc, "stories", args.slug, args.title, args.description))
     elif args.story_cmd == "done":
         print(svc.story_done(args.slug))
     elif args.story_cmd == "delete":
         print(svc.story_delete(args.slug))
     else:
-        print("Usage: tausik story [add|list|done|delete]")
+        print("Usage: tausik story [add|list|update|done|delete]")
 
 
 # cmd_task -> moved to project_cli_task.py (filesize-debt-paydown-2)
@@ -157,14 +177,9 @@ from project_cli_task import cmd_task  # noqa: E402,F401
 
 
 def cmd_team(svc: ProjectService, args: Any) -> None:
-    data = svc.team_status()
-    if not data:
-        print("No active tasks.")
-        return
-    for group in data:
-        print(f"\n{group['agent']}:")
-        for t in group["tasks"]:
-            print(f"  [{t['status']}] {t['slug']}: {t['title']}")
+    from render_status import team_lines
+
+    print("\n".join(team_lines(svc)))
 
 
 def cmd_session(svc: ProjectService, args: Any) -> None:
@@ -174,11 +189,9 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
     elif c == "end":
         print(svc.session_end(args.summary))
     elif c == "current":
-        s = svc.session_current()
-        if s:
-            print(f"Session #{s['id']} started {s['started_at']}")
-        else:
-            print("No active session.")
+        from render_session import session_current_line
+
+        print(session_current_line(svc))
     elif c == "list":
         sessions = svc.session_list(args.limit)
         _print_table(sessions, ["id", "started_at", "ended_at", "summary"])
@@ -216,16 +229,9 @@ def cmd_decisions(svc: ProjectService, args: Any) -> None:
 
 
 def cmd_roadmap(svc: ProjectService, args: Any) -> None:
-    data = svc.get_roadmap(args.include_done)
-    if not data:
-        print("No epics.")
-        return
-    for epic in data:
-        print(f"[{epic['status']}] {epic['slug']}: {epic['title']}")
-        for story in epic.get("stories", []):
-            print(f"  [{story['status']}] {story['slug']}: {story['title']}")
-            for task in story.get("tasks", []):
-                print(f"    [{task['status']}] {task['slug']}: {task['title']}")
+    from render_hierarchy import roadmap_lines
+
+    print("\n".join(roadmap_lines(svc, args.include_done)))
 
 
 # cmd_metrics, cmd_search, cmd_events, cmd_dead_end, cmd_explore, cmd_audit, cmd_run

@@ -13,6 +13,8 @@ events_chain.verify_chain is what catches tampering of sealed rows.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 import events_chain
@@ -36,6 +38,10 @@ class BackendEventsChainMixin:
         def begin_tx(self) -> None: ...
         def commit_tx(self) -> None: ...
         def rollback_tx(self) -> None: ...
+        # Decorated exactly as the real one in backend_transaction, so the
+        # composed class sees one signature rather than two incompatible ones.
+        @contextmanager
+        def transaction(self) -> Iterator[None]: ...
 
     # --- chain reads ---
 
@@ -69,8 +75,7 @@ class BackendEventsChainMixin:
         head_hash: str | None = prev if last else None
         sealed = 0
         if pending:
-            self.begin_tx()
-            try:
+            with self.transaction():
                 for r in pending:
                     eh = events_chain.entry_hash(prev, r)
                     self._ex(
@@ -80,10 +85,6 @@ class BackendEventsChainMixin:
                     prev = eh
                     sealed += 1
                     head_id = r["id"]
-                self.commit_tx()
-            except Exception:
-                self.rollback_tx()
-                raise
             head_hash = prev
         count_row = self._q1("SELECT COUNT(*) AS c FROM events")
         total = count_row["c"] if count_row else 0

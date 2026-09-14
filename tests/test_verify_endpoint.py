@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import threading
+import time
 
 import pytest
 
@@ -35,14 +36,66 @@ def keyed_project(tmp_path):
     return str(tmp_path)
 
 
+#: How long a server gets to start answering before the test gives up on it.
+#: A DEADLINE with a condition, never a fixed pause: a `sleep` long enough to be
+#: safe is wasted on every run and still a race on a loaded machine.
+_READY_TIMEOUT_S = 10.0
+
+
+def _wait_until_serving(httpd, timeout: float = _READY_TIMEOUT_S) -> None:
+    """Block until the server ANSWERS, or fail the test saying it never did.
+
+    `serve_forever` runs in another thread and the listening socket exists
+    before that loop starts, so a client can connect to a server that is not yet
+    accepting. Waiting on the socket's existence proves nothing; this waits on a
+    completed request.
+
+    Loud on failure (never a skip, never a hang): a server that did not come up
+    must be distinguishable from an endpoint that answered wrongly, which is the
+    whole subject of the tests below.
+    """
+    deadline = time.monotonic() + timeout
+    last = ""
+    while time.monotonic() < deadline:
+        try:
+            conn = http.client.HTTPConnection(
+                "127.0.0.1", httpd.server_address[1], timeout=1
+            )
+            conn.request("GET", "/healthz-probe-not-a-real-route")
+            conn.getresponse().read()
+            conn.close()
+            return
+        except (OSError, http.client.HTTPException) as exc:
+            # BOTH families. `BadStatusLine` and `RemoteDisconnected` come from
+            # `http.client`, not from `socket`, and only one of them is an
+            # OSError — a probe that caught only OSError would let the other
+            # escape and turn a not-yet-ready server into a fixture ERROR
+            # rather than another attempt. Measured: one full-suite run in
+            # seven produced 19 errors, one per test in this file.
+            last = f"{type(exc).__name__}: {exc}"
+            time.sleep(0.01)
+    raise AssertionError(
+        f"the verify endpoint never began answering within {timeout:.0f}s "
+        f"(last attempt: {last or 'no error recorded'})"
+    )
+
+
 @pytest.fixture
 def server(keyed_project):
     httpd = make_server(keyed_project, port=0)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
-    yield httpd, keyed_project
-    httpd.shutdown()
-    httpd.server_close()
+    _wait_until_serving(httpd)
+    try:
+        yield httpd, keyed_project
+    finally:
+        # `shutdown` asks the loop to stop and WAITS for it, so the socket is
+        # closed only once no handler is still writing to a client. Closing
+        # first would abort an in-flight response, which is the shape of failure
+        # this file was flaking with.
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=_READY_TIMEOUT_S)
 
 
 def _request(httpd, method, path, payload=None):
@@ -136,6 +189,11 @@ class TestNegatives:
         httpd = make_server(str(tmp_path / "keyless"), port=0)
         thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         thread.start()
+        # The same wait as the fixture, for the same reason: this server is
+        # built by hand and would otherwise carry the race the fixture no
+        # longer has. Two places starting a server, one of them careful, is how
+        # a fixed race comes back.
+        _wait_until_serving(httpd)
         try:
             status, data = _request(
                 httpd, "POST", "/verify", {"task_slug": "t", "gates": _GATES_OK}
@@ -146,6 +204,7 @@ class TestNegatives:
         finally:
             httpd.shutdown()
             httpd.server_close()
+            thread.join(timeout=_READY_TIMEOUT_S)
 
 
 class TestInfoEndpoints:
@@ -161,3 +220,64 @@ class TestInfoEndpoints:
         assert data["fingerprint"] == crypto_keys.fingerprint(crypto_keys.load_public(project))
         seed_hex = crypto_keys.load_seed(project).hex()
         assert seed_hex not in json.dumps(data)
+
+
+class TestTheEndpointDoesNotShareItsPort:
+    """MEASURED (session #235): with the stock `ThreadingHTTPServer`, two
+    servers bound the SAME port and both succeeded. `http.server` sets
+    `allow_reuse_address = 1`, and on Windows `SO_REUSEADDR` permits binding an
+    address that is ACTIVELY in use rather than merely lingering in TIME_WAIT.
+
+    Beyond the tests: `tausik serve` binds 8765 to answer receipt-verification
+    requests, and a port any other local process may join is a port whose
+    answers cannot be relied on.
+    """
+
+    def test_a_second_server_cannot_take_the_same_port(self, keyed_project):
+        first = make_server(keyed_project, port=0)
+        port = first.server_address[1]
+        try:
+            with pytest.raises(OSError) as caught:
+                make_server(keyed_project, port=port)
+            assert caught.value.errno in (48, 98, 10048), (
+                f"bind failed for an unexpected reason: {caught.value!r}"
+            )
+        finally:
+            first.server_close()
+
+    def test_posix_keeps_the_flag_and_windows_does_not(self):
+        """Turning the flag off everywhere would break restart-after-TIME_WAIT
+        on POSIX — a real regression to fix a problem that platform lacks."""
+        from verify_endpoint import _VerifyServer
+
+        assert _VerifyServer.allow_reuse_address is (sys.platform != "win32")
+
+
+class TestTheReadinessWaitIsAConditionNotAPause:
+    """AC3 and AC4: the fixture waits for the server to ANSWER, and a server
+    that never comes up fails the test loudly instead of hanging or skipping."""
+
+    def test_a_server_that_never_answers_fails_with_a_named_reason(self):
+        class _Never:
+            server_address = ("127.0.0.1", 1)  # nothing listens on port 1
+
+        with pytest.raises(AssertionError) as caught:
+            _wait_until_serving(_Never(), timeout=0.3)
+        message = str(caught.value)
+        assert "never began answering" in message
+        assert "last attempt" in message
+
+    def test_it_returns_as_soon_as_the_server_answers(self, keyed_project):
+        httpd = make_server(keyed_project, port=0)
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            started = time.monotonic()
+            _wait_until_serving(httpd)
+            assert time.monotonic() - started < _READY_TIMEOUT_S / 2, (
+                "the wait behaved like a fixed pause rather than a condition"
+            )
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+            thread.join(timeout=_READY_TIMEOUT_S)

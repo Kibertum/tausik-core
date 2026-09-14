@@ -16,6 +16,7 @@ TAUSIK implements [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github
 
 ## Your First 60 Seconds
 
+0. **New here?** [docs/en/agent-quickstart.md](docs/en/agent-quickstart.md) ([RU](docs/ru/agent-quickstart.md)) is this page as a PROCEDURE: connect on your host, check, then the cycle as exact calls with the replies and refusals you will see.
 1. **MCP-first** — use `tausik_*` tools (preferred). Full inventory + parameters live in **[docs/en/mcp.md](docs/en/mcp.md)**; for scripted hosts `tausik_status`/`status` accepts optional **compact JSON** (`compact` / `--compact`).
 2. **CLI fallback** — `.tausik/tausik <cmd>` mirrors MCP; cheatsheet **[docs/en/cli.md](docs/en/cli.md)**.
 3. **Skills / slash wrappers** — if `/start`, `/plan`, `/ship`, … are not expanded by your IDE, execute the numbered procedure inside `harness/skills/<name>/SKILL.md` (**[docs/en/skills.md](docs/en/skills.md)** lists triggers).
@@ -26,27 +27,28 @@ Hard workflow rules (`task_start` before edits, **`tausik_verify` before task cl
 
 TAUSIK was originally built around Claude Code conventions, but the framework is model-agnostic. If you are GPT (5.5+), Cursor Composer, OpenCode, Codex CLI, Qwen Code, Gemini CLI or any other agent, the surface you actually use is different:
 
-| Capability | Claude Code / VS Code Claude Extension | Cursor Composer / GPT-5.5 / OpenCode | Qwen Code |
-|---|---|---|---|
-| MCP tools (`tausik_*`) | Yes — preferred | **Yes — preferred and primary** | Yes — preferred |
-| Slash skills (`/start`, `/plan`, `/ship`) | Native | **Not native** — read `harness/skills/<name>/SKILL.md` and follow the algorithm yourself | Read `.qwen/skills/<name>/SKILL.md` |
-| PreToolUse hooks (`task_gate.py` etc.) | Yes (`.claude/settings.json`) | **No hooks API** — Rule 1 is enforced by you reading the rules | Yes (limited subset, see [r14-qwen-parity-or-honesty]) |
-| `~/.claude/...` auto-memory | Read/write | **Do not write here** — it is a Claude-only profile dir | Read only |
-| Session start | `session_start.py` hook injects status | **Run `tausik_status` and `tausik_session_start` yourself first** | hook (subset) |
-| `/checkpoint` reminder | Hook nudges every 30-50 calls | **You** must self-checkpoint via `tausik_session_handoff` | hook (subset) |
+| Capability | Claude Code / VS Code Claude Extension | Cursor Composer / GPT-5.5 / OpenCode | Qwen Code | Codex CLI |
+|---|---|---|---|---|
+| MCP tools (`tausik_*`) | Yes — preferred | **Yes — preferred and primary** | Yes — preferred | Yes — `.codex/config.toml` (project); live-verified in 1.9 |
+| Slash skills (`/start`, `/plan`, `/ship`) | Native | **Not native** — read `harness/skills/<name>/SKILL.md` and follow the algorithm yourself | Read `.qwen/skills/<name>/SKILL.md` | Skill catalog from `.codex/skills/<name>/SKILL.md`; sub-agents from `.codex/agents/*.toml` |
+| PreToolUse hooks (`task_gate.py` etc.) | Yes (`.claude/settings.json`) | **No hooks API** — Rule 1 is enforced by you reading the rules | Yes (limited subset, see [r14-qwen-parity-or-honesty]) | Yes (`.codex/hooks.json`, same declaration as Claude) — **only after the user has trusted the project hooks**; untrusted = nothing enforced |
+| `~/.claude/...` auto-memory | Read/write | **Do not write here** — it is a Claude-only profile dir | Read only | **Do not write here** |
+| Session start | `session_start.py` hook injects status | **Run `tausik_status` and `tausik_session_start` yourself first** | hook (subset) | hook when trusted; otherwise run `tausik_status` and `tausik_session_start` yourself |
+| `/checkpoint` reminder | Hook nudges every 30-50 calls | **You** must self-checkpoint via `tausik_session_handoff` | hook (subset) | hook when trusted; otherwise self-checkpoint |
 
 ### Model / host → tool surface (MCP)
 
 Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. **Canonical counts** are asserted from `len(TOOLS)` in code — see **[docs/en/mcp.md](docs/en/mcp.md)** / **[docs/ru/mcp.md](docs/ru/mcp.md)**.
 
-| Model / host | Primary TAUSIK surface | Main `tausik_*` tools (two servers) | Notes |
+| Model / host | Primary TAUSIK surface | Main `tausik_*` tools | Notes |
 |----------------|------------------------|-------------------------------------|------|
-| Claude (Code, VS Code Extension) | MCP `tausik-project` + `tausik-brain` | **126** (119 project + 7 brain) | Hooks + MCP |
-| Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **100** (93+7) | Rule 1 self-serve if no hooks |
-| Qwen Code | MCP + skills under `.qwen/skills/` | **100** (93+7) | Subset of hooks |
-| Codex CLI / headless agents | Prefer MCP if exposed; else mirror CLI | **100** (93+7) | [docs/en/cli.md](docs/en/cli.md) |
+| Claude (Code, VS Code Extension) | MCP `tausik-project` | **146** | Hooks + MCP |
+| Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **146** | Rule 1 self-serve if no hooks |
+| Qwen Code | MCP + skills under `.qwen/skills/` | **146** | Subset of hooks |
+| Codex CLI | MCP `tausik-project` from `.codex/config.toml`; skills `.codex/skills/`; agents `.codex/agents/` | **146** | Hooks via `.codex/hooks.json` once trusted — [enforcement matrix](docs/en/model-providers.md#codex-enforcement-matrix) |
+| Headless agents | Mirror the CLI `.tausik/tausik` | **146** | [docs/en/cli.md](docs/en/cli.md) |
 
-**Optional `codebase-rag` server:** +7 tools → **107** total with the main two servers (not part of the 100 baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
+**Optional `codebase-rag` server:** +7 tools → **153** total with the main server (not part of the baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
 
 **Operating contract for non-Claude models:**
 
@@ -92,12 +94,13 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 
 | Need | Go to |
 |------|-------|
-| **Quick start for agents** | [docs/en/quickstart.md](docs/en/quickstart.md) (EN) / [docs/ru/quickstart.md](docs/ru/quickstart.md) (RU) |
+| **Quick start for agents** | [docs/en/agent-quickstart.md](docs/en/agent-quickstart.md) (EN) / [docs/ru/agent-quickstart.md](docs/ru/agent-quickstart.md) (RU) — exact calls, replies and refusals |
+| **Quick start for people** | [docs/en/quickstart.md](docs/en/quickstart.md) (EN) / [docs/ru/quickstart.md](docs/ru/quickstart.md) (RU) |
 | **CLI command reference** | [docs/en/cli.md](docs/en/cli.md) (EN) / [docs/ru/cli.md](docs/ru/cli.md) (RU) |
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
 | **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |
-| **MCP tools (119 project + 7 brain = 126; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
-| **Skills reference (12 core + brain conditional, 25+ official opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
+| **MCP tools (146; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
+| **Skills reference (13 core skills, 20 official skills opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
 | **SENAR compliance matrix** | [docs/en/senar-compliance-matrix.md](docs/en/senar-compliance-matrix.md) |
@@ -108,11 +111,11 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 scripts/           Core Python (CLI → Service → Backend)
 docs/              Documentation (en/, ru/, research/)
 harness/           Shared resources for all IDEs (renamed from agents/ in v1.4 to avoid collision with .claude/agents/)
-  skills/          12 core skill definitions auto-deployed (+ /brain conditionally on Notion config) + 25+ official/vendor opt-in via --include-official
-  roles/           5 role profiles (developer, architect, qa, tech-writer, ui-ux)
+  skills/          13 core skills auto-deployed + 20 official skills opt-in via --include-official
+  roles/           6 roles (developer, architect, devops, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
-  claude/mcp/      tausik-project (119) + tausik-brain (7) = 126 main; optional codebase-rag +7 -> 133 total — see docs/en/mcp.md
+  claude/mcp/      tausik-project (146) main; optional codebase-rag +7 -> 153 total — see docs/en/mcp.md
 bootstrap/         One-command project setup
 tests/             pytest suite (3355 tests)
 .tausik/           Runtime data (DB, config) — gitignored
@@ -144,44 +147,31 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: none | Branch: v1-9-wave | Version: 1.8.0
-Tasks: 1232/1400 done, 0 active, 1 blocked
-Blocked: release-18-breaking-change-notes
+Session: #264 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
+Tasks: 1510/1661 done, 1 active, 0 blocked
+Active: release-1-9-0-cut-tag-snapshot
 
 ### Memory tail
 Context (5):
-- #414 Аудит качества сессий #177-#181: страховочная сеть полного прогона натянута в CI и отключена от розе
-- #412 Замер трекеров #179: внешних авторов у пяти исправленных тикетов нет — посылка плана 1.9 неверна
-- #406 Разбор поля 178: три оси августовского обзора, которые не вернулись, прогнаны — четыре находки, две 
-- #404 Замер вырожденности наших контролей по принципу RENAR §13.9.4: три контроля дают нулевое или почти н
-- #397 Аудит качества сессии #176: шесть закрытий, две находки гигиены, один дефект приехал из собственной 
+- #712 Трекеры перед тегом 1.9, смена #264: ответы опубликованы в GitLab #5/#6/#14 и GitHub PR #5, ничего н
+- #706 Парный replay rag-first подсказок, смены #261–#263: search_code = 0 в обоих условиях, экономии нет, 
+- #697 Трекеры перед тегом 1.9 (смена #255): 14 GitLab + 2 GitHub + PR #5 — каждому тикету назначено состоя
+- #691 Аудит SENAR 9.5 за смены #243-#250: улики закрытий, когерентность, полный прогон — три находки, ни о
+- #684 Трекеры на момент остановки смены #241: 13 открытых в GitLab, 2 в GitHub
 Decisions (5):
-- #261 ТИКЕТ ПОТРЕБИТЕЛЯ О НАШЕМ ДЕФЕКТЕ ПЕРЕЕЗЖАЕТ В НАШ ТРЕКЕР, А У ПОТРЕБИТЕЛЯ НЕ ТРОГАЕТСЯ НИЧЕГО. Sortula #49 перенесён в 
-- #260 ПУБЛИКУЕТСЯ ТЕКУЩЕЕ ДЕРЕВО ЦЕЛИКОМ, ВКЛЮЧАЯ КОММИТ 2c95b81, И ДУБЛИРУЕТСЯ В GITLAB. Владелец выбрал вариант D из четырёх
-- #259 ПОРЯДОК РАБОТ ВЫРАЖАЕТСЯ РЕБРОМ МЕЖДУ ЗАДАЧАМИ, А НЕ ЧИСЛОМ ПРИОРИТЕТА. Из трёх вариантов задачи task-next-cannot-expres
-- #258 ВЫЧЕРКИВАНИЕ В ПАМЯТИ ЕСТЬ НАДПИСЬ ПОВЕРХ СО СЛЕДОМ, А НЕ УДАЛЕНИЕ. Текст записи меняется, но остаётся проверяемая запис
-- #257 GITHUB СТАНОВИТСЯ ОСНОВНЫМ МЕСТОМ РАЗРАБОТКИ, GITLAB — ЗЕРКАЛО И САЙТ. Проекция tausik/ ПУБЛИКУЕТСЯ. Историю НЕ переписы
+- #371 ПРОВЕРКА СОРАЗМЕРНА ПРАВКЕ. Владелец, смена #263, сказано не в первый раз и потому записано: «мы превращаем разработку в
+- #370 Состав 1.9 расширен по указанию владельца в смене #258 историей release19-tracker-promises: GitLab #5 (штамп версии), #6
+- #369 Состав 1.9 расширен по указанию владельца в смене #251 историей release19-clean-publication-and-onboarding (решение #368
+- #368 МОДЕЛЬ ПУБЛИКАЦИИ 1.9 УТОЧНЕНА ВЛАДЕЛЬЦЕМ, смена #251. (1) Сайт tausik.tech живёт ТОЛЬКО в отдельном репозитории GitLab 
+- #367 Состав релиза 1.9 пересказан ОДНОЙ строкой, потому что генератор ROADMAP.md читал дополняющее решение #363 как полный со
 Conventions (5):
-- #417 Тест, утверждающий ЛИТЕРАЛ исходника продукта, ломается на каждом рефакторинге и не проверяет обещан
-- #416 Замер, у которого быстрая и медленная тропы меряются РАЗНЫМ окном ожидания, врёт в пользу быстрой
-- #413 Отчёт о вычеркивании, перечисляющий вычеркнутое, есть новая утечка — включая доказательство чистоты
-- #409 Проверка, читающая рабочее дерево, обязана вычесть из него бухгалтерию самого фреймворка
-- #408 Документы владельца живут в репозитории, а не во внешних артефактах
+- #711 Проверка соразмерна правке: полная лента — CI и релизный гейт, тест — на поведение, порождённое поро
+- #701 Owner forbids external artifacts (claude.ai Artifact pages): reports are answered in the terminal or
+- #698 Текст отказа в документации для агента снимается с живого вызова и удерживается тестом по фразе из к
+- #686 Хост, добавляемый в SCAFFOLD_IDES, проверяется ЗАМЕРОМ БИНАРЯ, а не документацией
+- #682 Мёртвый код ищут по СИМВОЛАМ, а не по модулям, и повторяемо — потому что удаление обнажает следующий
 Dead ends (3):
-- #407 Дозаполнить 5722 существующие функции pytest ссылками на нормативные утверждения, чтобы они стали TC
-- #400 Объявить бинарный PDF в relevant_files, чтобы закрыть задачу через verify вместо флага --no-file-cha
-- #396 Отсутствие каталога-источника считать поводом отказаться от проверки дрейфа
-
-**Shared knowledge — from other projects (11):**
-- [decision] v139-D (клиентский mux) НЕ делается в 1.3.9 как «фикс троттлинга». Предпосылка задачи неверна для на
-- [decision] Дефект brain move, найденный внутри задачи о property-тесте проекции, заведён отдельной задачей, а н
-- [decision] Коэффициент калибровки на окне n=10 непригоден для прогноза срока релиза: за одну сессию #153 он про
-- [convention] Windows: команду с вложенными кавычками писать ФАЙЛОМ, а не однострочником
-- [convention] TAUSIK 1.8: verify --task без --relevant-files не сертифицирует закрытие задачи
-- [gotcha] iptables-persistent и Docker на одной машине конфликтуют
-- [gotcha] Ansible copy кладёт файлы побайтово — CRLF ломает шебанг
-- [gotcha] Ansible молча игнорирует ansible.cfg в world-writable каталоге
-- [pattern] Проверять содержимое ответа, а не только HTTP-код
-- [pattern] Мониторинг без heartbeat неотличим от мёртвого
-- [pattern] TAUSIK 1.8: обёртка команды гейта обязана НАЗЫВАТЬСЯ именем инструмента
+- #693 Verify review journal with tracked output documents as relevant files
+- #692 Capture Codex PreToolUse JSON through a temporary generated command hook
+- #689 Ограничить parent-tree претензии done-задач условием completed_at >= started_at верифицируемой задач
 <!-- DYNAMIC:END -->

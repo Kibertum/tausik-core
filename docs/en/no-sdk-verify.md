@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/no-sdk-verify.md)
+
 # No-SDK verification: HTTP endpoint for any agent or CI
 
 TAUSIK attestation without MCP, hooks, or any SDK. `tausik serve` starts a

@@ -16,7 +16,6 @@ import venv
 MIN_PYTHON = (3, 11)
 MIN_PYTHON_STR = ".".join(str(v) for v in MIN_PYTHON)
 
-DOWNLOAD_URL = "https://www.python.org/downloads/"
 DOWNLOAD_MSG = f"""
   Python >= {MIN_PYTHON_STR} is required but was not found.
 

@@ -78,4 +78,8 @@ CREATE INDEX IF NOT EXISTS idx_verify_no_tests_declared
     ON verification_runs(no_tests_declared);
 CREATE INDEX IF NOT EXISTS idx_verify_handle
     ON verification_runs(handle_nonce, handle_redeemed_at);
+CREATE INDEX IF NOT EXISTS idx_gate_runs_outcome ON gate_runs(outcome);
+-- v62: the defect-escape EXISTS over tasks.defect_of scanned the wide tasks
+-- table per done row (5.04 s of status's 5.3 s on 1504 done tasks).
+CREATE INDEX IF NOT EXISTS idx_tasks_defect_of ON tasks(defect_of);
 """

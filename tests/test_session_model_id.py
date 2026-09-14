@@ -36,7 +36,7 @@ def test_sessions_table_has_model_columns(conn):
     assert {"model_id", "model_version"} <= cols
 
 
-def test_session_start_with_no_env(conn, monkeypatch):
+def _clear_model_env(monkeypatch):
     for key in (
         "TAUSIK_AGENT_MODEL",
         "TAUSIK_AGENT_MODEL_VERSION",
@@ -46,6 +46,45 @@ def test_session_start_with_no_env(conn, monkeypatch):
         "CURSOR_MODEL",
     ):
         monkeypatch.delenv(key, raising=False)
+
+
+def test_session_start_with_no_env_falls_through_to_the_provider(conn, monkeypatch):
+    """This test used to assert that no environment meant no model — which was
+    the DEFECT written down as a specification. Measured in session #231: 0 of
+    231 sessions carried a model id and 0 of 1560 tasks carried a pin, because
+    Claude Code exports none of those variables and nothing else was consulted.
+
+    The environment is now the first step of a chain, not the whole of it.
+    """
+    import sys
+
+    _clear_model_env(monkeypatch)
+
+    class _Provider:
+        def get_active_model(self):
+            return "glm-4.6"
+
+    monkeypatch.setitem(sys.modules, "providers", type("M", (), {"get": lambda _n: _Provider()}))
+    import agent_model_source
+
+    monkeypatch.setattr(agent_model_source, "_detected_ide", lambda: "claude")
+
+    sid = conn.session_start()
+    row = conn._conn.execute(
+        "SELECT model_id, model_version FROM sessions WHERE id=?", (sid,)
+    ).fetchone()
+    assert row[0] == "glm-4.6", "the provider knew the model and the session ignored it"
+    assert row[1] is None
+
+
+def test_session_start_records_absence_when_nothing_at_all_reports_a_model(conn, monkeypatch):
+    """The other end of the same chain: silence everywhere is still absence, and
+    absence is NULL — not a guess derived from the host's name."""
+    import agent_model_source
+
+    _clear_model_env(monkeypatch)
+    monkeypatch.setattr(agent_model_source, "from_provider", lambda ide: (None, None))
+
     sid = conn.session_start()
     row = conn._conn.execute(
         "SELECT model_id, model_version FROM sessions WHERE id=?", (sid,)

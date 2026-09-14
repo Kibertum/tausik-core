@@ -15,13 +15,17 @@ from __future__ import annotations
 import argparse
 import sys
 
-# Known-good invocations for the commands agents most often get wrong
+# Known-good invocations for the commands agents most often get wrong.
+# EVERY entry is parsed against the real parser by
+# tests/test_cli_examples_parse.py — an entry here is a claim, not a comment,
+# and a wrong hint costs more than no hint because it looks authoritative.
 # (epic add has only 2 positionals; task add requires --role; memory add
 # takes type+title+content positionally; ...). Keep entries short — they
 # are printed verbatim into the agent's context on every arg error.
 EXAMPLES: dict[str, list[str]] = {
     "tausik task add": [
-        'tausik task add <story-slug> <task-slug> "Title" --stack python --complexity medium --role developer',
+        'tausik task add "Title" --story <story-slug> --slug <task-slug> --role developer',
+        'tausik task add "Title" --story <story-slug> --stack python --complexity medium',
     ],
     "tausik task quick": ['tausik task quick "Title" --goal "..." --role developer'],
     "tausik task start": ["tausik task start <slug>"],
@@ -37,7 +41,7 @@ EXAMPLES: dict[str, list[str]] = {
     "tausik story add": ['tausik story add <epic-slug> <story-slug> "Title"'],
     "tausik memory add": [
         'tausik memory add gotcha "Title" "Content" --tags tag1 tag2',
-        "tausik memory add {context,convention,dead_end,gotcha,pattern} <title> <content>",
+        'tausik memory add convention "Title" "Content" --task <slug>',
     ],
     "tausik decide": ['tausik decide "Decision text" --rationale "why" --task <slug>'],
     "tausik dead-end": ['tausik dead-end "approach tried" "why it failed"'],

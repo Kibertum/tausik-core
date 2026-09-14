@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/stacks.md)
+
 # Stack Plugin Guide
 
 > **TL;DR.** Each stack is a `stack.json` declaration that lives in `stacks/<name>/`. The framework loads them via a `StackRegistry`. To add a new stack you write one JSON file; to customize an existing one you drop an override in `.tausik/stacks/<name>/`.

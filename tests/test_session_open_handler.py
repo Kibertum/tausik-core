@@ -136,7 +136,7 @@ class TestEnvelopeProjection:
     def _fat_self_check(n_modules: int = 120) -> dict:
         """A self_check report shaped like a real one: absolute paths + mtimes."""
         paths = {
-            f"d:\\Work\\Kibertum\\clients\\kibertum\\tausik\\core\\scripts\\module_{i:03d}.py": (
+            f"c:\\Projects\\Kibertum\\clients\\kibertum\\tausik\\core\\scripts\\module_{i:03d}.py": (
                 1785176436.215096 + i
             )
             for i in range(n_modules)
@@ -254,7 +254,7 @@ class TestEnvelopeProjection:
         """
         blob = json.dumps(fat_env, ensure_ascii=False).lower()
         assert os.getcwd().lower() not in blob
-        assert "d:\\work\\kibertum" not in blob
+        assert "c:\\projects\\kibertum" not in blob
 
     def test_stale_modules_named_by_basename_not_path(self, seeded, monkeypatch):
         """AC7 — on real drift, name the culprit without shipping its absolute path.
@@ -269,7 +269,7 @@ class TestEnvelopeProjection:
         drifted["stale_modules"] = [
             {
                 "module": "handlers.py",
-                "path": "d:\\Work\\Kibertum\\clients\\kibertum\\tausik\\core\\scripts\\handlers.py",
+                "path": "c:\\Projects\\Kibertum\\clients\\kibertum\\tausik\\core\\scripts\\handlers.py",
                 "snapshot_mtime": 1785176436.2,
                 "current_mtime": 1785176999.9,
                 "delta_seconds": 563.7,

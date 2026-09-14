@@ -1,15 +1,14 @@
-**English** | [Русский](/ru/docs/mcp)
+**English** | [Русский](../ru/mcp.md)
 
 # TAUSIK MCP — Tool Reference
 
-**126 tools** for AI agents (119 project + 7 brain; current actual count, asserted via `len(TOOLS)` on both servers). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**146 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 126 count - total with it is 133 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 152 count - total with it is 153 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (117): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
-- `tausik-brain` — cross-project Shared Brain tools (7).
+- `tausik-project` — project-scoped tools (146): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 
 There is also an optional `codebase-rag` server documented at the bottom.
 
@@ -105,11 +104,13 @@ Session limit is gap-based **active time** (paused after 10-min idle gap), not w
 | Tool | Description | Required Parameters |
 |---|---|---|
 | `tausik_epic_add` | Create epic | `slug`, `title` |
-| `tausik_epic_list` | List epics | — |
+| `tausik_epic_list` | List epics; `(stale: N)` — tasks created since the description was last edited (a report, not a gate) | — |
+| `tausik_epic_update` | Change an epic's title and/or description — the group's intent; at least one field | `slug` |
 | `tausik_epic_done` | Complete epic | `slug` |
 | `tausik_epic_delete` | Delete (cascade: stories + tasks) | `slug` |
 | `tausik_story_add` | Create story in epic | `epic_slug`, `slug`, `title` |
-| `tausik_story_list` | List stories | — |
+| `tausik_story_list` | List stories; `(stale: N)` as for epics | — |
+| `tausik_story_update` | Change a story's title and/or description; at least one field | `slug` |
 | `tausik_story_done` | Complete story | `slug` |
 | `tausik_story_delete` | Delete (cascade: tasks) | `slug` |
 | `tausik_roadmap` | Tree: epic → story → task | — |
@@ -117,7 +118,7 @@ Session limit is gap-based **active time** (paused after 10-min idle gap), not w
 ## RENAR substrate — SPEC + ADAPT (17 tools)
 
 The RENAR substrate: formal requirements (**SPEC**) and requirement interpretation
-(**ADAPT**, §7) with forward interpretations, backward findings and a dual signature.
+(**ADAPT**, §7) with forward interpretations, backward findings and the architect's signature (§7.5).
 Used by QG-0 for substantial/deep tasks and by `tausik renar export` / `conformance`.
 See also `tausik_reason_step` (RENAR trace) under "Tasks".
 
@@ -125,7 +126,7 @@ See also `tausik_reason_step` (RENAR trace) under "Tasks".
 
 | Tool | Description | Required Parameters |
 |---|---|---|
-| `tausik_spec_add` | Create a SPEC artifact. `type` is a closed list of 9 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS); a new type is an amendment to the standard, not free text | `slug`, `type`, `title`, `version` |
+| `tausik_spec_add` | Create a SPEC artifact. `type` is a closed list of 11 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC); a new type is an amendment to the standard, not free text | `slug`, `type`, `title`, `version` |
 | `tausik_spec_list` | List SPECs, optionally filtered by type (JSON) | — |
 | `tausik_spec_show` | SPEC + linked tasks (JSON) | `slug` |
 | `tausik_spec_update` | Patch mutable fields (title/version/content_ref/status); `type` and `slug` are immutable | `slug` |
@@ -141,12 +142,69 @@ See also `tausik_reason_step` (RENAR trace) under "Tasks".
 | `tausik_adapt_create` | Create an ADAPT header (§7); `tz_ref` (the source requirement doc) is mandatory; starts in `draft` | `slug`, `title`, `tz_ref` |
 | `tausik_adapt_interpret` | Forward interpretation (§7.4.3); tz_ref/citation/interpretation/scope_in/scope_out all required | `tz_ref`, `citation`, `interpretation`, `scope_in`, `scope_out` (+ adapt) |
 | `tausik_adapt_finding` | Backward finding; `category` is a closed list of 7 (contradiction/gap/hidden-assumption/feasibility/regulatory/terminology/scope) | `adapt_slug`, `category`, `description` |
-| `tausik_adapt_sign` | Dual signature (§7.5): `architect` signs the body with the project's ed25519 key, `client` signs with name+timestamp; both roles ⇒ `signed` | `adapt_slug`, `role`, `signed_by` |
+| `tausik_adapt_sign` | Architect signature (§7.5): signs the body with the project's ed25519 key ⇒ `approved` (§13.3.3 p.77 — status and signature are separate facts). `role=client` is REFUSED — ADR-011 withdrew the client signature under ADAPT; what the client approves belongs in an ACTZ | `adapt_slug`, `role`, `signed_by` |
 | `tausik_adapt_show` | ADAPT + forward interpretations, findings, signatures, links (JSON) | `slug` |
-| `tausik_adapt_list` | List ADAPTs, optionally filtered by status (draft/signed/superseded) | — |
+| `tausik_adapt_list` | List ADAPTs, optionally filtered by status (§7.8.1 closed list: draft/review/asked/answered/approved/frozen/superseded) | — |
 | `tausik_adapt_delta` | Delta-ADAPT superseding its parent (§7.6); the parent becomes `superseded`, and a later link to it is a FATAL dangling link (§7.6.4) | `parent_slug`, `new_slug`, `title`, `tz_ref` |
 | `tausik_adapt_link` | Link an ADAPT to a task/SPEC; the target must exist; a link to a superseded ADAPT is FATAL (§7.6.4) | `adapt_slug`, `target_type`, `target_slug` |
 | `tausik_adapt_search` | FTS5 over slug/title/tz_ref (JSON) | `query` |
+
+### ACTZ (15)
+
+The contractual clarification protocol (§5A, ADR-011) — client-facing, unlike ADAPT: what
+the client approves belongs here. Lifecycle `draft` → `sent` → `signed` → `superseded`,
+computed from signature-role coverage. One project ed25519 key exists (not one per party):
+`architect` signs for real; `client` records `signed_by`+`signed_at` only, no simulated
+independent signature. `final_tz`/`orphans` (§5A.4) are read-only projections over the
+signed points below — the derived acceptance reference, never a third copy of the text.
+
+| Tool | Description | Required Parameters |
+|---|---|---|
+| `tausik_actz_create` | Create an ACTZ header (§5A); `tz_ref` mandatory; starts in `draft` | `slug`, `title`, `tz_ref` |
+| `tausik_actz_point` | Add a numbered point; only while `draft` (frozen once any signature is recorded). `tz_ref` names which clause of the original ТЗ (or a prior ACTZ point) this point clarifies | `actz_slug`, `point_no`, `tz_ref`, `text` |
+| `tausik_actz_sign` | Record a signature (§5.5.3): `architect` signs the canonical body with the project ed25519 key; `client` records `signed_by`+`signed_at` only. First signature ⇒ `sent`; both roles ⇒ `signed` | `actz_slug`, `role`, `signed_by` |
+| `tausik_actz_verify` | Verify the architect ed25519 signature against the current body | `slug` |
+| `tausik_actz_show` | ACTZ + points, signatures, links (JSON) | `slug` |
+| `tausik_actz_list` | List ACTZ headers, optionally filtered by status (draft/sent/signed/superseded) | — |
+| `tausik_actz_delta` | Delta-ACTZ superseding its parent; the parent becomes `superseded`, a later link to it is refused | `parent_slug`, `new_slug`, `title`, `tz_ref`, `supersession_rationale` |
+| `tausik_actz_link` | Link an ACTZ to a task/SPEC; target must exist; a link to a superseded ACTZ is refused | `actz_slug`, `target_type`, `target_slug` |
+| `tausik_actz_unlink` | Remove an ACTZ↔task/SPEC link | `actz_slug`, `target_type`, `target_slug` |
+| `tausik_actz_delete` | Delete an ACTZ (cascades points/signatures/links/decided-in edges) | `slug` |
+| `tausik_actz_search` | FTS5 over slug/title/tz_ref (JSON) | `query` |
+| `tausik_actz_decided_in` | Record that an ADAPT backward finding was decided-in a point of a SIGNED ACTZ, with provenance (`linked_by`); refuses an unsigned target | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no`, `linked_by` |
+| `tausik_actz_decided_in_remove` | Remove a decided-in edge | `adapt_slug`, `finding_id`, `actz_slug`, `actz_point_no` |
+| `tausik_actz_final_tz` | The derived acceptance reference (§5A.4): per ТЗ clause, the latest both-role-signed point, naming what it overrode. `as_of` (ISO-8601) shows it at a past moment | — |
+| `tausik_actz_orphans` | Signed points no ADAPT reflects — an obligation outside requirements (§5A.4, fatal), found by query | — |
+
+### AT (9)
+
+Acceptance Test artifacts (§8A, ADR-012) — the one check traceability (TC → SR
+→ ADAPT → ТЗ) structurally cannot provide, because a wrong interpretation
+makes every TC pass. These tools RECORD the result of the isolated-generation
+procedure (docs/en/at-generation-procedure.md) — none of them generate
+anything. `tz_text` (verbatim contract quote) and `generated_by` are mandatory
+on create; `check_freshness` compares against the LIVE `final_tz_snapshot` for
+each AT's `tz_ref` and names what changed (§8A property 2 — regenerate before
+every trial). See also the `at_freshness` warn gate.
+
+`record_result`/`diagnose`/`release_readiness` implement §8A.4/§10.4.3's
+routing matrix. TAUSIK has no first-class TC artifact yet (a separate, open
+task) — `diagnose` never reads pytest/verification_runs itself; the caller
+supplies `tc_outcome` explicitly. `release_readiness` needs no TC at all: it
+is ready only when every AT's latest outcome is green and fresh — distinct
+from QG-4, which is optional and measures business outcome.
+
+| Tool | Description | Required Parameters |
+|---|---|---|
+| `tausik_at_create` | Record an AT — the result of the isolated-generation procedure, not a generator | `slug`, `tz_ref`, `tz_text`, `scenario`, `source_as_of`, `generated_by` |
+| `tausik_at_show` | Show an AT record (JSON) | `slug` |
+| `tausik_at_list` | List AT records, optionally filtered by tz_ref (JSON) | — |
+| `tausik_at_delete` | Delete an AT record | `slug` |
+| `tausik_at_search` | FTS5 over slug/tz_ref/tz_text/scenario (JSON) | `query` |
+| `tausik_at_check_freshness` | Which AT records are stale against the current final-TZ (§8A.2); omit slug to check all | — |
+| `tausik_at_record_result` | Record one observed trial outcome (append-only — a re-run is a new row) | `slug`, `outcome` |
+| `tausik_at_diagnose` | Route an AT's latest outcome against a caller-supplied `tc_outcome` (§8A.4/§10.4.3) | `slug`, `tc_outcome` |
+| `tausik_at_release_readiness` | §8A.4 release gate: ready only when every AT is green and fresh | — |
 
 ## Knowledge
 
@@ -263,39 +321,6 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 | `tausik_update_claudemd` | Update dynamic section in CLAUDE.md | — |
 | `tausik_fts_optimize` | Optimize FTS5 indexes | — |
 
-## Shared Brain (`tausik-brain`, 7 tools)
-
-| Tool | Description | Required Parameters |
-|---|---|---|
-| `brain_search` | Search the Notion-backed brain (FTS over local mirror) | `query` |
-| `brain_get` | Get a brain record by id | `id`, `category` |
-| `brain_store_decision` | Store a cross-project decision | `name`, `decision` |
-| `brain_store_pattern` | Store a cross-project pattern | `name`, `description` |
-| `brain_store_gotcha` | Store a cross-project gotcha | `name`, `description` |
-| `brain_draft_artifact` | Dry-run artifact publish (taxonomy + scrub + classifier risk; no Notion write) | `kind` |
-| `brain_cache_web` | Cache a web result for token reuse | `name`, `url`, `content` |
-
-The `tausik-brain` MCP server runs config-agnostic at startup and reads registry from `.tausik-brain/` configuration. The total tool count for this server is 7 (verified via `len(TOOLS)` in `harness/claude/mcp/brain/tools.py`).
-
-### Brain config requirements
-
-Since 1.8, `tausik_decide` does **not** route to the brain at all — recording a
-decision never publishes it anywhere (decision #221). Brain config governs only
-the explicit outward path: `brain_store_*`, `brain_cache_web`, and
-`tausik brain move --to-brain`. When `brain.enabled=true` in
-`.tausik/config.json`, ALL of the following must be set or those operations fail
-rather than mirroring:
-
-- `brain.database_ids.decisions`, `database_ids.patterns`, `database_ids.gotchas`, `database_ids.web_cache` — all four Notion database UUIDs.
-- `brain.notion_integration_token_env` — env var name (default `NOTION_TAUSIK_TOKEN`) that must resolve to a non-empty token via env, `.tausik/.env`, or `brain.notion_integration_token` in config.
-
-`tausik doctor` surfaces validation errors as a `Brain config` warning row. The fastest fix is `tausik brain init` (interactive wizard) or set `brain.enabled=false` to opt out cleanly.
-
-`tausik brain move --to-brain` is the only outward path, and it is a deliberate
-act — not a catch-up for a misconfiguration window. Decisions stay local because
-that is the rule now, not because the config was broken; nothing accumulates a
-backlog waiting to be flushed to Notion.
-
 ## Codebase RAG (separate optional MCP server)
 
 | Tool | Description | Required Parameters |
@@ -308,7 +333,7 @@ backlog waiting to be flushed to Notion.
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 126 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 146 count — they belong to the optional `codebase-rag` server.
 
 ## Scoped tool surface (`mcp.scope_tools_exposure`)
 
@@ -329,8 +354,8 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 126 tools ≈ 51 KB of tool
-definitions (~12.8k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
+**Measured cost.** The full authored surface is 146 tools ≈ 62 KB of tool
+definitions (~15.9k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
 this and ratchets it). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet
 test keeps every TAUSIK description under that limit so none is silently cut, and

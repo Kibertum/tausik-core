@@ -170,7 +170,7 @@ class TestHook:
         r = _run_hook(tmp_path, tool="Read", file_path=str(tmp_path / "x.md"))
         assert r.returncode == 0
 
-    def test_pre_v30_schema_fails_open(self, tmp_path):
+    def test_pre_v30_schema_refuses_by_default(self, tmp_path):
         tausik = tmp_path / ".tausik"
         tausik.mkdir()
         conn = sqlite3.connect(str(tausik / "tausik.db"))
@@ -181,14 +181,17 @@ class TestHook:
         conn.commit()
         conn.close()
         r = _run_hook(tmp_path, file_path=str(tmp_path / "x.md"))
-        assert r.returncode == 0
+        # 1.9 flip: a schema this gate cannot read is a gate that cannot
+        # evaluate, and it refuses instead of waving the write through.
+        assert r.returncode == 2
+        assert "TAUSIK_HOOK_FAIL_OPEN=1" in r.stderr
 
-    def test_pre_v30_schema_fail_secure_blocks(self, tmp_path):
+    def test_pre_v30_schema_allows_with_the_explicit_opt_out(self, tmp_path):
         tausik = tmp_path / ".tausik"
         tausik.mkdir()
         conn = sqlite3.connect(str(tausik / "tausik.db"))
         # ddl-parity: historical — та же схема ДО v30, здесь для проверки
-        # эскалации TAUSIK_HOOK_FAIL_SECURE на нечитаемой области.
+        # ЯВНОГО отказа от охраны через TAUSIK_HOOK_FAIL_OPEN.
         conn.execute("CREATE TABLE tasks (slug TEXT, status TEXT)")
         conn.execute("INSERT INTO tasks VALUES ('t1', 'active')")
         conn.commit()
@@ -196,9 +199,9 @@ class TestHook:
         r = _run_hook(
             tmp_path,
             file_path=str(tmp_path / "x.md"),
-            env_extra={"TAUSIK_HOOK_FAIL_SECURE": "1"},
+            env_extra={"TAUSIK_HOOK_FAIL_OPEN": "1"},
         )
-        assert r.returncode == 2
+        assert r.returncode == 0
 
     def test_skip_env_bypasses(self, tmp_path):
         _make_db(tmp_path, [("t1", "active", "[]")])

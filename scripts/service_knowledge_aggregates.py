@@ -10,6 +10,8 @@ import re
 from collections import Counter
 from typing import Any
 
+from memory_supersedes import live_head
+
 
 _FILE_PATTERN = re.compile(
     r"\b[\w/.-]+\.(py|js|ts|tsx|jsx|go|rs|java|kt|php|md|json|yaml|yml|sql|sh)\b"
@@ -49,6 +51,48 @@ def flatten_for_injection(text: str | None, limit: int) -> str:
     return " ".join((text or "").split())[:limit]
 
 
+def entry_line(node_id: Any, text: str | None, limit: int, retired: dict[int, list[int]]) -> str:
+    """One `- #id text` line, saying what it replaced when it replaced something.
+
+    THE CHOICE AC2 ASKS FOR, MADE HERE AND NOT LEFT TO FALL OUT: the retired
+    entry is HIDDEN, and the entry that retired it CARRIES the fact on the line
+    it was going to occupy anyway.
+
+    Marking the dead entry instead was the alternative, and its argument is
+    real: an entry that simply vanishes is indistinguishable from one that was
+    lost, and the agent never learns the question was reopened. Its price is
+    what settled it — the tail is five lines per section, and spending one of
+    them on knowledge already known to be wrong is a quota the projects that
+    maintain their memory pay and the careless ones do not.
+
+    The suffix costs nothing and answers the objection: the fact that a revision
+    happened, and the id to look it up by, ride on a line that exists either way.
+
+    THE PRICE, SAID OUT LOUD. When the superseding entry is NOT itself in this
+    section — a convention that replaced a context, or a replacement older than
+    the quota reaches — the retired entry is hidden with nothing to mark it, and
+    that revision is invisible until someone reads the graph. Nothing is stated
+    wrongly; something is left unsaid. `memory lint` still names every such pair,
+    and it is the tool whose job that is.
+    """
+    line = f"- #{node_id} {flatten_for_injection(text, limit)}"
+    try:
+        replaced = retired.get(int(node_id))
+    except (TypeError, ValueError):
+        return line
+    if replaced:
+        line += " (supersedes " + ", ".join(f"#{i}" for i in replaced) + ")"
+    return line
+
+
+# The two headings of the tail, named once: the state gate looks for the first
+# and the sibling trimming (claudemd_writer.strip_foreign_knowledge) drops the
+# section under the second — a tracked AGENTS.md must not carry other
+# projects' knowledge into a repository's history (GitLab #14).
+MEMORY_TAIL_HEADING = "### Memory tail"
+SHARED_KNOWLEDGE_HEADING = "**Shared knowledge — from other projects"
+
+
 def build_compact_memory_tail(be: Any) -> list[str]:
     """One-line-per-item memory recap for CLAUDE.md Current State.
 
@@ -58,14 +102,19 @@ def build_compact_memory_tail(be: Any) -> list[str]:
     (or any backend exception) → return [] and the caller omits the
     subsection entirely.
     """
+    # `live_head` rather than the bare list call, in EVERY section: an entry a
+    # live `supersedes` edge has retired is not printed beside its replacement,
+    # and the freed line goes to the next live entry. Applied to one section
+    # only, this would have traded the contradiction for a disagreement between
+    # sections, which is harder to notice and no more true.
     try:
-        decisions = be.decision_list(5) or []
-        conventions = be.memory_list("convention", 5) or []
-        deadends = be.memory_list("dead_end", 3) or []
+        decisions, sup_dec = live_head(be, lambda n: be.decision_list(n), "decision", 5)
+        conventions, sup_con = live_head(be, lambda n: be.memory_list("convention", n), "memory", 5)
+        deadends, sup_de = live_head(be, lambda n: be.memory_list("dead_end", n), "memory", 3)
         # `context` = durable environment facts (hosts, machines, access, paths).
         # Surfaced every session so the agent never "forgets" them and asks the
         # user for something already recorded (v15p-memory-first-recall).
-        contexts = be.memory_list("context", 5) or []
+        contexts, sup_ctx = live_head(be, lambda n: be.memory_list("context", n), "memory", 5)
     except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return []
 
@@ -78,23 +127,23 @@ def build_compact_memory_tail(be: Any) -> list[str]:
     if not any((decisions, conventions, deadends, contexts, shared, warning)):
         return []
 
-    out: list[str] = ["### Memory tail"]
+    out: list[str] = [MEMORY_TAIL_HEADING]
     if contexts:
         out.append(f"Context ({len(contexts)}):")
         for ctx in contexts:
-            out.append(f"- #{ctx.get('id')} {flatten_for_injection(ctx.get('title'), 100)}")
+            out.append(entry_line(ctx.get("id"), ctx.get("title"), 100, sup_ctx))
     if decisions:
         out.append(f"Decisions ({len(decisions)}):")
         for d in decisions:
-            out.append(f"- #{d.get('id')} {flatten_for_injection(d.get('decision'), 120)}")
+            out.append(entry_line(d.get("id"), d.get("decision"), 120, sup_dec))
     if conventions:
         out.append(f"Conventions ({len(conventions)}):")
         for c in conventions:
-            out.append(f"- #{c.get('id')} {flatten_for_injection(c.get('title'), 100)}")
+            out.append(entry_line(c.get("id"), c.get("title"), 100, sup_con))
     if deadends:
         out.append(f"Dead ends ({len(deadends)}):")
         for de in deadends:
-            out.append(f"- #{de.get('id')} {flatten_for_injection(de.get('title'), 100)}")
+            out.append(entry_line(de.get("id"), de.get("title"), 100, sup_de))
     out.extend(shared)
     out.extend(warning)
     return out
@@ -113,11 +162,20 @@ def build_memory_block(
 
     Best-effort like build_compact_memory_tail: any backend error → '' (the
     block is display-only; it must never break the caller)."""
+    # Same filter as the compact tail, through the same helper. These two
+    # already drifted apart once over line flattening; the fix then was to route
+    # both through one function, and this is that lesson applied a second time.
     try:
-        decisions = be.decision_list(max_decisions)
-        conventions = be.memory_list("convention", max_conventions)
-        deadends = be.memory_list("dead_end", max_deadends)
-        contexts = be.memory_list("context", max_contexts)
+        decisions, sup_dec = live_head(be, lambda n: be.decision_list(n), "decision", max_decisions)
+        conventions, sup_con = live_head(
+            be, lambda n: be.memory_list("convention", n), "memory", max_conventions
+        )
+        deadends, sup_de = live_head(
+            be, lambda n: be.memory_list("dead_end", n), "memory", max_deadends
+        )
+        contexts, sup_ctx = live_head(
+            be, lambda n: be.memory_list("context", n), "memory", max_contexts
+        )
     except Exception:  # noqa: BLE001 — display-only aggregate, non-fatal
         return ""
 
@@ -145,25 +203,25 @@ def build_memory_block(
         lines.append("")
         lines.append(f"**Context — environment facts ({len(contexts)}):**")
         for ctx in contexts:
-            lines.append(f"- #{ctx.get('id')} {flatten_for_injection(ctx.get('title'), 80)}")
+            lines.append(entry_line(ctx.get("id"), ctx.get("title"), 80, sup_ctx))
 
     if decisions:
         lines.append("")
         lines.append(f"**Recent decisions ({len(decisions)}):**")
         for d in decisions:
-            lines.append(f"- #{d.get('id')} {flatten_for_injection(d.get('decision'), 100)}")
+            lines.append(entry_line(d.get("id"), d.get("decision"), 100, sup_dec))
 
     if conventions:
         lines.append("")
         lines.append(f"**Conventions ({len(conventions)}):**")
         for c in conventions:
-            lines.append(f"- #{c.get('id')} {flatten_for_injection(c.get('title'), 80)}")
+            lines.append(entry_line(c.get("id"), c.get("title"), 80, sup_con))
 
     if deadends:
         lines.append("")
         lines.append(f"**Recent dead ends ({len(deadends)}):**")
         for de in deadends:
-            lines.append(f"- #{de.get('id')} {flatten_for_injection(de.get('title'), 80)}")
+            lines.append(entry_line(de.get("id"), de.get("title"), 80, sup_de))
 
     lines.extend(shared)
 
@@ -227,7 +285,7 @@ def _shared_section(max_shared: int) -> tuple[list[str], list[str]]:
     out: list[str] = []
     if raw:
         out.append("")
-        out.append(f"**Shared knowledge — from other projects ({len(raw)}):**")
+        out.append(f"{SHARED_KNOWLEDGE_HEADING} ({len(raw)}):**")
         out.extend(f"- [{kind}] {flatten_for_injection(text, 100)}" for kind, text in raw)
 
     return out, ([" ", f"⚠ {warning}"] if warning else [])

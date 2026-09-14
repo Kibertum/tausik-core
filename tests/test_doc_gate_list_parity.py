@@ -74,9 +74,9 @@ def test_architecture_states_the_current_line_cap():
 
     Deliberately narrow: only `architecture.md` makes a claim about THIS repo.
     `claude-md-guide.md` uses "max 400 lines per file" as an example of how to
-    phrase a concrete rule, and `brain-db-schema.md` carries a generic
-    service-splitting heuristic — neither describes this project's cap, and
-    forcing them to track it would be a false positive.
+    phrase a concrete rule — it does not describe this project's cap, and
+    forcing it to track the cap would be a false positive. (The brain schema page
+    used to be the second such example; it left with the Notion transport.)
     """
     cap = GATE_REGISTRY["filesize"].default_config["max_lines"]
     for rel in ("docs/en/architecture.md", "docs/ru/architecture.md"):

@@ -24,6 +24,27 @@ def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _prevents_of(result: dict[str, Any]) -> str:
+    """The effect this gate declares it prevents (§8.6(a)), for the record.
+
+    Read from the result when the runner already put it there, otherwise looked
+    up in the registry by gate name. A gate the registry does not know — a
+    project's own command gate — has no declaration to record, and the answer is
+    the empty string rather than a guess: an invented effect in an audit row is
+    worse than an absent one.
+    """
+    declared = result.get("prevents")
+    if isinstance(declared, str) and declared.strip():
+        return declared.strip()
+    try:
+        from gate_registry import GATE_REGISTRY
+
+        spec = GATE_REGISTRY.get(str(result.get("name") or ""))
+    except Exception:  # noqa: BLE001 — the registry must never break recording
+        return ""
+    return spec.prevents.strip() if spec else ""
+
+
 def record_gate_runs(
     conn: sqlite3.Connection,
     *,
@@ -51,6 +72,20 @@ def record_gate_runs(
             1 if r.get("skipped") else 0,
             r.get("duration_ms"),
             stamp,
+            # v47: the outcome is what a later reader decides on. A result dict
+            # from an older caller carries neither field and stores NULL —
+            # honestly "recorded before the distinction existed", never guessed
+            # from the booleans, which is the conflation being retired.
+            r.get("outcome") or None,
+            r.get("reason_code") or None,
+            # v51, SENAR 1.4 §8.6(g): the record has to identify the state the
+            # verdict was reached FOR, and without the prevented effect it does
+            # not say what was held back. Taken from the registry at run time
+            # rather than joined later: the declaration can be edited, and a row
+            # must keep the wording that was in force when it was written.
+            # NULL for a caller that carries none — "recorded before the
+            # distinction existed", never inferred.
+            _prevents_of(r) or None,
         )
         for r in gate_results
     ]
@@ -58,8 +93,9 @@ def record_gate_runs(
         """
         INSERT INTO gate_runs
             (verification_run_id, task_slug, trigger, gate_name, severity,
-             passed, skipped, duration_ms, ran_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             passed, skipped, duration_ms, ran_at, outcome, reason_code,
+             prevents)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )

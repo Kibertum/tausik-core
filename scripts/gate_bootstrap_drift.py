@@ -14,6 +14,17 @@ in `_handle_gate_toggle` this same cycle (an operation declared a check,
 executed as a write). An edit that did not reach the running copy has NOT taken
 effect, and blocking its closure is correct; the fix is one named command.
 
+THE CHAIN HAS THREE LINKS, not two, and this gate now checks all three:
+source → deployed profile (the two comparisons above), and deployed profile →
+THE PROCESS THAT IS RUNNING IT. Session #191 measured the third: after a
+redeploy, a fresh `gates status` listed the new gate while the MCP server
+started before the redeploy closed two tasks without it. The server judges
+with the registry it imported at start, and the files under it can change
+without it noticing. `running_source_drift` takes a content snapshot at
+process start; a change since then means this process would apply an older
+gate set than the one on disk, and closing on that is refused with the one fix
+there is — restart the process (a fresh CLI process is never stale).
+
 Extracted to its own module (gate_renar_drift pattern) so gate_runner stays
 under the filesize cap.
 """
@@ -21,10 +32,20 @@ under the filesize cap.
 from __future__ import annotations
 
 import os
-
-from tausik_utils import library_source
 import sys
 from typing import cast
+
+import gate_outcome
+import running_source_drift
+from tausik_utils import library_source
+
+# What a reader of a CANNOT-RUN row is supposed to DO. Both non-execution paths
+# owe the same answer; a refusal without a next action is a dead end wearing a
+# better name (#182).
+_CANNOT_RUN_REMEDY = (
+    "This gate produced no evidence, so it certifies nothing. Re-run once the "
+    "fault above is gone; if it persists, the drift is unknown, not absent."
+)
 
 
 def _harness_drift_names(project_dir: str) -> list[str]:
@@ -53,7 +74,7 @@ def _harness_drift_names(project_dir: str) -> list[str]:
     return cast("list[str]", check_deployed_trees(lib_dir, project_dir))
 
 
-def run_bootstrap_drift_gate_for(gate: dict, files: list[str]) -> tuple[bool, str]:
+def run_bootstrap_drift_gate_for(gate: dict, files: list[str]) -> gate_outcome.GateOutcome:
     """Registry-uniform ``(gate, files)`` entrypoint (gate-registry-single-source).
 
     Both arguments are ignored: the scan compares the deployed profiles against
@@ -63,7 +84,7 @@ def run_bootstrap_drift_gate_for(gate: dict, files: list[str]) -> tuple[bool, st
     return run_bootstrap_drift_gate()
 
 
-def run_bootstrap_drift_gate() -> tuple[bool, str]:
+def run_bootstrap_drift_gate() -> gate_outcome.GateOutcome:
     """Fail iff a present IDE profile's deployed source drifts from `scripts/` or
     the `harness/` fan-out.
 
@@ -81,18 +102,48 @@ def run_bootstrap_drift_gate() -> tuple[bool, str]:
         project_dir = os.path.dirname(os.path.abspath(find_tausik_dir()))
         scripts = scripts_drift_names(project_dir)
         harness = _harness_drift_names(project_dir)
-    except Exception as e:  # noqa: BLE001 — a gate must never crash task-done
-        return True, f"Bootstrap drift check unavailable ({type(e).__name__}: {e})."
+    except Exception as e:  # noqa: BLE001 — caught, but recorded as non-execution, not as a pass
+        return gate_outcome.could_not_run(
+            gate_outcome.REASON_RUNNER_ERROR,
+            f"Bootstrap drift check unavailable ({type(e).__name__}: {e}).",
+            remedy=_CANNOT_RUN_REMEDY,
+        )
+
+    # The third link is checked FIRST and regardless of the other two: a
+    # process that loaded an older copy than the one on disk is stale even
+    # when disk and source agree — that is precisely the state a redeploy
+    # leaves a running server in, and the state in which "no drift" would be
+    # the most misleading answer this gate could give.
+    stale = running_source_drift.changed_since_start()
+    if stale:
+        shown = "\n  ".join(stale[:20])
+        more = f"\n  … (+{len(stale) - 20} more)" if len(stale) > 20 else ""
+        return gate_outcome.failed(
+            f"Stale process: {len(stale)} file(s) in the tree this process runs "
+            "from changed AFTER it started, so it is executing an older copy — "
+            "the gate set it applies and the handlers it runs are the ones it "
+            f"imported before the change:\n  {shown}{more}\n"
+            "Fix: restart the tausik-project MCP server (Claude Code: /mcp → "
+            "reconnect), or close via the CLI `.tausik/tausik task done …`, "
+            "which is a fresh process. The framework does not restart it for "
+            "you (decision #189)."
+        )
 
     if scripts is None and not harness:
-        return True, "No scripts/ source dir — bootstrap drift check skipped."
+        return gate_outcome.not_applicable(
+            gate_outcome.REASON_NO_SOURCE_DIR,
+            "No scripts/ source dir — bootstrap drift check skipped.",
+        )
     names = sorted(set((scripts or []) + harness))
     if not names:
-        return True, "No bootstrap drift — deployed profiles match source."
+        return gate_outcome.passed(
+            "No bootstrap drift — deployed profiles match source, and this "
+            "process runs the copy that is on disk."
+        )
 
     shown = "\n  ".join(names[:20])
     more = f"\n  … (+{len(names) - 20} more)" if len(names) > 20 else ""
-    return False, (
+    return gate_outcome.failed(
         f"Bootstrap drift: {len(names)} deployed file(s) do NOT match source — "
         "the edit did not reach the copy that runs (hooks/MCP load from the "
         "profile, not from scripts/ or harness/):\n  "

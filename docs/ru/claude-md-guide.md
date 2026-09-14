@@ -1,10 +1,10 @@
-[English](/docs/claude-md-guide) | **Русский**
+[English](../en/claude-md-guide.md) | **Русский**
 
 <!-- audit-translation-drift: skip -->
 
 # Как написать эффективный CLAUDE.md
 
-> Полный гайд на английском в [claude-md-guide.md](/docs/claude-md-guide). Здесь приводится сокращённая версия.
+> Полный гайд на английском в [claude-md-guide.md](../en/claude-md-guide.md). Здесь приводится сокращённая версия.
 
 ## Золотые правила
 
@@ -27,9 +27,13 @@
 
 ## Архитектура (краткое описание + где смотреть детали)
 
+## Компакция (что обязано пережить сжатие контекста: задача и slug, scope и
+## квитанция verify, замеры сессии, отменённые правила, запреты владельца,
+## открытые развилки — шаблон bootstrap несёт готовый блок)
+
 ## Команды (≤15 типичных команд)
 
 ## Current State (DYNAMIC block, авто-обновляется)
 ```
 
-См. также: [skills.md](skills.md), [skill-spec.md](/docs/skill-spec).
+См. также: [skills.md](skills.md), [skill-spec.md](../en/skill-spec.md).

@@ -1,9 +1,17 @@
-**English** | [Русский](/ru/docs/cli)
+**English** | [Русский](../ru/cli.md)
 
 # TAUSIK CLI — Command Reference (v1.5)
 
 All commands are invoked via the wrapper: `.tausik/tausik <command> [subcommand] [arguments]`.
 On Windows the wrapper is `.tausik/tausik.cmd`. The same surface is also available via MCP (`tausik_*` tools); see `mcp.md`.
+
+> **Arguments containing `>`, `<`, `&` or `|` on Windows.** The `.cmd` wrapper runs under `cmd.exe`, which parses those characters as operators **before** the batch file starts — even when the caller passed an argument list and never asked for a shell. Measured: of nine hostile arguments, five were corrupted and two were corrupted **silently** — `48->49` arrived as `48-` with exit code 0 while the output was diverted into a stray file named `49`, and `a&b` arrived as `a` with the tail `b` executed as a command. That is how session #200 stored a truncated handoff and reported success.
+>
+> Such a call now **exits 3** and prints to stderr what was on the command line, what reached the process, and the name of the stray file if `cmd.exe` had already created one. A corrupted value is never stored in silence.
+>
+> What to do instead: call the POSIX wrapper `.tausik/tausik` from bash (it passes `"$@"` and cannot lose an argument) or use the MCP tools — neither goes through a shell. If the redirection was **deliberate** (a script writing `cmd /c "tausik.cmd status > out.txt"`, say), set `TAUSIK_CMDLINE_GUARD=off`.
+>
+> Redirection typed by hand in an interactive console (`tausik status > out.txt`) is left alone: there `%CMDCMDLINE%` holds only the shell's own startup line and names no arguments.
 
 ## Initialization
 
@@ -28,24 +36,43 @@ metrics [--cost]               # With --cost: rollup usage_events by task_slug (
 metrics record-session         # Persist LLM usage (tokens/cost/tool/model) for current or explicit session
 metrics log-usage              # Append one manual usage_events row (--task-slug optional; no session_usage_metrics overwrite)
 metrics cost [--since ISO] [--until ISO]   # SUM tokens/cost + COUNT rows grouped by task (NULL slug excluded)
-metrics tokens [--since ISO] [--until ISO] [--task SLUG]    # Token rollup per task (sum input/output/cache tokens)
-                                # Source: PostToolUse hook scripts/hooks/posttool_usage.py writes one
-                                #   usage_events row per tool call (source='posttool', tool_name=<tool>)
-                                #   attributed to the currently active task.
-                                # Pricing: scripts/cost_pricing.py — single source of truth.
+metrics tokens [--last N] [--rebuild] [--json]   # Context volume per tool over the last N sessions
+                                # Source: .tausik/token_metrics.jsonl, written by the SessionEnd hook
+                                #   scripts/hooks/session_metrics.py, which walks the transcript and
+                                #   splits message-level usage across the tool_use blocks in a message.
+                                # THE COLUMN THAT MATTERS IS ctx_*: the message's full input context
+                                #   (input + cache_creation + cache_read). That is the quantity a
+                                #   token-economy claim is about (decision #338). The in_* column is
+                                #   NOT the input: with prompt caching on it is the uncached remainder
+                                #   — literally 2 tokens per message on this project — so it is a
+                                #   doubled call counter wearing a cost label.
+                                # --rebuild re-derives the whole ledger from EVERY transcript of this
+                                #   project on disk. Needed because the incremental writer only ever
+                                #   sees the transcript of the session that just ended, and its
+                                #   coverage can be far narrower than the history that exists.
+                                # The COVERAGE line in the report header names the denominator: how
+                                #   many of all sessions carry rows, and since when. A value that is
+                                #   absent from the data prints as "не измерено", never as 0.
+                                # Not to be confused with `metrics cost`, which sums money from
+                                #   usage_events in the DB.
                                 # See docs/{en,ru}/cost-telemetry.md.
-doctor                         # Health check: venv + DB + MCP + skills + drift
+doctor                         # Health check: venv + DB + MCP + skills + drift + stale bytecode
+doctor --fix-bytecode          # Purge EXACTLY the .pyc whose co_filename names another directory (after a tree move)
 ```
 
 ## Hierarchy
 
 ```bash
 epic add <slug> <title> [--description TEXT]
+epic update <slug> [--title T] [--description TEXT]   # the group's intent can be edited
+epic list [--stale-over N]     # stale = tasks created since the description was last edited; a report, not a gate
 epic list
 epic done <slug>
 epic delete <slug>             # CASCADE: deletes all stories + tasks
 
 story add <epic_slug> <slug> <title> [--description TEXT]
+story update <slug> [--title T] [--description TEXT]
+story list [--epic E] [--stale-over N]
 story list [--epic EPIC_SLUG]
 story done <slug>
 story delete <slug>            # CASCADE: deletes all tasks
@@ -78,12 +105,30 @@ task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ..
                                 #       milliseconds. If no verify run exists → blocks with remediation.
                                 #       Opt-out: .tausik/config.json → {"task_done":{"auto_verify":true}}
                                 #       restores the legacy "heavy gates inline" behavior. NO --force.
+                                # --gates-not-applicable (1.9): CLOSE ON A RUN IN WHICH NO GATE
+                                #       EXECUTED. SENAR 1.4 §8.6(e): the absence of a negative
+                                #       finding is NOT a positive verdict, so `verify
+                                #       --no-tests-expected` records the declaration and this flag
+                                #       is the SEPARATE, RECORDED act of accepting it. For work that
+                                #       honestly maps to no test: documentation, config, an
+                                #       investigation. It does NOT rescue a run in which a gate was
+                                #       APPLICABLE and still did not execute (COULD_NOT_RUN) — that
+                                #       one is fixed, not acknowledged.
 task block <slug> [--reason TEXT]
 task unblock <slug>             # blocked -> active
 task review <slug>              # active -> review
 task update <slug> [--title T] [--goal G] [--notes N] [--acceptance-criteria AC]
                   [--scope S] [--scope-exclude S] [--stack S] [--complexity C] [--role ROLE]
-                  [--call-budget N] [--tier TIER]
+                  [--call-budget N] [--tier TIER] [--ticket REF ...]
+                                # --ticket (1.9): the external ticket(s) this task answers.
+                                #   SPACE-separated, never comma: --ticket github#7 gitlab#12
+                                #   Form `<tracker>#<id>` or a full https ticket URL. The tracker
+                                #   name is REQUIRED and a bare `#7` is refused at write time:
+                                #   this repo has two trackers, and GitHub #7 and GitLab #7 are
+                                #   DIFFERENT tickets by different authors. `task add` takes it too.
+                                #   Closing the task PRINTS a reminder to answer the author. Nothing
+                                #   is sent anywhere and no ticket is closed: the ticket may have
+                                #   described more than the task closed.
 task delete <slug>
 task delegate <slug>            # Orchestrator-worker: mark a complexity<=medium task delegated to a worker sub-agent (records recommended model + parent session; complex refused)
 task undelegate <slug>          # Clear a task's delegation
@@ -157,6 +202,16 @@ signed: it certifies emptiness. Before this flag the only working move
 while the warning offered a flag `verify` did not have — which made ignoring the
 warning the RATIONAL response rather than a careless one.
 
+**The paths are SPACE-separated** — `--relevant-files a.py b.py`, on `verify`,
+`task update` and `task done` alike; the list is stored as JSON, which is the
+storage shape, not the input format. A value like `"a.py,b.py"` is ONE argument
+to argparse and used to be stored as one path, so scoped gates ran over nothing
+and the refusal came from `verify` worded as "no tests mapped" (GitLab #13).
+Since 1.9 an element that carries a comma and resolves to no file is refused at
+the write, naming the right form; a path with a comma in its name that exists
+is accepted as it is, and a declared path that does not exist yet is accepted
+with a note — the task may be about to create it.
+
 **`--no-tests-expected`.** A run in which no gate actually executed (everything
 `[SKIP]`) blocks: it proves nothing, and a green recorded against it would stay
 valid for the whole TTL across arbitrary tree changes. For documentation,
@@ -219,9 +274,20 @@ gates enable <name>             # Enable gate
 gates disable <name>            # Disable gate
 ```
 
-## RENAR drift detectors (§3.11)
+The `test_dedupe` gate (block, on task-done and commit) reddens on GROWTH in
+structurally indistinguishable tests. The baseline is a ratchet in the committed
+`tausik/gates.json`, so existing debt blocks nobody. The subject is
+DISTINGUISHABILITY, not count: the gate never measures how many tests exist, so
+deleting tests can never satisfy it. Full per-group report:
 
-RENAR §3.11 defines 8 drift classes. 2 are implemented (audit recommendation R4),
+```bash
+python scripts/audit_pytest_dedupe.py            # markdown report by group
+python scripts/audit_pytest_dedupe.py --json     # the same, machine-readable
+```
+
+## RENAR drift detectors (§4.11)
+
+RENAR §4.11 defines 8 drift classes. 2 are implemented (audit recommendation R4),
 both in **warning mode** — findings never block; the agent reads the listing and
 reacts.
 
@@ -229,12 +295,16 @@ reacts.
 drift                          # Run every implemented detector
 drift --detector schema        # drift-1 only (artifact schema)
 drift --detector provenance    # drift-7 only (TC↔requirement provenance)
+drift --detector supersession  # ADR-007: a delta-ADAPT on a superseded parent
+drift --detector standard      # THE STANDARD moving (corpus vs our declarations)
 ```
 
 - **drift-1 (schema)** — re-validates SPEC/ADAPT against the closed lists +
   cross-field invariants a DB CHECK cannot express: `delta_n ↔ parent_adapt`
   (delta_n>0 without a parent_adapt / delta_n=0 with a parent_adapt),
-  `signed ↔ dual signature` (§7.5),
+  `approved ↔ architect signature` (§7.5 — the client signature was withdrawn
+  by ADR-011; surviving records are NAMED as `signature-role-withdrawn`, never
+  erased),
   blank version. Catches direct-DB tampering and migration gaps.
 - **drift-7 (TC↔requirement provenance)** — TAUSIK has no first-class TC; the
   verification unit is a task (its acceptance_criteria == the "TC") linked to a
@@ -243,10 +313,20 @@ drift --detector provenance    # drift-7 only (TC↔requirement provenance)
   current requirement version) and `deprecated-requirement` (in-flight task
   linked to a deprecated SPEC).
 
-Also wired as gates `renar_drift_schema` / `renar_drift_provenance`
-(severity=warn, trigger=task-done). The other 6 classes are out of scope.
+- **standard (the corpus moved)** — the only detector that compares OUR
+  DECLARATIONS WITH THE STANDARD ITSELF rather than the database with our
+  declarations: the closed lists (SPEC types §8.3, finding categories §7.4.4,
+  ADAPT statuses §7.8.1), the corpus edition, and accepted ADRs this repository
+  never mentions. The source is a local checkout named by
+  `renar_standard_corpus` in `.tausik/config.json`; without it the command
+  prints "standard corpus: NOT CHECKED" and does NOT report "no drift".
+  Proposed ADRs are never findings.
 
-## RENAR conformance (§14.4)
+Also wired as gates `renar_drift_schema` / `renar_drift_provenance`
+(severity=warn, trigger=task-done). `standard` is not wired as a gate: not every
+machine carries the corpus. The other 5 classes are out of scope.
+
+## RENAR conformance (§13.4)
 
 ```bash
 renar conformance              # Generate RENAR-CONFORMANCE.yaml (to stdout)
@@ -255,10 +335,10 @@ renar conformance --assessor <id>
 renar export [--out DIR] [--check]  # Serialize specs+adapts+conformance to a derived renar/ tree; --check is a CI drift gate (exit 1 if stale)
 ```
 
-A self-assessment manifest with every §14.4.2 mandatory field. The RENAR-1..5
-level is **computed honestly from live DB state** (§14.4.3), never declared: any
+A self-assessment manifest with every §13.4.2 mandatory field. The RENAR-1..5
+level is **computed honestly from live DB state** (§13.4.3), never declared: any
 unmet mandatory clause → `pre_adoption: true` + `level: null` (the kai pattern,
-audit §0.2.3). The `assessment-evidence` section reports raw counts + per-signal
+the adoption audit). The `assessment-evidence` section reports raw counts + per-signal
 met/unmet and exactly where the level is blocked, so an agent sees what is missing
 to reach the next level. Machinery clauses (closed lists, V1–V6, QG-0/QG-2,
 schema-validation hook = our drift-1) are confirmed by capability; data clauses
@@ -331,10 +411,10 @@ On `session end`, TAUSIK also performs a best-effort usage capture via `scripts/
 ## Knowledge
 
 ```bash
-decide <text> [--task SLUG] [--rationale TEXT]
+decide <text> [--task SLUG] [--rationale TEXT] [--global]   # --global: the shared store ~/.tausik-knowledge, no project row
 decisions [--limit N]           # List decisions (default: 20)
 
-memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG]
+memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG] [--global]
 memory list [--type TYPE] [--limit N]
 memory search <query>           # FTS5 full-text search
 memory show <id>
@@ -394,7 +474,22 @@ audit research [--min-age-days N] [--json]
                                 # Audit docs/{en,ru}/research/ for stale unreferenced files
                                 # (default >30 days, no refs in tests/scripts/CHANGELOG/README).
                                 # Read-only — surfaces candidates for docs/_archive/research/.
+audit evidence [--json] [--no-git]
+                                # Do the test citations in closed tasks still resolve?
+                                # Read-only and NEVER blocking: renaming a test is legitimate,
+                                # the point is that the decay becomes VISIBLE.
 ```
+
+`audit evidence` has four buckets, deliberately not merged into one "broken" number:
+
+| bucket | meaning |
+|---|---|
+| `ROTTED` | the target WAS in git history and is gone — renamed or deleted after closure. The reference decayed; the coverage may be intact. |
+| `NEVER_EXISTED` | the target was never in history — a citation invented at closure time. |
+| `ILLUSTRATIVE` | an EXAMPLE, not a citation: `tests/foo.py`, `tests/test_does_not_exist.py`, `tests/../scripts/prod.py`. Such names are quoted by tasks whose SUBJECT is the citation format itself. |
+| `UNKNOWN_HISTORY` | git refused to answer — the verdict is withheld, not guessed. Appears under `--no-git`. |
+
+`ILLUSTRATIVE` was split off in session #209 on a measurement: of the 25 refs then in `NEVER_EXISTED`, 13 were examples and 3 were genuine, so the headline over-reported real rot by a factor of two beside 22 `ROTTED` entries a reader was being taught to skim. Examples are **counted separately, not dropped**: a number that silently loses entries is the next version of the same problem, and the rule that fired is printed next to each entry. The notion of an example path is shared with the `stale_file` detector of `memory lint` (`scripts/illustrative_paths.py`) — a second copy of the placeholder list is exactly how the two detectors drifted apart.
 
 ## Reviews (SENAR Rule 10.15) — v1.5
 
@@ -444,16 +539,6 @@ a friendly `Error: ...` line on stderr and exit `1`. They never produce
 a Python traceback (v1.5: `SkillManagerError` is caught alongside
 `ServiceError` in `main()`).
 
-## Shared Brain (cross-project)
-
-```bash
-brain init                      # Initialize brain: 4 Notion DBs + config
-brain status                    # Mirror freshness, sync state, registered projects (v1.5: also `stale: N min`)
-brain sync [--category C] [--json]  # Pull updates from Notion into the local mirror (v1.5)
-brain move <source_id> --to-brain --kind {decision,pattern,gotcha} [--keep-source]
-brain move <notion_page_id> --to-local --category {decisions,patterns,gotchas,web_cache} [--force]
-```
-
 ## Search and Navigation
 
 ```bash
@@ -497,6 +582,51 @@ doc extract <path>              # Convert DOCX/PPTX/XLSX/HTML/EPUB/PDF to markdo
 
 Opt-in: requires `markitdown` and Python ≥3.11. See `docs/en/markitdown-integration.md`.
 
+## A bypassed gate leaves a record (SENAR 1.4 §8.6(j))
+
+Editing a task's artifact by a route no gate stands in front of — INCLUDING a
+direct edit by the supervisor — admits the effect QG-0 declared without a
+positive verdict; §8.6(h) counts that as a bypass regardless of intent. This is
+NOT a prohibition but a regulated exception: the legitimate cases the standard
+names stay open — an incident while agent capacity is unavailable, an
+environment where the agent does not run. What is required is a RECORD.
+
+```bash
+events emit-supervision --vector direct_edit --task <slug> \
+    --rationale "incident, agent capacity unavailable" \
+    --risk-accepted "the fix ships without a scoped verify" \
+    --remediation "re-run verify and re-close the task" \
+    --approved-by "owner"
+```
+
+A record with no `--rationale` is REFUSED (exit 2): a bypass without a reason is
+the form filled in without looking. What is refused is the RECORD, never the
+edit — the edit has already happened.
+
+WHY THE METRIC IS COMPUTED FROM RECORDS AND NOT FROM SELF-REPORT (§9.2, §9.3): a
+self-reported figure is a CLAIM, not a measurement; it satisfies neither §8.6(c)
+nor §8.6(d), and the standard cannot demand of gates what it does not demand of
+its own measure of compliance.
+
+THE TWO FREQUENCIES ARE NESTED AND SHALL NOT BE ADDED (§8.6(i)): manual
+interventions are a SUBSET of bypasses, so `metrics` prints them as "of which"
+rather than as a second total. Summed, they double-count, and the threshold
+fires on a team doing nothing wrong.
+
+## Generated Documents
+
+```bash
+doc constants [--check]         # docs/_generated/constants.json from pyproject + MCP counts
+doc roadmap [--check]           # ROADMAP.md from the live DB; --check exits 1 when stale
+```
+
+`doc roadmap` reissues the release roadmap at the project root. The release
+composition comes from the owner's decisions (the newest decision naming the
+release stories), the counters from the live DB — nothing in the file is typed
+by hand. Closing a task moves those counters, so the reissue belongs **after
+`task done` and before the commit**; otherwise `tests/test_release_roadmap.py`
+goes red and names this same command.
+
 ## Events (Audit Log)
 
 ```bash
@@ -523,6 +653,70 @@ snippet detect [--path X] [--threshold N]  # AST clone detection: normalizes
                                            #   Idempotent (deduped by hash).
 ```
 
+## Redacting from memory (v1.9, decision #258)
+
+The task journal is append-only, memory has no `update`, decisions have only
+`list`. That is deliberate: a record that can be quietly rewritten stops being
+evidence. But irrevocability must have a paired mechanism, or the first line
+recorded in error becomes permanent.
+
+`redact` is that mechanism. It is an **overwrite that leaves a trace**, not a
+deletion.
+
+```bash
+# Dry run — THE DEFAULT. Writes nothing, shows what it would touch.
+tausik redact --pattern "internal.example.com" --label internal-host \
+              --reason "a private host address does not travel to a public repo"
+
+# Apply. IRREVERSIBLE.
+tausik redact --pattern "internal.example.com" --label internal-host \
+              --reason "..." --apply
+
+# By regular expression instead of a literal
+tausik redact --regex --pattern "alpha|beta|gamma" --label third-party-project --reason "..."
+
+# What has been redacted in this project
+tausik redact list --limit 50
+```
+
+**A bad regular expression is refused in words, not in a traceback.** `--regex`
+with an unparseable pattern gives a named refusal with exit code 1: the command
+names the pattern AS TYPED and quotes `re`'s explanation together with the error
+position. The pattern is printed without repr quotes on purpose — `re` reports
+the fault BY POSITION, and repr doubles backslashes and would shift every index.
+The refusal happens BEFORE any read or write, and it is distinguishable from the
+neighbouring "zero matches" outcome: an unparseable pattern and an empty result
+are different answers with different remedies.
+
+**What happens to the text.** A match is replaced by the visible marker
+`[redacted: <label>]`. The reader must see that something stood here: a silently
+shortened sentence is indistinguishable from one that always read that way.
+
+**What happens to the trace.** Every touched column gets a row in the
+`redactions` table: the entity, the field, the CLASS of what was redacted, the
+reason, the number of replacements, the time. The trace is neither deleted nor
+edited — it is the only reason an irrevocable journal can still be trusted once
+rewriting became possible.
+
+**`--label` names the class, not the value.** A trace quoting the secret would
+put the leak back into the database, in a column nobody would think to scan.
+
+**Scope.** Prose columns only, declared in one place —
+`scripts/redact_scope.py`. Structural columns (`slug`, `status`, timestamps,
+foreign keys) are excluded: those are addresses, not text, and rewriting an
+address breaks the rows that reference it while removing nothing a human wrote.
+
+**There is no restore.** The original text is stored nowhere — not in the trace,
+not in a shadow copy. The only way back is a backup of `.tausik/tausik.db` taken
+BEFOREHAND; the dry run says so before anything is written.
+
+**After applying, run `tausik state export`** — the projection is generated from
+the database, and until it is rebuilt the tree still shows the old text.
+
+**Zero matches is its own outcome, not a success.** The command says "no match"
+in its own words: a caller convinced there is a leak must learn that the pattern
+was wrong, rather than receive a clean exit indistinguishable from real work.
+
 ## Maintenance
 
 ```bash
@@ -531,6 +725,62 @@ fts optimize                          # Optimize FTS5 indexes
 hud                                   # Live one-screen dashboard: task + session + gates + logs
 suggest-model [complexity]            # Recommend Claude model: simple→Haiku, medium→Sonnet, complex→Opus
 ```
+
+## Commands not covered by the sections above
+
+This section exists because of a measurement (session #235): of the 53 commands
+the parser declares, fourteen were named nowhere in this file, so an agent had
+no way to learn they existed. Alphabetical within groups; `--help` carries the
+detail for each.
+
+```bash
+# --- the RENAR contract line ---
+actz create|point|sign|verify|show|list|delta|link|unlink|delete|search
+actz decided-in|decided-in-remove|final-tz|orphans   # ACTZ acts and the final TZ
+adapt create|interpret|finding|sign|verify|show|list|delta|link|unlink|delete|search
+                                                    # adapting a norm to this project
+spec list|show|add|update|delete|link|unlink|search  # requirements and their links
+at create|show|list|delete|search                    # acceptance tests
+at check-freshness|record-result|diagnose|release-readiness
+
+# --- evidence and signatures ---
+key init                       # create the project keypair under .tausik/keys/
+key show                       # print the public key fingerprint
+receipt show                   # print AND re-verify the latest signed receipt
+receipt export|verify          # export a receipt, or check one on its own
+
+# --- code navigation (see graph.md and symbol-index.md) ---
+graph build                    # fill the artifact graph: index plus both edge layers
+graph show <path>              # what relates to a file, and on what evidence
+graph status                   # how much is stored, what is stale, which roots
+symbol <name>                  # a definition, its file:line and its callers
+coherence [--json]             # collect the tree's coherence material for a judge
+
+# --- tree and store maintenance ---
+knowledge export|restore|import-brain   # the shared knowledge store to a file and back
+knowledge export --to <dir> --redacted  # a copy meant to travel: paths, e-mails, private URLs, project names -> placeholders
+db prune                       # delete the oldest .tausik/tausik.db.bak.* files
+config show                    # the resolved configuration, with the tier each value came from
+config set <key> <value>       # persist an override into .tausik/config.json
+redact --pattern <pattern>     # scrub a secret from the knowledge history (--apply: not a dry run)
+redact list                    # show the redactions already applied
+
+# --- release and network ---
+publish snapshot --from <ref> --parent <sha> [--dry-run]   # the public snapshot: the filtered tree on top of the public head (decision #368)
+publish verify --snapshot <sha> --from <ref>               # snapshot == the filtered tree of the source, byte for byte
+push-ok [--ttl N]              # issue a git-push ticket (60 seconds by default)
+serve [--host H] [--port P]    # run the local receipt-verification endpoint
+```
+
+> `serve` binds `127.0.0.1` by default. Exposing it needs `--yes-expose` — a
+> separate, explicit consent rather than a flag anyone sets by habit.
+>
+> The endpoint does NOT share its port. On Windows the `SO_REUSEADDR` that
+> `http.server` enables by default permits binding an address already in
+> ACTIVE use, and before 1.9 two servers really did bind one port with both
+> calls succeeding. The second is now refused: an endpoint whose port can be
+> silently shared is not one whose answers about receipts can be relied on.
+> On POSIX the flag stays, where it only means rebinding a `TIME_WAIT` port.
 
 ## Constants
 

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import ExitStack
 from typing import TYPE_CHECKING, Any
 
 from state_export import _dedup_preserve, _json_list  # emitter's own list canonicalizers
@@ -361,14 +362,19 @@ def import_tree(svc: ProjectService, root: str, dry: bool = False) -> dict[str, 
     now = utcnow_iso()
     conn = svc.be._conn
     ap = _Applier(conn, dry)
-    if not dry:
-        svc.be.begin_tx()
-        # tasks.defect_of is a self-referential FK, and rows are applied in slug
-        # order (not dependency order), so a task referencing a not-yet-inserted
-        # sibling would trip the per-statement FK check. Defer enforcement to
-        # COMMIT, by when every slug exists (reset automatically at tx end).
-        conn.execute("PRAGMA defer_foreign_keys=ON")
-    try:
+    # ExitStack because the transaction is CONDITIONAL on `dry`, not on
+    # ownership: a dry run must touch neither the transaction nor the FK pragma.
+    # The unwinding is `transaction()`'s, so this function no longer carries its
+    # own begin/commit/rollback triplet.
+    with ExitStack() as stack:
+        if not dry:
+            stack.enter_context(svc.be.transaction())
+            # tasks.defect_of is a self-referential FK, and rows are applied in
+            # slug order (not dependency order), so a task referencing a
+            # not-yet-inserted sibling would trip the per-statement FK check.
+            # Defer enforcement to COMMIT, by when every slug exists (reset
+            # automatically at tx end).
+            conn.execute("PRAGMA defer_foreign_keys=ON")
         epic_id, story_id = {}, {}
         cur = ap._rows("epics")
         for rec in parsed["epics"]:
@@ -425,11 +431,6 @@ def import_tree(svc: ProjectService, root: str, dry: bool = False) -> dict[str, 
         _apply_edges(ap, parsed, {"memory": mem_id, "decision": dec_id}, now)
         if not dry:
             _reindex_fts(conn)
-            svc.be.commit_tx()
-    except Exception:
-        if not dry:
-            svc.be.rollback_tx()
-        raise
     return ap.report
 
 

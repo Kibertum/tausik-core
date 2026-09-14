@@ -105,3 +105,75 @@ class TestRealGit:
             pytest.skip("git not available")
         with pytest.raises(subprocess.CalledProcessError):
             git_exec.run(["cat-file", "-e", "0" * 40], cwd=".", timeout=5, check=True)
+
+    def test_input_really_reaches_the_child(self):
+        """Batch-mode git reads what we pipe in, and DEVNULL still holds without it.
+
+        `hash-object --stdin` names the two branches apart by construction: fed
+        b"abc\\n" it answers that blob's id; with stdin closed it hashes the
+        empty blob. Neither touches the object store (no -w). Bytes, because a
+        text-mode pipe applies the platform's newline translation on the way
+        in — on Windows "abc\\n" would arrive as "abc\\r\\n" and hash differently.
+        """
+        if not self._has_git():
+            pytest.skip("git not available")
+        fed = git_exec.run(
+            ["hash-object", "--stdin"], cwd=".", timeout=5, binary=True, input=b"abc\n"
+        )
+        assert fed.returncode == 0
+        assert fed.stdout.strip() == b"8baef1b4abc478178b004d62031cf7fe6db6f903"
+        closed = git_exec.run(["hash-object", "--stdin"], cwd=".", timeout=5, binary=True)
+        assert closed.returncode == 0
+        assert closed.stdout.strip() == b"e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+
+
+class TestInputKeepsTheGuard:
+    """`input` opens a pipe of our own; it never hands the child the inherited stdin."""
+
+    def test_input_sets_stdin_none_so_subprocess_may_open_its_pipe(self, monkeypatch):
+        # subprocess.run refuses `input` beside any other stdin value; the keyword
+        # is still passed (explicitly None) so the AST guard keeps seeing it.
+        cap = _Captured()
+        monkeypatch.setattr(subprocess, "run", cap.fake_run)
+        git_exec.run_git(["git", "cat-file", "--batch"], input=b"HEAD:./x\n")
+        assert "stdin" in cap.kwargs
+        assert cap.kwargs["stdin"] is None
+        assert cap.kwargs["input"] == b"HEAD:./x\n"
+
+    def test_run_passes_input_through_and_omits_it_otherwise(self, monkeypatch):
+        cap = _Captured()
+        monkeypatch.setattr(subprocess, "run", cap.fake_run)
+        git_exec.run(["cat-file", "--batch"], timeout=5, binary=True, input=b"a\n")
+        assert cap.kwargs["input"] == b"a\n"
+        assert cap.kwargs["stdin"] is None
+        git_exec.run(["cat-file", "--batch"], timeout=5, binary=True)
+        assert "input" not in cap.kwargs
+        assert cap.kwargs["stdin"] is subprocess.DEVNULL
+
+    def test_both_given_is_subprocesss_loud_error_not_a_quiet_pick(self):
+        """NEGATIVE, real subprocess (review #38): the documented incompatibility
+        is observable, not just a statement about forwarded kwargs."""
+        with pytest.raises(ValueError, match="stdin and input"):
+            git_exec.run_git(["git", "--version"], stdin=subprocess.DEVNULL, input=b"x\n")
+
+    def test_input_none_is_the_same_as_no_input(self, monkeypatch):
+        # NEGATIVE: an explicit None must not open a pipe — DEVNULL stays.
+        cap = _Captured()
+        monkeypatch.setattr(subprocess, "run", cap.fake_run)
+        git_exec.run_git(["git", "status"], input=None)
+        assert cap.kwargs["stdin"] is subprocess.DEVNULL
+
+    def test_an_explicit_stdin_still_wins_over_input(self, monkeypatch):
+        """NEGATIVE: the floor-not-ceiling contract survives `input`.
+
+        Found by review: the first shape of the guard overrode a caller's
+        explicit `stdin` with None whenever `input` was present — the one
+        thing the docstring promised never to do. The guard fills a gap; it
+        does not arbitrate between two things the caller said.
+        """
+        cap = _Captured()
+        monkeypatch.setattr(subprocess, "run", cap.fake_run)
+        sentinel = object()
+        git_exec.run_git(["git", "cat-file", "--batch"], stdin=sentinel, input=b"x\n")
+        assert cap.kwargs["stdin"] is sentinel
+        assert cap.kwargs["input"] == b"x\n"

@@ -66,7 +66,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     build_session_subparsers(sub)
 
+    from project_parser_actz import build_actz_subparsers
     from project_parser_adapts import build_adapt_subparsers
+    from project_parser_at import build_at_subparsers
     from project_parser_aidd import build_aidd_subparsers
     from project_parser_role import build_role_subparsers
     from project_parser_specs import build_spec_subparsers
@@ -76,13 +78,23 @@ def build_parser() -> argparse.ArgumentParser:
     build_role_subparsers(sub)
     build_spec_subparsers(sub)
     build_adapt_subparsers(sub)
+    build_actz_subparsers(sub)
+    build_at_subparsers(sub)
     build_aidd_subparsers(sub)
-    sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
+    doctor_p = sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
+    doctor_p.add_argument(
+        "--fix-bytecode",
+        action="store_true",
+        help="Purge exactly the .pyc files that name a directory other than their own "
+        "(stale after a tree move; the interpreter recreates them). Reports otherwise.",
+    )
 
-    drift_p = sub.add_parser("drift", help="RENAR drift detectors (schema + TC↔req provenance)")
+    drift_p = sub.add_parser(
+        "drift", help="RENAR drift detectors (schema, TC↔req provenance, standard corpus)"
+    )
     drift_p.add_argument(
         "--detector",
-        choices=["schema", "provenance", "all"],
+        choices=["schema", "provenance", "supersession", "standard", "all"],
         default="all",
         help="Which RENAR drift detector to run (default: all)",
     )
@@ -129,6 +141,15 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="LOCAL directory to write into. Remote destinations (s3://, https://, UNC) "
         "are refused: the store is kept unredacted and must not leave this machine.",
+    )
+    kn_export.add_argument(
+        "--redacted",
+        action="store_true",
+        help="Pass every text field through the publication boundary: absolute paths, "
+        "e-mails, private URLs (publication.private_url_patterns) and project names "
+        "(this project's directory name plus publication.project_names) become typed "
+        "placeholders. The manifest says the backup is redacted. Use this for a backup "
+        "that will leave the machine; a plain backup stays faithful for restore.",
     )
     kn_restore = kn_sub.add_parser(
         "restore", help="Rebuild the shared store from a backup (matches records by uuid)"
@@ -375,10 +396,9 @@ def build_parser() -> argparse.ArgumentParser:
     snip_extract.add_argument("id", type=int, help="Snippet id (from `snippet detect`)")
     snip_extract.add_argument(
         "--scope",
-        choices=("brain", "global"),
-        default="brain",
-        help="Destination: 'brain' publishes to Notion (network, scrubbed); "
-        f"'global' copies into the local SHARED store ({shared_store})",
+        choices=("global",),
+        default="global",
+        help=f"Destination: 'global' copies into the local SHARED store ({shared_store})",
     )
 
     # --- events ---
@@ -413,6 +433,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="the hook/gate that was bypassed, e.g. opencode_qg0",
     )
     ev_emit.add_argument("--details", default=None, help="free-text error/context")
+    # SENAR 1.4 §8.6(j) / Gate Bypass 3.13: a direct edit of a task artifact is
+    # a regulated exception, and the record carries WHY, what risk was accepted,
+    # how it gets undone and who agreed. Structured flags rather than more prose
+    # in --details: four fields buried in free text can be neither required nor
+    # counted, which is the state this replaces.
+    ev_emit.add_argument(
+        "--task",
+        dest="bypass_task",
+        default=None,
+        help="task whose artifact was edited (required for --vector direct_edit)",
+    )
+    ev_emit.add_argument("--rationale", default=None, help="why the gate was bypassed")
+    ev_emit.add_argument(
+        "--risk-accepted", dest="risk_accepted", default=None, help="what could go wrong"
+    )
+    ev_emit.add_argument("--remediation", default=None, help="how it gets undone")
+    ev_emit.add_argument("--approved-by", dest="approved_by", default=None, help="who agreed to it")
 
     # --- db (v14b-junk-audit-pass: backup hygiene) ---
     db_p = sub.add_parser("db", help="Database hygiene helpers")
@@ -428,35 +465,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of most-recent backups to keep (default: 3, 0 = delete all)",
     )
 
-    # --- SENAR ops subparsers (delegated) ---
-    from project_parser_brain import add_brain
-    from project_parser_config import add_config
-    from project_parser_ops import (
-        add_audit,
-        add_dead_end,
-        add_doc,
-        add_explore,
-        add_hygiene,
-        add_metrics,
-        add_push_ok,
-        add_redact,
-        add_review,
-        add_run,
-        add_skill,
-    )
+    # --- SENAR ops subparsers (delegated; the list lives beside its parsers) ---
+    from project_parser_ops import add_ops
 
-    add_dead_end(sub)
-    add_explore(sub)
-    add_audit(sub)
-    add_skill(sub)
-    add_metrics(sub)
-    add_hygiene(sub)
-    add_brain(sub)
-    add_run(sub)
-    add_doc(sub)
-    add_review(sub)
-    add_config(sub)
-    add_push_ok(sub)
-    add_redact(sub)
+    add_ops(sub)
 
     return p

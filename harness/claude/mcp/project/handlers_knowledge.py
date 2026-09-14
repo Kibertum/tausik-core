@@ -51,74 +51,50 @@ def _do_memory_add(svc: Any, args: dict) -> str:
 
 
 def _do_memory_list(svc: Any, args: dict) -> str:
-    memories = svc.memory_list(
-        args.get("type"),
-        args.get("limit", 50),
-        include_archived=bool(args.get("include_archived", False)),
-    )
-    return render_list(
-        memories,
-        lambda r: (
-            f"#{r['id']} [{r['type']}]{' [archived]' if r.get('archived_at') else ''} {r['title']}"
-        ),
-        "No memories.",
+    """Transport. The copy this replaces showed no tags."""
+    from render_memory import memory_list_lines
+
+    return "\n".join(
+        memory_list_lines(
+            svc,
+            args.get("type"),
+            args.get("limit", 50),
+            include_archived=bool(args.get("include_archived", False)),
+        )
     )
 
 
 def _do_memory_show(svc: Any, args: dict) -> str:
-    m = svc.memory_show(args["id"])
-    return f"#{m['id']} [{m['type']}] {m['title']}\n{m['content']}"
+    """Transport. The copy this replaces dropped created-at, tags and task."""
+    from render_memory import memory_show_lines
+
+    return "\n".join(memory_show_lines(svc, args["id"]))
 
 
 def _do_memory_archive(svc: Any, args: dict) -> str:
-    result = svc.memory_archive(args["before"], confirm=bool(args.get("confirm", False)))
-    days = result["before_days"]
-    if result["applied"]:
-        return f"Archived {result['archived']} memory rows older than {days} days."
-    cands = result.get("candidates", [])
-    if not cands:
-        return f"No unarchived rows older than {days} days."
-    head = (
-        f"Dry-run: {len(cands)} rows older than {days} days. Re-run with confirm=true to apply.\n"
+    from render_memory import memory_archive_lines
+
+    return "\n".join(
+        memory_archive_lines(svc, args["before"], confirm=bool(args.get("confirm", False)))
     )
-    sample = "\n".join(f"  #{r['id']} [{r['type']}] {r['title']}" for r in cands[:20])
-    tail = f"\n  ... +{len(cands) - 20} more" if len(cands) > 20 else ""
-    return head + sample + tail
 
 
 def _do_memory_dedupe(svc: Any, args: dict) -> str:
-    threshold = float(args.get("threshold", 0.85))
-    n = int(args.get("limit", 200))
-    suggestions = svc.memory_dedupe(threshold=threshold, n=n)
-    if not suggestions:
-        return f"No pairs above threshold {threshold:.2f} in the last {n} unarchived rows."
-    lines = [f"{len(suggestions)} pair(s) above {threshold:.2f}:"]
-    for s in suggestions:
-        ta = s["title_a"][:40]
-        tb = s["title_b"][:40]
-        lines.append(
-            f'  {s["ratio"]:.3f} [{s["type"]}] #{s["id_a"]} "{ta}" <-> #{s["id_b"]} "{tb}"'
+    from render_memory import memory_dedupe_lines
+
+    return "\n".join(
+        memory_dedupe_lines(
+            svc,
+            threshold=float(args.get("threshold", 0.85)),
+            limit=int(args.get("limit", 200)),
         )
-    return "\n".join(lines)
+    )
 
 
 def _do_memory_lint(svc: Any, args: dict) -> str:
-    result = svc.memory_lint(apply=bool(args.get("apply", False)))
-    findings = result["findings"]
-    if not findings:
-        return "Memory lint: no contradictions, superseded, or stale-file issues found."
-    if result["applied"]:
-        head = (
-            f"{result['count']} finding(s); archived {result['archived']} superseded "
-            "entry(ies). Contradictions / stale-file hits are advisory:"
-        )
-    else:
-        head = f"{result['count']} finding(s) (dry-run; apply=true archives superseded):"
-    lines = [head]
-    for f in findings:
-        title = (f["title"] or "")[:50]
-        lines.append(f'  #{f["id"]} [{f["kind"]}] {f["reason"]} "{title}"')
-    return "\n".join(lines)
+    from render_memory import memory_lint_lines
+
+    return "\n".join(memory_lint_lines(svc, apply=bool(args.get("apply", False))))
 
 
 def _format_memory_hit(r: dict) -> str:
@@ -135,29 +111,17 @@ def _format_memory_hit(r: dict) -> str:
 
 
 def _do_memory_search(svc: Any, args: dict) -> str:
-    results = svc.memory_search(
-        args["query"],
-        include_archived=bool(args.get("include_archived", False)),
+    """Transport. The copy this replaces showed no tags and no origin project,
+    so a hit from the shared cross-project store looked like one of our own."""
+    from render_memory import memory_search_lines
+
+    return "\n".join(
+        memory_search_lines(
+            svc,
+            args["query"],
+            include_archived=bool(args.get("include_archived", False)),
+        )
     )
-    rendered = render_list(results, _format_memory_hit, "No memories found.")
-
-    # The shared store's degradation notice has to reach THIS surface, not only
-    # the CLI. CLAUDE.md tells agents to prefer MCP, so a warning that exists
-    # only in `tausik memory search` is a warning the primary reader never sees —
-    # and an incomplete result list that says nothing is exactly the silent
-    # failure the shared-read path was written to rule out.
-    #
-    # Importable because `handlers.py` puts the scripts directory on sys.path at
-    # import time, and this module is only ever reached through it. Stated as the
-    # actual reason: an earlier version of this comment claimed the path was
-    # settled by `svc.memory_search` having already imported the module, which
-    # happens to be true here and would have been the wrong thing to rely on.
-    # Kept local rather than top-level so the module has no script-layer
-    # dependency at import time.
-    from knowledge_read import pop_last_warning
-
-    warning = pop_last_warning()
-    return f"{rendered}\n⚠ {warning}" if warning else rendered
 
 
 def _do_memory_block(svc: Any, args: dict) -> str:
@@ -188,41 +152,34 @@ def _do_memory_link(svc: Any, args: dict) -> str:
 
 
 def _do_memory_related(svc: Any, args: dict) -> str:
-    results = svc.memory_related(
-        args["node_type"],
-        args["node_id"],
-        args.get("max_hops", 2),
-        args.get("include_invalid", False),
-    )
-    if not results:
-        return "No related nodes found."
-    lines = []
-    for r in results:
-        rec = r.get("record", {})
-        label = rec.get("title", rec.get("decision", ""))[:60]
-        lines.append(
-            f"[{r['depth']} hop] {r['node_type']}#{r['node_id']} --[{r.get('via_relation', '')}]--> {label}"
+    from render_memory import memory_related_lines
+
+    return "\n".join(
+        memory_related_lines(
+            svc,
+            args["node_type"],
+            args["node_id"],
+            args.get("max_hops", 2),
+            args.get("include_invalid", False),
         )
-    return "\n".join(lines)
+    )
 
 
 def _do_memory_graph(svc: Any, args: dict) -> str:
-    edges = svc.memory_graph(
-        args.get("node_type"),
-        args.get("node_id"),
-        args.get("relation"),
-        args.get("include_invalid", False),
-        args.get("limit", 50),
-    )
-    if not edges:
-        return "No edges found."
-    lines = []
-    for e in edges:
-        valid = "" if not e.get("valid_to") else " [invalid]"
-        lines.append(
-            f"#{e['id']} {e['source_type']}#{e['source_id']} --[{e['relation']}]--> {e['target_type']}#{e['target_id']}{valid}"
+    """Transport. The copy this replaces dropped edge confidence and the date an
+    edge stopped holding — the two fields that say what an edge is worth."""
+    from render_memory import memory_graph_lines
+
+    return "\n".join(
+        memory_graph_lines(
+            svc,
+            args.get("node_type"),
+            args.get("node_id"),
+            args.get("relation"),
+            args.get("include_invalid", False),
+            args.get("limit", 50),
         )
-    return "\n".join(lines)
+    )
 
 
 def _do_decisions_list(svc: Any, args: dict) -> str:

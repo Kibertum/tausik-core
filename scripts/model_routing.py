@@ -28,6 +28,42 @@ from model_routing_matrix import (  # noqa: F401
 )
 
 
+#: How much of the tail to read. The model id lives in the most recent assistant
+#: row, so the end of the file is the whole answer — and a transcript is an
+#: append-only log that grows without limit. `readlines()` pulled the entire file
+#: into memory to look at its last few lines: measured on this project in session
+#: #231, that cost 70 ms per call on a live transcript, and the ceiling was
+#: whatever the file happened to be.
+#:
+#: Untrusted input, too: the path points outside the repository, at a file this
+#: project does not write. Bounding the read is what keeps a pathological
+#: transcript from becoming this process's problem.
+_TAIL_BYTES = 256 * 1024
+
+
+def _tail_lines(path: str) -> list[str]:
+    """The last `_TAIL_BYTES` of a file, as whole lines. [] on any failure.
+
+    The first line of the window is DROPPED when the window did not start at the
+    beginning of the file: it is a fragment, and half a JSON object parses as
+    nothing at best and as the wrong thing at worst.
+    """
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as fh:
+            if size > _TAIL_BYTES:
+                fh.seek(size - _TAIL_BYTES)
+                partial = True
+            else:
+                partial = False
+            raw = fh.read()
+    except OSError:
+        return []
+    text = raw.decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    return lines[1:] if partial and lines else lines
+
+
 def read_active_model_from_transcript(transcript_path: str | None) -> str | None:
     """Return the most-recent assistant model id from a JSONL transcript.
 
@@ -44,11 +80,7 @@ def read_active_model_from_transcript(transcript_path: str | None) -> str | None
     """
     if not transcript_path or not os.path.isfile(transcript_path):
         return None
-    try:
-        with open(transcript_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-    except OSError:
-        return None
+    lines = _tail_lines(transcript_path)
     for raw in reversed(lines):
         raw = raw.strip()
         if not raw:

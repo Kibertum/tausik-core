@@ -244,7 +244,7 @@ class TestRedirectMessage:
 
     def test_path_is_project_relative_with_one_separator_style(self):
         # `os.path.join` of a '/'-style CLAUDE_PROJECT_DIR with a relative target
-        # produced `d:/Work/.../core\.clinerules` — mixed separators in the one
+        # produced `c:/Projects/.../core\.clinerules` — mixed separators in the one
         # line the reader must act on (convention #282). Caught by dogfooding.
         rule = DEFAULT_SINKS[0]
         joined = os.path.join("d:/proj/core", ".clinerules")
@@ -578,8 +578,10 @@ class TestHookRegistration:
             for e in hooks["PreToolUse"]
             if any("memory_pretool_block.py" in h["command"] for h in e["hooks"])
         ]
-        assert len(entries) == 1
-        assert "Bash" in entries[0]["matcher"]
+        # PR #5 registers the hook on a second entry for the MCP names; every
+        # entry is the same hook, and the built-in one carries the shell tools.
+        assert entries
+        assert any("Bash" in e["matcher"] for e in entries)
 
     def test_sink_rules_are_wellformed(self):
         names = [r.name for r in DEFAULT_SINKS]

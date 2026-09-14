@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/skill-spec.md)
+
 # Skill Specification
 
 Formal contract for SKILL.md files in the TAUSIK framework.
@@ -54,7 +56,6 @@ and `bootstrap.extension_skills`. As of v1.4:
 | Category | Skills | Bootstrap Handling |
 |----------|--------|--------------------|
 | Core (11) | start, end, task, plan, checkpoint, commit, explore, review, test, ship, debug | Always copied, not selectable |
-| Core (conditional) | brain | Copied when Notion is configured (`brain.enabled = true`) |
 | Extension | docs (and any names added under `bootstrap.extension_skills`) | Selected via `--include-official` or `tausik skill install <name>` |
 | Vendor / bundle | 20 skills under `skills-official/registry.json`, grouped into 6 bundles | Pulled per-skill or per-bundle via `tausik skill bundle install <name>` |
 

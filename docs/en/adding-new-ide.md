@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/adding-new-ide)
+**English** | [Русский](../ru/adding-new-ide.md)
 
 # Adding a New IDE to TAUSIK
 
@@ -67,11 +67,12 @@ In `tests/test_ide_utils.py` add tests for the new IDE.
 | Cursor | `.cursor` | `.cursorrules` | — | `CURSOR_DIR` env |
 | Qwen Code | `.qwen` | `QWEN.md` | 4 hooks | `--ide qwen` |
 | Windsurf | `.windsurf` | `.windsurfrules` | — | `WINDSURF_DIR` env |
-| Codex | `.codex` | `AGENTS.md` | — | `CODEX_SANDBOX_DIR` env |
+| Codex | `.codex` | `AGENTS.md` | shared PreToolUse/PostToolUse hooks | `CODEX_SANDBOX_DIR` env |
 | OpenCode | `.opencode` | `.opencode/tausik-rules.md` | QG-0 plugin | `.opencode/` dir (+ `OPENCODE_DIR` env, unverified) |
 
 Rows with `—` under Hooks have no scaffold branch: TAUSIK does not generate their
-config and does not install a QG-0 enforcement hook for them.
+config and does not install a QG-0 enforcement hook for them. Codex is scaffolded:
+its `.codex/hooks.json` is generated from the same hook declaration as Claude Code.
 
 **OpenCode is a separate host, not a Codex alias** (before v1.7.0 `OPENCODE_DIR`
 resolved to `codex`, so an OpenCode session was handed `.codex/` paths that OpenCode
@@ -94,7 +95,7 @@ the context).
 
 ```
 harness/
-├── skills/          # 12 core auto-deployed (+ /brain conditional) + 20 vendor opt-in (--include-official)
+├── skills/          # 13 core auto-deployed + 20 vendor opt-in (--include-official)
 ├── roles/           # roles (all IDEs)
 ├── stacks/          # stacks (all IDEs)
 ├── overrides/       # IDE-specific override files

@@ -8,6 +8,12 @@ import re
 import subprocess
 import sys
 
+# Own directory FIRST: the siblings below are imported by bare name, and
+# scripts/hooks reaches sys.path only when this file is RUN as a script. Imported
+# as `hooks.<name>` — which model_routing does — those names did not resolve, and
+# the caller's except swallowed the ImportError into a silent None.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 
 def cli_invocation() -> str:
     """Shell-correct spelling of the CLI, for remediation lines in hooks.
@@ -150,6 +156,47 @@ def project_root() -> str:
         return os.path.dirname(prof)
     here = os.path.dirname(os.path.abspath(__file__))  # <root>/scripts/hooks
     return os.path.dirname(os.path.dirname(here))  # <root>
+
+
+def shell_cwd(event: object, project_dir: str) -> str:
+    """The directory a RELATIVE path in this hook event is relative to.
+
+    Every write gate has to turn `.tausik/tausik.db` into an absolute path
+    before it can ask whether the write is inside the project. Three of them
+    used `project_dir` for that, each with a comment asserting the shell's cwd
+    *is* the project dir. That holds for ordinary work and stops holding the
+    moment the agent works in a second checkout: session #204 was refused
+    `rm -f .tausik/tausik.db*` inside a `git worktree`, because a file in a
+    DIFFERENT tree was reported as a write to the main repository. The check
+    that decision #299 makes mandatory — "does this work from someone else's
+    clean clone" — is exactly the one the gate obstructed.
+
+    The payload carries the answer, and that is measured rather than assumed
+    (lesson #203: read the real event of the real system). A PreToolUse payload
+    in this harness has `cwd`, and it tracks a `cd` from an earlier call: after
+    `cd d:/tmp` the field read `D:\\tmp`, not the project root.
+
+    Falls back to `project_dir` when the field is absent or is not a directory,
+    which keeps the previous behaviour — relative paths stay inside the
+    project's jurisdiction and stay gated. That is the safe direction: a gate
+    that cannot establish where the shell stands must keep gating, not stop.
+
+    Note what this does NOT loosen. The containment test still runs on the
+    RESOLVED absolute path, so a relative path that climbs back into the
+    project (`../core/scripts/x.py` from a sibling directory) is still caught.
+    Only a write genuinely outside the tree leaves the gate's jurisdiction, and
+    that has always been the rule for absolute paths — which is precisely why
+    absolute paths were the workaround.
+    """
+    cwd = event.get("cwd") if isinstance(event, dict) else None
+    # `isdir` alone settles the empty and whitespace-only cases — both are False
+    # — so no separate emptiness test stands here. One was written and removed
+    # when no mutation could make it matter; a condition that cannot fail is the
+    # dead code this release keeps finding, and adding more of it to guard
+    # against a case already covered would be the same mistake in a new place.
+    if isinstance(cwd, str) and os.path.isdir(cwd):
+        return cwd
+    return project_dir
 
 
 def is_tausik_project(project_dir: str) -> bool:

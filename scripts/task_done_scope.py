@@ -20,10 +20,17 @@ Three sources, in falling order of authority:
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 
-def persist_declared_scope(be: Any, slug: str, relevant_files: list[str] | None) -> bool:
+def persist_declared_scope(
+    be: Any,
+    slug: str,
+    relevant_files: list[str] | None,
+    tausik_dir: str | None = None,
+    notices: list[str] | None = None,
+) -> bool:
     """Write a caller-declared scope to the task row at once. True if written.
 
     verify-warn-names-a-flag-verify-does-not-have. A DECLARATION IS NOT A
@@ -36,6 +43,16 @@ def persist_declared_scope(be: Any, slug: str, relevant_files: list[str] | None)
     """
     if not relevant_files:
         return False
+    # GitLab #13: the same judgement the update path applies — a comma-joined
+    # element that exists nowhere is a corrupted declaration, refused by name
+    # before it can become the scope a closure leans on. The backend write
+    # below bypasses the service, so the check cannot be left to task_update.
+    from relevant_files_input import check_declared_paths
+
+    root = os.path.dirname(tausik_dir) if tausik_dir else None
+    lines = check_declared_paths([str(p) for p in relevant_files], root)
+    if notices is not None:
+        notices.extend(lines)  # the same note `task update` prints, at the close
     be.task_update(slug, relevant_files=json.dumps(list(relevant_files)))
     return True
 

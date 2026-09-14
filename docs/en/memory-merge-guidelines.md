@@ -1,11 +1,10 @@
-**English** | [Русский](/ru/docs/memory-merge-guidelines)
+**English** | [Русский](../ru/memory-merge-guidelines.md)
 
 # Memory: merge vs new entry
 
-How to keep **local** project memory (`.tausik/tausik.db`) and optional **Shared Brain** (Notion) free of noise. This guide is about *editorial* choice. It **complements**, not replaces:
+How to keep **local** project memory (`.tausik/tausik.db`) and the **shared local store** (`~/.tausik-knowledge`) free of noise. This guide is about *editorial* choice. It **complements**, not replaces:
 
-- **`scripts/brain_classifier.py`** (`classify()`) — scores the **risk** of an explicit publish using markers and blocklist. Since 1.8 it does not choose a destination (decision #221).
-- **`brain_scrubbing`** (pre–Notion write) — **blocks** unsafe content regardless of your merge decision (see *Scrubbing wins* below).
+- **`publication_boundary`** — the one place shared-store content passes on its way off the machine (`knowledge export --redacted`): absolute paths, e-mails, private URLs and project names become typed placeholders regardless of your merge decision (see *The boundary wins* below).
 
 ## Decision table
 
@@ -14,25 +13,31 @@ How to keep **local** project memory (`.tausik/tausik.db`) and optional **Shared
 | Same topic, adding nuance, typo fix, or tightening wording | **Merge**: update the existing memory row (single source of truth). |
 | Same *symptom*, different **root cause** | **New** entry; optionally relate rows with [`memory link`](cli.md#knowledge) / graph tools so searches surface both. |
 | Verbatim duplicate (copy-paste) | **Delete** the redundant row after confirming it adds nothing. |
-| Insight tied to a closed task but potentially reusable | Capture locally first; generalize wording before any brain publish (`tausik brain move --to-brain <id>`, MCP store, or `tausik brain publish`). |
+| Insight tied to a closed task but potentially reusable | Capture locally first; generalize wording before `memory add --global`, and again before a redacted export. |
 
-If unsure, run **`tausik search`** / **`memory_search`** (and brain search if enabled) before writing.
+If unsure, run **`tausik search`** / **`memory_search`** (the shared store is folded into the results) before writing.
 
-## Alignment with the classifier
+## What comes back on its own: relevance, on top of recency
 
-`classify(content, category)` answers only **how risky** an explicit publish looks. It does **not** choose a destination, and it does **not** deduplicate or merge rows. Conservative signals (paths, long slugs, blocklisted names) → **high risk**, which blocks the publish until a human confirms — you should still apply merge-vs-new discipline **inside** local memory so FTS stays usable.
+Two things pull memory back into the window without a search. The **recency tail** in CLAUDE.md (newest decisions, conventions, dead ends, context) is the core and is always there. On **`task start`**, on resume (`task start` of an already active task) and in **`task show`**, a `Relevant memory (N)` block is added on top of it: one FTS5 query built from the task's own declaration — title and slug words, the stems and path segments of `relevant_files` / `scope_paths`, its story, the tags of decisions linked to it — with OR semantics, ranked by bm25 and then by *where* a term matched (a tag counts 3, a title 2, the body 1). Up to eight live rows, each with the terms that matched it; a superseded row yields to its replacement.
 
-Since 1.8 nothing routes itself. **You** pick the destination: the project by default, the local shared store with `--global`, and Notion only via `tausik brain move --to-brain <id>` (decision #221). Recording a decision publishes it nowhere — the local copy is unconditional (`service_decide.record`).
+An empty answer is **named**, never silent: `Relevant memory: none matched <terms>` lists what was tried, so silence cannot be read as "no memory on this topic". A failing search degrades to the same kind of line and never stops `task start`. Measured on session #189: the task whose files name the scoped registry now gets #425 (the retired five-names rule) second; the process gotcha #428 (a receipt is not a commit) reaches the candidate set through `gate` but competes with dozens of gate-tagged rows in the live store — that kind of row is the recency tail's job.
 
-## Negative exception: scrubbing overrides merge intent
+## Alignment with the publication boundary
 
-You may merge two notes into one “clean” summary for the brain — but if the merged body still contains **absolute paths**, **emails**, **private URLs**, or **blocklisted project names**, the scrubbing layer refuses the Notion write (`scrub_blocked`). **Privacy rules win:** rewrite to generic language first, then publish. This does *not* contradict merge guidance; it bounds **where** consolidated text may land.
+The boundary answers only **what may leave** and **in what form**. It does **not** choose a destination, and it does **not** deduplicate or merge rows — you should still apply merge-vs-new discipline **inside** local memory so FTS stays usable.
+
+Nothing routes itself. **You** pick the destination: the project by default, the local shared store with `--global` (decision #221). Recording a decision publishes it nowhere — the local copy is unconditional (`service_decide.record`) — and there is no outward transport since 1.9 (decision #358).
+
+## Negative exception: the boundary overrides merge intent
+
+You may merge two notes into one “clean” summary for the shared store — but if the merged body still contains **absolute paths**, **emails**, **private URLs**, or **project names**, a redacted export replaces them with `[REDACTED:…]` placeholders. **Privacy rules win:** rewrite to generic language first if the text is meant to travel. This does *not* contradict merge guidance; it bounds **what** consolidated text may carry off the machine.
 
 ## Short examples
 
 1. **Merge:** Two `pattern` rows both describe “pytest `tmp_path` for SQLite” — keep one title, combine bullets, delete the weaker row.
 2. **New:** One note “flakey test” caused by async timing; another “flakey test” caused by shared global state — two gotchas, cross-link if helpful.
-3. **Scrubber:** Merging notes accidentally pulls in `D:\Work\…` — scrub blocks brain write until paths are removed or redacted.
+3. **Boundary:** Merging notes accidentally pulls in an absolute path — a redacted export turns it into `[REDACTED:path]` until it is removed.
 
 ## Hygiene CLI (B9, v1.4 polish)
 
@@ -60,10 +65,10 @@ Dedupe uses `SequenceMatcher.ratio()` over `title || content` and only considers
 When you write a memory or decision whose body mentions a well-known cross-project topic, TAUSIK prints a one-line stderr hint:
 
 ```
-Universal pattern(s) detected: jwt, retry — consider promoting via `brain_draft_artifact` (or skip with `confirm: cross-project`).
+Universal pattern(s) detected: jwt, retry — consider `memory add --global` (or skip with `confirm: cross-project`).
 ```
 
-The hint is **advisory only** — it never blocks the write, never raises, and is silent when nothing matches. Detection runs after a successful write in `service_knowledge.memory_add`. It also sits in the `brain_runtime.try_brain_write_decision` / `try_brain_write_web_cache` success paths, but `try_brain_write_decision` has had **no production caller since 1.8** — decisions no longer reach Notion by themselves (decision #221), so that path is reachable only from tests.
+The hint is **advisory only** — it never blocks the write, never raises, and is silent when nothing matches. Detection runs after a successful write in `service_knowledge.memory_add`. It is the regex layer alone: the FTS layer that used to follow it searched the Notion mirror and left with the transport.
 
 Topics covered (regex/keyword, case-insensitive, word-boundary aware):
 
@@ -82,32 +87,6 @@ Topics covered (regex/keyword, case-insensitive, word-boundary aware):
 
 Word-boundary guards prevent false positives (e.g. `aggregate` does not trigger `rate-limit`). To extend, edit `_TOPIC_PATTERNS` in [scripts/brain_universality.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_universality.py).
 
-## Semantic universality layer (C2, v1.4 polish)
-
-The regex layer above is fast but blind to **synonyms** ("access control" → `rbac`, "token bucket" → `rate-limit`). The semantic layer fixes this without adding ML dependencies: it queries the local brain mirror via FTS5 and surfaces topics from existing brain entries whose tags match a known universal topic AND whose bm25 score is strong against your new content.
-
-```
-Semantic universality hint: rbac — new content resembles existing brain entries on these topics (consider promoting via `brain_draft_artifact`).
-```
-
-How it works:
-
-1. After the regex layer runs, the new content is tokenized (lowercase, stopwords dropped, length ≥ 4).
-2. Up to 8 distinctive tokens are searched against the local brain mirror (FTS5 over `brain_decisions` / `brain_patterns` / `brain_gotchas` / `brain_web_cache`).
-3. Each hit's `tags` are intersected with `KNOWN_UNIVERSAL_TOPICS`. Topics with bm25 score ≤ threshold (default 8.0; lower = stronger match) are emitted.
-4. Topics already caught by the regex layer are **deduped** so you only see new signal.
-
-Activation gate (`scripts/brain_config.py` defaults):
-
-- `brain.enabled` is `true`
-- `brain.semantic_universality_enabled` is `true` (default; set `false` to disable semantic layer)
-- The brain mirror file exists on disk
-
-Implementation: [scripts/brain_universality_semantic.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_universality_semantic.py). Pure stdlib; reuses [scripts/brain_search.py](https://github.com/Kibertum/tausik-core/blob/main/scripts/brain_search.py) FTS5 infrastructure. Never raises, never blocks. Empty mirror → silent no-op. Synonym discovery improves as you promote more entries to the brain.
-
 ## See also
 
-- [Shared Brain](shared-brain.md) — setup, sync, privacy model.
-- [Brain artifact taxonomy](brain-artifact-taxonomy.md) — draft/publish, `risk_blocked`, `confirm_high_risk`.
-- [Brain DB schema](brain-db-schema.md) — scrubbing responsibilities.
 - [CLI — Knowledge](cli.md#knowledge) — `memory add`, `memory link`, search.

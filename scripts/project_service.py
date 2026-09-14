@@ -10,7 +10,10 @@ import os
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError
+from service_actz import ActzMixin
 from service_adapts import AdaptsMixin
+from service_artifact_graph import ArtifactGraphMixin
+from service_at import AtMixin
 from service_delegate import DelegateMixin
 from service_hierarchy import HierarchyMixin
 from service_knowledge import KnowledgeMixin
@@ -24,6 +27,39 @@ if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
+def normalize_usage_time_bound(label: str, raw: str | None) -> str | None:
+    """Parse one `--since`/`--until` bound into the exact form usage_events stores.
+
+    MODULE-LEVEL, not a ProjectService method, and deliberately so. `ProjectService`
+    is one of the two classes baselined by the class-surface ratchet
+    (tausik/gates.json, 118 members) — that baseline may only turn DOWN, so a new
+    public method there is a regression the gate exists to catch. Naming it private
+    to slip past the count would evade the rule rather than honour it, and would
+    still leave the CLI reaching into another module's private. A free function is
+    what this actually is: it needs no instance state.
+
+    Raises ServiceError on an unparseable timestamp — the caller decides what to do
+    with it, exactly as before the move.
+    """
+    if raw is None:
+        return None
+    spec = str(raw).strip()
+    if not spec:
+        return None
+    from datetime import datetime, timezone
+
+    s = spec.replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError as e:
+        raise ServiceError(f"Invalid {label} timestamp (ISO-8601): {spec!r}") from e
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 # HierarchyMixin moved to service_hierarchy.py (filesize-debt-paydown).
 # SessionMixin moved to service_session.py (filesize-debt-paydown-2).
 class ProjectService(
@@ -35,6 +71,9 @@ class ProjectService(
     SkillsMixin,
     SpecsMixin,
     AdaptsMixin,
+    ActzMixin,
+    AtMixin,
+    ArtifactGraphMixin,
     DelegateMixin,
 ):
     """TAUSIK project service -- composes all domain mixins."""
@@ -81,23 +120,13 @@ class ProjectService(
 
     @staticmethod
     def _normalize_usage_time_bound(label: str, raw: str | None) -> str | None:
-        if raw is None:
-            return None
-        spec = str(raw).strip()
-        if not spec:
-            return None
-        from datetime import datetime, timezone
+        """Thin delegate — the implementation is the module-level function below.
 
-        s = spec.replace("Z", "+00:00")
-        try:
-            dt = datetime.fromisoformat(s)
-        except ValueError as e:
-            raise ServiceError(f"Invalid {label} timestamp (ISO-8601): {spec!r}") from e
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        else:
-            dt = dt.astimezone(timezone.utc)
-        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        It moved out of the class so a caller that is NOT a ProjectService method
+        (the «вне задачи» bucket in project_cli_metrics) can normalise its window
+        the SAME way, instead of reaching into a private or growing this class.
+        """
+        return normalize_usage_time_bound(label, raw)
 
     # --- Top-level operations ---
 

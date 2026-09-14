@@ -21,6 +21,9 @@ _HOOK_PATH = os.path.join(
 
 _HOME = os.path.expanduser("~").replace("\\", "/")
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
+import write_tools  # noqa: E402
+
 
 def _run(
     project_dir,
@@ -44,7 +47,8 @@ def _run(
         [sys.executable, _HOOK_PATH],
         input=json.dumps(payload),
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         timeout=15,
         env=env,
     )
@@ -166,9 +170,7 @@ class TestNonAuditedPaths:
     def test_outside_memory_is_quiet(self, tmp_path, fake_home):
         _setup_tausik(tmp_path)
         outside = tmp_path / "outside.md"
-        outside.write_text(
-            "task mem-pretool-hook done, scripts/foo.py", encoding="utf-8"
-        )
+        outside.write_text("task mem-pretool-hook done, scripts/foo.py", encoding="utf-8")
         result = _run(
             tmp_path,
             {
@@ -196,9 +198,7 @@ class TestNonAuditedPaths:
 class TestGraceful:
     def test_missing_file_is_quiet(self, tmp_path, fake_home):
         _setup_tausik(tmp_path)
-        path = f"{fake_home}/.claude/projects/x/memory/does_not_exist.md".replace(
-            "\\", "/"
-        )
+        path = f"{fake_home}/.claude/projects/x/memory/does_not_exist.md".replace("\\", "/")
         result = _run(
             tmp_path,
             {"tool_name": "Write", "tool_input": {"file_path": path}},
@@ -242,7 +242,8 @@ class TestGraceful:
             [sys.executable, _HOOK_PATH],
             input="not json {{{",
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=15,
             env=env,
         )
@@ -288,14 +289,20 @@ class TestSettingsGeneration:
         hooks = cfg.get("hooks", {})
         assert "PostToolUse" in hooks
         matched = False
+        registered: set[str] = set()
         for entry in hooks["PostToolUse"]:
-            if not any(
-                "memory_posttool_audit.py" in h["command"] for h in entry["hooks"]
-            ):
+            if not any("memory_posttool_audit.py" in h["command"] for h in entry["hooks"]):
                 continue
-            assert entry["matcher"] == "Write|Edit|MultiEdit", entry
+            # PR #5: the hook sits on the built-in line AND an MCP-editor line;
+            # every name on either must be a write tool, and the union must be
+            # the whole list — a notebook or a serena edit into the memory dir
+            # was unaudited before.
+            names = set(entry["matcher"].split("|"))
+            assert names <= set(write_tools.WRITE_TOOLS), entry
+            registered.update(names)
             matched = True
         assert matched, "memory_posttool_audit.py not registered in Claude PostToolUse"
+        assert registered == set(write_tools.WRITE_TOOLS)
 
     def test_qwen_settings_registers_audit(self, tmp_path):
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
@@ -308,11 +315,17 @@ class TestSettingsGeneration:
         hooks = cfg.get("hooks", {})
         assert "PostToolUse" in hooks
         matched = False
+        registered: set[str] = set()
         for entry in hooks["PostToolUse"]:
-            if not any(
-                "memory_posttool_audit.py" in h["command"] for h in entry["hooks"]
-            ):
+            if not any("memory_posttool_audit.py" in h["command"] for h in entry["hooks"]):
                 continue
-            assert entry["matcher"] == "Write|Edit|MultiEdit", entry
+            # PR #5: the hook sits on the built-in line AND an MCP-editor line;
+            # every name on either must be a write tool, and the union must be
+            # the whole list — a notebook or a serena edit into the memory dir
+            # was unaudited before.
+            names = set(entry["matcher"].split("|"))
+            assert names <= set(write_tools.WRITE_TOOLS), entry
+            registered.update(names)
             matched = True
         assert matched, "memory_posttool_audit.py not registered in Qwen PostToolUse"
+        assert registered == set(write_tools.WRITE_TOOLS)

@@ -46,93 +46,28 @@ def _handle_verify(
     scope: str = "standard",
     trigger: str = "verify",
 ) -> str:
-    """v1.4 Verify-First Contract — delegate to public service method.
+    """v1.4 Verify-First Contract — transport over the ONE report builder.
 
-    Layering rule: handlers call the service; the service owns the SQLite
-    connection. Behavior parity with the CLI:
-      - task_slug optional (full-suite when omitted)
-      - scope/trigger optional with sensible defaults
+    The report itself lives in `render_verify`, which `cmd_verify` also calls.
+    This handler used to build its own, and the two drifted in both directions:
+    the CLI alone reported duration, the recording line and the receipt; this
+    one alone reported skipped gates. A cache hit reached only the CLI, so a
+    cached green arrived here as a header over an empty gate list.
+
+    What stays is what belongs to a handler: the error envelope. An MCP handler
+    must not crash the server on a tool call.
     """
     from tausik_utils import ServiceError
 
     try:
-        result = svc.run_verify_for_task(task_slug=task_slug, scope=scope, trigger=trigger)
+        report = svc.run_verify_for_task(task_slug=task_slug, scope=scope, trigger=trigger)
     except ServiceError as e:
         return f"Error: {e}"
-    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
+    except Exception as e:  # noqa: BLE001 — best-effort: a tool call must not kill the server
         return f"Error: {e}"
-    from gate_runner import format_results
+    from render_verify import verify_lines
 
-    results = result.get("results", [])
-    lines = [
-        f"verify task='{task_slug or '-'}' "
-        f"passed={result['passed']} "
-        f"status={result['status']} "
-        f"trigger={result['trigger']}",
-        format_results(results),
-    ]
-
-    # A skipped gate used to be indistinguishable from a passed one here: this
-    # returned `gates=['hadolint', 'pytest']`, a list of NAMES, so an agent read
-    # "pytest" and concluded the tests had run. On a task with no declared
-    # scope, pytest is skipped and the only thing that actually executed was a
-    # Dockerfile linter — and the run was still recorded green and signed. The
-    # same confusion is what `gate_verdict` was extracted to end; this handler
-    # was the copy that extraction did not reach, and it is the copy the agent
-    # reads, because CLAUDE.md tells it to prefer MCP over the CLI.
-    if any(r.get("skipped") for r in results):
-        skipped = ", ".join(r.get("name", "?") for r in results if r.get("skipped"))
-        lines.append(
-            f"NOTE: {skipped} did NOT execute. A SKIP is not a verification — "
-            f"this run says nothing about what those gates cover."
-        )
-    # The "declare relevant_files" scolding only makes sense for a SCOPED run.
-    # In full-suite mode (task_slug omitted — documented CLI parity) the service
-    # returns files=[] by design, not because a task under-declared, so the old
-    # unconditional NOTE fired the widest verification the tool offers with an
-    # unactionable "`tausik task update <slug>`" that names no real task.
-    if task_slug and not result.get("relevant_files"):
-        lines.append(
-            f"NOTE: no relevant_files declared for '{task_slug}', so every scoped "
-            f"gate skipped. Declare them (`tausik task update {task_slug} "
-            "--relevant-files <paths>`) and re-run, or this green rests on nothing."
-        )
-    elif task_slug is None:
-        lines.append(
-            "NOTE: full-suite run (no task scope). Not recorded to the verify "
-            "cache — pass a task_slug to cache a scoped green for task_done."
-        )
-    lines.extend(_handle_lines(result, task_slug))
-    return "\n".join(lines)
-
-
-def _handle_lines(result: dict, task_slug: str | None) -> list[str]:
-    """The explicit state handle, surfaced to the AGENT (SEP-2567).
-
-    This handler used to return neither run_id nor receipt — the MCP caller got
-    strictly less than the CLI caller, which is part of why the only link
-    between a verify and a close was a server-side search. Returning the handle
-    is what makes `verify_handle` presentable from MCP at all; without these
-    lines the argument added to the tausik_task_done schema would have nothing
-    to carry.
-
-    The durability policy travels WITH the handle rather than living only in
-    the tool description: the description is read once at connect time, this
-    line is read at the moment the decision is made.
-    """
-    if not task_slug:
-        return []
-    handle = result.get("verify_handle")
-    if not handle:
-        return [
-            "HANDLE: none — this run is not presentable (no declared files, all "
-            "gates skipped, or a security-sensitive scope). tausik_task_done "
-            "will fall back to the freshness lookup."
-        ]
-    return [
-        f"HANDLE: {handle} (valid until {result.get('handle_expires_at')}, single use).",
-        f"  Pass it to tausik_task_done as verify_handle when closing '{task_slug}'.",
-    ]
+    return "\n".join(verify_lines(svc, report, task_slug, scope))
 
 
 def _handle_gates_status(svc: Any = None) -> str:
@@ -184,7 +119,48 @@ def _handle_gate_toggle(svc, name: str, enable: bool) -> str:
         return f"Error: {e}"
 
 
+def _handle_graph(svc, args: dict) -> str:
+    """`tausik graph`, through the service, with the CLI's own renderer.
+
+    ONE tool for three subcommands rather than three tools. The MCP surface is a
+    ratchet standing at exactly its cap, and every tool's schema is a per-turn
+    tax; three names for one capability would triple that tax for no extra
+    reach. Raising the ratchet by one is argued in its own decision — by three
+    it would not be arguable.
+    """
+    import io
+    from contextlib import redirect_stdout
+
+    try:
+        from project_cli_graph import cmd_graph
+    except Exception as e:  # noqa: BLE001 — a missing module must not kill the server
+        return f"Error: graph command unavailable ({e})"
+
+    class _Args:
+        graph_cmd = str(args.get("command") or "status")
+        path = args.get("path") or ""
+        rebuild = bool(args.get("rebuild"))
+        layer = "all"
+        window = None
+        json = False
+
+    if _Args.graph_cmd == "show" and not _Args.path:
+        return "Error: command=show needs a path, e.g. scripts/symbol_index.py"
+
+    buffer = io.StringIO()
+    try:
+        with redirect_stdout(buffer):
+            cmd_graph(svc, _Args())
+    except SystemExit:
+        # The CLI exits on a bad subcommand; a tool call must answer, not die.
+        pass
+    except Exception as e:  # noqa: BLE001 — MCP handler must not crash the server
+        return f"Error: {e}\n{buffer.getvalue()}"
+    return buffer.getvalue() or "(no output)"
+
+
 VERIFICATION_HANDLERS = {
+    "tausik_graph": _handle_graph,
     "tausik_doctor": lambda svc, args: _handle_doctor(svc),
     "tausik_verify": lambda svc, args: _handle_verify(
         svc,

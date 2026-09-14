@@ -1,4 +1,4 @@
-[English](/docs/adding-new-ide) | **Русский**
+[English](../en/adding-new-ide.md) | **Русский**
 
 # Добавление новой IDE в TAUSIK
 
@@ -61,16 +61,17 @@ if os.environ.get("MYIDE_DIR"):
 
 ## Текущие поддерживаемые IDE
 
-| IDE | Config dir | Rules file | Auto-detect |
-|-----|-----------|------------|-------------|
-| Claude Code | `.claude` | `CLAUDE.md` | default |
-| Cursor | `.cursor` | `.cursorrules` | `CURSOR_DIR` env |
-| Windsurf | `.windsurf` | `.windsurfrules` | `WINDSURF_DIR` env |
-| Codex | `.codex` | `AGENTS.md` | `CODEX_SANDBOX_DIR` env |
-| OpenCode | `.opencode` | `.opencode/tausik-rules.md` | каталог `.opencode/` (+ env `OPENCODE_DIR`, не проверено на живой сборке) |
+| IDE | Config dir | Rules file | Hooks | Auto-detect |
+|-----|-----------|------------|-------|-------------|
+| Claude Code | `.claude` | `CLAUDE.md` | 4 hooks | default |
+| Cursor | `.cursor` | `.cursorrules` | — | `CURSOR_DIR` env |
+| Windsurf | `.windsurf` | `.windsurfrules` | — | `WINDSURF_DIR` env |
+| Codex | `.codex` | `AGENTS.md` | общие PreToolUse/PostToolUse hooks | `CODEX_SANDBOX_DIR` env |
+| OpenCode | `.opencode` | `.opencode/tausik-rules.md` | QG-0 plugin | каталог `.opencode/` (+ env `OPENCODE_DIR`, не проверено на живой сборке) |
 
-Для IDE без ветки-генератора (Windsurf, Codex) TAUSIK не генерирует конфиг и не
-ставит хук принуждения QG-0 — хост настраивается руками.
+Строки с `—` в Hooks не имеют ветки-генератора: TAUSIK не создаёт им конфиг и не
+ставит хук QG-0. Codex scaffolded: его `.codex/hooks.json` генерируется из того же
+объявления хуков, что и профиль Claude Code.
 
 **OpenCode — отдельный хост, а не псевдоним Codex** (до v1.7.0 переменная
 `OPENCODE_DIR` ошибочно резолвилась в `codex`, и сессия OpenCode получала пути

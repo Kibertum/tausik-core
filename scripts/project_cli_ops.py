@@ -16,7 +16,6 @@ import os
 import sys
 from typing import Any
 
-from brain_cli_ops import cmd_brain  # noqa: F401  re-exported for project.py
 from project_service import ProjectService
 
 
@@ -99,18 +98,10 @@ def cmd_suggest_model(svc: ProjectService, args: Any) -> None:
 
 
 def cmd_search(svc: ProjectService, args: Any) -> None:
-    results = svc.search(args.query, args.scope, getattr(args, "limit", 20))
-    for scope, items in results.items():
-        if items:
-            print(f"\n--- {scope} ({len(items)} results) ---")
-            for item in items:
-                if "slug" in item:
-                    print(f"  {item['slug']}: {item.get('title', item.get('decision', ''))}")
-                else:
-                    print(f"  {item.get('title', item.get('decision', str(item)[:80]))}")
-                snippet = item.get("_snippet")
-                if snippet:
-                    print(f"    {snippet}")
+    from render_status import SEARCH_LIMIT, search_lines
+
+    limit = getattr(args, "limit", SEARCH_LIMIT)
+    print("\n".join(search_lines(svc, args.query, args.scope, limit)))
 
 
 def cmd_dead_end(svc: ProjectService, args: Any) -> None:
@@ -148,6 +139,17 @@ def cmd_doc(svc: ProjectService, args: Any) -> None:
             check=bool(getattr(args, "doc_constants_check", False)),
         )
         raise SystemExit(code)
+    if sub == "roadmap":
+        import release_roadmap
+        from project_config import find_tausik_dir
+
+        raise SystemExit(
+            release_roadmap.run_main(
+                svc.be._conn,
+                os.path.dirname(find_tausik_dir()),
+                check=bool(getattr(args, "doc_roadmap_check", False)),
+            )
+        )
     if sub == "extract":
         import doc_extract
 
@@ -159,7 +161,8 @@ def cmd_doc(svc: ProjectService, args: Any) -> None:
         print(md)
         return
     print(
-        "Usage: tausik doc extract <file> [--format=X] | tausik doc constants [--check]",
+        "Usage: tausik doc extract <file> [--format=X] | "
+        "tausik doc constants [--check] | tausik doc roadmap [--check]",
         file=sys.stderr,
     )
     sys.exit(2)

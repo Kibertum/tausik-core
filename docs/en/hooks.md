@@ -1,8 +1,8 @@
-**English** | [Русский](/ru/docs/hooks)
+**English** | [Русский](../ru/hooks.md)
 
 # Hooks
 
-TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **22 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 23 gates in total (v1.4 introduced `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, and `task_cost_budget_check.py`; 1.8 added `scope_write_gate.py` and `bash_write_gate.py`).
+TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **22 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 24 gates in total (v1.4 introduced `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, and `task_cost_budget_check.py`; 1.8 added `scope_write_gate.py` and `bash_write_gate.py`; 1.9 added `read_ledger_gate.py`, off by default).
 
 ## What Are Hooks
 
@@ -12,27 +12,25 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 
 | Hook | When | What It Does |
 |------|------|-------------|
-| `task_gate.py` | Before Write/Edit | Blocks file changes if no active task (SENAR Rule 9.1) |
-| `scope_write_gate.py` | Before Write/Edit/MultiEdit/NotebookEdit | Scope ACL (SENAR Rule 2, Walko pattern): blocks a write outside the union of the active tasks' declared `scope_paths`. This is the verdict source `bash_write_gate` reuses for shell writes. Conservative adoption: any active task without `scope_paths` → allow (legacy, undeclared = unrestricted); target outside the project root → allow; pre-v30 DB or any DB error → fail-open unless `TAUSIK_HOOK_FAIL_SECURE=1`. |
-| `memory_pretool_block.py` | Before Write/Edit/MultiEdit **and Bash/PowerShell** | Layer 2 of memory-route enforcement: blocks a write into any foreign memory sink from `scripts/memory_sinks.py` (`~/.claude/**/memory/`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.aider*`, …) and redirects to `memory add`. The shell tools are on the matcher because a heredoc — or a `Set-Content` — writes what the Write path refuses. Bypass: `confirm: cross-project` in the prompt, or `gates.memory_route.allow` in config. |
-| `secret_scan.py` (v1.4) | Before Write/Edit/MultiEdit | Scans `tool_input` for likely secrets (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic tokens, JWT, private-key blocks, generic `password`/`api_key` literals). Warns by default; set `TAUSIK_SECRET_SCAN_STRICT=1` to block. (SENAR Rule 10.12). **Covers neither shell channel** — not Bash, not PowerShell; see the channel-coverage matrix in [`enforcement-coverage.md`](enforcement-coverage.md). |
+| `task_gate.py` | Before every write tool — Write/Edit/MultiEdit/NotebookEdit and the MCP editors listed in `hooks/write_tools.py` (serena, windows-mcp; PR #5) | Blocks file changes if no active task (SENAR Rule 9.1) |
+| `scope_write_gate.py` | Before every write tool — Write/Edit/MultiEdit/NotebookEdit and the MCP editors listed in `hooks/write_tools.py` (serena, windows-mcp; PR #5) | Scope ACL (SENAR Rule 2, Walko pattern): blocks a write outside the union of the active tasks' declared `scope_paths`. This is the verdict source `bash_write_gate` reuses for shell writes. Conservative adoption: any active task without `scope_paths` → allow (legacy, undeclared = unrestricted); target outside the project root → allow; pre-v30 DB or any DB error → REFUSE unless `TAUSIK_HOOK_FAIL_OPEN=1` (the default flipped in 1.9). |
+| `memory_pretool_block.py` | Before every write tool — Write/Edit/MultiEdit/NotebookEdit and the MCP editors listed in `hooks/write_tools.py` (serena, windows-mcp; PR #5) **and every shell tool (Bash, PowerShell, `mcp__windows-mcp__PowerShell`)** | Layer 2 of memory-route enforcement: blocks a write into any foreign memory sink from `scripts/memory_sinks.py` (`~/.claude/**/memory/`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.aider*`, …) and redirects to `memory add`. The shell tools are on the matcher because a heredoc — or a `Set-Content` — writes what the Write path refuses. Bypass: `confirm: cross-project` in the prompt, or `gates.memory_route.allow` in config. |
+| `secret_scan.py` (v1.4) | Before every write tool — Write/Edit/MultiEdit/NotebookEdit and the MCP editors listed in `hooks/write_tools.py` (serena, windows-mcp; PR #5) **and every shell tool (Bash, PowerShell, `mcp__windows-mcp__PowerShell`)** | Scans `tool_input` for likely secrets (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic tokens, JWT, private-key blocks, generic `password`/`api_key` literals). Warns by default; set `TAUSIK_SECRET_SCAN_STRICT=1` to block. (SENAR Rule 10.12). The shell tools are on the matcher (decision #178): a heredoc or a `Set-Content -Value 'AKIA…'` carries the same secret. |
 | `bash_firewall.py` | Before Bash **and PowerShell** | Blocks dangerous commands (`rm -rf /`, `Remove-Item -Recurse C:\`, DROP TABLE, `Format-Volume`, force push, etc.). The dialect is chosen by `tool_name`: the POSIX lexer cannot read PowerShell, where `\` is an ordinary path character rather than an escape. |
 | `bash_write_gate.py` | Before Bash **and PowerShell** | Applies the same QG-0 (Rule 1) and scope-ACL (Rule 2) verdict to a shell write that the Write tool gets — by importing `scope_write_gate`'s decisions, not copying them. Parses redirections, `tee`/`dd`/`sed -i`/`cp`/`mv`, and `Set-Content`/`Add-Content`/`Out-File`/`New-Item`/`Tee-Object`. |
-| `brain_search_proactive.py` | Before WebSearch/WebFetch | Proactively queries shared brain for relevant decisions/patterns before web calls |
 | `git_push_gate.py` | Before Bash **and PowerShell** | Blocks unless `.tausik/.push_ticket.json` is fresh, single-use, and bound to HEAD SHA. `/ship` and `/commit` run `tausik push-ok && git push` after your "y" — `push-ok` writes the 60-second ticket; the hook consumes it on the next push. The narrowing `if` clause is gone: it was a second copy of a decision the hook makes itself, and it named only one shell. |
 
 ## PostToolUse — Reactions After an Action
 
 | Hook | When | What It Does |
 |------|------|-------------|
-| `auto_format.py` | After Write/Edit | Auto-formats with ruff/prettier/gofmt + logs "Modified: X" to task |
-| `memory_posttool_audit.py` | After Write/Edit/MultiEdit to auto-memory | Audits cross-project leakage (uses `memory_markers.py` regex library) and warns |
+| `auto_format.py` | After every write tool (MultiEdit was off this hook before PR #5) | Auto-formats with ruff/prettier/gofmt + logs "Modified: X" to task |
+| `memory_posttool_audit.py` | After every write tool into auto-memory | Audits cross-project leakage (uses `memory_markers.py` regex library) and warns |
 | `task_done_verify.py` | After `mcp__tausik-project__tausik_task_done` | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite). |
-| `brain_post_webfetch.py` | After WebFetch | Auto-caches result in shared brain `web_cache` for token reuse |
 | `task_call_counter.py` | After any tool call | Increments per-task `call_actual` counter; warns at 1.5×budget |
 | `posttool_usage.py` (v1.4) | After any tool call | Records token-usage events to `usage_events` for per-task cost rollup |
 | `activity_event.py` | After any tool call | Records activity timestamps for **gap-based active-time** session metric (SENAR Rule 9.2) |
-| `tool_output_truncation_nudge.py` (v1.4) | After Read/Grep/Bash/Glob | Coaches the agent to narrow scope when tool output exceeds the configured line threshold (warn-only) |
+| `tool_output_truncation_nudge.py` (v1.4) | After Read/Grep/Glob and every shell tool (Bash, PowerShell, `mcp__windows-mcp__PowerShell`) | Coaches the agent to narrow scope when tool output exceeds the configured line threshold (warn-only) |
 | `task_cost_budget_check.py` (v1.4) | After any tool call | Compares the active task's `cost_actual` / `tokens_actual` against budget; emits WARN at 1.5× and BLOCKER at 2× (throttled) |
 
 ## SessionStart

@@ -8,12 +8,14 @@ shape. Two reasons:
      Windows; pure SQLite query is sub-millisecond. Editor-heavy sessions
      used to feel sluggish.
   2. **Reliability.** A subprocess that fails (PowerShell quirk, locked
-     venv, transient OSError) used to silently let edits through —
-     fail-open. The new path keeps that fail-open as DEFAULT (so `tausik
-     doctor` issues never brick a project) but adds an explicit
-     `TAUSIK_HOOK_FAIL_SECURE=1` opt-in: under that flag, any DB error
-     blocks the write instead of allowing it. Recommended for shared/CI
-     contexts where silent bypass is unacceptable.
+     venv, transient OSError) used to silently let edits through. A DB
+     error now REFUSES by default — a guard that cannot evaluate should
+     not wave the edit through, the same argument this project already
+     makes for QG-0 and QG-2. Announced as a breaking change on PR #5 and
+     shipped in 1.9. `TAUSIK_HOOK_FAIL_OPEN=1` restores the old behaviour
+     for a broken database you cannot repair right now; the retired
+     `TAUSIK_HOOK_FAIL_SECURE` asks for what is now the default and says
+     so instead of being ignored.
 
 Exit codes: 0 = allow, 2 = block.
 
@@ -33,7 +35,16 @@ import sqlite3
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import cli_invocation, is_tausik_project  # noqa: E402
+from _common import (  # noqa: E402
+    cli_invocation,
+    is_tausik_project,
+    shell_cwd,
+)
+from hook_policy import (  # noqa: E402
+    classify_target,
+    fail_open_on_db_error,
+    legacy_fail_secure_notice,
+)
 
 
 def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
@@ -52,26 +63,57 @@ def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
     path, or any path arithmetic that raises. The loosening applies only to a
     target proven to sit outside, never to one merely not proven inside.
 
-    Containment is decided on realpath via commonpath, NOT startswith: with a
-    plain prefix test a sibling directory sharing a prefix (``…/core-old`` next
-    to ``…/core``) reads as inside, and a symlink pointing from outside into the
-    project reads as outside — each the wrong answer in the dangerous direction.
+    Containment itself is decided by `hook_policy.classify_target`, which BOTH this
+    gate and `scope_write_gate` now call. They used to decide it separately and
+    disagree: this one read any path-arithmetic failure as "not proven outside"
+    and blocked, while the other read it as "outside" and allowed. On Windows a
+    cross-drive target makes both raise, so the same file was refused via Write
+    and written via a Bash heredoc — the Bash gate reuses `scope_write_gate`.
+    Only "outside" loosens anything here; "unknown" keeps the gate on, exactly
+    as before.
     """
     try:
         payload = json.loads(raw_stdin) if raw_stdin.strip() else {}
         tool_input = payload.get("tool_input")
         if not isinstance(tool_input, dict):
             return False
-        path = tool_input.get("file_path") or tool_input.get("notebook_path")
-        if not isinstance(path, str) or not path.strip():
+        # Any field a write tool names its target by (PR #5): a serena edit
+        # says `relative_path`, a FileSystem move says `path` AND
+        # `destination`. EVERY named path must be outside for the exemption:
+        # judging the destination alone let a move of a project file to a
+        # foreign directory pass with no task at all (review, session #259).
+        from write_tools import edited_paths  # noqa: PLC0415
+
+        paths = [p for p in edited_paths(tool_input) if p.strip()]
+        if not paths:
             return False
-        # Relative paths belong to the project by definition of the cwd the hook
-        # runs in, so they resolve against project_dir and stay gated.
-        target = os.path.realpath(os.path.join(project_dir, path))
-        root = os.path.realpath(project_dir)
-        return os.path.commonpath([target, root]) != root
+        # A relative path belongs to the SHELL's cwd, which the payload carries
+        # — not to the project by definition, which is what stood here. The two
+        # part company as soon as the agent works in a second checkout, and the
+        # containment test still runs on the resolved absolute path, so a
+        # relative path that climbs back into the project stays gated.
+        cwd = shell_cwd(payload, project_dir)
+        return all(classify_target(p, project_dir, cwd=cwd)[0] == "outside" for p in paths)
     except Exception:  # noqa: BLE001 — any failure means "not proven outside" => keep gating
         return False
+
+
+def _db_error_block(what_failed: str, err: Exception) -> str:
+    """The refusal for "the gate could not evaluate", kept distinct from QG-0's.
+
+    These are different refusals and an agent must be able to tell them apart:
+    QG-0 says "open a task", this one says "the gate is broken". Answering the
+    first when the second happened sends the reader to create a task that will
+    not help. It names the way forward for the case where the DB genuinely
+    cannot be fixed right now.
+    """
+    return (
+        f"BLOCKED: the task gate {what_failed}: {err}\n"
+        "  This is NOT the 'no active task' refusal — the gate could not evaluate at all,\n"
+        "  and a guard that cannot evaluate refuses rather than waving the edit through.\n"
+        "  Fix:      repair or restore .tausik/tausik.db (try `.tausik/tausik doctor`)\n"
+        "  Override: set TAUSIK_HOOK_FAIL_OPEN=1 to allow edits while the DB is broken"
+    )
 
 
 def _has_active_task(db_path: str) -> bool:
@@ -128,29 +170,23 @@ def main() -> int:
         # Bootstrap-but-not-init: nothing to enforce yet.
         return 0
 
-    fail_secure = bool(os.environ.get("TAUSIK_HOOK_FAIL_SECURE"))
+    fail_open = fail_open_on_db_error()
+    notice = legacy_fail_secure_notice()
+    if notice:
+        print(notice, file=sys.stderr)
 
     try:
         active = _has_active_task(db_path)
     except sqlite3.Error as e:
-        if fail_secure:
-            print(
-                f"BLOCKED: TAUSIK_HOOK_FAIL_SECURE=1 set, but task gate could "
-                f"not query .tausik/tausik.db: {e}. Fix the DB or unset the "
-                "flag to allow edits.",
-                file=sys.stderr,
-            )
+        if not fail_open:
+            print(_db_error_block("could not query .tausik/tausik.db", e), file=sys.stderr)
             return 2
-        # Default: fail-open so a transient DB issue never bricks editing — but
-        # a silently-dropped gate must stay countable, not invisible.
+        # Asked for explicitly. A dropped gate must stay countable, not invisible.
         emit_supervision_degradation(project_dir, "db_error", "task_gate", str(e))
         return 0
     except Exception as e:  # defensive — never bring down the host.  # noqa: BLE001 — best-effort: a hook must never break the tool call it guards
-        if fail_secure:
-            print(
-                f"BLOCKED: TAUSIK_HOOK_FAIL_SECURE=1 set, task gate crashed: {e}",
-                file=sys.stderr,
-            )
+        if not fail_open:
+            print(_db_error_block("crashed while checking for an active task", e), file=sys.stderr)
             return 2
         emit_supervision_degradation(project_dir, "db_error", "task_gate", str(e))
         return 0

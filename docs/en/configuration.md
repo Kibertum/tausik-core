@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/configuration)
+**English** | [Русский](../ru/configuration.md)
 
 # TAUSIK Configuration Reference
 
@@ -33,16 +33,32 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
 |---|---|---|
 | `gates` | `{}` | Per-gate overrides: `{ "pytest": { "enabled": true }, "filesize": { "max_lines": 600 } }`. Merges over `default_gates.py`. |
 
-## Brain (Shared knowledge layer)
+## Agent-instruction files (the DYNAMIC block)
+
+`tausik update-claudemd` rewrites the block between `<!-- DYNAMIC:START -->`
+and `<!-- DYNAMIC:END -->` in CLAUDE.md and, when one sits beside it, in
+AGENTS.md. AGENTS.md is tracked in most projects, so what goes into it is a
+policy, not an accident (GitLab #14):
 
 | Key | Default | Purpose |
 |---|---|---|
-| `brain.enabled` | `false` | Master switch for cross-project Notion brain. |
-| `brain.local_mirror_path` | `~/.tausik-brain/brain.db` | Local SQLite mirror of Notion DBs. Tilde + `$ENV` expanded. |
-| `brain.notion_integration_token_env` | `NOTION_TAUSIK_TOKEN` | Env var name holding Notion integration token. |
-| `brain.database_ids` | `{}` | Notion DB IDs (`decisions`, `web_cache`, `patterns`, `gotchas`). Wizard-populated by `tausik brain init`. |
-| `brain.private_url_patterns` | `[]` | URL patterns scrubbed before brain writes (regex strings). |
-| `brain.project_names_blocklist` | `[]` | Project-name substrings scrubbed before brain writes. |
+| `claudemd.sibling_dynamic` | `true` | `true`: AGENTS.md is refreshed with the block **minus** "Shared knowledge — from other projects" — other projects' knowledge never enters this repository's history, and a memory tail left with nothing under it is dropped. `false`: AGENTS.md is not written at all; CLAUDE.md is refreshed as before. Only the JSON boolean `false` turns it off — the string `"false"` or `0` is read as on. The key is read from the `.tausik/` beside the file being written. |
+
+The `claudemd_state` commit gate judges each file against the same plan the
+writer follows: a sibling the policy does not write is not judged, and a
+sibling whose only knowledge would be foreign owes no tail.
+
+## Publication (what a redacted export hides)
+
+The shared store (`~/.tausik-knowledge`) needs no configuration: `--global` on
+`decide` / `memory add` writes to it, `$TAUSIK_HOME` moves it. These keys feed
+`knowledge export --redacted` only (see [knowledge-store.md](knowledge-store.md)).
+
+| Key | Default | Purpose |
+|---|---|---|
+| `publication.project_names` | `[]` | Project names to replace with `[REDACTED:project]`, in addition to this project's directory name. |
+| `publication.private_url_patterns` | `[]` | Regex strings; a URL matching one becomes `[REDACTED:url]`. |
+| `brain.local_mirror_path` | `~/.tausik-brain/brain.db` | Only read by the one-off `knowledge import-brain`: where the retired Notion transport left its local mirror. |
 
 ## Example
 
@@ -56,10 +72,11 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
     "filesize": { "max_lines": 500 },
     "ruff": { "enabled": false }
   },
-  "brain": {
-    "enabled": true,
-    "notion_integration_token_env": "NOTION_TAUSIK_TOKEN"
-  }
+  "publication": {
+    "project_names": ["acme"],
+    "private_url_patterns": ["acme\\.internal"]
+  },
+  "claudemd": { "sibling_dynamic": false }
 }
 ```
 

@@ -1,3 +1,5 @@
+[English](../en/no-sdk-verify.md) | **Русский**
+
 # Верификация без SDK: HTTP-endpoint для любого агента и CI
 
 Аттестация TAUSIK без MCP, хуков и SDK. `tausik serve` поднимает stateless

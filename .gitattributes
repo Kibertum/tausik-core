@@ -13,3 +13,18 @@ renar/** text eol=lf
 # this must cover is asserted from the exporter's own registry, not from this
 # comment: tests/test_state_tree_eol_pin.py.
 tausik/** text eol=lf
+
+# ROADMAP.md is the THIRD artifact this repo regenerates and then compares byte
+# for byte (`tausik doc roadmap --check`, tests/test_release_roadmap.py). Its
+# writer emits LF; on Windows `core.autocrlf=true` a checkout rewrites that to
+# CRLF, and the freshness guard would report a stale map in every fresh clone —
+# a false red on a file nobody touched. Same pin, same reason, as the two trees
+# above.
+ROADMAP.md text eol=lf
+
+# Graph snapshots are gzip, and git normalised the first one as TEXT: 157,751
+# bytes on disk became 157,749 in the commit and the CRC failed on checkout. A
+# file that looks committed and cannot be read is worse than a missing one,
+# because nothing reports it until the moment somebody needs it — which for a
+# release baseline is exactly once, while assembling the release.
+tausik/graph-snapshots/*.json.gz binary

@@ -23,6 +23,7 @@ from tausik_constants import (  # noqa: F401
     DEFAULT_SESSION_IDLE_THRESHOLD_MINUTES,
     DEFAULT_SESSION_MAX_MINUTES,
     DEFAULT_SESSION_WARN_THRESHOLD_MINUTES,
+    lookup_llm_pricing_pair,
     lookup_llm_usd_per_million_tokens,
     normalize_llm_pricing_config,
     resolve_context_tier,
@@ -298,6 +299,13 @@ def load_config_with_rejections(tausik_dir: str | None = None) -> tuple[dict, li
     trusted tiers (or the framework default) already establish. See
     `config_trust` for the rule and its honest threat boundary.
 
+    THE PROJECT TIER IS TWO FILES, composed by `config_policy`: the committed
+    `tausik/policy.json` under the machine-local `.tausik/config.json`. Readers
+    get both; `load_project_config` deliberately still returns the local file
+    ALONE, because config WRITERS round-trip through it and `save_config`
+    persists whatever it is handed — composing there would copy the committed
+    policy into the generated file on the first `gates enable`.
+
     `tausik_dir` scopes ONLY the project tier (mcp-config-read-paths-ignore-
     project-handle): it selects which `.tausik/config.json` the *project* layer
     reads, so a service that speaks for one project describes that project and
@@ -308,9 +316,14 @@ def load_config_with_rejections(tausik_dir: str | None = None) -> tuple[dict, li
     would be a new defect, not a fix. `None` keeps the ambient-project behaviour
     every CLI call relies on.
     """
+    from config_policy import load_project_tier
     from config_trust import resolve
 
-    cfg, rejections = resolve(load_project_config(tausik_dir))
+    handle = tausik_dir or find_tausik_dir()
+    project = load_project_tier(handle, load_project_config(handle))
+    # The handle is the project's `.tausik/`; its parent is the directory a
+    # trusted tier's `projects` entry names (config_trust_projects).
+    cfg, rejections = resolve(project, project_dir=os.path.dirname(os.path.abspath(handle)))
     for r in rejections:
         logger.warning("Config trust tier: %s", r.describe())
     return cfg, rejections
@@ -364,9 +377,9 @@ def load_gates(cfg: dict | None = None, tausik_dir: str | None = None) -> dict[s
         if isinstance(override, dict):
             # An override that swaps a built-in gate's command used to skip the
             # allowed-executable check entirely — it only ran for gate names
-            # absent from DEFAULT_GATES. `.tausik/config.json` travels with the
-            # repo, so that let a cloned project point `ruff.command` at any
-            # binary and have the runner execute it. Validate every command an
+            # absent from DEFAULT_GATES. The PROJECT TIER travels with the repo,
+            # so that let a cloned project point `ruff.command` at any binary
+            # and have the runner execute it. Validate every command an
             # override supplies, built-in or not; on refusal keep the default.
             if "command" in override:
                 # Two independent checks: allow-list ("is this binary
@@ -376,8 +389,21 @@ def load_gates(cfg: dict | None = None, tausik_dir: str | None = None) -> dict[s
                     name, override.get("command"), defaults.get("command")
                 )
                 if error:
+                    # GitLab #9 / js-test-gate-silent-on-windows-and-override-
+                    # dropped: this used to END here. The refusal went to a
+                    # logger nobody reads, the rejected command was dropped, and
+                    # the gate quietly ran the DEFAULT instead — reporting that
+                    # run as the verdict of the gate the user had configured.
+                    # A silently substituted check is the thing this framework
+                    # exists to refuse.
+                    #
+                    # The refusal now travels ON the gate, so the runner can put
+                    # it in the gate's final status instead of a log line. The
+                    # command is still dropped: it did not pass validation and
+                    # must not execute.
                     logger.warning("Ignoring command override: %s", error)
                     override = {k: v for k, v in override.items() if k != "command"}
+                    gate["command_override_rejected"] = error
             gate.update(override)
         elif override is not None:
             logger.warning("Gate '%s' override must be an object — ignored", name)

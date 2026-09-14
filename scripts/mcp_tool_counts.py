@@ -34,10 +34,13 @@ def count_rag_tool_defs(repo_root: Path) -> int:
     return total
 
 
-def count_mcp_tool_totals(repo_root: Path) -> tuple[int, int, int]:
-    """Return ``(n_project, n_brain, n_rag)`` using ``len(TOOLS)`` where applicable."""
+def count_mcp_tool_totals(repo_root: Path) -> tuple[int, int]:
+    """Return ``(n_project, n_rag)`` using ``len(TOOLS)`` where applicable.
+
+    The brain server and its count left with the Notion transport
+    (decision #358); a doc that still names a brain tool count is drift.
+    """
     proj = str(repo_root / "harness" / "claude" / "mcp" / "project")
-    brain = str(repo_root / "harness" / "claude" / "mcp" / "brain")
 
     sys.path.insert(0, proj)
     import tools as project_tools  # type: ignore[import-not-found]  # noqa: E402
@@ -46,19 +49,12 @@ def count_mcp_tool_totals(repo_root: Path) -> tuple[int, int, int]:
     sys.path.remove(proj)
     del sys.modules["tools"]
 
-    sys.path.insert(0, brain)
-    import tools as brain_tools  # type: ignore[import-not-found, no-redef]  # noqa: E402
-
-    n_b = len(brain_tools.TOOLS)
-    sys.path.remove(brain)
-    del sys.modules["tools"]
-
     n_r = count_rag_tool_defs(repo_root)
-    return n_p, n_b, n_r
+    return n_p, n_r
 
 
 def mcp_descriptions_digest(repo_root: Path) -> str:
-    """Stable 16-hex digest over all project+brain MCP tool name+description.
+    """Stable 16-hex digest over all project MCP tool name+description.
 
     A tool description is part of the client-visible contract: editing one
     busts every cached copy on connected clients. Folding the descriptions
@@ -67,7 +63,7 @@ def mcp_descriptions_digest(repo_root: Path) -> str:
     change into an explicit, reviewed acknowledgement (techdebt #11).
     """
     items: list[str] = []
-    for sub in ("project", "brain"):
+    for sub in ("project",):
         path = str(repo_root / "harness" / "claude" / "mcp" / sub)
         sys.path.insert(0, path)
         try:
@@ -87,10 +83,9 @@ def mcp_descriptions_digest(repo_root: Path) -> str:
 
 def mcp_counts_flat(repo_root: Path) -> dict[str, int]:
     """Structured counts for JSON export."""
-    n_p, n_b, n_r = count_mcp_tool_totals(repo_root)
-    main = n_p + n_b
+    n_p, n_r = count_mcp_tool_totals(repo_root)
+    main = n_p
     return {
-        "mcp_brain_tools": n_b,
         "mcp_main_tools": main,
         "mcp_project_tools": n_p,
         "mcp_rag_tools": n_r,

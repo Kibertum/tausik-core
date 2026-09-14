@@ -1,19 +1,63 @@
 """TAUSIK MCP tool definitions — RENAR SPEC artifacts (v16r-spec-types).
 
-Kept in its own module (filesize hygiene). ``type`` is a CLOSED list of 9 —
-enforced both by the enum here and the service + DB CHECK.
+Kept in its own module (filesize hygiene). ``type`` is a CLOSED list, and this
+module no longer keeps its own copy of it: the enum is READ from
+``service_specs``, the one place the list lives. A mirror pinned by a test is
+still a second literal that has to be edited in lockstep, and the standard just
+moved under it (nine types where §8.3 closes at eleven).
+
+``scripts`` goes on ``sys.path`` here rather than being assumed: ``tools.py``
+imports this module at import time, while ``server.py`` only extends the path
+inside ``_get_service``, so an assumed path would break the server on startup.
 """
 
 from __future__ import annotations
 
-_SPEC_TYPES = ["ARCH", "API", "DATA", "INT", "PROC", "UI", "AI", "SEC", "OPS"]
-_SPEC_RELATIONS = ["implements", "constrained_by"]
-_SPEC_STATUSES = ["draft", "active", "deprecated"]
+import os
+import sys
+
+# Ensure scripts dir is in path (once, at import time) — see module docstring.
+#
+# TWO levels, and the count belongs to the DEPLOYED layout: bootstrap copies
+# this tree to `<profile>/mcp/project/`, so `../../scripts` is the profile's own
+# `<profile>/scripts/`. It is NOT the count for this source tree, where the
+# repository keeps `scripts/` at its root, three levels up — so here the insert
+# silently adds a directory that does not exist. That is deliberate and
+# harmless: nothing runs this copy as a server, and the only importers are
+# tests, where pytest supplies the path — `pyproject.toml` sets
+# `pythonpath = ["scripts"]` for every run. (Four conftest helpers insert it
+# again locally; that is belt and braces, not the mechanism — naming those
+# instead was this comment's first draft, and the review caught it.) Raising
+# when the directory is missing would break the source tree and fix nothing in
+# a profile.
+#
+# Written down because the arithmetic has been miscounted twice (sessions #209
+# and #210), which is what a silent no-op buys you. `tests/
+# test_mcp_deployed_layout_resolves.py` now asserts that every deployed profile
+# resolves this to ITS OWN scripts — resolvability alone is not enough, since
+# three levels up also finds a `service_specs.py`, the repository's.
+_SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+from service_specs import (  # noqa: E402 — path must be set first
+    SPEC_RELATIONS,
+    SPEC_STATUSES,
+    SPEC_TYPES,
+)
+
+_SPEC_TYPES = list(SPEC_TYPES)
+_SPEC_RELATIONS = list(SPEC_RELATIONS)
+_SPEC_STATUSES = list(SPEC_STATUSES)
 
 TOOLS_SPEC = [
     {
         "name": "tausik_spec_add",
-        "description": "Create a RENAR SPEC artifact. type is a CLOSED list of 9 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS) — a new type requires a standard amendment, not a free-text value. version is required.",
+        "description": (
+            f"Create a RENAR SPEC artifact. type is a CLOSED list of {len(_SPEC_TYPES)} "
+            f"({'/'.join(_SPEC_TYPES)}) — a new type requires a standard amendment, "
+            "not a free-text value. version is required."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {

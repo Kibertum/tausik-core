@@ -163,42 +163,212 @@ class TestLabelUsageRows:
 
 
 class TestSumUsageTokens:
-    """AC4 — compaction billed under usage.iterations is not lost."""
+    """`usage.iterations` is the COMPLETE pass list, not the extra passes.
 
-    def test_top_level_only(self):
+    These fixtures used to encode the opposite — `{100, iterations:[35]}` was
+    asserted to be 135 — and the assumption was never checked against a real
+    response. It is wrong: the top level is a VIEW of the list (equal to it at
+    n=1, equal to its FIRST entry at n>1), so adding them double-counted the
+    first pass. Measured over every transcript this project has, session #227:
+    23,818 of 23,836 messages with usage (99.92%) carry exactly one iteration
+    equal to the top level, and the old rule inflated the total by 1.9999x —
+    straight into the LLM spend `tausik metrics` reports.
+
+    Every fixture below is now the SHAPE OF A REAL RESPONSE, not an invented one.
+    """
+
+    def test_no_iterations_key_uses_the_top_level(self):
         assert sum_usage_tokens({"input_tokens": 100, "output_tokens": 50}) == (100, 50)
 
-    def test_iterations_added_to_top_level(self):
+    def test_the_single_iteration_case_is_not_doubled(self):
+        """THE defect, in the exact shape that covers 99.92% of messages.
+
+        Taken verbatim from a live transcript: `input_tokens` is 2 because
+        prompt caching moved the context into cache_read/cache_create, and the
+        lone iteration repeats the same numbers.
+        """
         usage = {
-            "input_tokens": 100,
-            "output_tokens": 50,
+            "input_tokens": 2,
+            "output_tokens": 72,
+            "cache_read_input_tokens": 29855,
+            "cache_creation_input_tokens": 20632,
             "iterations": [
-                {"input_tokens": 30, "output_tokens": 10},
-                {"input_tokens": 5, "output_tokens": 2},
+                {
+                    "input_tokens": 2,
+                    "output_tokens": 72,
+                    "cache_read_input_tokens": 29855,
+                    "cache_creation_input_tokens": 20632,
+                    "type": "message",
+                }
             ],
         }
-        # Naive top-level-only sum would report (100, 50); compaction adds 35/12.
-        assert sum_usage_tokens(usage) == (135, 62)
+        assert sum_usage_tokens(usage) == (2, 72)
+        assert sum_usage_tokens(usage) != (4, 144)  # what the old rule returned
+
+    def test_compaction_is_still_counted_at_more_than_one_iteration(self):
+        """The intent the old rule was written for, preserved.
+
+        Real numbers from the 7 multi-iteration messages in the corpus: the top
+        level reads 32/2905 and the two passes together are 64/3194. The extra
+        pass is genuinely billed and must not be lost — but the total is the
+        SUM OF THE PASSES, not the passes plus the first one again (96/6099).
+        """
+        usage = {
+            "input_tokens": 32,
+            "output_tokens": 2905,
+            "iterations": [
+                {"input_tokens": 32, "output_tokens": 2905},
+                {"input_tokens": 32, "output_tokens": 289},
+            ],
+        }
+        assert sum_usage_tokens(usage) == (64, 3194)
 
     def test_iterations_nested_under_usage_key(self):
         # Defensive: an iteration may carry its counts under a nested `usage`.
         usage = {
-            "input_tokens": 100,
-            "output_tokens": 50,
+            "input_tokens": 40,
+            "output_tokens": 20,
             "iterations": [{"usage": {"input_tokens": 40, "output_tokens": 20}}],
         }
-        assert sum_usage_tokens(usage) == (140, 70)
+        assert sum_usage_tokens(usage) == (40, 20)
+
+    def test_empty_iterations_list_means_the_top_level(self):
+        assert sum_usage_tokens({"input_tokens": 7, "output_tokens": 3, "iterations": []}) == (7, 3)
 
     def test_malformed_inputs_are_zero_safe(self):
         assert sum_usage_tokens(None) == (0, 0)
         assert sum_usage_tokens({}) == (0, 0)
         assert sum_usage_tokens({"iterations": "not-a-list"}) == (0, 0)
         assert sum_usage_tokens({"input_tokens": None, "output_tokens": None}) == (0, 0)
+        assert sum_usage_tokens([1, 2, 3]) == (0, 0)
+
+    def test_a_non_list_iterations_value_falls_back_to_the_top_level(self):
+        for junk in ("not-a-list", 17, {"a": 1}, None):
+            assert sum_usage_tokens(
+                {"input_tokens": 11, "output_tokens": 5, "iterations": junk}
+            ) == (11, 5)
 
     def test_non_numeric_field_does_not_raise(self):
         # s146 review HIGH: a stray non-numeric token value must yield 0, not a
         # ValueError up into the metrics hook (which parses per line, unguarded).
         assert sum_usage_tokens({"input_tokens": "N/A", "output_tokens": 5}) == (0, 5)
+
+    def test_an_unreadable_iteration_list_reports_the_lower_bound_not_zero(self):
+        """The top level is the first pass, so it is a floor, not a guess.
+
+        A list we cannot read means we do not know the total; reporting 0 for a
+        message we can plainly see was not free would be worse than reporting
+        what we can read.
+        """
         assert sum_usage_tokens(
             {"input_tokens": 10, "output_tokens": 20, "iterations": [{"input_tokens": "oops"}]}
         ) == (10, 20)
+        assert sum_usage_tokens(
+            {"input_tokens": 10, "output_tokens": 20, "iterations": ["not-a-dict", 5]}
+        ) == (10, 20)
+
+    def test_a_genuinely_free_message_stays_zero(self):
+        assert sum_usage_tokens({"input_tokens": 0, "output_tokens": 0, "iterations": [{}]}) == (
+            0,
+            0,
+        )
+
+    def test_deeply_nested_junk_returns_ints_and_leaks_no_strings(self):
+        """Transcript content is arbitrary user input; the result is numbers."""
+        secret = "sk-ant-SUPERSECRET"
+        got = sum_usage_tokens(
+            {
+                "input_tokens": {"nested": [secret]},
+                "output_tokens": [secret],
+                "iterations": [{"input_tokens": secret, "output_tokens": {"x": secret}}],
+            }
+        )
+        assert got == (0, 0)
+        assert all(isinstance(v, int) for v in got)
+        assert secret not in repr(got)
+
+
+class TestIterationsShapeAgainstLiveTranscripts:
+    """The fixture assumption, re-checked against the source that produces it.
+
+    The old rule was green for months because its fixtures were invented. This
+    class reads the project's OWN transcripts and asserts the shape those
+    fixtures now claim. It skips loudly when no transcript is reachable — a
+    skip says the live check did not run, which is not the same as passing.
+    """
+
+    def _messages_with_usage(self):
+        import json
+        import os
+        import sys
+
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
+        from transcript_locator import project_transcripts
+
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        found = []
+        for path in project_transcripts(root)[-4:]:
+            try:
+                handle = open(path, encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            with handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if entry.get("type") != "assistant":
+                        continue
+                    msg = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+                    usage = entry.get("usage") or msg.get("usage") or {}
+                    if isinstance(usage, dict) and usage:
+                        found.append(usage)
+        return found
+
+    def test_a_single_iteration_repeats_the_top_level(self):
+        import pytest
+
+        usages = self._messages_with_usage()
+        if not usages:
+            pytest.skip("no project transcript reachable — live shape check not run")
+        singles = [u for u in usages if isinstance(u.get("iterations"), list) and len(u["iterations"]) == 1]
+        if not singles:
+            pytest.skip("no single-iteration message in the sampled transcripts")
+        mismatched = [
+            u
+            for u in singles
+            if (
+                int(u["iterations"][0].get("input_tokens") or 0) != int(u.get("input_tokens") or 0)
+                or int(u["iterations"][0].get("output_tokens") or 0)
+                != int(u.get("output_tokens") or 0)
+            )
+        ]
+        assert not mismatched, (
+            f"{len(mismatched)} of {len(singles)} single-iteration messages no longer repeat the "
+            "top level. The API changed shape; sum_usage_tokens' rule must be re-derived from it, "
+            "not adjusted by guess."
+        )
+
+    def test_the_rule_does_not_double_the_live_corpus(self):
+        """The whole point, on real data: no message is counted twice."""
+        import pytest
+
+        usages = self._messages_with_usage()
+        if not usages:
+            pytest.skip("no project transcript reachable — live shape check not run")
+        for usage in usages:
+            got_in, got_out = sum_usage_tokens(usage)
+            iters = usage.get("iterations")
+            if isinstance(iters, list) and iters:
+                ceiling_in = int(usage.get("input_tokens") or 0) + sum(
+                    int((it.get("usage") or it).get("input_tokens") or 0)
+                    for it in iters
+                    if isinstance(it, dict)
+                )
+                assert got_in < ceiling_in or ceiling_in == 0, (
+                    "input equals the old top-plus-iterations sum — the double count is back"
+                )

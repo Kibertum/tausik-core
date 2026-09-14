@@ -21,6 +21,8 @@ import os
 import subprocess as _sp
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from gate_command_runner import (  # noqa: E402
@@ -126,6 +128,84 @@ class TestScopedRunNamesItsScope:
         label, body = split_scope(output)
         assert label.startswith("SCOPE:"), output
         assert "not runnable" in body
+
+    def test_unparseable_candidate_test_blocks_before_the_command_runs(self, tmp_path, monkeypatch):
+        """An import candidate which cannot be read is evidence missing, not a skip."""
+        root = _repo_with_one_mapped_test(tmp_path)
+        (root / "tests" / "test_relation.py").write_text("import alpha\ndef (:\n")
+        monkeypatch.chdir(root)
+
+        def command_must_not_run(*args, **kwargs):
+            raise AssertionError("pytest must not run after candidate parse failure")
+
+        monkeypatch.setattr(_sp, "run", command_must_not_run)
+        outcome = run_command_gate(
+            {"command": "pytest -q {test_files_for_files}"}, ["scripts/alpha.py"]
+        )
+
+        assert outcome.outcome == "COULD_NOT_RUN"
+        assert outcome.reason_code == "test_source_parse_error"
+        assert "tests/test_relation.py" in outcome.detail
+
+    def test_large_scoped_pytest_runs_in_bounded_batches(self, tmp_path, monkeypatch):
+        root = _repo_with_one_mapped_test(tmp_path)
+        for number in range(13):
+            (root / "tests" / f"test_alpha_{number}.py").write_text("def test_x(): pass")
+        monkeypatch.chdir(root)
+        calls = []
+
+        def fake(args, **kwargs):
+            calls.append(args)
+
+            class R:
+                returncode = 0
+                stdout = "passed"
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake)
+        outcome = run_command_gate(
+            {"command": "pytest -q {test_files_for_files}"}, ["scripts/alpha.py"]
+        )
+
+        assert outcome.outcome == "PASSED"
+        assert len(calls) == 4
+        selected = [arg for call in calls for arg in call if arg.startswith("tests/test_alpha")]
+        assert len(selected) == 14
+
+    @pytest.mark.parametrize(
+        ("returncodes", "expected_outcome"),
+        [
+            ([0, 5], "PASSED"),
+            ([5, 0], "COULD_NOT_RUN"),
+            ([0, 1], "FAILED"),
+        ],
+    )
+    def test_scoped_pytest_keeps_prior_evidence_when_a_later_batch_is_empty(
+        self, tmp_path, monkeypatch, returncodes, expected_outcome
+    ):
+        """Exit 5 is non-evidence only when no earlier batch ran a test."""
+        root = _repo_with_one_mapped_test(tmp_path)
+        for number in range(4):
+            (root / "tests" / f"test_alpha_{number}.py").write_text("def test_x(): pass")
+        monkeypatch.chdir(root)
+        results = iter(returncodes)
+
+        def fake(args, **kwargs):
+            class R:
+                returncode = next(results)
+                stdout = "pytest batch"
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake)
+        outcome = run_command_gate(
+            {"command": "pytest -q {test_files_for_files}"}, ["scripts/alpha.py"]
+        )
+
+        assert outcome.outcome == expected_outcome
 
     def test_an_unscoped_gate_says_nothing_about_scope(self, tmp_path, monkeypatch):
         """No `{test_files_for_files}` means no scoping claim to qualify.
@@ -260,3 +340,13 @@ class TestScopeLabelShape:
     def test_an_unknown_denominator_is_omitted_not_faked(self):
         """Zero total means the walk found nothing; do not print 'of 0'."""
         assert " of 0 " not in _scope_label(["tests/test_a.py"], 0)
+
+    @pytest.mark.parametrize(
+        ("kwargs", "fragment"),
+        [
+            ({"direct_imports": 2}, "direct-import subject tests: 2"),
+            ({"deferred_global": 3}, "global tree checks deferred to full/release lane: 3"),
+        ],
+    )
+    def test_label_discloses_subject_and_deferred_counts(self, kwargs, fragment):
+        assert fragment in _scope_label(["tests/test_a.py"], 10, **kwargs)

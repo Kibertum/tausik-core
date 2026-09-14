@@ -1,3 +1,5 @@
+**English** | [Русский](../ru/sessions.md)
+
 # A "session" is TWO things
 
 Decision #223. The word "session" in TAUSIK fuses two concepts with different
@@ -79,6 +81,25 @@ error — the only way to notice the loss was an empty report:
 
 That is why the capacity gate's refusal names `tausik session start` — one
 action restores everything above.
+
+#### Usage telemetry has LEFT this list (schema v48)
+
+It stood here not by design but because `usage_events.session_id` was declared
+`NOT NULL`: an event belonging to a TASK but not to a session had nowhere to go,
+and the hook dropped it whole — while `task_slug` was already known at that
+moment. Attribution had been keyed on the wrong thing all along: the target is
+the task, which is what carries `cost_actual_usd`, `tokens_actual` and
+`started_model_id`.
+
+`session_id` is now optional, and work without an open session is **recorded in
+full**: the row gets a live `task_slug` and `session_id=NULL`. An event with
+neither a task nor a session does not vanish either — it lands in an explicit
+"outside a task" bucket and is printed by `tausik metrics cost` (including when
+the per-task table is empty). Otherwise a silent drop on write would simply have
+become a silent omission on read.
+
+The other four rows of the table stand: a session is still needed for token
+metrics, model pinning, the brain slice and the audit cadence.
 
 ## What did not change
 

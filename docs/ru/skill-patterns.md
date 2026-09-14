@@ -1,3 +1,5 @@
+[English](../en/skill-patterns.md) | **Русский**
+
 # Общие паттерны скиллов
 
 Общие паттерны, используемые в нескольких скиллах. Ссылайся на этот файл вместо дублирования.
@@ -15,7 +17,7 @@
 Замени содержимое между `<!-- DYNAMIC:START -->` и `<!-- DYNAMIC:END -->`:
 ```
 Current State
-Session: #{id} | Branch: {branch} | Version: {version}
+Session: #{id} | Branch: {branch} | TAUSIK: {version}
 Tasks: {done}/{total} done, {active} active, {blocked} blocked
 {IF handoff: Last session: {summary}}
 {IF warnings: Warnings: ...}

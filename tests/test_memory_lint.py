@@ -213,3 +213,132 @@ class TestServiceLint:
             assert result["count"] == 0
         finally:
             svc.be.close()
+
+
+# --- a git-ignored path is absent by design, not stale --------------------
+# Measured session #209: three of seven stale_file findings named
+# `.claude/settings.local.json`, `.qwen/QWEN.md` and `.kilo/AGENTS.md` —
+# machine-local or generated files that a fresh checkout does not have and the
+# next bootstrap restores. Reporting them teaches the reader to skim the list
+# that also holds the real ones.
+
+
+def test_a_git_ignored_path_is_not_reported_as_stale():
+    rows = [_mem(1, content="see .claude/settings.local.json for the local overrides")]
+    findings = find_lint_candidates(
+        rows,
+        [],
+        _only_dirs_exist(".claude"),
+        path_is_ignored=lambda p: p == ".claude/settings.local.json",
+    )
+    assert findings == []
+
+
+def test_a_tracked_path_that_is_gone_is_still_reported():
+    """The other end. Silencing every missing path would 'fix' the noise by
+    switching the detector off."""
+    rows = [_mem(1, content="see docs/skills.md for the cascade")]
+    findings = find_lint_candidates(
+        rows,
+        [],
+        _only_dirs_exist("docs"),
+        path_is_ignored=lambda _p: False,
+    )
+    assert [f["kind"] for f in findings] == ["stale_file"]
+    assert "docs/skills.md" in findings[0]["reason"]
+
+
+def test_without_an_ignore_probe_nothing_is_silenced():
+    """`path_is_ignored=None` means 'ask nothing', so the pure detector keeps
+    behaving exactly as it did before the probe existed."""
+    rows = [_mem(1, content="see .claude/settings.local.json for the local overrides")]
+    findings = find_lint_candidates(rows, [], _only_dirs_exist(".claude"))
+    assert [f["kind"] for f in findings] == ["stale_file"]
+
+
+def test_an_example_name_in_prose_is_not_a_stale_reference():
+    rows = [_mem(1, content="cite it as tests/test_x.py::test_y in the receipt")]
+    assert find_lint_candidates(rows, [], _only_dirs_exist("tests")) == []
+
+
+def test_a_path_relative_to_a_working_directory_is_not_a_repo_claim():
+    """Measured: memory #531 quotes `subprocess.run(['bash', './probe.sh'])`,
+    a command's argument, not a file this repository is expected to hold."""
+    rows = [_mem(1, content="five tests called subprocess.run(['bash', './probe.sh'])")]
+    assert find_lint_candidates(rows, [], _only_dirs_exist(".")) == []
+
+
+# --- the service layer: the probe has to be WIRED, and it has to fail open ---
+# Both of these were mutation survivors: turning the probe off in the service,
+# and making it answer "ignored" when git cannot answer, left every test green
+# while silencing the whole stale_file detector.
+
+
+class _Backend:
+    """The three methods `lint_memory` actually calls."""
+
+    def __init__(self, rows, edges=()):
+        self._rows, self._edges = rows, list(edges)
+        self.archived: list[int] = []
+
+    def memory_list(self, n=500, include_archived=False):
+        return self._rows
+
+    def edge_list(self, relation=None, n=500):
+        return [e for e in self._edges if e["relation"] == relation]
+
+    def memory_archive_ids(self, ids):
+        self.archived.extend(ids)
+        return len(ids)
+
+
+def test_the_service_consults_git_and_drops_the_ignored_path(monkeypatch):
+    import service_knowledge_hygiene as hygiene
+
+    asked: list[str] = []
+
+    def _probe_factory(_root):
+        def _probe(path):
+            asked.append(path)
+            return path == ".claude/settings.local.json"
+
+        return _probe
+
+    monkeypatch.setattr(hygiene, "git_ignore_probe", _probe_factory)
+    rows = [_mem(1, content="see .claude/settings.local.json and docs/skills.md")]
+    out = hygiene.lint_memory(_Backend(rows))
+    reported = {f["reason"] for f in out["findings"]}
+    assert asked, "the service never asked git anything"
+    assert not any("settings.local.json" in r for r in reported)
+    assert any("docs/skills.md" in r for r in reported)
+
+
+def test_an_injected_filesystem_is_not_this_repository(monkeypatch):
+    """`file_exists` supplied means the caller is describing some other tree, so
+    asking THIS repository's git about those paths would be nonsense."""
+    import service_knowledge_hygiene as hygiene
+
+    def _fail(_root):  # pragma: no cover - must never be reached
+        raise AssertionError("git was consulted about an injected filesystem")
+
+    monkeypatch.setattr(hygiene, "git_ignore_probe", _fail)
+    rows = [_mem(1, content="see docs/skills.md")]
+    out = hygiene.lint_memory(_Backend(rows), file_exists=_only_dirs_exist("docs"))
+    assert [f["kind"] for f in out["findings"]] == ["stale_file"]
+
+
+def test_the_probe_answers_truthfully_for_this_repository():
+    from service_knowledge_hygiene import git_ignore_probe
+
+    probe = git_ignore_probe(os.path.abspath(os.path.join(_SCRIPTS, "..")))
+    assert probe(".tausik/tausik.db") is True
+    assert probe("scripts/project.py") is False
+
+
+def test_the_probe_fails_open_where_git_cannot_answer(tmp_path):
+    """Fail CLOSED would let a broken git switch the detector off in silence —
+    every path would read as 'ignored, so not stale'."""
+    from service_knowledge_hygiene import git_ignore_probe
+
+    probe = git_ignore_probe(str(tmp_path))
+    assert probe("anything/at/all.py") is False

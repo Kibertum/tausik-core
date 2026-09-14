@@ -86,17 +86,25 @@ IDE_DIRS: dict[str, str] = {
 
 # IDEs that have a full scaffold branch in bootstrap (generate_*_config).
 # These are the only individually-selectable `--ide` targets and the set
-# that `--ide all` expands to. windsurf/codex live in IDE_DIRS (so the
-# wrapper can discover scripts that land there) but have no generator yet,
-# so they are intentionally excluded here. Add an IDE once its scaffold
-# branch exists in bootstrap.run_for_ide.
+# that `--ide all` expands to. windsurf lives in IDE_DIRS (so the wrapper can
+# discover scripts that land there) but has no generator yet, so it is
+# intentionally excluded here. Add an IDE once its scaffold branch exists in
+# bootstrap.run_for_ide.
 #
 # `opencode` was the cautionary tale that produced this split: the docs called it
 # supported while no generator existed, and an agent filling that gap by hand took
 # a user's host down. It joins the list only now — with bootstrap_opencode
 # (config + rules) and harness/opencode/plugins/tausik-qg0.js (QG-0 enforcement)
 # both shipped. Membership here is a promise; keep it backed by code.
-SCAFFOLD_IDES: list[str] = ["claude", "cursor", "qwen", "kilo", "opencode"]
+#
+# `codex` joins on the same terms, and its measurement is worth keeping: the host
+# DOES have a hook API (`hooks.json`, PreToolUse/PostToolUse/SessionStart, the
+# `permissionDecision` protocol — all present in codex.exe), so Rule 2 and the
+# write ACL are HARD there, not advisory. What it does not have is any
+# workspace variable, and a `.codex/hooks.json` written with Claude's
+# `${CLAUDE_PROJECT_DIR}` expanded to nothing and silently disabled all thirteen
+# gates. bootstrap_codex writes absolute paths for exactly that reason.
+SCAFFOLD_IDES: list[str] = ["claude", "cursor", "qwen", "kilo", "opencode", "codex"]
 
 # --- Agent OUTPUT economy (orthogonal to context_tier, which sizes the INPUT rules) ---
 # `caveman` = telegraphic compressed output (bootstrap_templates.CAVEMAN_DIRECTIVE).
@@ -223,21 +231,6 @@ def load_config(config_path: str) -> dict[str, Any]:
                 "Config corrupted (%s): %s — using defaults", config_path, e
             )
     return dict(DEFAULT_CONFIG)
-
-
-def is_brain_enabled(full_cfg: dict[str, Any] | None) -> bool:
-    """Brain skill is opt-in: deployed only when `brain.enabled` is set in
-    the project config (.tausik/config.json top-level `brain` section).
-
-    Mirrors scripts/brain_config.is_brain_enabled — duplicated here so
-    bootstrap stays standalone (no scripts/ import). Used by bootstrap_copy
-    to filter brain out of the deployed skill set unless the user has run
-    `tausik brain init`. Saves ~600 tokens/turn for projects without Notion.
-    """
-    if not isinstance(full_cfg, dict):
-        return False
-    brain = full_cfg.get("brain", {}) or {}
-    return bool(brain.get("enabled", False))
 
 
 def save_config(config_path: str, cfg: dict[str, Any]) -> None:

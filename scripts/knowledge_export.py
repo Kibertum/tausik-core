@@ -23,9 +23,12 @@ the part nobody chose to write; it does not touch what people typed. A memory
 body can name a client outright, and the argument that made un-redacted storage
 acceptable is still "it never leaves the machine", so a backup that leaves the
 machine would silently withdraw the premise rather than the conclusion.
-Redaction of content is a 1.9 task, and a real one: the existing scrubber
-REFUSES rather than redacts and would reject every backup on the first absolute
-path, so making this work means building a redactor, not moving a call.
+Redaction of content lives in `publication_boundary.redact` and is applied
+with `--redacted`: the scrubber's four detectors, but each match is REPLACED
+with a typed placeholder rather than refused — a scrubber that refuses on the
+first absolute path would reject every backup, and a backup that quietly does
+not happen is discovered at the one moment it was needed. A plain local backup
+stays unredacted on purpose: it exists to restore what it saved.
 
 WHY REFUSAL IS LOUD. A backup that quietly does not happen is discovered at the
 one moment it was needed. Every failure here raises.
@@ -36,10 +39,10 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
-from typing import Any
-from urllib.parse import urlparse
+from typing import Any, Iterable
 
 from knowledge_db import SCHEMA_VERSION, connect_knowledge_db, knowledge_db_path
+from publication_boundary import assert_local_destination, redact
 from state_serialize import frontmatter
 from tausik_utils import ServiceError
 
@@ -87,71 +90,6 @@ FIELDS: dict[str, tuple[str, ...]] = {
         "created_at",
     ),
 }
-
-_NETWORK_SCHEMES = frozenset(
-    {
-        "s3",
-        "gs",
-        "az",
-        "azure",
-        "http",
-        "https",
-        "ftp",
-        "ftps",
-        "sftp",
-        "scp",
-        "ssh",
-        "smb",
-        "webdav",
-    }
-)
-
-
-def assert_local_destination(dest: str) -> str:
-    """Return the absolute path, or refuse a destination that leaves this machine.
-
-    Refusal is by SHAPE, not by reachability: a URL scheme, or a UNC path, means
-    the bytes go somewhere this machine does not solely control. Testing whether
-    a remote answers would be the wrong check — a remote that happens to be down
-    today is still a remote.
-
-    Deliberately permissive about ordinary paths, including ones on other drives
-    or on a mounted volume: a mounted network share is indistinguishable from a
-    local disk at this level, and refusing every mount would refuse the external
-    drive that is the most likely backup target there is. The line drawn here is
-    the one that can be drawn honestly; the rest is documented, not pretended.
-    """
-    if not dest or not dest.strip():
-        raise ServiceError("Backup destination is empty. Give a local directory to write into.")
-
-    raw = dest.strip()
-    if raw.startswith("\\\\") or raw.startswith("//"):
-        raise ServiceError(
-            f"Refusing the UNC destination {raw!r}. The shared knowledge database is stored "
-            "WITHOUT redaction — the memories, decisions and code snippets in it are free "
-            "text and can name a client outright — so backups must stay on this machine. "
-            "Give a local directory."
-        )
-
-    scheme = urlparse(raw).scheme.lower()
-    # A single letter is a Windows drive, not a scheme: urlparse reads "D:/x"
-    # as scheme "d". Length is the discriminator, and it is exact rather than
-    # heuristic — URL schemes are at least two characters by definition.
-    if len(scheme) > 1 and scheme in _NETWORK_SCHEMES:
-        raise ServiceError(
-            f"Refusing the remote destination {raw!r} (scheme {scheme!r}). The shared knowledge "
-            "database is stored WITHOUT redaction — the memories, decisions and code snippets "
-            "in it are free text and can name a client outright — so backups must stay on this "
-            "machine. Redaction on export is planned separately; until then, give a local "
-            "directory."
-        )
-    if len(scheme) > 1:
-        raise ServiceError(
-            f"Refusing the destination {raw!r}: {scheme!r} is not a local path. "
-            "Give a local directory."
-        )
-    return os.path.abspath(os.path.expanduser(raw))
-
 
 MANIFEST = "manifest.md"
 
@@ -209,18 +147,53 @@ def _rows(conn: sqlite3.Connection, table: str) -> list[sqlite3.Row]:
     return conn.execute(f"SELECT * FROM {table} ORDER BY entry_uuid").fetchall()
 
 
-def _render(table: str, row: sqlite3.Row) -> str:
-    pairs: list[tuple[str, Any]] = [(f, row[f]) for f in FIELDS[table]]
+def _render(pairs: list[tuple[str, Any]]) -> str:
     return "---\n" + frontmatter(pairs) + "---\n"
 
 
-def export_shared_knowledge(dest: str) -> dict[str, int]:
+def _redact_pairs(
+    pairs: list[tuple[str, Any]],
+    running: dict[str, int],
+    project_names: Iterable[str],
+    private_url_patterns: Iterable[str],
+) -> list[tuple[str, Any]]:
+    """Every string field through the boundary; identity and timestamps are not text."""
+    out: list[tuple[str, Any]] = []
+    for field, value in pairs:
+        if isinstance(value, str) and field not in _NEVER_REDACTED:
+            result = redact(
+                value, project_names=project_names, private_url_patterns=private_url_patterns
+            )
+            for detector, n in result.counts.items():
+                running[detector] = running.get(detector, 0) + n
+            value = result.text
+        out.append((field, value))
+    return out
+
+
+# Identity and bookkeeping columns: redacting a uuid or a timestamp would break
+# restore-by-identity while protecting nothing.
+_NEVER_REDACTED = frozenset({"entry_uuid", "created_at", "origin_project", "language"})
+
+
+def export_shared_knowledge(
+    dest: str,
+    *,
+    redacted: bool = False,
+    project_names: Iterable[str] = (),
+    private_url_patterns: Iterable[str] = (),
+) -> dict[str, int]:
     """Write every shared record as one file. Returns per-table counts.
 
     Idempotent by construction: the content of each file is a pure function of
     the row, so an unchanged store rewrites byte-identical files and a diff shows
     nothing. Files whose record has gone are removed, or a deleted entry would
     live on in the backup forever and a restore would resurrect it.
+
+    With `redacted=True` every text field passes `publication_boundary.redact`
+    before it is written, and the manifest records that the backup is redacted
+    together with per-detector counts under `redacted_*`; the counts land in
+    the returned dict under the same keys.
     """
     out = assert_local_destination(dest)
     assert_backup_directory(out)
@@ -232,9 +205,9 @@ def export_shared_knowledge(dest: str) -> dict[str, int]:
         )
 
     counts: dict[str, int] = {}
+    redaction_counts: dict[str, int] = {}
     try:
         os.makedirs(out, exist_ok=True)
-        _write_manifest(out, conn)
         for table, dirname in ENTITY_DIRS.items():
             target = os.path.join(out, dirname)
             os.makedirs(target, exist_ok=True)
@@ -243,9 +216,17 @@ def export_shared_knowledge(dest: str) -> dict[str, int]:
             for row in rows:
                 name = f"{_assert_uuid_is_a_safe_filename(row['entry_uuid'])}.md"
                 wanted.add(name)
-                _write_if_changed(os.path.join(target, name), _render(table, row))
+                pairs: list[tuple[str, Any]] = [(f, row[f]) for f in FIELDS[table]]
+                if redacted:
+                    pairs = _redact_pairs(pairs, redaction_counts, project_names, private_url_patterns)
+                _write_if_changed(os.path.join(target, name), _render(pairs))
             _prune(target, wanted)
             counts[table] = len(rows)
+        # The manifest is written LAST so a backup that died midway has none and
+        # restore refuses it rather than trusting a half-written tree.
+        _write_manifest(out, conn, redacted=redacted, redaction_counts=redaction_counts)
+        for detector, n in redaction_counts.items():
+            counts[f"redacted_{detector}"] = n
     except (OSError, sqlite3.Error) as e:
         # sqlite3.Error belongs here too: a locked or damaged store failing midway
         # leaves some tables fresh and others stale, and the dispatcher does not
@@ -257,16 +238,30 @@ def export_shared_knowledge(dest: str) -> dict[str, int]:
     return counts
 
 
-def _write_manifest(out: str, conn: sqlite3.Connection) -> None:
-    """Record the schema version the backup was taken at.
+def _write_manifest(
+    out: str,
+    conn: sqlite3.Connection,
+    *,
+    redacted: bool = False,
+    redaction_counts: dict[str, int] | None = None,
+) -> None:
+    """Record the schema version the backup was taken at, and whether it is redacted.
 
     A restore into a framework that predates the schema would otherwise fail in
     whatever way the data happened to break. The version makes the mismatch a
-    statement rather than a symptom.
+    statement rather than a symptom. `redacted` is stated for the same reason:
+    a reader of the tree must be able to tell a travelling backup from a
+    faithful one without diffing the records.
     """
     from knowledge_db import stored_schema_version
 
-    body = "---\n" + frontmatter([("schema_version", stored_schema_version(conn))]) + "---\n"
+    pairs: list[tuple[str, Any]] = [
+        ("schema_version", stored_schema_version(conn)),
+        ("redacted", redacted),
+    ]
+    for detector, n in sorted((redaction_counts or {}).items()):
+        pairs.append((f"redacted_{detector}", n))
+    body = "---\n" + frontmatter(pairs) + "---\n"
     _write_if_changed(os.path.join(out, MANIFEST), body)
 
 

@@ -1,4 +1,4 @@
-**English** | [Русский](/ru/docs/testing-principles)
+**English** | [Русский](../ru/testing-principles.md)
 
 # Testing principles
 
@@ -21,6 +21,18 @@ Guidance for contributors and agents working on TAUSIK core (`scripts/`, MCP han
 ## Scoped gates and task closure
 
 `task done` / `tausik verify --task <slug>` use `relevant_files` to map edited paths to test files. Empty `relevant_files` intentionally falls back to the **full** suite (safe default). Security-sensitive paths bypass verify-cache reuse but **still run gates** ([Verify / QG glossary](verify-glossary.md)). Align `relevant_files` with what you actually changed.
+
+**Citing a test as AC evidence.** On the `substantial`/`deep` tiers QG-2 needs
+at least one criterion backed by a test that EXISTS. A citation is read in the
+ecosystem's own form, not only Python's (GitLab #16): a path under `tests/`,
+`test/`, `__tests__/` or `spec/` with any recognised source extension, or a
+file NAMED as a test — `test_x.py`, `x_test.go`, `x_tests.rs`, `x.test.ts`,
+`x.spec.js`, `x_spec.rb`, `XTest.java` — anywhere in the project, because Rust
+and Go keep tests beside the code; optionally `::name` (a pytest node id, an
+`fn`/`func`/`it("…")` the file declares). The file must exist inside the
+project as normalised — `tests/../src/x.py` is a source file, not a test — and a
+named symbol must be declared in it. The refusal says which of two things went
+wrong: `CITED BUT FORM NOT RECOGNISED` or `CITED BUT NOT RESOLVED`.
 
 ## Negative: anti-patterns
 
