@@ -148,8 +148,7 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #264 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
-Tasks: 1510/1661 done, 1 active, 0 blocked
-Active: release-1-9-0-cut-tag-snapshot
+Tasks: 1511/1661 done, 0 active, 0 blocked
 
 ### Memory tail
 Context (5):
