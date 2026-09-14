@@ -65,7 +65,8 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #264 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
-Tasks: 1509/1659 done, 0 active, 0 blocked
+Tasks: 1510/1661 done, 1 active, 0 blocked
+Active: release-1-9-0-cut-tag-snapshot
 
 ### Memory tail
 Context (5):

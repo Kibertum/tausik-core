@@ -9,6 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.9.0] — 2026-09-14
+
 ### Fixed — two slow-lane tests were red only in CI, and said so about the wrong thing
 
 The published full lane (`pytest -m ''`, GitLab #7719) failed two tests that
