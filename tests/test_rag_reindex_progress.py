@@ -43,7 +43,9 @@ def fake_files(monkeypatch, tmp_path):
     import rag_indexer
 
     monkeypatch.setattr(rag_indexer, "get_file_list", lambda d, max_seconds=None: files)
-    monkeypatch.setattr(rag_indexer, "chunk_file", lambda content, lang: [{"text": content}])
+    monkeypatch.setattr(
+        rag_indexer, "chunk_file", lambda content, lang, boundaries=None: [{"text": content}]
+    )
     monkeypatch.setattr(rag_indexer, "_get_current_commit", lambda d: "abc1234")
     yield files
 

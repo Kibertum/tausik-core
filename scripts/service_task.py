@@ -11,15 +11,15 @@ from tausik_utils import (
     utcnow_iso,
     validate_content,
     validate_length,
-    validate_slug,
 )
+from task_baseline import on_activation
 from project_types import COMPLEXITY_SP, VALID_TASK_STATUSES
 from service_cascade import CascadeMixin
 from service_gates import GatesMixin
 from model_pinning import model_start_updates
 from service_reasoning import ReasoningMixin
 from service_replay import ReplayMixin
-from service_recording import check_session_capacity
+from service_recording import FORCE_RETIRED as _FORCE_RETIRED, session_capacity_advisory
 from service_task_done import TaskDoneReportMixin, _format_task_done_failures  # noqa: F401
 
 if TYPE_CHECKING:
@@ -34,7 +34,6 @@ _MISSING = object()
 
 from service_validation import load_stacks as _load_stacks  # noqa: E402,F401
 from service_validation import update_enums as _update_enums  # noqa: E402,F401
-from service_recording import apply_force_capacity_audit as _apply_force_audit  # noqa: E402,F401
 
 
 class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, ReplayMixin):
@@ -77,7 +76,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
 
         if story_slug:
             self._require_story(story_slug)
-        validate_slug(slug)
+        self._new_slug("task", slug)
         validate_length("title", title)
         title = safe_single_line(title) or title
         from service_validation import validate_task_add_inputs
@@ -155,14 +154,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             return "\n".join(
                 [f"Task '{slug}' is already active (resumed).", *lines_for_task(self.be, slug)]
             )
+        if force:
+            raise ServiceError(_FORCE_RETIRED)
         qg0_warnings: list[str] = []
-        capacity_audit = ""
+        capacity_advice = ""
         if not _internal_force:
             qg0_warnings = self._check_qg0_start(slug, task)
-            if force:
-                capacity_audit = _apply_force_audit(self.be, slug, task)
-            else:
-                check_session_capacity(self.be, slug, task)
+            # A signal, not a gate (decision #376): printed with the start, never a refusal.
+            capacity_advice = session_capacity_advisory(self.be, slug, task)
         updates: dict[str, Any] = {
             "status": "active",
             "attempts": task.get("attempts", 0) + 1,
@@ -175,11 +174,12 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             self._cascade_start(slug)
         self._project_task(slug)
         msgs = [f"Task '{slug}' started (attempt #{updates['attempts']})."]
+        rebased = on_activation(self.be, self.tausik_dir(), slug, first=not task.get("started_at"))
+        msgs.extend([rebased] if rebased else [])  # scope measured from a git anchor
         msgs.extend(qg0_warnings)
-        if capacity_audit:
-            msgs.append(f"⚠ {capacity_audit}")
-        # v15-ow-hook-recognize: worker-mode notice for a delegated task (and the
-        # orchestrator model banner is suppressed for it), else the normal banner.
+        if capacity_advice:
+            msgs.append(f"ⓘ {capacity_advice}")
+        # v15-ow-hook-recognize: worker notice for a delegated task, else the banner.
         from service_delegate import start_recognition_message
 
         rec_msg = start_recognition_message(self.be, slug, task.get("complexity"))
@@ -194,7 +194,6 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
 
             record_active_task_recommendation(find_tausik_dir(), slug, task.get("complexity"))
         except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
-            # Persistence is best-effort — never block task_start on it.
             pass
         return "\n".join(msgs) if len(msgs) > 1 else msgs[0]
 
@@ -261,18 +260,19 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         task = self._require_task(slug)
         if task["status"] != "blocked":
             raise ServiceError(f"Task '{slug}' is not blocked (status: {task['status']})")
-        # v1.3.4 (med-batch-2-qg #4): unblock → active; capacity check stops
-        # block/unblock cycling past the 180-min ACTIVE threshold (SENAR Rule 9.2).
-        if not force:
-            check_session_capacity(self.be, slug, task)
-        # An unblock is a re-activation, so it is an attempt like `task start`
-        # is. It used to set `active` directly and leave the counter alone,
-        # which is one of the two reasons 1239 closes showed `attempts: 1`
-        # (attempts-counter-never-increments); the other is a red verify.
+        # A re-activation gets the same capacity SIGNAL a start gets (decision #376).
+        if force:
+            raise ServiceError(_FORCE_RETIRED)
+        advice = session_capacity_advisory(self.be, slug, task)
+        # An unblock is a re-activation, an attempt like `task start` (1239 closes
+        # showed `attempts: 1` while it was not; attempts-counter-never-increments).
         attempts = task.get("attempts", 0) + 1
         self.be.task_update(slug, status="active", blocked_at=None, attempts=attempts)
         self._project_task(slug)
-        return f"Task '{slug}' unblocked (attempt #{attempts})."
+        msg = f"Task '{slug}' unblocked (attempt #{attempts})."
+        note = on_activation(self.be, self.tausik_dir(), slug, first=False)  # re-anchor
+        msg += f"\n{note}" if note else ""
+        return f"{msg}\nⓘ {advice}" if advice else msg
 
     def task_review(self, slug: str) -> str:
         task = self._require_task(slug)

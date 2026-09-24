@@ -159,14 +159,11 @@ class TaskDoneReportMixin:
             "message": "",
         }
         task = self._require_task(slug)  # type: ignore[attr-defined]
-        # Refuse an already-closed task BEFORE any write. persist_declared_scope
-        # mutates the row, and a closed task's scope fed its risk_score,
-        # verify-cache hash and receipt — rewriting it from a call that then
-        # fails ('already done') would corrupt a certified task invisibly.
-        if task["status"] == "done":
-            raise ServiceError(f"Task '{slug}' is already done")
-        # Where the scope comes from — and when it is written down — lives in
-        # `task_done_scope`; this function is about whether the task may CLOSE.
+        # BEFORE any write: closed or never-started tasks are refused (task_obsolete).
+        from task_obsolete import refuse_unclosable
+
+        refuse_unclosable(task, slug)
+        # Where the scope comes from lives in `task_done_scope`; this is about CLOSING.
         tdir = self.tausik_dir()  # type: ignore[attr-defined]
         if persist_declared_scope(self.be, slug, relevant_files, tdir, report["warnings"]):
             task = self._require_task(slug)  # type: ignore[attr-defined]
@@ -314,9 +311,13 @@ class TaskDoneReportMixin:
                 except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
                     root_cause_nudge = ""
 
-        # Knowledge capture warning (SENAR Rule 8). v1.3.4 (med-batch-2-qg #5):
-        # --no-knowledge refused for complex/defect tasks (Rule 8 upgrades from
-        # warning to refusal — where knowledge capture matters most).
+        # A failure the framework itself saw closes with a dead end or a stated reason (1.10).
+        from dead_end_gate import check as dead_end_check
+
+        if msg := dead_end_check(self.be, task):
+            report["blocking_failures"].append({"stage": "knowledge", "message": msg})
+            return report
+        # SENAR Rule 8; --no-knowledge refused for complex/defect tasks (v1.3.4).
         _kw = ("dead end", "decided", "decision", "memory", "pattern", "gotcha")
         notes = task.get("notes") or ""
         is_complex = (task.get("complexity") or "").lower() == "complex"
@@ -343,12 +344,9 @@ class TaskDoneReportMixin:
             ):
                 knowledge_warning = "NOTE: No knowledge captured for this task (no memories, decisions, or dead ends). Use --no-knowledge to confirm none needed."
                 if _journal_shows_a_refutation(notes):
-                    # NAMED, because the general warning was measured at zero
-                    # effect: `dead-end` was used 0 times in 5,966 tool calls
-                    # while the journals of that same window carry refuted
-                    # hypotheses. A warning that lists three options is one the
-                    # reader satisfies with whichever is cheapest; this one says
-                    # which of the three the journal is asking for.
+                    # NAMED: the general warning was measured at zero effect
+                    # (`dead-end` 0 times in 5,966 calls while journals carried
+                    # refuted hypotheses); this says which option is asked for.
                     knowledge_warning += (
                         " This task's journal records an approach that was REFUTED — that is a"
                         " dead end, and the next agent will otherwise pay to rediscover it:"
@@ -495,6 +493,7 @@ class TaskDoneReportMixin:
             # blocks on a later gate no longer burns a verify run the agent
             # then has to repeat.
             _redeem_verify_handle(self.be, slug, report)
+        __import__("task_baseline").release(self.tausik_dir(), slug)  # type: ignore[attr-defined]
         report["ok"] = True
         report["message"] = " ".join(msgs)
         return report

@@ -78,8 +78,13 @@ def changed_files_since(
     *,
     root: str | None = None,
     runner: Callable[..., subprocess.CompletedProcess] | None = None,
+    task_slug: str | None = None,
 ) -> set[str] | None:
     """Return set of git-tracked file paths changed since task_created_at.
+
+    With `task_slug` whose git anchor exists (task_baseline, decision #390) the
+    answer is `git diff --name-only <anchor>` instead: measured from a snapshot
+    of the tree at the task's (re)activation, not from a clock.
 
     Combines two queries:
       1. `git log --since=<task_created_at> --name-only --pretty=format:`
@@ -111,6 +116,13 @@ def changed_files_since(
         return None
     if not _is_repo_root(base):
         return None
+    if task_slug and runner is None:
+        import task_baseline
+
+        sha = task_baseline.baseline_of(base, task_slug)
+        anchored = task_baseline.changed_since_anchor(base, sha) if sha else None
+        if anchored is not None:
+            return anchored
     run = runner or git_exec.run_git  # default git chokepoint forces stdin=DEVNULL
     changed: set[str] = set()
     try:

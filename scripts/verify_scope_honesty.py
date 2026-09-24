@@ -115,7 +115,9 @@ def describe_declared_scope(
     # is the seam tests substitute, and a direct name binding would silently
     # ignore `monkeypatch.setattr(verify_git_diff, "changed_files_since", ...)`
     # — the check would then pass while measuring nothing.
-    actual = verify_git_diff.changed_files_since(task_created_at, root=root, runner=runner)
+    actual = verify_git_diff.changed_files_since(
+        task_created_at, root=root, runner=runner, task_slug=task_slug
+    )
     if actual is None:
         # changed_files_since collapses "not a git repo", "git missing from
         # PATH" and "git call failed" into None. All three mean the same to us:
