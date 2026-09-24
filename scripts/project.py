@@ -51,6 +51,7 @@ def main() -> None:
     )
     from project_cli_config import cmd_config
     from project_cli_doctor import cmd_doctor
+    from update_check import cmd_update_check
     from project_cli_coherence import cmd_coherence
     from project_cli_graph import cmd_graph
     from project_cli_symbol import cmd_symbol
@@ -138,6 +139,7 @@ def main() -> None:
         "run": cmd_run,
         "review": cmd_review,
         "coherence": cmd_coherence,
+        "update-check": cmd_update_check,
         "graph": cmd_graph,
         "symbol": cmd_symbol,
         "hygiene": cmd_hygiene,
