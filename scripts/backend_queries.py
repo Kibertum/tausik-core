@@ -48,6 +48,20 @@ def _sanitize_fts5(query: str) -> str:
 
     # Extract "quoted phrases" before stripping
     remaining = re.sub(r'"([^"]*)"', _extract_phrase, query)
+    # A trailing `*` is a prefix query the agent may type (`гейт*`); every other
+    # star is stripped below (search-has-no-morphology-and-strips-the-wildcard).
+    from fts_morphology import expand, keep_trailing_star
+
+    stars: list[str] = []
+
+    def _keep_star(m: re.Match) -> str:
+        kept = keep_trailing_star(m.group(0))
+        if kept:
+            stars.append(kept)
+            return " "
+        return m.group(0)
+
+    remaining = re.sub(r"\w+\*(?=\s|$)", _keep_star, remaining)
     # Strip FTS5 operators, special chars, AND leftover unpaired quotes
     remaining = re.sub(r'["\(\)\*\:\^]', " ", remaining)
     # Remove FTS5 boolean/proximity operators as whole words
@@ -61,8 +75,8 @@ def _sanitize_fts5(query: str) -> str:
             if clean:
                 wrapped.append(f'"{clean}"')
         else:
-            wrapped.append(tok)
-    parts = wrapped + phrases
+            wrapped.append(expand(tok))  # word forms: `(form OR stem*)`
+    parts = wrapped + stars + phrases
     return " ".join(parts) if parts else ""
 
 

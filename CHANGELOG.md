@@ -9,6 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — search finds a word in any case and number (github#124)
+
+The FTS tables have no stemming and the sanitizer stripped `*`, so each word form found only itself: «задача» 565 records, «задачам» 27. A trailing `*` is now kept (`гейт*`), and a Cyrillic word of five letters or more is searched together with its stem (`(form OR stem*)`) — «задача», «задачи» and «задачам» all find 900. Stars elsewhere, unpaired quotes and operators are still neutralised. The technique is in the agent contract.
+
 ### Changed — the user tier moves to `~/.config/tausik/config.json` (github#104)
 
 `~/.tausik/config.json` recreated the `~/.tausik` directory that 1.8 had moved the shared store out of — the directory that makes a home folder look like a project. The user tier now lives in `~/.config/tausik/config.json`. An existing `~/.tausik/config.json` is still read when it is the only one, so no setting is lost, and `tausik doctor` asks to move it; when both exist the new one wins and doctor says the legacy one is ignored. Project discovery already refused to treat the home `~/.tausik` as a project; a test now pins it for a home with a config-only `.tausik`.

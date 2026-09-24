@@ -77,13 +77,15 @@ def test_fts5_boolean_operators_stripped():
 
 
 def test_paren_star_colon_caret_stripped():
-    out = _sanitize_fts5("(foo) bar* baz:qux ^heading")
+    # A star INSIDE a token is stripped; a trailing one is a prefix query since
+    # 1.10 (search-has-no-morphology-and-strips-the-wildcard), pinned below.
+    out = _sanitize_fts5("(foo) b*ar baz:qux ^heading")
     assert "(" not in out
     assert ")" not in out
     assert "*" not in out
     assert ":" not in out
     assert "^" not in out
-    for word in ("foo", "bar", "baz", "qux", "heading"):
+    for word in ("foo", "b", "ar", "baz", "qux", "heading"):
         assert word in out
 
 
