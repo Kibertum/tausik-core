@@ -391,3 +391,36 @@ def corpus_status(root: str | None = None) -> str:
         )
     version = corpus_version(root) or "unknown edition"
     return f"standard corpus: checked against {root} ({version})"
+
+
+def corpus_health(cfg: dict[str, Any] | None = None) -> tuple[str, str]:
+    """`(level, text)` for one doctor line about the configured corpus.
+
+    Level is "ok" or "warn". Three states are kept apart because they call for
+    different actions: nothing configured (a consumer project — no action),
+    a path that is not there, and a path that exists but is not the standard
+    (no `standard/` chapters). The third is what happened when the standard
+    moved from `standards/renar` (now the site) to `standards/renar-standart`:
+    the path resolved, the detector read nothing, and "unreadable" was the
+    only thing it could honestly say.
+    """
+    if cfg is None:
+        from project_config import load_config
+
+        cfg = load_config()
+    raw = str((cfg or {}).get(CORPUS_CONFIG_KEY) or "").strip()
+    if not raw:
+        return "ok", f"not configured ({CORPUS_CONFIG_KEY}) — drift detector dormant"
+    path = os.path.expanduser(raw)
+    if not os.path.isdir(path):
+        return "warn", f"{path} does not exist — fix {CORPUS_CONFIG_KEY}"
+    chapters = os.path.join(path, "standard")
+    if not os.path.isdir(chapters):
+        return "warn", (
+            f"{path} has no standard/ chapters — not the standard's repository "
+            f"(the site?); point {CORPUS_CONFIG_KEY} at the standard's source"
+        )
+    n = sum(1 for f in os.listdir(chapters) if f.endswith(".md"))
+    ver = corpus_version(path)
+    ver_text = f"RENAR v{ver}" if ver else "no version banner"
+    return ("ok" if ver else "warn"), f"{path} — {ver_text}, {n} chapter file(s)"

@@ -56,14 +56,18 @@ from renar_mandatory_clauses import (  # noqa: F401 — eval_mandatory_clauses i
 )
 from renar_measurer_caveats import caveats_section
 from renar_normative_inapplicability import section as inapplicability_section
+from renar_v11_deltas import section as renar_11_deltas_section
 from renar_tc_premise import pairing_clause
+from senar_version_claim import DECLARED_SENAR_VERSION
 from service_specs import SPEC_TYPES
 
 # v1.1 since session #250 (decision #364): the corpus moved to v1.1 at c3dd6b0 and
 # §13.4.3 makes a minor edition a re-assessment trigger; the eighth clause
 # §13.3.8 is assessed in renar_br_premise.
 RENAR_VERSION = "1.1"
-SENAR_VERSION = "1.3"
+# The one SENAR declaration, not a second copy: this was "1.3" after the claim
+# moved to 1.5, and the manifest kept publishing the old edition.
+SENAR_VERSION = DECLARED_SENAR_VERSION
 
 # Derived from the canonical closed list (single source) → "SPEC-<TYPE>" labels.
 SPEC_TYPES_SUPPORTED = [f"SPEC-{t}" for t in SPEC_TYPES]
@@ -238,6 +242,8 @@ def gather_signals(conn: sqlite3.Connection) -> dict[str, Any]:
         # rest of the DB-derived facts so `build_manifest` stays a function of
         # the bundle and never needs a connection of its own.
         "normative_inapplicability": inapplicability_section(conn),
+        # RENAR 1.1 guide/12: each change done, declared or deferred.
+        "renar_11_deltas": renar_11_deltas_section(),
     }
 
 
@@ -360,6 +366,7 @@ def build_manifest(
         # caveats above and NOT the same claim — renar_normative_inapplicability
         # says which is which. Dropped when empty, for the same reason.
         **({"normative-inapplicability": inapplicable} if inapplicable else {}),
+        **({"renar-11-deltas": bundle["renar_11_deltas"]} if bundle.get("renar_11_deltas") else {}),
         # The project's §10.4.4 declaration, judged by §13.3.6 above — one
         # source, published here and read there.
         "quality-gates": dict(QUALITY_GATES_DECLARED),

@@ -223,7 +223,7 @@ def test_an_unreadable_registry_makes_everything_unchecked_not_green(tmp_path, m
 # --- AC4: reach stated as a number, honestly --------------------------------
 
 
-def test_reach_is_now_eleven_of_eleven_and_names_no_absentee():
+def test_reach_is_now_twelve_of_twelve_and_names_no_absentee():
     """Reach was 9 of 11 until v49 admitted SPEC-TEST and SPEC-DOC.
 
     Reporting "all types covered" over a nine-type list would have been the
@@ -233,10 +233,10 @@ def test_reach_is_now_eleven_of_eleven_and_names_no_absentee():
     would make the NEXT shortfall arithmetically invisible.
     """
     r = reach()
-    assert r["types_known"] == 11
-    assert r["types_in_standard"] == 11
+    assert r["types_known"] == 12
+    assert r["types_in_standard"] == 12
     assert r["absent"] == []
-    assert "11 of 11" in r["note"]
+    assert "12 of 12" in r["note"]
     # The note may no longer cite the task that closed the gap as though the
     # gap were still open.
     assert "spec-closed-list-is-nine-while-the-standard-has-eleven" not in r["note"]
@@ -248,16 +248,16 @@ def test_reach_still_names_the_shortfall_when_there_is_one():
     r = reach(known_types=("ARCH", "API"))
     assert r["types_known"] == 2
     assert r["absent"] == [t for t in sc.STANDARD_SPEC_TYPES if t not in ("ARCH", "API")]
-    assert "2 of 11" in r["note"]
+    assert "2 of 12" in r["note"]
     assert "SPEC-TEST" in r["note"] and "SPEC-DOC" in r["note"]
 
 
-def test_reach_reports_full_coverage_only_when_all_eleven_types_exist():
+def test_reach_reports_full_coverage_only_when_all_twelve_types_exist():
     """The number is computed, not asserted: widening the closed list is what
     makes this control's reach complete, and nothing else."""
     r = reach(known_types=sc.STANDARD_SPEC_TYPES)
     assert r["absent"] == []
-    assert "11 of 11" in r["note"]
+    assert "12 of 12" in r["note"]
 
 
 # --- The live repository ----------------------------------------------------

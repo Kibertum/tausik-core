@@ -37,7 +37,8 @@
         "SEC",
         "OPS",
         "TEST",
-        "DOC"
+        "DOC",
+        "UC"
       ]
     }
   },
@@ -54,5 +55,5 @@
   "skills_official_count": 20,
   "stacks_count": 25,
   "tausik_version": "1.9.0",
-  "test_count": 10146
+  "test_count": 10706
 }
