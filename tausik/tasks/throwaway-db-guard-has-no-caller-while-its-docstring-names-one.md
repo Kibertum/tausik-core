@@ -1,9 +1,9 @@
 ---
 slug: throwaway-db-guard-has-no-caller-while-its-docstring-names-one
 title: "Гард принадлежности БД мёртв: у is_working_project_db нет ни одного вызова, а докстринг называет его защитой единственного внешнего пути"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-site-docs-and-hygiene
 complexity: medium
 role: developer
 stack: python
@@ -12,11 +12,13 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/brain_move.py"
+  - "tests/test_decide_classifies_what_it_publishes.py"
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T23:08:32Z"
 ---
 
 ## Goal
@@ -33,6 +35,8 @@ completed_at: null
 
 ## Acceptance Criteria
 
+1. It is established from the repository, not from memory, whether is_working_project_db, its tests and the docstring claim about brain_move still exist. 2. If they are gone, the commit that removed them is named and the task closes with no file change. 3. NEGATIVE: no production code path that publishes outward is left without the protection the task was about — the one remaining outward path (knowledge export) is named with its current guard.
+
 ## Plan
 
 ## Rollback
@@ -40,3 +44,8 @@ completed_at: null
 git revert. Если решением будет ПОДКЛЮЧИТЬ гард к move_to_brain — откат вернёт незащищённый внешний путь; если решением будет УДАЛИТЬ гард — откат вернёт мёртвый код. В обоих случаях безопасно.
 
 ## Journal
+
+- 2026-09-23T23:08:30Z [planning] — AC-1: ✓ measurement — grep over scripts/ tests/ harness/: zero references to is_working_project_db; the 'THROWAWAY GUARD' docstring passage is gone from scripts/service_decide.py; scripts/brain_move.py and tests/test_decide_classifies_what_it_publishes.py no longer exist.
+- 2026-09-23T23:08:31Z [planning] — AC-2: ✓ measurement — git log -S is_working_project_db: removed by 77703c4a 'feat(knowledge)!: remove the Notion transport' together with brain_move.py (move_to_brain was the outward path the guard was written for). Outcome (b) of the task happened by that commit; nothing left to change.
+- 2026-09-23T23:08:31Z [planning] — AC-3: ✓ measurement — negative: the only path by which shared-store content still leaves the machine is tausik knowledge export; commit 0dbfb49e put it behind scripts/publication_boundary.py (assert_local_destination + redact), and tests/test_publication_boundary.py walks scripts/ and harness/ for any module that reads the store and writes out without the boundary.
+- 2026-09-23T23:09:14Z [done] — CORRECTION: this task was closed from PLANNING — task start refused (no scope), and task done accepted it anyway. The close itself is sound (evidence above, nothing to change), but it went around QG-0. The path is filed as task-done-closes-a-task-that-never-started.

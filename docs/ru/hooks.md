@@ -26,7 +26,7 @@ TAUSIK использует хуки Claude Code для автоматическ
 |------|-------|-----------|
 | `auto_format.py` | После каждого пишущего инструмента (MultiEdit не был на этом хуке до PR #5) | Авто-форматирование через ruff/prettier/gofmt + лог "Modified: X" в задачу |
 | `memory_posttool_audit.py` | После каждого пишущего инструмента в auto-memory | Аудитит cross-project leakage (использует regex-библиотеку `memory_markers.py`) и предупреждает |
-| `task_done_verify.py` | После `mcp__tausik-project__tausik_task_done` | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite). |
+| `task_done_verify.py` | После `mcp__tausik-project__tausik_task_done` или `tausik task done`, запущенного в оболочке | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite). |
 | `task_call_counter.py` | После любого tool call | Инкрементирует per-task `call_actual` счётчик; warning'ит на 1.5×budget |
 | `posttool_usage.py` (v1.4) | После любого tool call | Записывает token-usage события в `usage_events` для per-task cost rollup |
 | `activity_event.py` | После любого tool call | Записывает activity-таймстемпы для **gap-based active-time** метрики (SENAR Rule 9.2) |
@@ -43,7 +43,7 @@ TAUSIK использует хуки Claude Code для автоматическ
 
 | Хук | Когда | Что делает |
 |------|-------|-----------|
-| `user_prompt_submit.py` | На пользовательском промпте | Распознаёт coding-intent (EN+RU) → подталкивает, если нет активной задачи; распознаёт поисковый интент («где определена X») → подталкивает к `search_code`. Игнорирует тела слэш-команд и текст, порождённый хуками |
+| `user_prompt_submit.py` | На пользовательском промпте | Распознаёт coding-intent (EN+RU) → подталкивает, если нет активной задачи. Подсказка к `search_code` на поисковый интент убрана в 1.10 (решение #390: в парном прогоне с ней 0 вызовов search_code). Игнорирует тела слэш-команд и текст, порождённый хуками |
 
 ## Stop
 
@@ -57,6 +57,27 @@ TAUSIK использует хуки Claude Code для автоматическ
 | Хук | Когда | Что делает |
 |------|-------|-----------|
 | `session_metrics.py` | На завершении сессии | Записывает session metrics (active vs wall, throughput) в БД |
+
+## Сессия на каждом хосте (1.10)
+
+Сессия TAUSIK — это сессия хоста (решение #376): её открывает и закрывает сам
+хост, а не ритуал агента. Замеры — по бинарю хоста, а не по документации
+(конвенция #686), смена #266.
+
+<!-- host-session-table -->
+| Хост | Открытие | Закрытие | Чем обеспечено | Замер |
+|---|---|---|---|---|
+| claude | hook | hook | SessionStart / SessionEnd из общего объявления хуков | протокол хуков Claude Code |
+| qwen | hook | hook | SessionStart / SessionEnd из общего объявления хуков | профиль bootstrap |
+| codex | hook | hook | SessionStart / SessionEnd из общего объявления хуков | codex 0.153.4: перечень событий содержит SessionStart и SessionEnd |
+| opencode | plugin | plugin | `session.created` / `session.deleted` в плагине `tausik-qg0.js` | opencode 1.1.42: события плагина в бинаре |
+| kilo | cli | cli | `tausik session start` / `session end` руками | событий сессии у профиля нет |
+| cursor | cli | cli | `tausik session start` / `session end` руками | профиль без хуков |
+<!-- /host-session-table -->
+
+Где стоит `cli`, теряется то, что делает закрытие хуком: запись метрик
+транскрипта и порождённый handoff в момент выхода. `session end` руками делает
+и то и другое.
 
 ## Git pre-commit
 

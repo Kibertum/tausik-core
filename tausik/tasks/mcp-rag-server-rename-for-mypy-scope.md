@@ -1,9 +1,9 @@
 ---
 slug: mcp-rag-server-rename-for-mypy-scope
 title: "Переименовать codebase-rag/server.py: коллизия имён держит пакет вне области mypy"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-architecture-and-research
+story: release110-site-docs-and-hygiene
 complexity: medium
 role: developer
 stack: python
@@ -12,11 +12,38 @@ call_budget: 55
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "harness/claude/mcp/codebase-rag/rag_server.py"
+  - "harness/claude/mcp/codebase-rag/server.py"
+  - "harness/claude/mcp/codebase-rag/rag_handlers.py"
+  - "harness/claude/mcp/codebase-rag/rag_tools.py"
+  - "bootstrap/bootstrap_codex_mcp.py"
+  - "bootstrap/bootstrap_kilo.py"
+  - "bootstrap/bootstrap_opencode.py"
+  - "bootstrap/bootstrap_generate.py"
+  - "bootstrap/bootstrap_qwen.py"
+  - "scripts/hooks/session_start.py"
+  - pyproject.toml
+  - "tests/test_mypy_clean.py"
+  - "tests/test_rag_tool_surface_parity.py"
+  - "tests/test_rag_reindex_hang.py"
+  - "tests/test_bootstrap_qwen.py"
+  - "tests/test_bootstrap_generate_mcp.py"
+  - "tests/test_opencode_bootstrap.py"
+scope_paths:
+  - "harness/claude/mcp/codebase-rag/*"
+  - "bootstrap/*.py"
+  - "scripts/hooks/session_start.py"
+  - "scripts/hooks/pre-commit"
+  - "scripts/mcp_tool_counts.py"
+  - pyproject.toml
+  - "tests/*.py"
+  - "docs/en/*.md"
+  - "docs/ru/*.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T23:35:53Z"
 ---
 
 ## Goal
@@ -40,3 +67,11 @@ AC7. Гейты зелёные: ruff, mypy, pytest, filesize, bootstrap_drift. C
 git revert коммита задачи. Переименование файла и правки конфигов обратимы одним откатом; схема БД и данные не затрагиваются. Проверка отката: `python harness/claude/mcp/codebase-rag/server.py --project .` снова работает по старому пути, mypy возвращается к прежней области.
 
 ## Journal
+
+- 2026-09-23T23:34:47Z [implementation] — AC1: ✓ measurement — harness/claude/mcp/codebase-rag/server.py renamed to rag_server.py; 'mypy scripts harness/claude/mcp/project harness/claude/mcp/codebase-rag' runs to the end: Success, no issues found in 471 source files (no Duplicate module).
+- 2026-09-23T23:34:47Z [implementation] — AC2: ✓ tests/test_mypy_clean.py::test_declared_tree_is_mypy_clean — codebase-rag added to [tool.mypy] files, the collision comment rewritten to history; zero errors, and the two import-not-found of session #177 no longer occur, so no new override was needed.
+- 2026-09-23T23:34:48Z [implementation] — AC3: ✓ tests/test_mypy_clean.py::test_declared_scope_covers_the_agent_facing_mcp_package — reads [tool.mypy] files through tomllib (not a grep, so a commented-out entry cannot count) and requires both MCP packages.
+- 2026-09-23T23:34:48Z [implementation] — AC4: ✓ measurement — bootstrap_{codex_mcp,kilo,opencode,generate,qwen}.py, scripts/hooks/session_start.py (3 probes), scripts/hooks/pre-commit and docs/en/environment.md point at rag_server.py; after bootstrap.py --ide all, .mcp.json / .cursor/mcp.json / .qwen/settings.json name .../codebase-rag/rag_server.py and .claude/mcp/codebase-rag holds rag_server.py with no server.py; '.tausik/venv/Scripts/python.exe .claude/mcp/codebase-rag/rag_server.py --project . < /dev/null' exits rc=0 with 0 bytes of stderr.
+- 2026-09-23T23:34:48Z [implementation] — AC5: ✓ measurement — negative: git grep over bootstrap scripts harness tests docs .github .gitlab-ci.yml finds no codebase-rag/server.py launch reference; the remaining mentions are CHANGELOG history, tausik/tasks projections and one docstring saying the module WAS split.
+- 2026-09-23T23:34:48Z [implementation] — AC6: ✓ tests/test_rag_tool_surface_parity.py::test_server_keeps_its_entrypoint — negative, reads rag_server.py now and finds the __main__ guard.
+- 2026-09-23T23:34:49Z [implementation] — AC7: ✓ measurement — 448+41 bootstrap/rag/mypy/session_start/host tests pass after fixing three fixtures that created codebase-rag/server.py (test_bootstrap_generate_mcp, test_bootstrap_qwen, test_opencode_bootstrap); ruff clean; CHANGELOG EN/RU with the re-run-bootstrap note. docs/ru/environment.md never had these rows (pair drift, task doc-language-pairs-have-drifted-and-three-are-unpaired).

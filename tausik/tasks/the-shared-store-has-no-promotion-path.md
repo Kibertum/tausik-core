@@ -1,7 +1,7 @@
 ---
 slug: the-shared-store-has-no-promotion-path
 title: "Общая база знаний не принимала записей 26 дней: продвинуть существующую запись нечем"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-rag-and-memory-tell-the-truth
 complexity: medium
@@ -12,12 +12,28 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/knowledge_promote.py"
+  - "scripts/project_parser.py"
+  - "scripts/project_cli_extra.py"
+  - "scripts/brain_universality.py"
+  - "scripts/service_knowledge.py"
+  - "tests/test_knowledge_promote.py"
+  - "tests/test_knowledge_write.py"
+scope_paths:
+  - "scripts/knowledge_promote.py"
+  - "scripts/project_parser.py"
+  - "scripts/project_cli_extra.py"
+  - "scripts/brain_universality.py"
+  - "scripts/service_knowledge.py"
+  - "tests/*.py"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on:
   - the-routing-table-names-two-of-four-stores
-completed_at: null
+completed_at: "2026-09-23T20:09:53Z"
 ---
 
 ## Goal
@@ -31,6 +47,12 @@ completed_at: null
 
 ## Acceptance Criteria
 
+1. tausik knowledge promote --memory ID | --decision ID показывает, что именно уедет в общую базу (тип, заголовок/текст целиком, теги, происхождение) и предупреждает, что общая база не редактируется, а секреты уезжают дословно; без --yes ничего не пишет.
+2. С --yes запись копируется в ~/.tausik-knowledge/knowledge.db с origin_project (метка проекта) и origin_slug (стабильный slug локальной записи); локальная запись не меняется и не удаляется.
+3. НЕГАТИВНЫЙ: повторное продвижение той же записи отказывает (есть строка с тем же origin_project и origin_slug) — дубликатов нет; несуществующий ID — отказ.
+4. НЕГАТИВНЫЙ: автоматического продвижения нет — подсказка об универсальности при записи знания называет команду promote с id записи, но ничего не пишет.
+5. docs (cli) en/ru, CHANGELOG EN+RU.
+
 ## Plan
 
 ## Rollback
@@ -38,3 +60,13 @@ completed_at: null
 Новые подкоманды продвижения поверх существующих схем. Откат — git revert; уже продвинутые записи остаются в общей базе и удаляются вручную.
 
 ## Journal
+
+- 2026-09-23T20:07:13Z [implementation] — Сделано: scripts/knowledge_promote.py (preview — весь текст, теги, происхождение, предупреждение о нередактируемой общей базе; promote — копия с origin_project=метка проекта и origin_slug=slug локальной записи, повтор отказывается); tausik knowledge promote --memory|--decision ID [--yes] (без --yes только показ); подсказка универсальности при memory add называет promote с id записи. Отступление: вместо 'memory promote' и 'decide promote' — одна подкоманда в группе knowledge, потому что decide принимает текст позиционно и 'decide promote' читался бы как текст решения.
+- 2026-09-23T20:07:14Z [implementation] — AC-1: ✓ tests/test_knowledge_promote.py::test_the_preview_shows_everything_that_leaves_and_the_warning
+- 2026-09-23T20:07:14Z [implementation] — AC-1: ✓ tests/test_knowledge_promote.py::test_without_yes_nothing_is_written
+- 2026-09-23T20:07:14Z [implementation] — AC-2: ✓ tests/test_knowledge_promote.py::test_promote_copies_with_provenance_and_leaves_the_local_record
+- 2026-09-23T20:07:15Z [implementation] — AC-2: ✓ tests/test_knowledge_promote.py::test_a_decision_is_promoted_too
+- 2026-09-23T20:07:15Z [implementation] — AC-3: ✓ tests/test_knowledge_promote.py::test_the_same_record_is_not_copied_twice
+- 2026-09-23T20:07:16Z [implementation] — AC-3: ✓ tests/test_knowledge_promote.py::test_a_missing_record_is_refused
+- 2026-09-23T20:07:16Z [implementation] — AC-4: ✓ tests/test_knowledge_promote.py::test_the_hint_names_the_command_and_writes_nothing
+- 2026-09-23T20:07:17Z [implementation] — AC-5: ✓ docs cli en/ru, CHANGELOG EN+RU

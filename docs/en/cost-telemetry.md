@@ -107,6 +107,7 @@ tausik task show v14c-token-budget-task
 
 ## Limitations
 
+- **Session tokens recorded before 1.10 are overstated and are not re-derived** (decision #384). Claude Code writes one API message with N content blocks as N transcript entries carrying the same usage, and the meter added it N times: 1.81x on the replay transcript of session #263. Since 1.10 usage is counted once per message id. The overstatement depends on the block count, so old rows cannot be divided by a constant; do not compare them with new ones.
 - **`tausik metrics tokens` does not attribute cost per tool, and says so before
   it shows you anything.** API usage is reported per *message*, not per tool
   call — the capture hook states this about itself. What reaches

@@ -1,7 +1,7 @@
 ---
 slug: release-notes-language-policy-is-unstated
 title: "Процедура выпуска не говорит, на каком языке живут заметки к тегу — и 1.8 вышел одноязычным"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-the-update-reaches-the-user
 complexity: simple
@@ -12,14 +12,24 @@ call_budget: 25
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/release_notes.py"
+  - "scripts/project_cli_publish.py"
+  - "scripts/project_parser_publish.py"
+  - "docs/en/publishing.md"
+  - "docs/ru/publishing.md"
+  - "tests/test_release_notes.py"
 scope_paths:
   - "docs/ru/*.md"
   - "docs/en/*.md"
   - "tests/*.py"
+  - "scripts/release_notes.py"
+  - "scripts/project_cli_publish.py"
+  - "scripts/project_parser_publish.py"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T19:10:22Z"
 ---
 
 ## Goal
@@ -40,3 +50,5 @@ AC4. Задача НЕ переписывает и НЕ перевыпускае
 git revert коммита: правка чисто документационная
 
 ## Journal
+
+- 2026-09-23T19:01:56Z [implementation] — Сделано: scripts/release_notes.py (whats_new_page, missing_links); tausik publish notes --version --body-file отказывает телу без ссылки на любую из страниц whats-new; шаг 4 в docs/en|ru/publishing.md одной фразой. С 1.9 тег на GitHub лёгкий, поэтому 'тело тега' = тело GitHub Release; тело v1.9.0 снято с GitHub и зелёное. AC verified: 1. ✓ publishing.md en/ru, test_the_procedure_states_the_rule_and_names_the_check 2. ✓ publish notes + test_the_cli_refuses_a_body_missing_a_page / test_the_cli_accepts_a_body_with_both_pages 3. ✓ НЕГАТИВНЫЙ: test_a_body_without_the_russian_page_is_refused (тело 1.9.0 без русской ссылки — отказ) 4. ✓ тег v1.8.0 и релиз v1.9.0 не трогались. 10 тестов зелёные.

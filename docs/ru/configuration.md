@@ -6,14 +6,30 @@
 
 См. также: [environment.md](environment.md) — env-переменные, [permissions.md](../en/permissions.md) — режимы permissions.
 
-## Лимиты сессии (SENAR Rule 9.2)
+## Сигналы сессии (SENAR Rule 9.2 — с 1.10 совет, а не ворота)
 
 | Ключ | Дефолт | Назначение |
 |---|---|---|
-| `session_max_minutes` | `180` | Жёсткий лимит АКТИВНЫХ минут сессии до блокировки `task start`. Продление: `tausik session extend --minutes N`. |
+| `session_max_minutes` | `180` | Порог совета по АКТИВНЫМ минутам сессии: выше него `task start`, `status` и Stop-хук печатают совет; ничто не отказывает. `0` выключает. |
 | `session_idle_threshold_minutes` | `10` | Промежуток (в минутах), после которого пауза считается AFK и исключается из active-time. |
 | `session_warn_threshold_minutes` | `150` | Порог напоминания stop-хука в `session_cleanup_check.py`. Должен быть < `session_max_minutes`. |
-| `session_capacity_calls` | `200` | Бюджет tool-calls на сессию. `task start` блокируется если remaining < task `call_budget`. |
+| `session_capacity_calls` | `200` | Бюджет tool-calls на сессию. `call_budget` задачи выше остатка — строка совета в `task start`, не отказ. |
+| `checkpoint_calls` | `40` | Вызовы с последнего handoff до совета о чекпоинте (выводится из журнала). `0` выключает. |
+| `journal_freshness_calls` | `40` | Вызовы с последней записи журнала активной задачи до совета. `0` выключает. |
+| `audit_every_closures` | `17` | Закрытия задач с последней отметки аудита до просрочки аудита SENAR 9.5. |
+
+## Языки поиска по коду (RAG)
+
+| Ключ | По умолчанию | Смысл |
+|------|--------------|-------|
+| `rag.extra_extensions` | `{}` | Дополнительные типы файлов для индекса, `{".unity": "unity-scene"}`. Встроенное расширение не переопределяется. Godot (`.gd`, `.gdshader`, `.tscn`, `.tres`, `.godot`) встроен с 1.10. |
+| `rag.boundaries` | `{}` | Где резать язык на чанки, `{"unity-scene": "^--- !u!"}` (многострочная регулярка). Кривая запись пропускается и называется в `rag_status` в `language_config.problems`. |
+
+## Проверка обновления
+
+| Ключ | По умолчанию | Смысл |
+|------|--------------|-------|
+| `updates.check` | `true` | Не чаще раза в сутки SessionStart отсоединённо запускает `tausik update-check`: один анонимный GET к `releases/latest` репозитория `Kibertum/tausik-core` на GitHub, без данных о проекте. `status` называет вышедшую версию. `false` выключает; состояние — в `tausik doctor`. |
 
 ## Кэш верификации (SENAR Rule 5)
 

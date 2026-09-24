@@ -1,7 +1,7 @@
 ---
 slug: rag-index-never-prunes-deleted-paths
 title: "Индекс RAG не вычищает удалённые файлы: search_code первым результатом отдаёт путь, которого нет"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-rag-and-memory-tell-the-truth
 complexity: medium
@@ -12,11 +12,17 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "harness/claude/mcp/codebase-rag/rag_indexer.py"
+  - "harness/claude/mcp/codebase-rag/rag_store.py"
+  - "tests/test_rag_prune_dead_paths.py"
+scope_paths:
+  - "harness/claude/mcp/codebase-rag/*.py"
+  - "tests/*.py"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T19:29:37Z"
 ---
 
 ## Goal
@@ -35,6 +41,12 @@ completed_at: null
 
 ## Acceptance Criteria
 
+1. Причина подтверждена кодом: _get_changed_files делит строку git diff --name-status один раз, и строка переименования R100<TAB>old<TAB>new попадает в modified как один путь 'old<TAB>new' — старый путь не удаляется, новый не индексируется. Тест воспроизводит на git-репозитории до правки.
+2. Переименование: старый путь уходит из rag_chunks И из fts_code, новый индексируется; копирование (C) индексирует новый и не трогает старый.
+3. Сверка существования: инкрементальный проход удаляет из индекса каждый путь, которого нет на диске, — так вычищаются и мёртвые пути, накопленные до правки.
+4. НЕГАТИВНЫЙ: живой файл при сверке не теряется; путь, вышедший за пределы проекта, не трогается; tests двусторонние (удалённый исчез из обеих таблиц, живой остался).
+5. CHANGELOG EN+RU.
+
 ## Plan
 
 ## Rollback
@@ -42,3 +54,10 @@ completed_at: null
 Правка в переиндексаторе harness/claude/mcp/codebase-rag/; откат git revert. Данные восстановимы полным переиндексом (reindex), схема rag.db не меняется.
 
 ## Journal
+
+- 2026-09-23T19:28:38Z [implementation] — Причина подтверждена кодом и тестом до правки: _get_changed_files делил строку по первому TAB; на строке R100 old new deleted=[] (тест test_a_rename_line_is_read_as_two_paths красный до правки). Правка: разбор R/C с двумя путями; _prune_missing сверяет существование каждого индексированного пути (и в ветке 'нет изменений'); RAGStore.indexed_paths. Живой индекс: до — 3645 путей, 123 мёртвых (agents/..., .github/...); прогон исправленного index_incremental: files_pruned=123; после — 3522 пути, 0 мёртвых.
+- 2026-09-23T19:28:39Z [implementation] — AC-1: ✓ tests/test_rag_prune_dead_paths.py::test_a_rename_line_is_read_as_two_paths
+- 2026-09-23T19:28:39Z [implementation] — AC-2: ✓ tests/test_rag_prune_dead_paths.py::test_a_renamed_file_leaves_both_tables_and_the_new_one_is_indexed
+- 2026-09-23T19:28:39Z [implementation] — AC-3: ✓ tests/test_rag_prune_dead_paths.py::test_a_path_already_dead_in_the_index_is_pruned_and_a_live_one_kept
+- 2026-09-23T19:28:40Z [implementation] — AC-4: ✓ tests/test_rag_prune_dead_paths.py::test_a_path_already_dead_in_the_index_is_pruned_and_a_live_one_kept (живые keep.py, handlers.py, new.py остаются в обеих таблицах; путь вне проекта _safe_path отсекает)
+- 2026-09-23T19:28:40Z [implementation] — AC-5: ✓ CHANGELOG EN+RU

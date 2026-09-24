@@ -3,7 +3,7 @@ slug: cli-ops-residue-split-by-command
 title: "Остаток project_cli_ops.py разрезать по командам — семейство уже имеет эту конвенцию"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-architecture-and-research
+story: release110-site-docs-and-hygiene
 complexity: medium
 role: architect
 stack: python

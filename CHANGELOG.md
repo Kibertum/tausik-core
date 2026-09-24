@@ -9,6 +9,482 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the scope gate measures a task from a git anchor, not from its start time (github#25, Sortula #49 / core#10)
+
+The scope-honesty check counted every commit since `started_at` plus every uncommitted change in the tree, so a long-lived task inherited other people's work — 576 files at the consumer, 2,690 here — and in a shared dirty tree every task inherited the whole tree. A task now takes a git snapshot of the working tree when it starts (`git stash create`, kept by `refs/tausik/baseline/<slug>`, never pushed by default), and "what changed" is the diff from that snapshot. Resuming a blocked task retakes the snapshot and writes a BASELINE line in the journal; closing it drops the ref. A file the task itself changes is still caught, committed or not; outside git the old time-based measure applies unchanged. The consumer's session-floor patch was not adopted: sessions are optional since 1.10.
+
+### Removed — the rag-first nudges (github#27, decision #390)
+
+Six places told the agent to search the RAG index before Grep/Read: the session-start RAG line and reminder, a UserPromptSubmit nudge on "where is X" prompts, the output-truncation nudge, the start/task/debug/explore skills with two model variants, and the host routing template. A paired replay measured 0 `search_code` calls in 62 with every text delivered and 0 in 76 without, so the texts were cost without effect and are gone. The RAG server and its tools stay; the skills now say it is available with no measured edge. A test freezes the list of files allowed to name `search_code` and refuses any that advise searching it first.
+
+### Fixed — doctor stops warning forever about a Verify-First profile chosen on purpose (github#18)
+
+With `task_done.auto_verify=true`, `tausik doctor` warned on every run, and no correct action could clear it — the setting is legitimate where verification never caches, and switching it off would weaken enforcement for a quiet report. Recording why next to it (`task_done._auto_verify_reason`, the convention `tausik/policy.json` already uses) turns the warning into an OK line that prints the reason; without a reason it still warns, and the warning now says how to acknowledge it.
+
+### Fixed — `task done` no longer closes a task that was never started
+
+A task in `planning` could be closed as delivered: QG-0 never ran and `started_at` stayed empty, so cycle time broke — 52 of 1,571 done tasks had closed that way by session #269, six of them in September. `task done` (CLI and MCP) now refuses it and names both ways forward: `task start` and do the work, or `task obsolete` when time resolved it. The historical rows are left as they are.
+
+### Added — `task obsolete`: close a task that time resolved, without pretending it shipped (github#165)
+
+The lifecycle had three exits and none fit a task whose premise stopped being true: `task done` demands evidence per criterion, `task delete` erases the record, and leaving it open lies to the roadmap. `tausik task obsolete <slug> --reason "..."` closes it from planning, active or blocked: the record and journal stay, the reason is required, QG-2 is not run, and the story closes as with `task done`. A closed finding is not a shipped one: FPSR, DER, cycle and lead time, tier calibration, defect escape, root-cause coverage and RENAR drift leave it out, and the status line reports it apart (`N done, M obsolete`). Schema v67 adds `tasks.resolution` and `tasks.resolution_reason`. CLI-only by design (decision #390).
+
+### Fixed — `tausik_task_show` shows the fields the agent is judged by (github#121)
+
+Over MCP, `task_show` printed six fields; the CLI printed twenty-six. The missing ones included `scope_paths` — the ACL the scope gate refuses writes by — and `rollback_plan` (SENAR Rule 6), so an agent following MCP-first met limits it had never been shown. Both now read one field list (`scripts/task_detail_fields.py`); empty fields still print nothing. Measured on three real tasks, the reply grows by 7.4% (about 500 characters per task).
+
+### Fixed — Qwen gets the same hooks as Claude and Codex, from one declaration (github#164)
+
+The Qwen profile built its hooks from a hand-kept copy of the list, and it had drifted in fifteen PostToolUse registrations: catch-all matchers where Claude has specific ones, no registrations for external MCP write tools, and a different `task_done_verify` matcher. The parity test compared script names only, so nothing was red. Qwen now builds from `build_hooks_dict` like Claude and Codex (only its command line is its own), and a test compares every host's events and matchers against the declaration. The unification also restores the shell matcher on `task_done_verify` for Claude and Codex: the evidence audit now runs after a `tausik task done` in the terminal, not only after the MCP call.
+
+### Fixed — the RAG server refuses an argument its tool never declared (github#141)
+
+The project MCP server has refused undeclared arguments since 1.9; the codebase-rag server passed them through, so `search_code(query=..., qurey=...)` looked like a call that simply found nothing. The guard now lives once, in `scripts/mcp_arguments.py`, and both servers call it before the handler: the reply names the unknown key, the nearest declared one and the usage line. (The third server the defect named, brain, was removed with the Notion transport.)
+
+### Changed — the RAG server's entry point is `rag_server.py`, and mypy now checks it (github#72)
+
+`harness/claude/mcp/codebase-rag/server.py` shared its file name with the project server's `server.py`, and mypy aborts on two modules of one name before checking anything, so the whole RAG package stayed out of the type check. It is now `rag_server.py`; every launch point follows (bootstrap for Claude, Cursor, Qwen, Kilo, OpenCode and Codex, the session-start probe, the pre-commit hook, the environment docs), and `harness/claude/mcp/codebase-rag` joins `[tool.mypy] files` with zero errors. Re-run bootstrap after updating: host configs written by an older version still name `server.py`.
+
+### Changed — ruff's 0.16 defaults ruled on, rule by rule (github#85, decision #388)
+
+The 58 rules ruff 0.16 enables by default were counted under this project's config and each got a ruling. Five that catch defects rather than restyle code are adopted, with their findings fixed: invisible and bidi characters in source (now written as escapes), `x != x` (now `math.isnan`), eight tests that asserted a blind `Exception` (now the real error), and an `__exit__` annotation. Cosmetic rules are rejected, for the same reason a mass format was (#386). Three that need a judgment per finding — try/except/pass, open() without a context manager, stale noqa — are split into their own tasks.
+
+### Fixed — a fresh database carries the same indexes as an upgraded one (github#81)
+
+Twelve indexes (brain_events, memory.archived_at, redactions, reviews, sessions.model_id, task_deps, usage_events) were created only inside their migrations, so every freshly initialised database lacked them. They are now part of the post-migration index block, and the parity test compares the full index sets and their definitions on both paths — an index stated only in a migration, or dropped by a table rebuild, turns it red. A database already at the current schema version picks them up at the next version bump; the effect is query speed, not correctness.
+
+### Fixed — CI tools are pinned, so a lane's verdict is this repository's (github#87)
+
+GitHub and GitLab CI installed ruff, mypy and bandit with no version, so a lane could turn red or green on the night's release — ruff 0.15 and 0.16 already disagree about formatting on one machine. ruff was not pinned either, contrary to the task's title. They are now pinned in one file, `ci-constraints.txt` (ruff 0.16.5, mypy 1.20.2, bandit 1.9.4 — what the local gates run), and every CI install and the contributor guide go through it with `pip install -c`. A test refuses a bare install.
+
+### Fixed — a project-wide PASS no longer certifies files it never looked at (github#14)
+
+A verify in which every gate scoped to the declared files skipped, and only a gate with no file scope ran, was green, signed and closable — measured before the fix on a temp project: pytest skipped for want of a mapped test, a custom command passed, and `task done --verify-handle` closed the task. Such a run now takes the all-skipped branch: it blocks as `no-test-mapped` and names the project-wide gates, or, under `--no-tests-expected`, is recorded `no_tests_declared=1` and closes only with `--gates-not-applicable`. A config made only of project-wide gates is unaffected. The test and build gates of the go, rust, javascript, typescript, php, swift, flutter, java and terraform stacks now declare `file_extensions`, so they count for a change in their language — and, like pytest, skip a change outside it.
+
+### Changed — QG-0 measures what the criteria say, not that they exist
+
+`task start` refused only an EMPTY goal or criteria, so a template passed: one closed task here carries the criterion `$(cat /tmp/ac.txt)` verbatim, because the shell meant to expand it never ran. Template brackets (`<...>`, `[UPPER]`, `{{...}}`), an unexpanded `$(...)`/`${...}`, TODO/TBD/FIXME and their Russian equivalents, an empty markdown table and a vague claim that names no check ("works as expected", «работает корректно») are now removed before counting; fewer than 3 words of goal or 5 of criteria is refused, with the counts named. Measured on the 1,451 tasks of this repository: that one task is refused and no other. The families are borrowed from check-context-budget.mjs of unicorn-hub (MIT).
+
+### Fixed — the checklist note no longer denies evidence that is in the journal
+
+Acceptance criteria written inline as `AC-1 … AC-2 …`, with no `.` after the number, were read as one criterion. The journal line `AC-2: ✓ tests/…::test_…` then had no criterion to bind to, and the close printed "no acceptance criterion names a test" over evidence that was there. The `AC-N` form now splits, only with its explicit prefix so prose numbers never do; a task with no evidence is still warned.
+
+### Changed — a refusal to close says whether the evidence is stale, failed or missing
+
+Every refusal of the verify handle, of its receipt and of a close without a handle now starts with one of three words and a next step: STALE (the evidence was valid; the tree, gates or clock moved; re-run verify), FAILED (the check did not prove the close; fix the cause), NOT FOUND (no evidence for this task; run verify). A close without a handle also says why: no run was ever recorded, the last run failed, or the last green run is out of date. STALE is still a refusal. The distinction is borrowed from ai-review-gate.mjs of unicorn-hub (MIT).
+
+### Added — the formatter has a verdict that blocks (decision #386)
+
+`ruff format` was configured and its verdict was wired to nothing: 86 files diverged in session #155 and 117 by 1.10. The new `ruff_format` gate (block, on verify and commit) checks the task's Python files. The 116 files that diverged when it landed are a frozen list in `tausik/gates.json` that only shrinks: a test refuses a listed file that is now formatted and an unformatted file that is not listed. A mass-formatting commit was rejected for now, because it would mix with the release's content changes. Because the gate runs at `verify`, a project that had switched its other verify gates off now has one again, and Verify-First applies to its closes.
+
+### Fixed — the write gate sees what a Python heredoc actually writes (github#162)
+
+A heredoc fed to Python is a program, but its writes went unchecked in the ordinary shapes of an edit script. Measured over this project's own transcripts: of 1,085 interpreter heredocs that wrote a file, the gate saw no target in 917. It now follows a path bound to a name (`p = "x"`, `p = Path("x")`), a path passed to a helper's parameter (`def rep(p, …)` with `rep("x", …)`), a loop over a literal list, and headers that start with `cd x;` or `VAR=1` or carry a pipe after `<<`. After the fix 74 remain, all built in shell variables or loops over names. Heredocs not fed to an interpreter (commit messages, notes, SQL) are still not read as programs.
+
+### Fixed — findings of the adversarial reviews of this release's own code
+
+Two reviewer agents read the 1.10 changes adversarially before any commit. Every finding they verified is fixed:
+
+- A failed schema-version re-read after `BEGIN IMMEDIATE` left the write lock held; the whole migration step now releases it on any error.
+- A read-only backend no longer runs a WAL checkpoint on close, which logged a false "disk I/O error" whenever another session was writing.
+- `decisions --task/--status/--rejected` read the supersession graph with one query instead of one per decision, and a decision is written together with its supersedes edge in one transaction.
+- A `rag.boundaries` regex with nested quantifiers (like `(a+)+`) is refused at load, and a boundary regex sees at most 400 characters of a line, so a config entry cannot hang the indexer.
+- `dead-end --task` with a task that does not exist is refused instead of storing the dead end without a task.
+- A metric target with a basis but no `min` or `max` is not used and is named; the methods block of `tausik metrics` degrades instead of crashing the report; a failing escalation is printed instead of swallowed.
+
+### Fixed — the RAG language knob reads the config path from the shared helper
+
+`rag_languages` built `.tausik/config.json` by hand, which the repository forbids so the path has one owner. It now uses `tausik_utils.tausik_config_path`, found both in the deployed layout and in the source tree, including in the background reindex; if the helper cannot be found, `rag_status` says so.
+
+### Fixed — a task created without `--slug` gets a slug that reads like its title
+
+The auto-slug of `task add` and `task quick` dropped every Cyrillic letter, so a Russian title kept only the English words it happened to contain (`gates-json`, `heredoc`), and an all-Cyrillic title became `task`. Titles are now transliterated (`Гейт рамок не видит…` becomes `geyt-ramok-ne-vidit-…`), and a title that yields nothing usable is refused with a request for `--slug`. Existing slugs are not renamed: they are addresses in journals, commits and closure evidence.
+
+### Fixed — a check that reads the project database no longer migrates it, and two processes can upgrade one database
+
+- The CLAUDE.md state gate opened `.tausik/tausik.db` through the migrating backend; a test run migrated the developer's live database, and the deployed code then refused it until bootstrap. The gate now opens it read-only (`SQLiteBackend(path, read_only=True)`, `mode=ro`) and refuses a schema mismatch instead of fixing it.
+- Two processes opening an old database at once no longer fail with `database is locked`: each migration step takes the write lock up front (`BEGIN IMMEDIATE`) and re-reads the schema version under it, so the second process skips what the first applied.
+
+### Changed — a multi-line argument through `tausik.cmd` is refused out loud, and a test holds it
+
+`cmd.exe` ends a command line at a newline, so the second line of an argument cannot reach the CLI through the Windows wrapper. The wrapper already refuses such a call and names what was lost; a test now pins the newline case for every free-text field. Multi-line values go through the POSIX wrapper `.tausik/tausik` or MCP.
+
+### Changed — a test pins that the firewall reads heredoc text and quoted arguments as data
+
+Session #160 saw a handoff blocked because its text quoted a dangerous command. Measured again in 1.10, the statement scanner already reads heredoc bodies and quoted arguments as data, while the dangerous commands themselves stay blocked. A test now holds both halves.
+
+### Fixed — an annotated `CROSSCUTTING_SCOPE` is read as the declaration it is
+
+`CROSSCUTTING_SCOPE: list[str] = [...]` is an annotated assignment, and the reader matched only plain ones, so the test read as undeclared: the registry test blamed a forgotten declaration, and the scoped pytest gate silently left the test out. Both forms now read the same; an annotation without a value, or a computed value, still reads as undeclared.
+
+### Changed — CLI commands absent from MCP on purpose are listed with the reason
+
+`scripts/mcp_cli_only.py` names each CLI command that is deliberately not an MCP tool, with its reason and decision. `redact` is the first entry (decision #385): its `--apply` rewrites the knowledge history irreversibly and belongs in a terminal, and the rarely-run dry run does not pay for a tool on the ratcheted MCP surface. A test refuses an entry without a reason and an entry whose command has since become an MCP tool.
+
+### Fixed — a duplicate slug is a one-line refusal, not a traceback
+
+`epic add`, `story add` and `task add` with a slug that already exists printed a full traceback ending in `UNIQUE constraint failed`. They now answer `Error: Story 'x' already exists — pick another slug` with exit code 1 and change nothing. A missing parent epic keeps its own message.
+
+### Added — an existing memory or decision can be shared without typing it again
+
+`tausik knowledge promote --memory ID` (or `--decision ID`) copies a project record to the shared store `~/.tausik-knowledge`. It first prints the whole text, the tags and the origin, and warns that the shared store is not redacted; it writes only with `--yes`. The shared row keeps the project label and the record's slug, and promoting the same record twice is refused. Nothing is promoted automatically: the universality hint on `memory add` now names the promote command with the new record's id instead of asking to retype it with `--global`.
+
+### Added — a decision records what it turned down and what later replaced it (schema v66)
+
+In session #267, 384 decisions named rejected alternatives only in prose (about 100 of them), reversed earlier ones only in prose (33), and carried one supersedes edge. A reversed decision stayed a live instruction forever.
+
+- `decide --rejected "option :: why"` (repeatable, optional) stores alternatives in `decisions.rejected`; `decisions --rejected QUERY` finds them.
+- `decide --supersedes N --because TEXT` writes a `supersedes` edge in the existing `memory_edges`; a missing reason or a missing N is refused before anything is written.
+- `decisions --status active|superseded|all` and `--task`. A superseded decision is never deleted: it leaves `active` and the memory block and shows who replaced it. The MCP `tausik_decide` takes `rejected` and `supersedes`.
+
+### Added — a memory record says where its claim came from (schema v65)
+
+- Every memory record carries `provenance`: `observed`, `inferred` or `told`. `memory add --provenance` and the MCP `tausik_memory_add` take it; the default is `inferred`, the weak claim.
+- `observed` is earned: the record must name a test (`tests/...py::test_x`), a verify run (`verify #N`) or a task with a journal. Otherwise it is written as `inferred`, and the reply says it was downgraded.
+- Migration v65 marks every existing record `inferred`, because observation cannot be proven after the fact. On this project all 711 records survived byte for byte.
+- The memory block marks inferred records with `≈`, and `memory lint` counts them as provenance debt.
+
+### Changed — a task that saw a failure closes with what was learned from it
+
+Session #189 measured 67 closed tasks with a red verify and not one dead end among them; `dead-end` was voluntary. Now `task done` asks when the framework itself saw a failure on the task: a red verify run, a block, or a second attempt. The close needs a dead end linked to the task, or one journal line `NO-DEAD-END: <why there is none>` for a typo or a flaky run. Measured on this project's history, the question fires on 185 of 1,547 closes (12%), and only 4 of those had a dead end. A new dead end must also name its task: without `--task` it binds to the single active task, and it is refused when none or several are active.
+
+### Fixed — code search no longer returns files that do not exist
+
+The incremental reindex read `git diff --name-status` one field short: a rename line (`R100<TAB>old<TAB>new`) never deleted the old path and read "old<TAB>new" as one path. That is how `agents/` outlived its rename to `harness/` and came first in `search_code` results. Renames now delete the old path and index the new one, and every incremental pass drops indexed paths that no longer exist on disk, from both `rag_chunks` and `fts_code`. On this project's index the first pass pruned 123 dead paths out of 3,645. `reindex` reports the count as `files_pruned`.
+
+### Fixed — session tokens are counted once per message, not once per content block
+
+Claude Code writes an assistant message with N content blocks as N transcript entries sharing one `message.id` and one usage. `session_metrics.parse_transcript` and the per-tool ledger added that usage N times; on the replay transcript of session #263 the meter recorded 57,135 tokens where the messages carried 31,613. Usage is now kept per message id (the last one seen wins) and counted once, and the per-tool ledger splits one message's usage across all its tool calls. Rows recorded before 1.10 stay as they are and are declared overstated (decision #384, `docs/en/cost-telemetry.md`).
+
+### Fixed — a new session no longer inherits a task's spent budget as its capacity (github#24, gitlab#8)
+
+The session counter itself was fixed in 1.9.0: `used` counts the session's own calls. The second layer remained: `planned` reserved each active task's full budget, so a task that spent 140 of its 150 calls in an earlier session reserved 150 in every new one. It now reserves only the unspent part, and calls made this session are counted once, in `used`. The calibration line in `status` now says it is descriptive, not a forecast.
+
+### Added — code search reads Godot, and a project can add its own languages (github#26, gitlab#11)
+
+- RAG now indexes `.gd`, `.gdshader`, `.tscn`, `.tres` and `.godot`, and cuts GDScript at its functions, so `search_code` finds a Godot game's code, not only its docs.
+- `rag.extra_extensions` and `rag.boundaries` in `.tausik/config.json` add file types and chunk boundaries for any other stack; bootstrap never overwrites them. A built-in entry cannot be overridden.
+- A bad entry (an extension without its dot, an empty language, a regex that does not compile, a block that is not a mapping) is skipped, indexing goes on, and `rag_status` names it under `language_config.problems`.
+
+### Added — TAUSIK tells you when a newer release exists (owner's decision #372)
+
+- At most once a day, SessionStart runs `tausik update-check` detached. It sends one anonymous GET to GitHub's `releases/latest` of Kibertum/tausik-core and caches the answer in `.tausik/update_check.json`. `tausik status`, and with it the session context, then names the newer release and links it.
+- The request carries no project name, path, schema version, TAUSIK version or user; a test checks the intercepted request. No session waits on it: the REST call measured about 1.1 s, `git ls-remote` about 1.4 s.
+- No network, a GitHub error or a garbage answer records the reason and keeps the last good answer. The check never claims "up to date" from a failed request, and `tausik doctor` shows its state.
+- `"updates": {"check": false}` turns it off. README no longer promises "0 phone-home calls"; it says what the one call sends. Mechanism and default are recorded in decision #383, which awaits the owner's confirmation.
+
+### Added — the SENAR claim is one sentence in four places, carries its disclosures, and a release waits for the edition to be public
+
+- "TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23" (the SENAR 1.5 §13.1 form) now stands verbatim in README (EN/RU), CLAUDE.md and the agent contract. `scripts/senar_claim.py` builds it from the one declared edition, and a test checks it against the editions the configured SENAR corpus has released.
+- Next to the claim, the READMEs disclose what §13.1(c) and (e) require: no SHALL is handled under §13.5, and Core carries no SHOULD. A record added to either register that the READMEs do not carry is a red test.
+- `tausik publish senar-check` is a new release step. It asks GitHub Kibertum/SENAR for the claimed edition's tag and exits 1 when the tag is missing, 2 when it could not ask. It prints both versions and the SENAR releases link. Today it refuses, because GitHub carries only v1.3; development and CI never run it.
+
+### Added — every change of RENAR 1.1 is done, declared inapplicable or deferred, never silent (github#185)
+
+- `docs/en/renar-11-deltas.md` (and RU) gives each of the 20 rows of the standard's migration guide one status: 4 implemented, 5 inapplicable, 10 deferred, 1 needing no action. A test reads the row count from the guide itself.
+- `RENAR-CONFORMANCE.yaml` publishes a `renar-11-deltas` block: each inapplicable row with its premise and the function that watches it, each deferred row with its release and decision.
+- A row marked implemented must name a mechanism that imports; one that does not is a red test. Each inapplicability premise is checked on the fresh schema, so a manual-walkthrough class, a `uses[]` edge, a `screens` column or an AR class appearing breaks the test.
+- The description-set model (rows 1, 2, 4, 11, 12, 13, 15, 17, 21) moves to 2.0 by decision #382, which awaits the owner's confirmation.
+
+### Fixed — the conformance manifest named SENAR 1.3 after the claim moved to 1.5
+
+`RENAR-CONFORMANCE.yaml` carried `senar-version: '1.3'` from its own constant. The manifest now takes the edition from the one SENAR declaration, and a test holds the two together.
+
+### Added — the release procedure states where the notes live in each language, and checks it
+
+The GitHub Release body is written in English and links `docs/en/whats-new-X.Y.md` and `docs/ru/whats-new-X.Y.md`, which carry the full text. `docs/*/publishing.md` says so in one step. `tausik publish notes --version X.Y.Z --body-file <file>` refuses a body that misses either page. The rule applies from 1.10; published tags are not re-cut.
+
+### Changed — direct modification has one recognized case, and the list is dated (SENAR 1.5 §4.1)
+
+SENAR 1.4 named five legitimate cases for editing a task artifact around its gates. SENAR 1.5 recognizes one: an environment in which no agent can be run and there is nothing to switch to. The list is dated to the 2026-09-07 revision and is re-read under §10.13 when the model generation changes. The refusal of `events emit-supervision --vector direct_edit` without `--rationale`, the `cli.md` section and the `gate_bypass_record` docstring now say so. Every case is still recorded, and the edit itself is never refused.
+
+### Added — the severity scale of review findings is documented, and CRITICAL carries its reason (SENAR 1.5 §10.15(f))
+
+- `docs/en/severity-scale.md` (and RU) defines CRITICAL, HIGH, MEDIUM and LOW for this project, who proposes and who decides, and how finding severity differs from change risk (§8.7) and the checklist tier.
+- The `/review` skill, `tausik-reviewer` and `tausik-external-reviewer` classify by that page.
+- `tausik review record --critical N` with N above zero is refused without `--reason`. The reason is stored with the record and printed by `tausik review list`.
+
+### Fixed — a fixture declared as a relevant file no longer makes the pytest gate run nothing
+
+A `.sql` fixture under `tests/`, declared in `--relevant-files`, was handed to pytest as a test path. Pytest then collected nothing from any file in that run, and the gate answered CANNOT-RUN. Only `.py` files under `tests/` are now passed as test paths; the fixture still counts toward the receipt's file hash.
+
+### Added — the metrics report says how each figure is computed, and a target carries its basis (SENAR 1.5 §9.4)
+
+- `tausik metrics` (and the MCP tool) print the formula, population and period of every SENAR figure, and name the figures built from self-made records (FPSR from `attempts`, DER from `defect_of`, the dead-end rate from memory rows).
+- A ratio over an empty denominator prints `no population` instead of `0%`.
+- FPSR ≥ 85% and DER ≤ 5% are printed with their basis. A project override in `metric_targets` without a basis is ignored, and the report says so.
+- `tausik metrics target NAME min|max VALUE --basis "..."` sets a target and refuses one without a basis.
+- The first observation of a crossed target writes one `metric_target_crossed` event; recovery clears the mark. DER on this project is above its target, and the report now says `CROSSED`.
+- The end skill quotes the targets from the report instead of carrying its own numbers.
+- `tausik status` warns about every crossed target until it recovers. Its audit warning now counts task closures, as the 1.10 cadence does, instead of saying "sessions".
+
+### Changed — the docs and skills describe sessions as they work under autonomy
+
+38 lines across docs, skills, CLAUDE.md and the consumer template still said
+"hard block after 180 minutes", a capacity gate that refuses a start, and
+checkpoints "every 30–50 calls". Each now says what 1.10 does: session time,
+capacity, the checkpoint count and journal freshness are signals with
+configurable thresholds (`session_max_minutes`, `session_capacity_calls`,
+`checkpoint_calls`, `journal_freshness_calls`, `audit_every_closures`, 0 = off)
+that never refuse; no threshold number is typed into prose. The checkpoint and
+task skills point at the signal in tool responses instead of a fixed interval.
+`tests/test_docs_describe_sessions_as_signals.py` fails on a page that promises
+a session refusal. Task `docs-and-skills-describe-sessions-under-autonomy`,
+story E of 1.10.
+
+### Changed — TAUSIK claims SENAR v1.5 Core, and the compliance matrix follows that edition
+
+By the owner's decision #376 TAUSIK claims SENAR v1.5 Core (released
+2026-09-07) in the §13.1 form; the constant every claim site is checked
+against is `1.5`, and README, CLAUDE.md, AGENTS.md, CONTRIBUTING.md, QWEN.md
+and the consumer templates say so. The compliance matrices were assessed on
+2026-06-13 against a moving draft and listed Standard rules 9.2, 9.3 and 9.5
+under "Core", which has none of them. They are rewritten against SENAR 1.5
+Core: 8 rules, the Start and Done Gates, the three gate properties Core
+requires (a, c, e) and the two Core metrics — each row citing the code that
+implements it — and a separate "beyond Core, not claimed" table for what TAUSIK
+implements of Foundation. `tests/test_senar_compliance_matrix.py` counts every
+section against the corpus. Task
+`compliance-matrix-is-rewritten-against-senar-15-core`, story F of 1.10.
+
+### Added — SENAR corpus drift is detected by machine, like RENAR's
+
+TAUSIK learned of SENAR 1.4 and 1.5 from its owner weeks after they were cut.
+`senar_standard_drift` reads the corpus (`senar_standard_corpus`, e.g.
+`standards/senar/standard-src`): the top released version in its CHANGELOG
+(an "unreleased" heading is skipped), the Core rule count and gate names, the
+§8.6 property letters — and compares them with the edition README claims and
+the Core shape the compliance matrix assumes. On the live corpus it reports
+exactly "TAUSIK claims SENAR v1.3 Core; the corpus has released v1.5, v1.4
+since". Three states as in RENAR: not checked, unreadable (the missing file is
+named), findings. `tausik drift --detector senar` (and `all`) and a `doctor`
+line. `tests/test_senar_standard_drift.py`. Task
+`senar-corpus-drift-is-detected-like-renar`, story F of 1.10.
+
+### Fixed — `status=git-mismatch` is now `scope-narrower-than-diff`, and the report says what it means (github#12)
+
+The verify status read as a cache miss — "run it again" — while it meant the
+declared scope is narrower than what git says changed; retrying changed
+nothing. The status is renamed and the report header adds one sentence: the run
+happened, the cache was refused because N changed files are not declared,
+declare them with `--relevant-files`. Consistent scopes (`miss`, `hit`) get no
+sentence. `tests/test_verify_status_explained.py`. Task
+`verify-cache-miss-reads-as-git-mismatch-instead-of-a-reason`, story A of 1.10.
+
+### Fixed — upgrading a 1.8 database no longer crashes at v53 or strands the version at 44 (github#51, gitlab#18)
+
+On an existing database `init_schema` runs the cumulative creation scripts
+before the migration chain, so `actz_points` was created in its current shape
+and v53's `ADD COLUMN tz_ref` died on "duplicate column name"; the version was
+stamped only after the whole chain, so v45–v52 stayed committed under a stamp
+of 44. The chain now skips an `ADD COLUMN` whose column the table already has
+(a missing table still fails) and stamps `schema_version` inside every
+migration's own transaction, so an interrupted upgrade resumes where it
+stopped. Tested on the real thing: `tests/fixtures/schema_v44_tausik_1_8_0.sql`
+is the DDL the v1.8.0 tag's own `init_schema` produces, upgraded through
+`init_schema`, compared column by column with a fresh install; a database the
+1.9.0 upgrade already broke (v45–v52 in, stamp 44) is carried up too.
+`tests/test_upgrade_from_1_8.py`. Task
+`upgrade-from-1-8-crashes-at-v53-and-leaves-the-version-at-44`, story B of 1.10.
+
+### Added — the session opens and closes on every host that has the events, and the others are named
+
+Measured on the binaries, not the documentation (convention #686): Codex
+0.153.4 lists SessionStart and SessionEnd among its hook events (session #241
+had not found SessionEnd), and its profile already takes both from the shared
+declaration; OpenCode 1.1.42 publishes `session.created` / `session.deleted`
+to plugins, and `tausik-qg0.js` now opens and closes the TAUSIK session by
+OpenCode's session id — best-effort, an event without an id opens nothing and a
+failing CLI never throws into the editor. Kilo and Cursor have no session
+event in their profiles and get no dead hook; the table in
+`docs/{ru,en}/hooks.md` names them `cli` and says what is lost.
+`tests/test_opencode_session_events.py`, `tests/test_host_session_table.py`
+(reads the profiles). Task
+`session-ceremonies-are-hooks-on-every-host-or-an-honest-gap`, story E of 1.10.
+
+### Added — context pressure is a measured signal with a stated basis (SENAR 1.5 §9.4)
+
+`session recompute` ends with a `SUMMARY` line — median, p90 and maximum active
+minutes and how many sessions sit above the advisory threshold — so the basis
+of the self-set number is a command's output (§9.4(c)); the pages cite it with
+a date. Crossing the threshold records a `session_threshold_crossed` event once
+per session (§9.4(d)); recording is best-effort and never costs the advice.
+`checkpoint_calls` (40) and `journal_freshness_calls` (40) join the config, and
+0 switches any of the thresholds off. No signal refuses anything.
+`tests/test_session_pressure.py`. Task
+`context-pressure-is-a-measured-signal-with-a-basis`, story E of 1.10.
+
+### Added — journal freshness is a signal, per task
+
+"Log after every step" was a rule the agent had to remember. Measured first
+(80 recent closures, 218 gaps between log entries, calls from `usage_events`
+per task): median 0, p90 2, 3 gaps of 40 or more, maximum 209 — logging is
+usually immediate, the tail is real. An active task with 40 or more calls since
+its last entry now gets advice in the MCP response, once per ten calls, with or
+without an open session (`journal_freshness.py`). The task's proposed refusal
+of `task done` at twice the threshold was not built: hygiene is a signal
+(decision #376), and a refusal would teach an empty log line before closing.
+`tests/test_journal_freshness.py`. Task `journal-freshness-is-a-signal-not-a-rule`,
+story E of 1.10.
+
+### Changed — the SENAR 9.3 checkpoint counter is derived from the ledger
+
+`meta.tool_call_count` was a second copy of a number the ledger already holds:
+the MCP server incremented it on MCP calls only (not shell or file tools) and a
+handoff zeroed it. The count of calls since the last checkpoint is now the
+session's `usage_events` minus the `calls_at_write` its last handoff recorded
+(`checkpoint_signal.py`); writing a handoff is the reset, as a recorded fact.
+Only the ten-call warning bucket is stored, so the advice fires once per ten
+calls past the threshold instead of on every call; without an open session
+the count is named unmeasured, never a silent zero. Capacity and active time
+were already queries over the ledger. `tests/test_checkpoint_counter_is_derived.py`.
+Task `counters-are-derived-from-events-not-maintained`, story E of 1.10.
+
+### Changed — the SENAR 9.5 audit cadence counts closures, not sessions
+
+The cadence was "3 sessions since the last audit" — the last quality rule on a
+ritual: opening and closing sessions advanced or dodged it, and without
+sessions it never arrived. It now counts tasks closed since the last mark
+(`last_audit_at`), threshold `audit_every_closures`, default 17 with its basis
+stated (3 sessions × 5.72 closures per session, measured in session #266). A
+mark made under the old clock (`last_audit_session`) is read through that
+session's start, not reset. `audit mark` no longer needs an open session. The
+compact status key is `audit_overdue_closures`.
+`tests/test_audit_cadence_closures.py`. Task
+`cadence-clocks-count-closures-not-sessions`, story E of 1.10.
+
+### Changed — the handoff is generated from the journal; `session end` writes one when none was
+
+SENAR 1.5 §3.45/§7.3 require a handoff of every session, and until now it
+existed only when the agent hand-wrote a JSON in `/checkpoint` or `/end` — a
+session closed by its host had none (#252–#260). `handoff_generate` projects
+the records of the session's window: completed tasks (status `done` only),
+active tasks with their last log line, tasks in review and blocked, verify
+receipts, decisions, memory, dead ends, the open exploration; an empty window
+says so in words. `session handoff` takes the JSON as optional authored
+judgement: `next_steps`, `warnings`, `in_progress[].state` and keys the
+generator does not produce land on top and are listed in `authored_fields`; a
+key it does produce stays with the records and the authored version is kept
+under `authored`. `session end` generates the handoff when none was written,
+best-effort with a `handoff_generate_failed` event on failure; `--host-id`
+writes into the host's own session. The checkpoint and end skills call the
+generator instead of teaching a JSON template. `tests/test_handoff_generated.py`.
+Task `handoff-is-generated-from-the-journal`, story E of 1.10.
+
+### Fixed — the live handoff is the one written last, with a recorded supersedes edge (github#126)
+
+With two host sessions open at once (schema v63), the live handoff was the one
+on the highest session id; when the older session wrote last, `last-handoff`
+returned the stale document. A handoff now carries `written_at` (microseconds)
+and `supersedes` (the session whose handoff it took over), and the live holder
+is ordered by write time — pre-1.10 handoffs fall back to the session start.
+A rewrite in the same session is an update, not an edge to itself; the
+previous holder stays readable with `--session N`. Measured first, as the task
+required: 239 of 266 sessions carry a handoff, and the ambiguity exists only
+since sessions can overlap. `tests/test_live_handoff_slot.py`. Task
+`one-live-handoff-slot-supersedes-the-previous`, story E of 1.10.
+
+### Fixed — a failed gate's report names the failing tests (github#11)
+
+`format_results` printed the first five lines of a failed gate's output, and a
+batched pytest run starts with "bringing up nodes..." and progress dots: the
+FAILED names and the "N failed" summary stand at the end, so `verify` showed
+`[FAIL] pytest (block)` over dots and nothing else — three times in session
+#263 and again in #266, where the red test was found only by re-running the
+selection by hand. The report now carries `failure_excerpt`: the head, every
+FAILED/ERROR line and pytest summary line wherever it stands, and the tail,
+with gaps marked. Output of other tools keeps its head and tail.
+`tests/test_gate_output_keeps_failures.py`. Task
+`pytest-gate-drops-the-failing-test-names`, story A of 1.10.
+
+### Added — SPEC-UC is the twelfth SPEC type (RENAR 1.1 §8.3, ADR-018; schema v64)
+
+RENAR 1.1 closes the SPEC type list at twelve. `SPEC_TYPES` carries `UC`; the
+`specs.type` CHECK is widened by a guarded rebuild (`maybe_widen_spec_types_v64`,
+same shape as v49: skips a partial fixture and a table that already admits
+UC, keeps every row). `spec add --type UC` refuses a body without a `role:
+human | agent` line or with a step that carries no statement ref `<id>#n`
+(§8.5.12.1, `scripts/spec_uc.py`). The conformance manifest lists twelve types
+(manifest-version 24), `spec_completeness` reports 12 of 12, and the live-corpus
+drift test is green. `tests/test_spec_uc.py`. Task
+`spec-uc-is-the-twelfth-spec-type`, story G of 1.10.
+
+### Fixed — the RENAR drift detector read the site repository, not the standard
+
+`renar_standard_corpus` and the citation test pointed at `standards/renar`,
+which became the site repository when the standard moved to
+`standards/renar-standart`: the path resolved, carried no `standard/`
+chapters, and the detector could only answer "unreadable" while
+`tests/test_renar_citations_resolve.py` failed with a missing directory. The
+test now resolves the corpus through the same config key as the detector
+(fallback: the standard's own repository), and `doctor` prints a `RENAR
+corpus` line that tells apart not configured, missing, not-the-standard and
+the version with its chapter count (`corpus_health`). Pointed at the source,
+the detector reported exactly one finding — SPEC-UC — and none after it.
+`tests/test_renar_corpus_status.py`. Task
+`renar-drift-detector-reads-the-site-repo-not-the-standard`, story G of 1.10.
+
+### Added — the handoff of any past session is readable (github#137)
+
+`session last-handoff --session N` and `tausik_session_last_handoff` with
+`session_id` return session N's handoff; without it the live one, as before. A
+missing session and a session without a handoff are refused with different
+words, never answered with another session's handoff. `session list` gains a
+handoff column. In session #181 a table recorded in session #179's handoff had
+to be recovered from the IDE transcript, because nothing read an older one.
+`tests/test_past_handoff_is_readable.py`. Task
+`handoff-of-any-past-session-is-unreadable`, story E of 1.10.
+
+### Changed — the TAUSIK session is the host session: hooks open and close it (schema v63)
+
+A session used to be a ritual: `/start` opened it, `/end` closed it, and an
+autonomous agent performs neither — session #265 stayed open nine days at 76
+active minutes, and one Claude Code transcript spanned several TAUSIK
+sessions. Schema v63 adds `sessions.host_session_id`. The SessionStart hook
+runs `session start --host-id <payload session_id>` (idempotent: a resume or a
+compaction re-fires with the same id and opens nothing new); the SessionEnd
+hook reads the transcript path from its payload, records the metrics into
+that host's session and then runs `session end --host-id`, in one process so
+the close cannot beat the metrics (Claude Code runs the hooks of one event in
+parallel). Two host sessions are two open TAUSIK sessions and ending one
+leaves the other open; an unknown host id closes nothing. Without a host id
+the CLI and MCP keep the old contract. The index lives in the post-migration
+set so an upgraded database never meets it before the column (the v53 trap,
+memory #716). The 1.9 release-notes test now pins the schema tag v1.9.0
+shipped (62) instead of the live tree. `tests/test_session_host_binding.py`.
+Task `session-is-the-host-session-not-a-ritual`, story E of 1.10.
+
+### Changed — session time and call capacity are signals, not gates; `task start --force` is retired (decision #376)
+
+QG-0 used to refuse a task start on two conditions that say nothing about
+the task record it examines: the session's active time over 180 minutes and
+a task budget over the remaining 200-call capacity (`--force` bypassed the
+second with an audit event). Measured over 70 sessions (#196–#265): one
+crossed 180 active minutes (#241, 246) and was refused its next task start
+there, `session extend` was never called, 13 session
+summaries name capacity as the reason the session stopped, and sessions
+#252–#260 were nine restarts in a row to reset the counter. Neither check
+has a declared prevented effect on the system or on the task record (SENAR
+1.5 §8.6(a)), so neither was a Quality Gate; SENAR Core, the edition TAUSIK
+claims, does not govern sessions at all, and Foundation (10.2) leaves the
+maximum to the organization with a documented basis (§9.4(c)).
+
+Both are advice now: `gate_qg0_check` passes the overrun through as a
+`SESSION:` warning and starts the task; `service_recording.session_capacity_advisory`
+replaces `check_session_capacity` and prints an `ⓘ` line with the numbers
+(an absent session is still named — unmeasured capacity, not unlimited —
+and `tausik session start` is still the answer, as decision #223 required);
+`task unblock` gets the same line. `--force` is refused with the reason
+rather than silently accepted, the `capacity_force_start` event is gone,
+the Stop hook and `status` name the configured threshold as advisory, and
+the basis of the numbers is recorded in `docs/{ru,en}/session-active-time.md`
+until `context-pressure-is-a-measured-signal-with-a-basis` computes it.
+This is the recorded SENAR 1.5 §10.13 review of a capability-dependent
+provision after a change of model generation. CLAUDE.md and the consumer
+template say the same sentence; `tests/test_session_signal_not_gate.py`.
+Task `qg0-does-not-refuse-work-for-session-time-or-capacity`, story E of
+1.10.
+
 ### Fixed — QG-0 asks a negative scenario only from work that changes behaviour
 
 The rule shipped in 1.9 (`HARD_CONSTRAINTS`, decision #371) says prose-only

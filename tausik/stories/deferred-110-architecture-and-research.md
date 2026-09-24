@@ -1,6 +1,6 @@
 ---
 slug: deferred-110-architecture-and-research
-title: "1.10: архитектурный долг и исследования вне обещаний 1.9"
+title: "Без версии: архитектурный долг, исследования и мелкие дефекты CLI"
 status: open
 epic: release-110-deferred-from-19
 ---

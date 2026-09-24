@@ -3,7 +3,7 @@ slug: a-user-tier-workaround-leaks-into-every-project
 title: "Обходной путь в пользовательском тире молча распространяется на все проекты машины"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+story: release110-open-defects
 complexity: medium
 role: backend
 stack: null

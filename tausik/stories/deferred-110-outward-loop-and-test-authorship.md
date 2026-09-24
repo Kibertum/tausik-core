@@ -1,6 +1,6 @@
 ---
 slug: deferred-110-outward-loop-and-test-authorship
-title: "1.10: остаток внешней петли и авторство тестов — включая публичное обещание, которому 25 дней"
+title: "1.11 кандидат B. Внешняя петля: позиционирование, стандарты (first-party RENAR §1.4.4), бейдж квитанции, бенчмарки и авторство тестов"
 status: active
 epic: release-110-deferred-from-19
 ---

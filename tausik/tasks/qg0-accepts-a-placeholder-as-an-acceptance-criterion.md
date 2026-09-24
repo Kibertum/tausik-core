@@ -1,7 +1,7 @@
 ---
 slug: qg0-accepts-a-placeholder-as-an-acceptance-criterion
 title: "QG-0 принимает заглушку за критерий приёмки: он считает ключевые слова, но не вещество"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-verification-is-cheap
 complexity: medium
@@ -12,15 +12,26 @@ call_budget: 45
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths:
+relevant_files:
+  - "scripts/ac_placeholder.py"
   - "scripts/gate_qg0_check.py"
-  - "scripts/ac_evidence_detectors.py"
-  - "scripts/*.py"
+  - "scripts/service_ac_evidence.py"
+  - "tests/test_ac_placeholder.py"
+  - "tests/test_tausik_cli.py"
+  - "tests/conftest.py"
+  - pyproject.toml
+scope_paths:
+  - "scripts/ac_placeholder.py"
+  - "scripts/gate_qg0_check.py"
+  - "scripts/service_ac_evidence.py"
   - "tests/*.py"
+  - pyproject.toml
+  - "CHANGELOG*.md"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T22:39:05Z"
 ---
 
 ## Goal
@@ -44,3 +55,13 @@ completed_at: null
 git revert коммита; детектор отключается ключом конфига
 
 ## Journal
+
+- 2026-09-23T22:33:05Z [implementation] — test_full_lifecycle red was NOT this task: the ruff_format gate (closed earlier this session) carries a verify trigger, so a fixture that switched off pytest/ruff/filesize now had a verify gate again and Verify-First refused the fileless close. Fixture tests/test_tausik_cli.py::tausik_env now also disables ruff_format; 31/31 slow CLI tests pass.
+- 2026-09-23T22:37:05Z [implementation] — AC-1: ✓ tests/test_ac_placeholder.py::test_each_placeholder_family_carries_no_substance — ten families incl. <...>, [UPPER], {{...}}, TODO/TBD/уточнить/заглушка, empty table
+- 2026-09-23T22:37:05Z [implementation] — AC-2: ✓ tests/test_ac_placeholder.py::test_a_table_with_data_keeps_its_rows — the header-only table reads as empty, a table with a data row keeps its words
+- 2026-09-23T22:37:06Z [implementation] — AC-3: ✓ tests/test_ac_placeholder.py::test_task_start_refuses_a_placeholder_criterion and tests/test_ac_placeholder.py::test_evidence_is_read_with_placeholders_removed — goal+AC at QG-0 and evidence lines at close (service_ac_evidence reads the stripped unit; a bare manual/review claim under 4 words is checkmark_only)
+- 2026-09-23T22:37:06Z [implementation] — AC-4: ✓ measurement — threshold MIN_AC_WORDS=5, MIN_GOAL_WORDS=3 from the closed tasks: thinnest real criteria 9 words, thinnest real goal 3; docstring of scripts/ac_placeholder.py records it
+- 2026-09-23T22:37:06Z [implementation] — AC-5: ✓ measurement — live run over 1451 tasks with goal+AC: 1 refused (ddl-parity-marker-leak-and-column-miscount, AC literally $(cat /tmp/ac.txt)); tests/test_ac_placeholder.py::test_refusal_separates_templates_from_terse_real_criteria refuses «1. Работает корректно 2. Ошибка при пустом поле». Evidence side over 1566 done tasks: coverage unchanged, 2 lines downgraded (both bare claims)
+- 2026-09-23T22:37:07Z [implementation] — AC-6: ✓ tests/test_ac_placeholder.py::test_task_start_refuses_a_placeholder_criterion — mutation (gate hook disabled with 'if False and') turned it red: 1 failed, 18 passed; restored
+- 2026-09-23T22:37:07Z [implementation] — AC-7: ✓ tests/test_ac_placeholder.py::test_refusal_separates_templates_from_terse_real_criteria — RU and EN templates refused alike, terse real RU and EN criteria accepted; negative: placeholder refused at task start
+- 2026-09-23T22:37:07Z [implementation] — NO-DEAD-END: the one red run (test_full_lifecycle) was the ruff_format verify trigger from an earlier task meeting a fixture that disabled only pytest/ruff/filesize, not a wrong approach here

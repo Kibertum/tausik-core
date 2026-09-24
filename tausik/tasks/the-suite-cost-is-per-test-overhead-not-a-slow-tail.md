@@ -1,7 +1,7 @@
 ---
 slug: the-suite-cost-is-per-test-overhead-not-a-slow-tail
 title: "[1.9] Полный прогон: 1003 секунды сидят в накладных расходах НА ТЕСТ, а не в медленных тестах — замер опроверг гипотезу"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-verification-is-cheap
 complexity: medium
@@ -16,7 +16,7 @@ relevant_files: []
 scope_paths: []
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-24T05:57:45Z"
 ---
 
 ## Goal
@@ -43,3 +43,4 @@ completed_at: null
 ## Journal
 
 - 2026-09-09T08:43:43Z [planning] — ПРЕМИСА ОПРОВЕРГНУТА ЗАМЕРОМ, смена #241. Заявлено: полный прогон 1003 секунды, большая часть — накладные расходы НА ТЕСТ. Сегодня полный прогон замерен десять раз подряд по ходу работы: 130-175 секунд при 10417 тестах против прежних ~10000. Время упало в шесть-восемь раз, а число тестов выросло. Причину падения задача себе не приписывает: менялись и xdist, и состав, и машина. Важно другое — величина, ради которой задача заводилась, больше не наблюдается. НЕ ЗАКРЫВАЮ МОЛЧА: если накладные расходы снова помешают, замер начнётся с сегодняшнего числа, а не с цифры 1003, которая уже неверна.
+- 2026-09-23T23:07:35Z [planning] — Re-measured session #269 (one full run, xdist as configured): 10854 passed + 22 skipped + 6 failed in 136 s wall — ~12.5 ms per test, against 1003 s / 6700 tests (0.15 s) when this task was filed. The premise is gone twice over (session #241 measured 130-175 s). Nothing to optimise; this task should close as obsolete once that exit exists (a-task-cannot-be-closed-as-obsolete) — --no-file-changes cannot back it while the tree is dirty.

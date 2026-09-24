@@ -3,7 +3,7 @@ slug: closure-citations-rot-is-detected-but-never-acted-on
 title: "Сорок четыре ссылки на доказательства в закрытых задачах не разрешаются, и детектор третью смену подряд сообщает об этом впустую"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-open-defects
 complexity: medium
 role: developer
 stack: python

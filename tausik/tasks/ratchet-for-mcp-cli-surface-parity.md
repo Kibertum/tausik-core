@@ -2,8 +2,8 @@
 slug: ratchet-for-mcp-cli-surface-parity
 title: "Расхождение MCP и CLI ловится глазами трижды подряд — нужен храповик, а не четвёртая точечная правка"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+epic: v2-global-mcp
+story: v2gm-surfaces
 complexity: complex
 role: architect
 stack: python

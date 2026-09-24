@@ -26,7 +26,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 |------|------|-------------|
 | `auto_format.py` | After every write tool (MultiEdit was off this hook before PR #5) | Auto-formats with ruff/prettier/gofmt + logs "Modified: X" to task |
 | `memory_posttool_audit.py` | After every write tool into auto-memory | Audits cross-project leakage (uses `memory_markers.py` regex library) and warns |
-| `task_done_verify.py` | After `mcp__tausik-project__tausik_task_done` | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite). |
+| `task_done_verify.py` | After `mcp__tausik-project__tausik_task_done`, or a `tausik task done` run in the shell | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite). |
 | `task_call_counter.py` | After any tool call | Increments per-task `call_actual` counter; warns at 1.5×budget |
 | `posttool_usage.py` (v1.4) | After any tool call | Records token-usage events to `usage_events` for per-task cost rollup |
 | `activity_event.py` | After any tool call | Records activity timestamps for **gap-based active-time** session metric (SENAR Rule 9.2) |
@@ -43,7 +43,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 
 | Hook | When | What It Does |
 |------|------|-------------|
-| `user_prompt_submit.py` | On user prompt | Detects coding-intent (EN+RU) → nudges if no active task; detects code-discovery intent ("where is X") → nudges toward `search_code`. Ignores slash-command bodies and hook-generated text |
+| `user_prompt_submit.py` | On user prompt | Detects coding-intent (EN+RU) → nudges if no active task. The code-discovery nudge toward `search_code` was removed in 1.10 (decision #390: 0 search_code calls with it in a paired replay). Ignores slash-command bodies and hook-generated text |
 
 ## Stop
 
@@ -57,6 +57,27 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | Hook | When | What It Does |
 |------|------|-------------|
 | `session_metrics.py` | On session end | Records session metrics (active vs wall, throughput) to DB |
+
+## The session on every host (1.10)
+
+The TAUSIK session is the host session (decision #376): the host opens and
+closes it, not an agent's ritual. Measured on the host binary, not its
+documentation (convention #686), session #266.
+
+<!-- host-session-table -->
+| Host | Open | Close | Provided by | Measured |
+|---|---|---|---|---|
+| claude | hook | hook | SessionStart / SessionEnd from the shared hook declaration | Claude Code hook protocol |
+| qwen | hook | hook | SessionStart / SessionEnd from the shared hook declaration | bootstrap profile |
+| codex | hook | hook | SessionStart / SessionEnd from the shared hook declaration | codex 0.153.4: the hook event list carries SessionStart and SessionEnd |
+| opencode | plugin | plugin | `session.created` / `session.deleted` in the `tausik-qg0.js` plugin | opencode 1.1.42: plugin events in the binary |
+| kilo | cli | cli | `tausik session start` / `session end` by hand | the profile has no session events |
+| cursor | cli | cli | `tausik session start` / `session end` by hand | the profile carries no hooks |
+<!-- /host-session-table -->
+
+Where it says `cli`, what closing by a hook does is lost: recording the
+transcript's metrics and the generated handoff at exit. `session end` by hand
+does both.
 
 ## Git pre-commit
 

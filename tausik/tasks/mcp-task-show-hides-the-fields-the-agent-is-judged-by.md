@@ -1,9 +1,9 @@
 ---
 slug: mcp-task-show-hides-the-fields-the-agent-is-judged-by
 title: "MCP task_show скрывает поля, по которым агента судят: область записи и план отката"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+story: release110-open-defects
 complexity: medium
 role: backend
 stack: python
@@ -12,7 +12,11 @@ call_budget: 30
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/task_detail_fields.py"
+  - "scripts/project_cli_task.py"
+  - "harness/claude/mcp/project/handlers_task.py"
+  - "tests/test_mcp_task_show_fields.py"
 scope_paths:
   - "harness/claude/mcp/project/*.py"
   - "scripts/*.py"
@@ -21,7 +25,7 @@ scope_paths:
   - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T23:51:53Z"
 ---
 
 ## Goal
@@ -44,3 +48,11 @@ AC6. Объём вывода назван числом: задача обяза�
 git revert коммита: обработчик возвращается к прежнему перечню полей
 
 ## Journal
+
+- 2026-09-23T23:51:18Z [implementation] — Root cause: the MCP handler _handle_task_show kept its own six-field tuple next to the CLI's twenty-six in _print_task_detail; nothing tied the two lists together.
+- 2026-09-23T23:51:19Z [implementation] — AC1: ✓ tests/test_mcp_task_show_fields.py::test_the_scope_acl_and_the_rollback_plan_are_shown — tausik_task_show now prints scope_paths and rollback_plan (and every other field the CLI prints) when set.
+- 2026-09-23T23:51:19Z [implementation] — AC2: ✓ review — the reason is stated in the new module's docstring and CHANGELOG: scope_paths is the ACL scope_write_gate refuses by, rollback_plan is SENAR Rule 6.
+- 2026-09-23T23:51:19Z [implementation] — AC3: ✓ tests/test_mcp_task_show_fields.py::test_cli_and_mcp_read_one_list — scripts/task_detail_fields.py holds TASK_DETAIL_FIELDS and detail_lines; the CLI and the MCP handler both call detail_lines and neither keeps a copy of the list.
+- 2026-09-23T23:51:20Z [implementation] — AC4: ✓ tests/test_mcp_task_show_fields.py::test_the_scope_acl_and_the_rollback_plan_are_shown — negative, written first and RED on the six-field handler (output was 'Task/Title/Status/Relevant memory' only), green after.
+- 2026-09-23T23:51:20Z [implementation] — AC5: ✓ tests/test_mcp_task_show_fields.py::test_empty_fields_print_nothing — negative, a task without scope_paths/rollback_plan prints no such header and no line ending in a bare colon.
+- 2026-09-23T23:51:20Z [implementation] — AC6: ✓ measurement — tausik_task_show over three real tasks: 20430 chars before, 21949 after (+7.4%, ~500 chars/~125 tokens per task); the MCP token ratchet counts tool SCHEMAS, which did not change; 792 related tests pass.

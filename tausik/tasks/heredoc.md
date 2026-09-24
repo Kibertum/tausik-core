@@ -1,9 +1,9 @@
 ---
 slug: heredoc
 title: "Гейт рамок не видит записи, сделанной питоновским скриптом через heredoc"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-open-defects
 complexity: null
 role: developer
 stack: python
@@ -12,11 +12,23 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/hooks/python_source_writes.py"
+  - "scripts/hooks/bash_write_parse.py"
+  - "tests/test_heredoc_program_writes.py"
+  - "tests/test_write_gate_reads_code_not_text.py"
+  - "tests/test_firewall_reads_heredoc_as_data.py"
+  - "tests/test_rag_prune_dead_paths.py"
+scope_paths:
+  - "scripts/hooks/python_source_writes.py"
+  - "scripts/hooks/bash_write_parse.py"
+  - "tests/*.py"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T22:07:50Z"
 ---
 
 ## Goal
@@ -45,3 +57,13 @@ AC-6. Снятие тел heredoc'ов ДЛЯ ПОИСКА ПЕРЕНАПРАВ�
 ## Rollback
 
 ## Journal
+
+- 2026-09-23T22:04:19Z [implementation] — AC-1 замер по реальному корпусу (транскрипты проекта, C:\Users\AYUMAS~1\AppData\Local\Temp/hd_measure.py, прогон разборщика bash_write_parse.write_targets на каждом Bash-вызове с heredoc): heredoc-вызовов 2600, отдано интерпретатору 1483, из них пишут файл 1085; гейт не видел цель в 917 до правки, 750 после привязок open(), 507 после заголовка с cd, 414 после VAR=1, 74 после Path-привязок и сегмента с <<. Остаток 74 — пути в переменных оболочки и циклы по именам (граница в enforcement-coverage).
+- 2026-09-23T22:04:19Z [implementation] — AC-2: ✓ tests/test_heredoc_program_writes.py::test_the_write_inside_the_program_is_a_target
+- 2026-09-23T22:04:20Z [implementation] — AC-2: ✓ tests/test_heredoc_program_writes.py::test_the_header_is_read_at_the_statement_that_takes_the_heredoc
+- 2026-09-23T22:04:20Z [implementation] — AC-3: ✓ tests/test_heredoc_program_writes.py::test_a_heredoc_not_fed_to_an_interpreter_is_not_read_as_a_program
+- 2026-09-23T22:04:21Z [implementation] — AC-4: ✓ tests/test_heredoc_program_writes.py::test_a_helper_that_only_reads_its_parameter_names_nothing; 545 тестов гейтов записи/firewall зелёные
+- 2026-09-23T22:04:22Z [implementation] — AC-5: ✓ tests/test_write_gate_reads_code_not_text.py::test_detector_reads_code_not_text (строка 'computed path (name)' закрепляла дыру и перенесена в записи)
+- 2026-09-23T22:04:22Z [implementation] — AC-6: ✓ снятие тел heredoc для поиска перенаправлений не тронуто; новая проверка рядом (_python_stdin_heredoc_writes)
+- 2026-09-23T22:04:23Z [implementation] — NO-DEAD-END: красные прогоны — старый тест, закреплявший дыру, и мой отладочный пример с настоящим переводом строки
+- 2026-09-23T22:06:46Z [implementation] — NO-DEAD-END: красный verify — два моих теста прошлых задач (firewall, rag-prune) читали вывод подпроцесса без encoding; добавлен encoding=utf-8

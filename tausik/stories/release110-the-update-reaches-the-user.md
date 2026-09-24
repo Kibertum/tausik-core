@@ -1,7 +1,7 @@
 ---
 slug: release110-the-update-reaches-the-user
 title: "1.10 B. Обновление доходит до пользователя: проверка с GitHub, и README про сеть — правда"
-status: open
+status: active
 epic: release-110-deferred-from-19
 ---
 

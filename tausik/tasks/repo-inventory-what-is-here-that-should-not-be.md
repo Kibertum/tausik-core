@@ -3,7 +3,7 @@ slug: repo-inventory-what-is-here-that-should-not-be
 title: "Инвентаризация репозитория: что здесь лишнего и почему оно осталось"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-architecture-and-research
+story: release110-site-docs-and-hygiene
 complexity: medium
 role: backend
 stack: python

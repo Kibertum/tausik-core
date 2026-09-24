@@ -1,7 +1,7 @@
 ---
 slug: session-update-check-collides-with-the-zero-phone-home-claim
 title: "The update check from GitHub: a consumer learns of the next version at the start of the next session — and the README's outbound-calls sentence tells the truth"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-the-update-reaches-the-user
 complexity: medium
@@ -12,17 +12,30 @@ call_budget: 80
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/update_check.py"
+  - "scripts/project.py"
+  - "scripts/project_parser.py"
+  - "scripts/project_cli_doctor.py"
+  - "scripts/status_view.py"
+  - "scripts/hooks/session_start.py"
+  - "tests/test_update_check.py"
 scope_paths:
-  - "scripts/**"
+  - "scripts/update_check.py"
+  - "scripts/project.py"
+  - "scripts/project_parser.py"
+  - "scripts/project_cli_doctor.py"
+  - "scripts/status_view.py"
+  - "scripts/hooks/session_start.py"
   - "docs/ru/*.md"
   - "docs/en/*.md"
   - README.md
   - README.ru.md
   - "tests/*.py"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T19:18:07Z"
 ---
 
 ## Goal
@@ -40,3 +53,8 @@ AC-1: an owner decision records the mechanism: GitHub is the source (decision of
 git revert коммита; проверка выключается ключом конфига и по умолчанию выключена
 
 ## Journal
+
+- 2026-09-23T19:15:19Z [implementation] — Сделано: scripts/update_check.py (build_request, fetch_latest, refresh с суточным кэшем .tausik/update_check.json, notice, doctor_line, cmd_update_check); команда tausik update-check [--now]; SessionStart запускает её отсоединённо (_spawn_update_check); status_view печатает строку из кэша; строка doctor 'Update check'; README en/ru: '1 outbound call' вместо '0 phone-home'; docs configuration/doctor/cli en+ru. Живой прогон: 'on, last checked 2026-09-23T19:14:28Z; latest 1.9.0'. AC verified: AC-1 ✓ частично: решение #383 записывает источник (GitHub REST, вариант b), замеры REST ~1,1 с / ls-remote ~1,4 с, что уходит, умолчание (включено, opt-out updates.check=false); принято агентом по #372 и ждёт подтверждения владельца — формально не 'решение владельца' AC-2 ✓ test_a_newer_release_is_announced_with_both_versions_and_the_link; строка приходит в контекст через status из кэша, т.е. в той же или следующей сессии после выпуска — запрос не стоит на пути SessionStart AC-3 ✓ test_at_most_one_request_a_day (счёт запросов через перехват) AC-4 ✓ НЕГАТИВНЫЙ test_no_network_keeps_the_last_answer_and_never_claims_up_to_date, test_a_garbage_answer_is_an_error_not_a_version, test_session_start_only_spawns_detached_and_never_raises AC-5 ✓ НЕГАТИВНЫЙ test_the_request_carries_nothing_about_the_project (на перехваченном запросе) AC-6 ✓ doctor 'Update check' on/off, время, ответ; test_it_can_be_switched_off. README: test_the_readme_says_what_leaves_the_machine. 12 тестов зелёные.
+- 2026-09-23T19:18:03Z [implementation] — AC-3: ✓ tests/test_update_check.py::test_at_most_one_request_a_day
+- 2026-09-23T19:18:03Z [implementation] — AC-4: ✓ tests/test_update_check.py::test_no_network_keeps_the_last_answer_and_never_claims_up_to_date
+- 2026-09-23T19:18:03Z [implementation] — AC-5: ✓ tests/test_update_check.py::test_the_request_carries_nothing_about_the_project

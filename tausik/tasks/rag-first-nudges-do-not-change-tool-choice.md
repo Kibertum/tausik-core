@@ -1,7 +1,7 @@
 ---
 slug: rag-first-nudges-do-not-change-tool-choice
 title: "rag-first nudges do not change tool choice: 0 search_code calls in 62 with the nudges delivered, 0 in 76 without — decide whether the six injection sites earn their context"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-rag-and-memory-tell-the-truth
 complexity: medium
@@ -12,11 +12,28 @@ call_budget: 60
 defect_of: null
 scope: "bootstrap/bootstrap_templates.py, harness/skills/, scripts/hooks/session_start.py, scripts/hooks/user_prompt_submit.py, scripts/hooks/tool_output_truncation_nudge.py, README*.md, docs/"
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/hooks/user_prompt_submit.py"
+  - "scripts/hooks/session_start.py"
+  - "scripts/hooks/tool_output_truncation_nudge.py"
+  - "bootstrap/bootstrap_templates.py"
+  - "tests/test_rag_first_nudges_removed.py"
+  - "tests/test_user_prompt_submit_hook.py"
+  - "tests/test_session_start_hook.py"
+scope_paths:
+  - "bootstrap/bootstrap_templates.py"
+  - "harness/skills/**"
+  - "scripts/hooks/session_start.py"
+  - "scripts/hooks/user_prompt_submit.py"
+  - "scripts/hooks/tool_output_truncation_nudge.py"
+  - "tests/*.py"
+  - "README*.md"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-24T06:18:51Z"
 ---
 
 ## Goal
@@ -34,3 +51,9 @@ AC-1: an owner decision (tausik decide) names one of the three options — remov
 git revert of the implementing commit; the texts are static strings and return with the revert.
 
 ## Journal
+
+- 2026-09-24T06:17:25Z [implementation] — AC-1: ✓ review — decision #390 names 'remove', citing §7: 0 search_code in 62 tool calls with all rag-first texts, 0 in 76 without, cost delta within the 13% repeat noise.
+- 2026-09-24T06:17:25Z [implementation] — AC-2: ✓ tests/test_rag_first_nudges_removed.py::test_the_inventory_of_mentions_is_frozen and tests/test_rag_first_nudges_removed.py::test_no_mention_is_advice_to_search_rag_first — removed at every site: session_start RAG line + reminder bullet, user_prompt_submit nudge (constants, detector, emission), tool_output_truncation_nudge cure, skills debug/explore/start/task + variants gpt-5-5/gpt-5, bootstrap TOOL_ROUTING; the 9 files still naming search_code are frozen with a reason each; mutation (a 'Prefer search_code' line appended to skills/plan) -> 2 failed, 1 passed; restored.
+- 2026-09-24T06:17:25Z [implementation] — AC-3: ✓ review — README/README.ru and whats-new-1.9 already state the zero; docs/*/hooks.md no longer list the nudge; no doc says agents search RAG first (git grep for prefer/first-choice near search_code finds only the removal records).
+- 2026-09-24T06:17:26Z [implementation] — AC-4: ✓ review — not applicable: 'replace with a mechanism' was not chosen, so no effectiveness replay is owed.
+- 2026-09-24T06:17:26Z [implementation] — Tests moved with the behaviour, named here: tests/test_user_prompt_submit_hook.py::TestRagFirstNudgeIsGone replaces TestRagFirstNudge (discovery prompts inject no search advice; a coding prompt gets only the task nudge); tests/test_session_start_hook.py::TestRagFirstReminder now requires the Reminders block NOT to mention search_code. 465 hook/skill/template tests green.

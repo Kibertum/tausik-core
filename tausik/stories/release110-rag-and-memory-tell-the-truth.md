@@ -1,7 +1,7 @@
 ---
 slug: release110-rag-and-memory-tell-the-truth
 title: "1.10 D. RAG и память говорят о себе правду: подсказки по замеру, счётчик без ×1,8, знание с происхождением"
-status: open
+status: done
 epic: release-110-deferred-from-19
 ---
 

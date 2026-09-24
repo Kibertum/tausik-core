@@ -2,8 +2,8 @@
 slug: kilo-has-a-plugin-and-permission-surface-we-do-not-use
 title: "Kilo умеет plugin и permission: у него ЕСТЬ точка расширения, мы её не используем"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+epic: v2-global-mcp
+story: v2gm-surfaces
 complexity: complex
 role: developer
 stack: python

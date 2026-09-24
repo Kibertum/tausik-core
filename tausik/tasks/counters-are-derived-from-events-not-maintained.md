@@ -1,9 +1,9 @@
 ---
 slug: counters-are-derived-from-events-not-maintained
 title: "Счётчики ёмкости и чекпоинта ведутся рядом с журналом, хотя выводятся из него"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-architecture-and-research
+story: release110-sessions-are-not-gates
 complexity: medium
 role: developer
 stack: python
@@ -12,12 +12,26 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/checkpoint_signal.py"
+  - "scripts/service_session.py"
+  - "harness/claude/mcp/project/handlers.py"
+  - "harness/claude/mcp/project/handlers_session.py"
+  - "tests/test_checkpoint_counter_is_derived.py"
+  - "tests/test_session_two_halves.py"
+scope_paths:
+  - "harness/claude/mcp/project/handlers.py"
+  - "harness/claude/mcp/project/handlers_session.py"
+  - "scripts/service_session.py"
+  - "scripts/checkpoint_signal.py"
+  - "tests/*.py"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on:
   - usage-attribution-is-keyed-by-task-not-session
-completed_at: null
+completed_at: "2026-09-23T18:20:35Z"
 ---
 
 ## Goal
@@ -30,6 +44,12 @@ completed_at: null
 
 ## Acceptance Criteria
 
+1. Счётчик чекпоинта (SENAR 9.3) — запрос: вызовы текущей сессии из usage_events минус calls_at_write последнего handoff этой сессии; meta.tool_call_count больше не ведётся и не читается.
+2. Ёмкость и активное время уже выводятся из журналов (session_capacity_summary по usage_events, active time по events) — подтверждено тестом, новых полей нет.
+3. НЕГАТИВНЫЙ: без открытой сессии сигнал говорит вслух «сессии нет — вызовы не учитываются», а не молчит и не показывает ноль как измерение.
+4. НЕГАТИВНЫЙ: запись handoff сбрасывает счёт через calls_at_write, а не побочным обнулением поля; предупреждение не повторяется на каждом вызове (одно на десяток вызовов сверх порога).
+5. CHANGELOG EN+RU; docs.
+
 ## Plan
 
 ## Rollback
@@ -37,3 +57,8 @@ completed_at: null
 Замена полей на запросы; поля остаются в схеме до подтверждения. Откат — git revert.
 
 ## Journal
+
+- 2026-09-23T18:09:00Z [implementation] — AC verified: 1 — счётчик чекпоинта — запрос usage_events сессии минус calls_at_write последнего handoff (tests/test_checkpoint_counter_is_derived.py::test_the_count_is_the_ledger_since_the_last_handoff; meta.tool_call_count не ведётся — assert None). 2 — ёмкость (session_capacity_summary по usage_events) и активное время (events) уже выводимы — новых полей нет. 3 — НЕГАТИВ ::test_without_a_session_it_says_so_aloud (no_session_note, None, не ноль). 4 — НЕГАТИВ ::test_advice_fires_once_per_ten_call_bucket; сброс — запись handoff (calls_at_write), test_session_two_halves переведён на checkpoint_warn_bucket. 5 — docs sessions.md, матрица ru/en; CHANGELOG EN+RU. meta_increment в бэкенде теперь без вызывающих — удаление оставлено уборке истории H (храповик class_surface требует опустить базу вместе с удалением). Verify #2707 зелёный.
+- 2026-09-23T18:09:00Z [implementation] — verify #2707 green; tests/test_checkpoint_counter_is_derived.py incl. 2 negatives
+- 2026-09-23T18:09:34Z [implementation] — verify #2707 green; tests/test_checkpoint_counter_is_derived.py incl. 2 negatives
+- 2026-09-23T18:20:27Z [implementation] — verify #2714 green; tests/test_checkpoint_counter_is_derived.py incl. 2 negatives

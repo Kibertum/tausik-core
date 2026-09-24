@@ -34,7 +34,7 @@ destinations, `Invoke-WebRequest -OutFile`, `Export-Csv`. Heredoc BODIES are not
 scanned (a `->`/`>` in prose or code inside the body would manufacture a phantom
 target and block an honest write). Only targets **inside** the project tree are
 gated, exactly as for Write; the scratchpad, `/tmp`, `/dev/null` and other repos
-are allowed.
+are allowed. The exception is a body the header hands to an interpreter (`python - <<EOF`, also after `cd x;`, with a `VAR=1` prefix, or with `| tail` after `<<`): it is read as a program. A write target is a literal, a name bound to a literal or to `Path("…")`, a helper's parameter with a literal at the call site, or a loop variable over a literal list. Measured in 1.10 over this project's transcripts: of 1,085 writing interpreter bodies the gate saw no target in 917, and in 74 after the fix; the rest are paths in shell variables and loops over names.
 
 **Python AST catalogue.** `python_source_writes.RECOGNISED_PYTHON_WRITE_FORMS`
 is the single declared list: literal `open` with a write mode; literal
@@ -106,7 +106,7 @@ The split follows WHO PERFORMS THE ACTION:
 
 | What holds the rule | Which rules | Where it works |
 |---|---|---|
-| Our surface (`tausik_*` / CLI) | QG-0, QG-2, session limit (9.2), memory routing | EVERY host: the enforcement point is inside our code, and the MCP server is what an otherwise bare install still has |
+| Our surface (`tausik_*` / CLI) | QG-0, QG-2, memory routing (the session limit, 9.2, is a signal since 1.10) | EVERY host: the enforcement point is inside our code, and the MCP server is what an otherwise bare install still has |
 | Intercepting the host's action | Rule 1 (no code without a task), Rule 2 (scope boundaries), Rule 10.12 (secrets) | ONLY where the artifact carrying that particular rule is deployed |
 
 The second column is derived from the deployment, not from a list: each rule

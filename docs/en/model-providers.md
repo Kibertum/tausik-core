@@ -95,7 +95,7 @@ severity.
 |----------|------|-----------------------|
 | QG-0 Context Gate | hard | `tausik_task_start` refuses an incomplete task through MCP and CLI. |
 | QG-2 Implementation Gate / Verify-First | hard | `tausik_task_done` refuses closure without a fresh signed `tausik_verify` receipt. |
-| Rule 9.2 Session limit | hard | `tausik_task_start` refuses work past the active-time limit. |
+| Rule 9.2 Session limit | signal | `tausik_task_start` prints advice above the active-time threshold and refuses nothing (1.10). |
 | Rule 1 Task before code | hard | `.codex/hooks.json` wires `task_gate.py` to Codex `PreToolUse` — **only after the user has trusted the project hooks in Codex**; an untrusted profile enforces nothing (measured live, session #251). |
 | Rule 2 Scope Boundaries | hard | `.codex/hooks.json` wires `scope_write_gate.py` and `bash_write_gate.py` to Codex `PreToolUse` — **only after the user has trusted the project hooks in Codex**; shell coverage is the declared catalogue, not a claim to interpret every program. |
 

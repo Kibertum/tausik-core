@@ -3,7 +3,7 @@ slug: user-tier-config-recreates-the-directory-18-removed
 title: "Пользовательский тир конфига воссоздаёт каталог, который 1.8 убирала ломающим изменением"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+story: release110-open-defects
 complexity: complex
 role: backend
 stack: null

@@ -2,8 +2,8 @@
 slug: sign-layer-over-agent-plugins
 title: "Подпись поверх Agent Plugins: закрыть пробел, который стандарт объявил своей будущей работой"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-architecture-and-research
+epic: v2-global-mcp
+story: v2gm-surfaces
 complexity: complex
 role: architect
 stack: null

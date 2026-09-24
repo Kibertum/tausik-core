@@ -87,7 +87,7 @@ TAUSIK automatically checks quality at two points:
 
 **At task start (QG-0):**
 - Task goal is formulated
-- Acceptance criteria are recorded
+- Acceptance criteria are recorded — and say something: templates (`<...>`, `[UPPER]`, `{{...}}`), an unexpanded `$(...)`, TODO/TBD, an empty table and "works as expected" are removed first; under 3 words of goal or 5 of criteria is refused
 - **Blocks** if criteria don't include a negative scenario (error, failure, invalid input)
 - Warns for security tasks (auth, payments, PII) without security criteria
 - Warns if scope is not defined (what to change / what not to touch)
@@ -106,8 +106,9 @@ and cannot close a task without verification.
 **QG-0 blocks task start:**
 - Missing goal → add with `task update <slug> --goal "..."`
 - Missing acceptance criteria → add with `task update <slug> --acceptance-criteria "..."`
+- Goal or AC is a placeholder ("the acceptance criteria have 0 word(s) of substance") → write what is checked and how
 - No negative scenario in AC → add a criterion like "Returns error on invalid input"
-- Session over 180 min → end session with `/end` or extend with `session extend`
+- A session above the advisory threshold is advice, not a refusal: save state with `/checkpoint` or hand off with `/end`
 
 **QG-2 blocks task completion:**
 - AC not verified → log evidence: `task log <slug> "AC verified: 1. ... ✓ 2. ... ✓"`

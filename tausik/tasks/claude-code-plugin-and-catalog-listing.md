@@ -2,8 +2,8 @@
 slug: claude-code-plugin-and-catalog-listing
 title: "Плагин Claude Code и заявка в официальный каталог Anthropic"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-outward-loop-and-test-authorship
+epic: v2-global-mcp
+story: v2gm-packaging
 complexity: medium
 role: backend
 stack: null

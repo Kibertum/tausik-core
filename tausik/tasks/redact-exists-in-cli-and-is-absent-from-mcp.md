@@ -1,9 +1,9 @@
 ---
 slug: redact-exists-in-cli-and-is-absent-from-mcp
 title: "redact есть в CLI и отсутствует в MCP: поверхности разошлись на новой команде"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+story: release110-open-defects
 complexity: simple
 role: backend
 stack: null
@@ -12,15 +12,18 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/mcp_cli_only.py"
+  - "tests/test_mcp_cli_only.py"
 scope_paths:
-  - "scripts/mcp_*.py"
+  - "scripts/mcp_cli_only.py"
   - "tests/*.py"
   - "docs/ru/cli.md"
-  - "docs/ru/agent-contract.md"
+  - "docs/en/cli.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T20:17:48Z"
 ---
 
 ## Goal
@@ -29,6 +32,11 @@ completed_at: null
 
 ## Acceptance Criteria
 
+1. Решение записано (decide): redact остаётся в CLI целиком; причина — необратимость --apply и храповик поверхности MCP.
+2. scripts/mcp_cli_only.py — реестр команд CLI, намеренно отсутствующих в MCP, у каждой причина и ссылка на решение; redact в нём.
+3. НЕГАТИВНЫЙ: тест падает, если запись реестра без причины или если команда из реестра появилась в MCP (реестр солгал бы).
+4. docs/ru|en/cli.md у redact говорят, что команда только в CLI и почему.
+
 ## Plan
 
 ## Rollback
@@ -36,3 +44,10 @@ completed_at: null
 git revert коммита; инструменты MCP аддитивны
 
 ## Journal
+
+- 2026-09-23T20:17:20Z [implementation] — Сделано: решение #385 (redact остаётся только в CLI, с двумя отвергнутыми вариантами через новый --rejected); scripts/mcp_cli_only.py — реестр CLI-only с причиной и решением; tests/test_mcp_cli_only.py; docs cli en/ru у redact. NO-DEAD-END: красный локальный прогон — моя опечатка в тесте (искал английское 'decision' в русской странице), исправлено.
+- 2026-09-23T20:17:21Z [implementation] — AC-1: ✓ решение #385
+- 2026-09-23T20:17:21Z [implementation] — AC-2: ✓ tests/test_mcp_cli_only.py::test_every_entry_says_why_and_on_whose_decision
+- 2026-09-23T20:17:22Z [implementation] — AC-3: ✓ tests/test_mcp_cli_only.py::test_a_listed_command_is_not_an_mcp_tool
+- 2026-09-23T20:17:22Z [implementation] — AC-3: ✓ tests/test_mcp_cli_only.py::test_the_registry_would_catch_a_tool_that_appeared
+- 2026-09-23T20:17:22Z [implementation] — AC-4: ✓ tests/test_mcp_cli_only.py::test_the_cli_docs_say_redact_is_cli_only

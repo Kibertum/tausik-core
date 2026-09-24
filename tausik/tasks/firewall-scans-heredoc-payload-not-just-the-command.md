@@ -1,9 +1,9 @@
 ---
 slug: firewall-scans-heredoc-payload-not-just-the-command
 title: "Командный файрвол сканирует тело heredoc, а не только исполняемую команду — написать о защите нельзя тем же каналом, который её проверяет"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-open-defects
 complexity: simple
 role: developer
 stack: null
@@ -12,13 +12,14 @@ call_budget: 30
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "tests/test_firewall_reads_heredoc_as_data.py"
 scope_paths:
-  - "scripts/hooks/bash_firewall.py"
-  - "tests/*"
+  - "tests/*.py"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T20:21:50Z"
 ---
 
 ## Goal
@@ -40,3 +41,7 @@ AC3 (негативный): если разделить 'данные' и 'ко�
 ## Journal
 
 - 2026-08-03T14:55:33Z [planning] — ВТОРАЯ ДВЕРЬ, найдена в той же сессии #161. Дефект не единичный: гейт публикации (scripts/hooks/git_push_gate.py) заблокировал отправку отчёта в мессенджер за то, что в ТЕЛЕ heredoc был написан текст команды публикации. Исполнялся при этом curl. Значит форма шире, чем найденная точка (конвенция #361): не 'файрвол читает heredoc', а 'КАЖДЫЙ хук, читающий строку вызова, не отличает исполняемую команду от данных'. Оба случая — ложные срабатывания: безопасность не ослабла, но канал непригоден ровно для того текста, который обязан цитировать опасную форму, чтобы быть понятным (документация, changelog, отчёты, заметки к тегу). Область задачи стоит расширить с bash_firewall.py на общий разбор строки вызова, которым пользуются оба хука. Иначе починка одного оставит второй.
+- 2026-09-23T20:21:07Z [implementation] — Замер до работы (смена #267): поведение уже исправлено раньше (shell_statements/bash_cmd_scan разбирают heredoc и кавычки как данные). Живой прогон bash_firewall.py: тело heredoc с опасной формой — exit 0; опасная форма в кавычках как данные — exit 0; настоящая команда очистки домашнего каталога — exit 2; та же после heredoc — exit 2; DROP TABLE как аргумент sqlite3 — exit 2. Кода не меняю: задача закрывается тестом, который держит это поведение, чтобы оно не откатилось молча.
+- 2026-09-23T20:21:33Z [implementation] — AC1: ✓ tests/test_firewall_reads_heredoc_as_data.py::test_text_that_quotes_a_danger_is_not_blocked
+- 2026-09-23T20:21:34Z [implementation] — AC2: ✓ tests/test_firewall_reads_heredoc_as_data.py::test_the_danger_itself_is_still_blocked
+- 2026-09-23T20:21:34Z [implementation] — AC3: ✓ не применимо: разделение данных и команды работает (живой замер в журнале), dead end не требуется; кода не менял — только тест-фиксатор. NO-DEAD-END: задача оказалась уже решённой прежней работой, тупиков не было

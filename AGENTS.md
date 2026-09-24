@@ -7,7 +7,7 @@ This document tells you what TAUSIK is, why it exists, and how to work with it.
 
 TAUSIK (**T**ask **A**gent **U**nified **S**upervision, **I**nspection & **K**nowledge) is an engineering governance framework for AI agents. It enforces a disciplined workflow so you don't skip planning, lose context between sessions, or close tasks without evidence.
 
-TAUSIK implements [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open methodology for AI-native development. SENAR defines:
+TAUSIK implements [SENAR v1.5 Core](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open methodology for AI-native development. SENAR defines:
 - **Quality gates** — hard blocks that prevent skipping steps (no code without a task, no completion without evidence)
 - **Workflow rules** — task lifecycle, session management, checkpoints, dead end tracking
 - **Metrics** — throughput, first-pass success rate, defect escape rate, lead time (all automatic)
@@ -147,22 +147,22 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #265 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
-Tasks: 1517/1666 done, 0 active, 0 blocked
+Session: #266 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
+Tasks: 1517/1686 done, 0 active, 0 blocked
 
 ### Memory tail
 Context (5):
-- #718 GitHub milestone Planning (смена #265): 105 issue отложенного бэклога, четыре задачи признаны устаре
-- #716 Баг обновления 1.8→1.9 (владелец, консумер, 14.09.2026): init_schema создаёт actz_points с tz_ref до
-- #713 Выпуск 1.9.0 (смена #264): цепочка актов, доказательства и ловушка credential-manager при push из бе
-- #712 Трекеры перед тегом 1.9, смена #264: ответы опубликованы в GitLab #5/#6/#14 и GitHub PR #5, ничего н
-- #706 Парный replay rag-first подсказок, смены #261–#263: search_code = 0 в обоих условиях, экономии нет, 
+- #726 Дополнение к #725: история I release110-open-defects — эпик #192 с 22 sub-issue (все открытые kind/b
+- #725 GitHub-карта, дополнение смены #266: эпик H #188 (сайт, документация, гигиена; 16 sub-issue, новые #
+- #723 GitHub-карта после перепланирования 1.10 (смена #266): milestone v1.10.0 = 7 эпиков, v1.11.0 кандида
+- #722 Замер сессий #196–#265 (смена #266): ни одна из 70 смен не достигла 180 активных минут; агентов оста
+- #720 RENAR 1.1 (19.09.2026) — дельты для TAUSIK: первая сторона §1.4.4, SPEC-UC, комплект описания
 Decisions (5):
-- #374 1.10 — СОСТАВ. Объявлен владельцем в смене #264 («да» на предложение из четырёх историй-обещаний; корзины deferred-110-*
-- #373 1.10 — УСТАВ. Владелец, смена #264, сразу после публикации 1.9.0. Вопрос версии: «Дисциплина стала дешёвой?» — фреймворк
-- #372 ПРОВЕРКА ОБНОВЛЕНИЯ С GITHUB ОБЯЗАТЕЛЬНА В 1.10. Владелец, смена #264, после того как выяснилось, что уведомлятора об об
-- #371 ПРОВЕРКА СОРАЗМЕРНА ПРАВКЕ. Владелец, смена #263, сказано не в первый раз и потому записано: «мы превращаем разработку в
-- #370 Состав 1.9 расширен по указанию владельца в смене #258 историей release19-tracker-promises: GitLab #5 (штамп версии), #6
+- #379 1.10 — СОСТАВ ДОПОЛНЕН ИСТОРИЕЙ I: ОТКРЫТЫЕ ДЕФЕКТЫ. Владелец, смена #266: «не забудь посмотреть открытые тикеты, баги, 
+- #378 1.10 — СОСТАВ ДОПОЛНЕН ИСТОРИЕЙ H; ПАКЕТ И ПЛАГИН — В 2.0. Владелец, смена #266: «пакет и плагин надо в 2.0; с остальным
+- #377 СЛЕДУЮЩИЕ ВЕРСИИ РАСПЛАНИРОВАНЫ (смена #266, указание владельца привести в порядок все задачи). 1.11 — кандидаты, состав
+- #376 1.10 — УСТАВ И СОСТАВ ПЕРЕСМОТРЕНЫ. Владелец, смена #266: «планировать 1.10; привести в порядок все задачи, roadmap в Gi
+- #375 НАПРАВЛЕНИЕ 1.10 ПЕРЕСМОТРЕНО ВЛАДЕЛЬЦЕМ (смена #266, 23.09.2026), его словами: «Мое пожелание — полное изменение логики
 Conventions (5):
 - #717 GitHub roadmap — как в Harvester: milestone vX.Y.Z, [KIND]-заголовки, kind/area/priority, [EPIC] с s
 - #711 Проверка соразмерна правке: полная лента — CI и релизный гейт, тест — на поведение, порождённое поро

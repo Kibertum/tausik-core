@@ -2,8 +2,8 @@
 slug: agent-plugins-import-and-export
 title: "Agent Plugins: наш скилл нельзя поставить в шесть чужих клиентов, а их плагин нельзя принять через наш подписной гейт"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+epic: v2-global-mcp
+story: v2gm-surfaces
 complexity: complex
 role: backend
 stack: null

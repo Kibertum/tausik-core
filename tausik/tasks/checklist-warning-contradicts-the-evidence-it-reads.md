@@ -1,7 +1,7 @@
 ---
 slug: checklist-warning-contradicts-the-evidence-it-reads
 title: "Предупреждение о чек-листе утверждает, что критерии не называют тестов, когда они их называют"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-verification-is-cheap
 complexity: simple
@@ -12,11 +12,18 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/service_ac_evidence.py"
+  - "tests/test_checklist_reads_ac_prefixed_items.py"
+scope_paths:
+  - "scripts/ac_evidence_detectors.py"
+  - "scripts/service_ac_evidence.py"
+  - "scripts/gate_ac_check.py"
+  - "tests/*.py"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T22:22:36Z"
 ---
 
 ## Goal
@@ -40,3 +47,10 @@ AC-1 ЗАМЕР ПЕРВЫМ: названо, какой именно артеф
 Правка текста предупреждения либо детектора; откат — git revert. Поведение гейтов не меняется: предупреждение не блокирует.
 
 ## Journal
+
+- 2026-09-23T22:21:19Z [implementation] — AC-1 замер: предупреждение печатает gate_ac_check.check_verification_checklist по checklist_missing -> _evidence_strength -> service_ac_evidence.build_report. На AC задачи #241 ('AC-1 Связь… AC-2 Ссылка…', без точки после номера) parse_ac_text возвращал ОДИН пункт: AC_ITEM_BOUNDARY_RE требует [.):] после номера. Доказательство 'AC-2: ✓ tests/…' ссылалось на пункт 2, которого нет, with_activity=0 -> заметка. Значит, вариант 2: разрыв детекторов, а не формулировка. Проверено воспроизведением: с AC построчно те же ссылки дают (2,2,3).
+- 2026-09-23T22:21:19Z [implementation] — AC-1: ✓ tests/test_checklist_reads_ac_prefixed_items.py::test_inline_ac_prefixed_items_are_three_items
+- 2026-09-23T22:21:19Z [implementation] — AC-3: ✓ tests/test_checklist_reads_ac_prefixed_items.py::test_the_evidence_is_bound_and_the_warning_stays_quiet
+- 2026-09-23T22:21:20Z [implementation] — AC-2: не применимо — дефект не в формулировке. NO-DEAD-END: причина найдена прямым воспроизведением
+- 2026-09-23T22:21:20Z [implementation] — AC-4: ✓ tests/test_checklist_reads_ac_prefixed_items.py::test_a_task_with_no_evidence_is_still_warned
+- 2026-09-23T22:21:20Z [implementation] — AC-4: ✓ tests/test_checklist_reads_ac_prefixed_items.py::test_prose_numbers_without_the_prefix_do_not_split

@@ -89,6 +89,8 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 |----------|----------|
 | **[Troubleshooting](en/troubleshooting.md)** | Common issues and resolutions |
 | **[SENAR compliance matrix](en/senar-compliance-matrix.md)** | Rule-by-rule SENAR coverage |
+| **[RENAR 1.1 changes](en/renar-11-deltas.md)** | What TAUSIK did with each of the 20 changes of RENAR 1.1 |
+| **[Severity scale](en/severity-scale.md)** | CRITICAL/HIGH/MEDIUM/LOW of review findings, who assigns them (SENAR 1.5 §10.15(f)) |
 | **[i18n strategy](en/i18n-strategy.md)** | Bilingual EN/RU localization approach |
 
 ### Internal agent specs *(EN only)*
@@ -185,6 +187,8 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 |----------|----------|
 | **[Troubleshooting](ru/troubleshooting.md)** | Типичные проблемы и решения |
 | **[SENAR матрица](ru/senar-compliance-matrix.md)** | Rule-by-rule SENAR покрытие |
+| **[Правки RENAR 1.1](ru/renar-11-deltas.md)** | Что TAUSIK сделал с каждой из 20 правок RENAR 1.1 |
+| **[Шкала серьёзности](ru/severity-scale.md)** | CRITICAL/HIGH/MEDIUM/LOW находок ревью и кто их присваивает (SENAR 1.5 §10.15(f)) |
 | **[Стратегия i18n](ru/i18n-strategy.md)** | Bilingual EN/RU локализация |
 
 ## Other

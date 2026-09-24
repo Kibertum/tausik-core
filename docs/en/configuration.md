@@ -6,14 +6,30 @@ All knobs live in `.tausik/config.json` at project root. Anything not set falls 
 
 See also: [environment.md](environment.md) — env vars, [permissions.md](permissions.md) — permission modes.
 
-## Session limits (SENAR Rule 9.2)
+## Session signals (SENAR Rule 9.2 — advice, not gates since 1.10)
 
 | Key | Default | Purpose |
 |---|---|---|
-| `session_max_minutes` | `180` | Hard limit on session ACTIVE minutes before `task start` blocks. Use `tausik session extend --minutes N` to push live limit. |
+| `session_max_minutes` | `180` | Advisory threshold on session ACTIVE minutes: above it `task start`, `status` and the Stop hook print advice; nothing refuses. `0` switches it off. |
 | `session_idle_threshold_minutes` | `10` | Gap (in minutes) above which a pause between `events` rows is treated as AFK (excluded from active-time sum). |
 | `session_warn_threshold_minutes` | `150` | Stop-hook reminder threshold in `session_cleanup_check.py`. Should be < `session_max_minutes`. |
-| `session_capacity_calls` | `200` | Per-session tool-call budget. `task start` blocks if remaining capacity < task `call_budget`. |
+| `session_capacity_calls` | `200` | Per-session tool-call budget. A task `call_budget` above what remains is an advisory line in `task start`, not a refusal. |
+| `checkpoint_calls` | `40` | Calls since the last handoff before checkpoint advice (derived from the ledger). `0` switches it off. |
+| `journal_freshness_calls` | `40` | Calls since an active task's last log entry before journal advice. `0` switches it off. |
+| `audit_every_closures` | `17` | Task closures since the last audit mark before the SENAR 9.5 audit is overdue. |
+
+## Code search (RAG) languages
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `rag.extra_extensions` | `{}` | Extra file types to index, `{".unity": "unity-scene"}`. A built-in extension cannot be overridden. Godot (`.gd`, `.gdshader`, `.tscn`, `.tres`, `.godot`) is built in since 1.10. |
+| `rag.boundaries` | `{}` | Where to cut a language into chunks, `{"unity-scene": "^--- !u!"}` (a multiline regex). A bad entry is skipped and named in `rag_status` under `language_config.problems`. |
+
+## Update check
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `updates.check` | `true` | At most once a day, SessionStart runs `tausik update-check` detached: one anonymous GET to GitHub's `releases/latest` of `Kibertum/tausik-core`, nothing about the project in it. `status` then names a newer release. `false` switches it off; `tausik doctor` shows the state. |
 
 ## Verification cache (SENAR Rule 5)
 

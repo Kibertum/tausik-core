@@ -20,7 +20,7 @@ These are always available after bootstrap — the workflow primitives every TAU
 |-------|------|
 | `/start` | Begin a work session — loads handoff, status, memory block |
 | `/end` | Wrap up the session — saves metrics + handoff |
-| `/checkpoint` | Save context without ending the session (recommended every 30–50 tool calls) |
+| `/checkpoint` | Save context without ending the session (when the checkpoint signal says so) |
 | `/plan` | Plan a task from a free-form description (interview phase + AC) |
 | `/task` | Work on an existing task with QG-0/QG-2 enforcement |
 | `/ship` | Wrap up a task: review + test + gates + commit |

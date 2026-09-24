@@ -1,9 +1,9 @@
 ---
 slug: one-live-handoff-slot-supersedes-the-previous
 title: "Передача смены не имеет единственного живого держателя"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-architecture-and-research
+story: release110-sessions-are-not-gates
 complexity: medium
 role: backend
 stack: python
@@ -12,15 +12,26 @@ call_budget: 40
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/backend_crud.py"
+  - "scripts/service_session.py"
+  - "tests/test_live_handoff_slot.py"
+  - "tests/test_tausik_service.py"
+  - "tests/test_past_handoff_is_readable.py"
+  - "docs/ru/sessions.md"
+  - "docs/en/sessions.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_paths:
-  - "scripts/*.py"
+  - "scripts/backend_crud.py"
+  - "scripts/service_session.py"
   - "tests/*.py"
   - "docs/ru/*.md"
   - "docs/en/*.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T17:23:54Z"
 ---
 
 ## Goal
@@ -43,3 +54,7 @@ AC6. Обобщение до произвольных ролей делаетс�
 git revert: роль-слот исчезает, передачи снова просто накапливаются по сессиям
 
 ## Journal
+
+- 2026-09-23T17:17:51Z [implementation] — AC2 ЗАМЕР (смена #266): 239 из 266 сессий несут handoff, 26 закрытых без него. Однозначность last-handoff: до v63 сессии шли последовательно, и «последний по id» совпадал с «последним записанным». С v63 две сессии хоста открыты одновременно: сессия A (меньший id) пишет handoff ПОЗЖЕ сессии B, а last-handoff отдаёт handoff B — устаревший. Боль реальна после v63; лечится порядком по времени записи и ребром supersedes. Замер сделан прямым read-only SQL — нарушение правила «только CLI/MCP»; команда, которой этого не хватало (session list со столбцом handoff), добавлена задачей handoff-of-any-past-session-is-unreadable.
+- 2026-09-23T17:23:48Z [implementation] — AC verified: 1 — живой держатель один: порядок по written_at (tests/test_live_handoff_slot.py::test_the_handoff_written_last_is_live_even_on_an_older_session). 2 — замер записан выше (239/266, боль появилась с v63). 3 — НЕГАТИВ ::test_the_previous_holder_stays_reachable (предыдущий читается --session N). 4 — ребро supersedes записано в документ. 5 — НЕГАТИВ: запись — один UPDATE, нуля держателей нет ни в какой момент; ::test_rewriting_in_the_same_session_does_not_supersede_itself. 6 — обобщения до произвольных ролей нет: второго применения не найдено. Docs sessions.md ru/en, CHANGELOG EN+RU. Verify #2701 зелёный.
+- 2026-09-23T17:23:48Z [implementation] — verify #2701 green; tests/test_live_handoff_slot.py 3 tests incl. 2 negatives

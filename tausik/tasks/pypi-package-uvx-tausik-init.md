@@ -2,8 +2,8 @@
 slug: pypi-package-uvx-tausik-init
 title: "Пакет на PyPI: uvx tausik init вместо сабмодуля и bootstrap"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-outward-loop-and-test-authorship
+epic: v2-global-mcp
+story: v2gm-packaging
 complexity: complex
 role: backend
 stack: null

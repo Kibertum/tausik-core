@@ -115,7 +115,7 @@ TAUSIK was built with TAUSIK — every feature, refactor, and bug fix went throu
 - **10146 tests** — the discipline core is the most-tested part.
 - **76% line coverage** (baseline, `scripts/`, 4124 selected tests) — refresh with `pytest tests/ --cov=scripts --cov-report=json:coverage.json` and update the badge; CI uploads `coverage.json` as a build artifact on every PR.
 - **0 core dependencies** — Python 3.11+ stdlib only; MCP deps live in an isolated `.tausik/venv/`.
-- **0 phone-home calls** — everything runs and stays on your machine.
+- **1 outbound call, and only one** — at most once a day, an anonymous GET to `api.github.com/repos/Kibertum/tausik-core/releases/latest` asks whether a newer TAUSIK exists. It carries no project name, path, version or user; it runs detached, so no session waits on it. Turn it off with `"updates": {"check": false}` in `.tausik/config.json`. Everything else runs and stays on your machine.
 
 ---
 
@@ -184,9 +184,11 @@ Bootstrap auto-detects your stack and enables matching gates; the project name c
 
 ## Methodology
 
-TAUSIK is the reference implementation of [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering standard for AI-assisted development. The gates, sessions, metrics and verification checklists all come from the spec; you don't have to read it to use the framework.
+TAUSIK is the reference implementation of [SENAR v1.5 Core](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering standard for AI-assisted development. The gates, sessions, metrics and verification checklists all come from the spec; you don't have to read it to use the framework.
 
-**TAUSIK claims SENAR v1.3 Core** — that edition and no other. Later editions are in preparation and are not claimed here or anywhere else in the project — a conformance claim to a standard that is still moving is exactly the kind of statement this framework exists to refuse. Every place that names the edition is checked against one constant by `tests/test_senar_version_claim.py`.
+**TAUSIK claims SENAR v1.5 Core** — that edition and no other: "TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23" (the form of SENAR 1.5 §13.1). The claim is made by the owner's decision #376; the release procedure refuses to tag a TAUSIK release while the claimed edition is not published. What TAUSIK implements beyond Core is listed and not claimed, in [the compliance matrix](docs/en/senar-compliance-matrix.md). Every place that names the edition is checked against one constant by `tests/test_senar_version_claim.py`.
+
+Disclosed with the claim (SENAR 1.5 §13.1(c), (e)): No SHALL is handled under §13.5, and no SHOULD of the claimed scope is unimplemented. Assessed on 2026-09-23 against the Core document of the claimed edition: its 8 rules and 2 gates carry no SHOULD. Core names no configuration of §11, so the §13.1 form carries "Core" in that place. Rules enforced by warning rather than refusal are named in the matrix's Enforcement column. `tausik publish senar-check` is the release step that refuses the tag while GitHub Kibertum/SENAR does not carry the claimed edition.
 
 **[More about SENAR →](docs/en/senar.md)**
 

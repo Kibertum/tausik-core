@@ -3,7 +3,7 @@ slug: calibration-window-too-small-to-forecast
 title: "Окно калибровки n=10 даёт коэффициент, который за одну сессию проходит 0.49-0.71: прогноз срока на нём строить нельзя"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-open-defects
 complexity: medium
 role: architect
 stack: python

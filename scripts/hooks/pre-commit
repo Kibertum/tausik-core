@@ -154,7 +154,7 @@ echo "mypy: OK"
 # the commit, even on timeout or missing rag deps. Absence is NOT reported:
 # unlike the gate above this is a convenience, and a missing index costs
 # freshness, not enforcement.
-RAG_SERVER="$(find_engine_file mcp/codebase-rag/server.py)"
+RAG_SERVER="$(find_engine_file mcp/codebase-rag/rag_server.py)"
 if [ -n "$RAG_SERVER" ]; then
     timeout 5 "$PY" -c "
 import sys, os

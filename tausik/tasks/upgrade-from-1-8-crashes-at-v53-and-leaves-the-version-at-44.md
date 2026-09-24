@@ -1,7 +1,7 @@
 ---
 slug: upgrade-from-1-8-crashes-at-v53-and-leaves-the-version-at-44
 title: "Upgrading 1.8 → 1.9 crashes at v53 (duplicate column tz_ref) and leaves schema_version at 44: cumulative CREATE scripts run before migrations, and the version is stamped only at the end"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-the-update-reaches-the-user
 complexity: complex
@@ -12,18 +12,24 @@ call_budget: 60
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/backend_migrations.py"
+  - "scripts/backend_migrations_guard.py"
+  - "tests/test_upgrade_from_1_8.py"
+  - "tests/fixtures/schema_v44_tausik_1_8_0.sql"
 scope_paths:
   - "scripts/backend_init.py"
   - "scripts/backend_migrations.py"
-  - "tests/"
-  - CHANGELOG.md
-  - CHANGELOG.ru.md
+  - "tests/*.py"
+  - "tests/fixtures/*"
+  - "CHANGELOG*.md"
   - "docs/en/whats-new-1.9.md"
   - "docs/ru/whats-new-1.9.md"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T18:50:36Z"
 ---
 
 ## Goal
@@ -41,3 +47,6 @@ AC-1: a database at schema_version 44 built from the FROZEN v1.8.0 schema litera
 git revert; the reorder and the per-migration stamp are in backend_init/backend_migrations only; a consumer already patched by hand is unaffected (IF NOT EXISTS everywhere)
 
 ## Journal
+
+- 2026-09-23T18:06:01Z [implementation] — AC-3 выполнен в иной форме, чем записан: порядок «кумулятивные скрипты до цепочки» не менялся. Перестановка лечит этот случай, но открывает обратный: миграция, делающая ALTER над таблицей, которую создают только кумулятивные скрипты, упала бы на отсутствующей таблице. Вместо этого узкая терпимость: пропускается ровно ADD COLUMN уже существующей колонки (_column_already_there, негатив: отсутствующая таблица по-прежнему падает). AC-4 (прогон на копии базы консумера владельца): копии в доступе нет — путь к скретчпаду консумера не записан; вместо неё — тест на состоянии, которое 1.9.0 оставляет в базе (v45–v52 внутри, штамп 44).
+- 2026-09-23T18:49:55Z [implementation] — AC verified: AC-1 ✓ test_the_fixture_is_a_1_8_database + test_a_1_8_database_upgrades_to_the_fresh_shape (замороженный литерал v1.8.0, init_schema, сверка PRAGMA table_info, integrity_check ok) AC-2 ✓ test_an_interrupted_upgrade_keeps_its_place_and_resumes (версия штампуется по шагу, повторный init доводит цепочку) AC-3 ✓ в иной форме, обоснование в журнале 18:06: test_an_add_column_the_table_already_has_is_skipped_not_fatal и test_a_database_the_1_9_0_upgrade_already_broke_is_carried_up — повтор колонки/таблицы не фатален AC-4 ✗ недоступно: копии БД консумента в этой среде нет; замена — фикстура состояния, которое оставил 1.9.0 (test_a_database_the_1_9_0_upgrade_already_broke_is_carried_up); прогон на копии владельца остаётся за владельцем AC-5 ✓ CHANGELOG Fixed (1.8 → 1.9, путь консумента), known-issue в docs/en|ru/whats-new-1.9.md. Verify #2729 зелёный.

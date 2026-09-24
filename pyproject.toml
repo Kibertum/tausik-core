@@ -104,6 +104,7 @@ addopts = "-m 'not slow' -n auto"
 faulthandler_timeout = 300
 faulthandler_exit_on_timeout = true
 markers = [
+    "qg0_substance: opt the test in to QG-0 substance thresholds (default conftest shim sets them to 0 for legacy fixtures)",
     "verify_first: opt the test in to v1.4 Verify-First Contract enforcement (default conftest fixture sets auto_verify=True for backward compat)",
     "slow: subprocess/integration/e2e/stress tests; skipped by default in interactive verify, run via `pytest -m ''` or TAUSIK_VERIFY_FULL=1 (there is no `verify --full` flag)",
 ]
@@ -127,25 +128,14 @@ python_version = "3.11"
 # put the unchecked code exactly where a mistake costs most. It was invisible
 # rather than deliberate — nobody had ever run mypy over harness/.
 #
-# `harness/claude/mcp/codebase-rag/` stays out for one concrete reason, not by
-# preference: it holds a second `server.py`, and two files mapping to the same
-# top-level module name make mypy abort with "Duplicate module named 'server'"
-# before checking anything at all.
-#
-# This comment used to name mcp-rag-server-module-split as the task that would
-# add it here. That task ran and did NOT unblock it, so the claim is corrected
-# rather than left standing: the collision is about the FILE NAME, not the file
-# size, and splitting the module by domain (server/rag_tools/rag_handlers) left
-# `server.py` in place on both sides. Verified afterwards — `mypy scripts
-# harness/claude/mcp/project harness/claude/mcp/codebase-rag` still aborts with
-# the duplicate. Nor can the usual escapes apply: the directory name contains a
-# hyphen, so it can never be a Python package, which rules out `__init__.py`
-# and `--explicit-package-bases` alike. Checked on its own the package is
-# nearly clean already (2 import-not-found for modules that arrive via sys.path
-# at runtime). What actually unblocks it is renaming the file — which reaches
-# .mcp.json, the bootstrap templates, the docs and the deployed profiles of
-# five IDEs. Tracked as mcp-rag-server-rename-for-mypy-scope.
-files = ["scripts", "harness/claude/mcp/project"]
+# `harness/claude/mcp/codebase-rag/` joined in 1.10. It was kept out because its
+# entry point was also called `server.py`, and two files mapping to one
+# top-level module name make mypy abort with "Duplicate module named
+# 'server'" before checking anything; the hyphen in the directory name rules
+# out `__init__.py` and `--explicit-package-bases`. Renaming the file to
+# `rag_server.py` removed the collision (mcp-rag-server-rename-for-mypy-scope),
+# and tests/test_mypy_clean.py pins both MCP packages in this list.
+files = ["scripts", "harness/claude/mcp/project", "harness/claude/mcp/codebase-rag"]
 # scripts/hooks/*.py is reachable as both `<name>` (via pythonpath=scripts at
 # runtime) and `hooks.<name>` (via scripts/hooks/). Excluding the hooks/
 # subdir from the default check avoids the dual-module-names error;
@@ -308,7 +298,14 @@ line-length = 100
 # would need reflowing, and `line-length` above is a formatter setting here.
 # BLE001 (flake8-blind-except) enforces 'no silent errors' — a blind
 # `except Exception` must be justified with `# noqa: BLE001 — <why>` or narrowed.
-select = ["E4", "E7", "E9", "F", "BLE001"]
+#
+# Ruled in 1.10 (rule-on-ruff-016-new-defaults, decision recorded with the
+# counts): ADOPTED — the rules that catch defects rather than restyle code, each
+# with its findings fixed: PLE2515 / PLE2502 (invisible and bidi characters in
+# source, written as escapes now), PLR0124 (x != x), B017 (a test asserting a
+# blind Exception passes on the wrong error), PYI036 (__exit__ annotation).
+# Everything else ruff 0.16 turns on by default is rejected or split out there.
+select = ["E4", "E7", "E9", "F", "BLE001", "PLE2515", "PLE2502", "PLR0124", "B017", "PYI036"]
 
 [tool.ruff.lint.per-file-ignores]
 # Files that need sys.path manipulation before importing project modules.

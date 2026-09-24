@@ -2,8 +2,8 @@
 slug: ext-p3-enforcement-provider-ux
 title: "[ext P3] Enforcement parity + provider UX (subscription, not tokens)"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+epic: v2-global-mcp
+story: v2gm-surfaces
 complexity: complex
 role: developer
 stack: null

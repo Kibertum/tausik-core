@@ -1,7 +1,7 @@
 ---
 slug: release110-tracker-promises
 title: "1.10 C. Обещания трекерам: GitLab #8, #10-patch-0004, #11 (решения #362/#366/#370)"
-status: open
+status: done
 epic: release-110-deferred-from-19
 ---
 

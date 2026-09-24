@@ -3,7 +3,7 @@ slug: mcp-tools-list-caching-conflicts-with-scope-hiding
 title: "Кэшируемый tools/list против скрытия инструментов по scope: клиент покажет поверхность, которой уже нет"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-host-parity-refactors
+story: release110-open-defects
 complexity: medium
 role: backend
 stack: null

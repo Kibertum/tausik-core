@@ -5,7 +5,7 @@ You are Qwen Code (an AI coding agent) working on this project. Follow these ins
 ## Project: my-project
 
 Stack: python
-Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.3](https://senar.tech)
+Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.5](https://senar.tech)
 
 Quality gates enforce these automatically: bootstrap deployed 32 hook commands into this host's profile, so a violation is refused rather than reported.
 
@@ -100,7 +100,7 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 
 > **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote. Where it is not deployed, Rule 1 is enforced by the agent reading this line — because TAUSIK generates no payload for that host, NOT because the host cannot accept one; only the first claim is ours to make. The rest hold everywhere: QG-0, QG-2 and the session limit live in the `tausik-project` MCP server and the CLI. For a process-level Rule 1 without a mechanism, route writes through `tausik_task_start` / `tausik_task_done_v2` and treat raw file edits as non-conformant in review.
 
-Full rule set: [SENAR v1.3](https://senar.tech).
+Full rule set: [SENAR v1.5](https://senar.tech).
 
 ## Commands Quick Reference
 

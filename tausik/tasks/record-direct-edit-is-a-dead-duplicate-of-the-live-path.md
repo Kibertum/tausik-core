@@ -1,9 +1,9 @@
 ---
 slug: record-direct-edit-is-a-dead-duplicate-of-the-live-path
 title: "record_direct_edit — мёртвый дубликат живого пути записи обхода гейта: две реализации одних трёх строк, вызывается ни одна"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-site-docs-and-hygiene
 complexity: simple
 role: developer
 stack: python
@@ -19,7 +19,7 @@ scope_paths:
   - "tests/test_direct_edit_bypass_record.py"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-24T05:57:45Z"
 ---
 
 ## Goal
@@ -43,3 +43,5 @@ completed_at: null
 git revert <commit>. Изменение затрагивает один модуль и его вызывающую сторону; данные и схема не трогаются. Если выбран вариант с удалением — откат возвращает функцию, если с объединением — возвращает обе реализации.
 
 ## Journal
+
+- 2026-09-23T23:09:53Z [planning] — RESOLVED ELSEWHERE (checked session #269): record_direct_edit was deleted by task dead-and-unreferenced-code-must-not-ship-in-a-rele (done 2026-09-08), committed in 077e0957; HEAD has no 'def record_direct_edit', and tests/test_direct_edit_bypass_record.py::TestУдалениеДубликатаНеУнеслоМеханизм pins both the removal and the live path. Nothing left to do; close as obsolete when that exit exists — --no-file-changes cannot back it while its files carry other uncommitted work.

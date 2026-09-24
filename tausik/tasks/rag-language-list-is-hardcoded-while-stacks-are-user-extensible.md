@@ -1,7 +1,7 @@
 ---
 slug: rag-language-list-is-hardcoded-while-stacks-are-user-extensible
 title: "RAG не видит языки, которые TAUSIK признаёт стеками: список расширений захардкожен, ручки нет (GitLab #11)"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-tracker-promises
 complexity: medium
@@ -12,11 +12,22 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "harness/claude/mcp/codebase-rag/rag_languages.py"
+  - "harness/claude/mcp/codebase-rag/rag_detect.py"
+  - "harness/claude/mcp/codebase-rag/rag_indexer.py"
+  - "harness/claude/mcp/codebase-rag/rag_handlers.py"
+  - "tests/test_rag_languages.py"
+  - "tests/test_rag_reindex_progress.py"
+scope_paths:
+  - "harness/claude/mcp/codebase-rag/*.py"
+  - "tests/*.py"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-23T19:21:01Z"
 ---
 
 ## Goal
@@ -37,10 +48,26 @@ completed_at: null
 
 ## Acceptance Criteria
 
+1. Встроенно: .gd (gdscript), .gdshader, .tscn (godot-scene), .tres (godot-resource), .godot (godot-project) распознаются, у gdscript/gdshader/сцен есть boundary-паттерны; тест на детекторе и на чанкинге функции GDScript.
+2. Ручка в .tausik/config.json: rag.extra_extensions {".ext": "language"} и rag.boundaries {"language": "regex"} читаются rag_detect/rag_indexer проекта, для которого строится индекс; тест: расширение из ручки индексируется, его файл режется по заданной границе.
+3. НЕГАТИВНЫЙ: кривая ручка (расширение без точки, пустой язык, некомпилируемая регулярка, не-словарь) не роняет индексацию и не пропадает молча: запись пропускается, причина видна в rag_status; тест на каждый вид.
+4. НЕГАТИВНЫЙ: ручка не отменяет встроенное и не расширяет индексацию на бинарники: .import/.uid и файлы без записи по-прежнему не индексируются.
+5. docs (configuration en/ru), CHANGELOG EN+RU.
+
 ## Plan
 
 ## Rollback
 
-Правка аддитивна: новые записи в EXT_TO_LANG/_BOUNDARY_PATTERNS или новый необязательный блок rag.* в config.json. Откат — git revert; уже построенный индекс переиндексируется командой reindex, схема БД RAG не меняется.
+Правка аддитивна: записи во встроенных списках и необязательный блок rag.* в config.json; откат — git revert и reindex
 
 ## Journal
+
+- 2026-09-23T19:19:16Z [implementation] — AC-1: ✓ tests/test_rag_languages.py::test_godot_files_are_built_in
+- 2026-09-23T19:19:16Z [implementation] — Сделано: harness/claude/mcp/codebase-rag/rag_languages.py (встроенный Godot: 5 расширений, 4 границы; load() читает rag.extra_extensions/rag.boundaries из .tausik/config.json проекта и возвращает problems); rag_detect.detect_language(extra), get_file_list читает ручку; rag_indexer.chunk_file(boundaries), index_full/index_incremental передают ручку; rag_status отдаёт language_config. Развилка тикета: сделаны оба пути (встроенный Godot и ручка), правка аддитивна. 15 новых тестов, 126 тестов RAG зелёные.
+- 2026-09-23T19:19:17Z [implementation] — AC-1: ✓ tests/test_rag_languages.py::test_a_gdscript_function_is_one_chunk_with_its_body
+- 2026-09-23T19:19:17Z [implementation] — AC-2: ✓ tests/test_rag_languages.py::test_the_project_knob_adds_an_extension_and_its_boundary
+- 2026-09-23T19:19:18Z [implementation] — AC-3: ✓ tests/test_rag_languages.py::test_a_bad_knob_is_skipped_and_reported_never_silent
+- 2026-09-23T19:19:18Z [implementation] — AC-3: ✓ tests/test_rag_languages.py::test_rag_status_shows_the_knob_and_its_problems
+- 2026-09-23T19:19:18Z [implementation] — AC-4: ✓ tests/test_rag_languages.py::test_the_knob_cannot_override_a_built_in
+- 2026-09-23T19:19:19Z [implementation] — AC-4: ✓ tests/test_rag_languages.py::test_godot_side_files_stay_out
+- 2026-09-23T19:19:19Z [implementation] — AC-5: ✓ docs/en|ru/configuration.md, CHANGELOG EN+RU

@@ -47,7 +47,7 @@ These gates are **hard blocks** — the agent literally cannot proceed without m
 Working sessions have structure:
 
 - **Session start** — load context from previous work (what was done, what's blocked, what failed)
-- **Session limit (180 min)** — prevents context degradation in long sessions. The agent is blocked from starting new tasks after 3 hours. You can extend with `session extend`.
+- **Context pressure** — session time, calls since the last checkpoint and a quiet journal are printed as advice with a measured basis; they never block a task start (1.10, decision #376).
 - **Checkpoints** — periodic context snapshots so nothing is lost if the session crashes
 - **Session end** — save a handoff: what was accomplished, what's unfinished, what decisions were made
 
@@ -92,8 +92,8 @@ When using TAUSIK, SENAR manifests as:
 | Rule 6 | Plan rollback | `rollback_plan` field: QG-0 blocks a medium/complex start without a rollback plan; `task done` warns |
 | Rule 7 | Find root cause for defects | Warning if defect task has no root cause in notes |
 | Rule 8 | Capture knowledge | Warning at task close if no decisions/patterns recorded |
-| Rule 9.2 | Session time limit | Hard block after 180 minutes |
-| Rule 9.3 | Periodic checkpoints | Auto-reminder after 40 tool calls |
+| Rule 9.2 | Session duration | Signal: advice above `session_max_minutes`, no refusal (1.10) |
+| Rule 9.3 | Periodic checkpoints | Signal: calls since the last handoff are derived from the ledger, advice above `checkpoint_calls` |
 | Rule 9.4 | Document dead ends | Dedicated tool + reminders in skills |
 | Rule 9.5 | Periodic audit | Auto-check at session start |
 

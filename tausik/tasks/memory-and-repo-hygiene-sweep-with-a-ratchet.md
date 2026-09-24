@@ -3,7 +3,7 @@ slug: memory-and-repo-hygiene-sweep-with-a-ratchet
 title: "Гигиена памяти: шесть протухших ссылок, неизвестная доля устаревших записей и 111 МБ бэкапов БД в рабочем дереве"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+story: release110-site-docs-and-hygiene
 complexity: medium
 role: backend
 stack: null
