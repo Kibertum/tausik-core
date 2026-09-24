@@ -70,7 +70,9 @@ byte for byte, and a machine checks that equality, not a memory.
    the GitHub Release, and `published_tags.json` records the commit either
    way. In the same pass, on the development line, `tausik/published_tags.json`
    is updated (see "Tags" below).
-4. External authorship survives: a contributor's commits land by merge or by a
+4. The claimed SENAR edition is public: `tausik publish senar-check` asks GitHub Kibertum/SENAR for the tag of the edition TAUSIK claims. It exits 1 when the tag is missing and 2 when it could not ask; either way the TAUSIK release is not tagged. It prints both versions and the SENAR releases link.
+5. Release notes: the GitHub Release body is written in English, the full text lives in `docs/en/whats-new-X.Y.md` and `docs/ru/whats-new-X.Y.md`, and the body links both pages. `tausik publish notes --version X.Y.Z --body-file <file>` refuses a body that misses either page; run it before creating the release. The rule applies from 1.10 on; published tags are not re-cut for it.
+6. External authorship survives: a contributor's commits land by merge or by a
    squash carrying their `Co-Authored-By` — otherwise the authorship is erased.
 
 ## What is published: a filter, not the whole tree

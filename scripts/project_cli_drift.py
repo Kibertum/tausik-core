@@ -19,7 +19,9 @@ def cmd_drift(svc: ProjectService, args: Any) -> None:
     findings = []
     if which in ("all", "standard"):
         findings.extend(_standard_findings(svc))
-    if which != "standard":
+    if which in ("all", "senar"):
+        findings.extend(_senar_findings(svc))
+    if which not in ("standard", "senar"):
         findings.extend(run_all(conn) if which == "all" else run_detector(conn, which))
     print(format_findings(findings))
 
@@ -41,6 +43,18 @@ def _standard_findings(svc: ProjectService) -> list[dict[str, str]]:
         return []
     repo = root_from_service(svc) or "."
     return std.detect_standard_drift(root, repo_mentions=std.adrs_mentioned_in(repo))
+
+
+def _senar_findings(svc: ProjectService) -> list[dict[str, str]]:
+    """The SENAR corpus detector, with its status line (1.10, story F)."""
+    import senar_standard_drift as senar
+    from project_root import root_from_service
+
+    root = senar.corpus_root()
+    print(senar.corpus_status(root))
+    if root is None:
+        return []
+    return senar.detect_senar_drift(root, root_from_service(svc) or ".")
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests

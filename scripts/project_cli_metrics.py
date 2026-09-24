@@ -133,6 +133,20 @@ def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:
     False if the request is for the default `metrics` summary view.
     """
     sub = getattr(args, "metrics_cmd", None)
+    if sub == "target":
+        from metric_methods import set_target
+        from project_config import load_project_config, save_config
+        from tausik_utils import ServiceError
+
+        td = svc.tausik_dir()
+        cfg = load_project_config(td)
+        try:
+            msg = set_target(cfg, args.name, args.bound, args.value, args.basis)
+        except ValueError as e:
+            raise ServiceError(str(e)) from e
+        save_config(cfg, td)
+        print(msg)
+        return True
     if sub == "record-session":
         kw = dict(
             tokens_input=args.tokens_input,

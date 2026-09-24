@@ -61,12 +61,13 @@ __all__ = [
 ]
 
 
-#: The SENAR edition TAUSIK publicly claims to implement. Owner's decision #336
-#: (session #225): v1.5 is in preparation and NOT ready, so claiming it anywhere
-#: is forbidden; v1.3 is what the product states. This literal is the single
+#: The SENAR edition TAUSIK publicly claims to implement. Owner's decision #376
+#: (session #266, TAUSIK 1.10) replaced #336: SENAR 1.5 was released on
+#: 2026-09-07 and is claimed; the release procedure refuses a tag while the
+#: claimed edition is not published. This literal is the single
 #: source — every claim site is checked against it, and none of them is allowed
 #: to be the authority for another.
-DECLARED_SENAR_VERSION = "1.3"
+DECLARED_SENAR_VERSION = "1.5"
 
 #: Files that speak to a user or an agent about which SENAR edition TAUSIK
 #: implements. The bootstrap template module is here because it is the SOURCE of

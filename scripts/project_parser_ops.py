@@ -100,6 +100,11 @@ def add_review(sub: argparse._SubParsersAction) -> None:
     rec.add_argument("--critical", type=int, default=0, help="Number of critical findings")
     rec.add_argument("--warnings", type=int, default=0, help="Number of warnings")
     rec.add_argument("--notes", default=None, help="Free-form notes (links, summary)")
+    rec.add_argument(
+        "--reason",
+        default=None,
+        help="Why the findings are CRITICAL; required when --critical > 0 (docs/en/severity-scale.md)",
+    )
 
     ls = rev_sub.add_parser("list", help="List recent reviews")
     ls.add_argument("--task", default=None, help="Filter by task slug")
@@ -285,6 +290,13 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
         help="Show LLM usage/cost rollup by task (same as `metrics cost`)",
     )
     metrics_sub = metrics_p.add_subparsers(dest="metrics_cmd")
+    mt = metrics_sub.add_parser(
+        "target", help="Set a metric target; --basis is required (SENAR §9.4(c))"
+    )
+    mt.add_argument("name", help="fpsr | der | throughput | lead_time | dead_end_rate")
+    mt.add_argument("bound", choices=["min", "max"])
+    mt.add_argument("value", type=float, help="Percent for ratios")
+    mt.add_argument("--basis", required=True, help="What the number rests on")
     mr = metrics_sub.add_parser(
         "record-session",
         help="Record session token/cost metrics (used by hooks/session_metrics.py)",

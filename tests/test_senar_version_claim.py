@@ -164,7 +164,7 @@ class TestMutation:
         "rel,body,needle",
         [
             # A claim naming another edition, in a file the globs pick up.
-            ("docs/en/whatever.md", "TAUSIK implements SENAR v1.5 Core.\n", "v1.5"),
+            ("docs/en/whatever.md", "TAUSIK implements SENAR v1.4 Core.\n", "v1.4"),
             # The filing's named failure mode: a NEW file naming a NEW edition.
             # A closed registry of known sites would sail straight past this.
             ("docs/ru/brand-new-page.md", "Реализует SENAR v2.0 Core.\n", "v2.0"),

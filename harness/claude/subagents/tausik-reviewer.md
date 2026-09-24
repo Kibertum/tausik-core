@@ -25,7 +25,7 @@ The invoking skill will tell you what to review:
 
 2. **Resolve scope** — If files were given, Read each one in full. If a `git diff` was given, run it via Bash, parse the changed file list, then Read each changed file in full. Never review on diff hunks alone — always read the surrounding code.
 
-3. **Apply the rubric line-by-line** — For every issue, classify severity:
+3. **Apply the rubric line-by-line** — For every issue, classify severity by the project scale in `docs/en/severity-scale.md` (SENAR 1.5 §10.15(f)); your classification is a proposal the supervisor decides:
    - **critical** — null access at runtime, race conditions, injection (SQL/XSS/command), auth/authz bypass, data loss, secret leak
    - **high** — missing input validation, swallowed exceptions, hardcoded secrets without rotation, N+1 in hot path, broken backwards compat
    - **medium** — duplication ≥ 3×, magic numbers in critical paths, over-engineering, missing edge-case handling that's plausibly hit

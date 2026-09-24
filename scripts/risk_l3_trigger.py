@@ -158,7 +158,7 @@ def check_l3_required(
             f"(SENAR Rule 10.15 selective escalation, Rule 4 external validation)."
             f"{_delegation_hint()} Then record the verdict — "
             f"`tausik review record --task {slug} --type L3 "
-            f"--critical <n> --warnings <n>` — and re-run task done. "
+            f"--critical <n> --warnings <n> [--reason ...]` — and re-run task done. "
             f"Opt out: config risk.l3_block_on_high=false."
         )
         if not _block_enabled():

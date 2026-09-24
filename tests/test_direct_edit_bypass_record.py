@@ -101,13 +101,15 @@ class TestTheFormCannotBeFilledWithoutLooking:
             build("some-task", risk_accepted="x", remediation="y", approved_by="z")
         assert "rationale" in str(err.value)
 
-    def test_the_refusal_names_the_legitimate_cases(self):
-        """A refusal that only says no teaches nothing; the standard's own
-        examples are what keep this from reading as a ban."""
+    def test_the_refusal_names_the_recognized_case(self):
+        """A refusal that only says no teaches nothing. SENAR 1.5 §4.1 names ONE
+        case and dates it; the refusal names that case, its date and §10.13."""
         with pytest.raises(BypassRecordRefused) as err:
             build("some-task")
         message = str(err.value)
-        assert "incident" in message and "does not run" in message
+        assert "no agent can be run and there is nothing to switch to" in message
+        assert "2026-09-07" in message and "§10.13" in message
+        assert "incident" not in message  # the 1.4 list is gone
 
     def test_whitespace_is_not_a_rationale(self):
         with pytest.raises(BypassRecordRefused):

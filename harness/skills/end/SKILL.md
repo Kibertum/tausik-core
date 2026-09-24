@@ -16,8 +16,11 @@ Use `tausik_metrics` MCP tool to get metrics.
 
 Display prominently:
 - **Throughput**: tasks/session (is it improving?)
-- **FPSR**: first-pass success rate (target: >85%)
-- **DER**: defect escape rate (target: <5%)
+- **FPSR**: first-pass success rate
+- **DER**: defect escape rate
+- **Targets**: quote the report's `target … (basis: …)` lines as printed. Do not
+  restate a number from memory: a target without its basis is not a target
+  (SENAR 1.5 §9.4(c)). A `CROSSED` line is escalated to the owner, not moved.
 - **Knowledge Capture Rate**: entries/task
 
 ### 2. Save Context (delegates to /checkpoint logic)
@@ -27,20 +30,19 @@ Run in parallel (MCP-first):
 - `tausik_task_list` with `status=active` — find in-progress work
 - `tausik_status` — overall project state
 
-Build handoff JSON and save via `tausik_session_handoff` with `handoff={...}`:
+Call `tausik_session_handoff` (CLI: `tausik session handoff`). The handoff is
+**generated from the journal** — completed tasks, active tasks with their last
+log line, verify receipts, decisions, memory, dead ends, open exploration. Do
+not re-type what the records already say. Pass only your judgement, if any:
 
 ```json
-{
-  "completed": ["task-slug-1: brief description"],
-  "in_progress": [{"slug": "task-slug-2", "state": "step 3 of 5"}],
-  "key_files": ["scripts/file1.py", "harness/skills/review/SKILL.md"],
-  "dead_ends": ["Approach X failed because Y"],
-  "next_steps": ["Finish task-slug-2", "Review changes"],
-  "warnings": ["MCP server needs restart for new code"]
-}
+{"next_steps": ["Continue task-slug-2"], "warnings": ["MCP server needs restart"],
+ "in_progress": [{"slug": "task-slug-2", "state": "step 3 of 5"}]}
 ```
 
-**Note:** Handoff MUST be saved while session is still active.
+These land on top, marked in `authored_fields`.
+
+**Note:** `session end` generates the handoff itself when none was written in the session, so a session never ends without one (SENAR §7.3).
 
 ### 3. Record Decisions
 
@@ -71,7 +73,7 @@ Ask the user: "Commit changes? (y/n)"
 
 ## Gotchas
 
-- **Handoff MUST be saved before `session end`** — once the session is ended, you can't write a handoff to it.
+- **Authored next steps go in before `session end`** — the generated part is written by `session end` anyway; your judgement is not.
 - **Decisions should be recorded before ending** — they're linked to the session.
 - **Dead ends must be documented** (SENAR Rule 9.4) — check if any failed approaches weren't recorded.
 - **Don't save framework instructions to memory** — only project-specific patterns.
