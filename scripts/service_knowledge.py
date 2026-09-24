@@ -37,6 +37,7 @@ class KnowledgeMixin:
         tags: list[str] | None = None,
         task_slug: str | None = None,
         to_global: bool = False,
+        provenance: str = "inferred",
     ) -> str:
         if mem_type not in VALID_MEMORY_TYPES:
             raise ServiceError(
@@ -59,17 +60,20 @@ class KnowledgeMixin:
 
             return write_memory(mem_type, title, content, tags, task_slug)
 
-        mid = self.be.memory_add(mem_type, title, content, tags, task_slug)
+        from memory_provenance import settle
+
+        provenance, note = settle(self.be, provenance, content, task_slug)
+        mid = self.be.memory_add(mem_type, title, content, tags, task_slug, provenance)
         from brain_universality import emit_universality_hint
 
-        emit_universality_hint(f"{title}\n{content}")
+        emit_universality_hint(f"{title}\n{content}", promote=f"--memory {mid}")
         from state_triggers import auto_export_by_id  # state-git-triggers (fail-open)
 
         # `self` is a KnowledgeMixin here but always a composed ProjectService at
         # runtime (the mixins only exist assembled) — cast the facade, don't widen
         # the helper's honest ProjectService signature.
         auto_export_by_id(cast("ProjectService", self), "memory", mid)
-        return f"Memory #{mid} ({mem_type}) saved."
+        return f"Memory #{mid} ({mem_type}, {provenance}) saved.{note}"
 
     def memory_list(
         self,
@@ -198,14 +202,21 @@ class KnowledgeMixin:
         task_slug: str | None = None,
         rationale: str | None = None,
         to_global: bool = False,
+        rejected: list[str] | None = None,
+        supersedes: int | None = None,
     ) -> str:
-        """Thin delegator — the two guarantees live in service_decide."""
+        """Thin delegator — the guarantees live in service_decide / decision_lifecycle."""
         from service_decide import record
 
-        return record(cast("ProjectService", self), text, task_slug, rationale, to_global)
+        svc = cast("ProjectService", self)
+        return record(svc, text, task_slug, rationale, to_global, rejected, supersedes)
 
-    def decisions(self, n: int = 20) -> list[dict[str, Any]]:
-        return self.be.decision_list(n)
+    def decisions(
+        self, n: int = 20, status: str = "all", task: str | None = None, rejected: str | None = None
+    ) -> list[dict[str, Any]]:
+        from decision_lifecycle import listing
+
+        return listing(self, n, status, task, rejected)
 
     def memory_block(
         self,
@@ -240,6 +251,12 @@ class KnowledgeMixin:
         """Document a dead end -- failed approach with reason."""
         validate_content("approach", approach)
         validate_content("reason", reason)
+        from dead_end_gate import bind_task  # a dead end names its task (1.10)
+
+        try:
+            task_slug = bind_task(self.be, task_slug)
+        except ValueError as e:
+            raise ServiceError(str(e)) from e
         title = approach[:100]
         content = f"Approach: {approach}\nReason: {reason}"
         mid = self.be.memory_add("dead_end", title, content, tags, task_slug)

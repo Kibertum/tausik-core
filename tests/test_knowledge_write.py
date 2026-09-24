@@ -136,7 +136,7 @@ class TestNoPromptAndNoClassifier:
         monkeypatch.setattr(
             brain_universality,
             "emit_universality_hint",
-            lambda text: called.append(text),
+            lambda text, **_kw: called.append(text),
         )
         svc.memory_add("pattern", "локальная", "тело")
         assert len(called) == 1

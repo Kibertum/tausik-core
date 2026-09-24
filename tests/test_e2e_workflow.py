@@ -108,6 +108,8 @@ class TestFullWorkflow:
         # 11. Unblock and complete first task
         svc.task_unblock("login-api")
         svc.task_step("login-api", 3)  # complete last step
+        # Since 1.10 a task that was blocked closes with what was learned (dead_end_gate).
+        svc.dead_end("Waiting on the key service", "It never had a date", task_slug="login-api")
         svc.task_done("login-api")
 
         # Login story should auto-close (both tasks done)
@@ -147,7 +149,8 @@ class TestFullWorkflow:
         # 16. Verify handoff retrieval
         handoff = svc.session_last_handoff()
         assert handoff is not None
-        assert "login-api" in handoff["completed"]
+        # 1.10: generated from the records as "slug: title".
+        assert any(item.startswith("login-api:") for item in handoff["completed"])
 
         # 17. Verify search works across entities
         results = svc.search("JWT")

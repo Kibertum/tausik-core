@@ -53,7 +53,8 @@ def _record_lines(block: str) -> list[str]:
     """Lines the RECORDS produced — i.e. everything the aggregate did not write itself."""
     # NB: no "" in this tuple — `startswith("")` is true for every string, which
     # would filter the whole block away and leave the assertions asserting nothing.
-    known_own = ("## TAUSIK Memory Block", "### Memory tail", "⚠ **Memory Policy**", "**")
+    # The `≈` legend is the block's own line since v65 (memory provenance).
+    known_own = ("## TAUSIK Memory Block", "### Memory tail", "⚠ **Memory Policy**", "**", "`≈`")
     return [ln for ln in block.splitlines() if ln.strip() and not ln.startswith(known_own)]
 
 

@@ -89,14 +89,20 @@ def build_parser() -> argparse.ArgumentParser:
         "(stale after a tree move; the interpreter recreates them). Reports otherwise.",
     )
 
+    uc_p = sub.add_parser(
+        "update-check", help="Ask GitHub (at most daily) whether a newer TAUSIK release exists"
+    )
+    uc_p.add_argument("--now", action="store_true", help="Ask now, ignoring the daily cache")
+
     drift_p = sub.add_parser(
-        "drift", help="RENAR drift detectors (schema, TC↔req provenance, standard corpus)"
+        "drift",
+        help="Drift detectors: RENAR (schema, provenance, standard corpus) and the SENAR corpus",
     )
     drift_p.add_argument(
         "--detector",
-        choices=["schema", "provenance", "supersession", "standard", "all"],
+        choices=["schema", "provenance", "supersession", "standard", "senar", "all"],
         default="all",
-        help="Which RENAR drift detector to run (default: all)",
+        help="Which drift detector to run (default: all)",
     )
 
     renar_p = sub.add_parser("renar", help="RENAR conformance self-assessment")
@@ -155,6 +161,11 @@ def build_parser() -> argparse.ArgumentParser:
         "restore", help="Rebuild the shared store from a backup (matches records by uuid)"
     )
     kn_restore.add_argument("--from", dest="from_dir", required=True, help="Backup directory")
+    kn_pr = kn_sub.add_parser("promote", help="Copy a project memory/decision to the store")
+    kn_pr_what = kn_pr.add_mutually_exclusive_group(required=True)
+    kn_pr_what.add_argument("--memory", type=int, default=None, help="Memory id")
+    kn_pr_what.add_argument("--decision", type=int, default=None, help="Decision id")
+    kn_pr.add_argument("--yes", action="store_true", help="Write it (without: show only)")
     kn_import = kn_sub.add_parser(
         "import-brain",
         help="One-off: copy the local Notion mirror into the shared store (no network)",
@@ -171,6 +182,11 @@ def build_parser() -> argparse.ArgumentParser:
     dec_p.add_argument("--task", default=None)
     dec_p.add_argument("--rationale", default=None)
     dec_p.add_argument(
+        "--rejected", action="append", default=None, help="'option :: why' (repeatable)"
+    )
+    dec_p.add_argument("--supersedes", type=int, default=None, help="Decision id this replaces")
+    dec_p.add_argument("--because", default=None, help="Why it replaces it (or --rationale)")
+    dec_p.add_argument(
         "--global",
         dest="to_global",
         action="store_true",
@@ -183,6 +199,9 @@ def build_parser() -> argparse.ArgumentParser:
     # --- decisions ---
     decs_p = sub.add_parser("decisions", help="List decisions")
     decs_p.add_argument("--limit", type=int, default=20)
+    decs_p.add_argument("--status", choices=["all", "active", "superseded"], default="all")
+    decs_p.add_argument("--task", default=None, help="Only decisions linked to this task")
+    decs_p.add_argument("--rejected", default=None, help="Search the rejected alternatives")
 
     # --- memory ---
     mem_p = sub.add_parser("memory", help="Project memory")
@@ -193,6 +212,13 @@ def build_parser() -> argparse.ArgumentParser:
     ma.add_argument("content")
     ma.add_argument("--tags", nargs="*", default=None)
     ma.add_argument("--task", default=None)
+    ma.add_argument(
+        "--provenance",
+        choices=["observed", "inferred", "told"],
+        default="inferred",
+        help="observed: backed by a test, a verify run or a task journal (checked); "
+        "inferred (default): reasoned, not measured; told: a person said so",
+    )
     ma.add_argument(
         "--global",
         dest="to_global",

@@ -49,8 +49,8 @@ HARD_CONSTRAINTS = """## Hard Constraints (non-negotiable)
 - **Max 500 lines per file.** Filesize gate warns. Exceptions: tests, generated code.
 - **Continuous logging.** Run `task log <slug> "message"` after every meaningful step. (SENAR Rule 9.4)
 - **Document dead ends.** Run `.tausik/tausik dead-end "approach" "reason"` on failed approaches. (SENAR Rule 9.4)
-- **Checkpoint every 30-50 tool calls.** Save context periodically. (SENAR Rule 9.3)
-- **Session limit: 180 min.** `.tausik/tausik status` warns on overrun. Close the session before starting a new one. (SENAR Rule 9.2)
+- **Checkpoint when the signal says so.** The count of calls since the last handoff is derived from the ledger and advised in tool responses. (SENAR Rule 9.3)
+- **Context pressure is a signal, not a gate.** Session time and call capacity advise a `/checkpoint` or a handoff; they never refuse a task start (decision #376; basis: `docs/en/session-active-time.md`, SENAR 1.5 §9.4(c)).
 """
 
 WORKFLOW = """## Workflow
@@ -100,13 +100,13 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 | Rule 2 Scope Boundaries | Declare scope + scope_exclude per task | Warning |
 | Rule 3 Verify Against Criteria | Per-criterion evidence | Warning |
 | Rule 7 Root Cause | Defect tasks require root cause | Warning |
-| Rule 9.2 Session limit | 180 min per session | Hard (blocks `task_start`) |
-| Rule 9.3 Checkpoint | Every 30-50 tool calls | Instruction |
+| Rule 9.2 Session limit | advisory threshold on active time, org-set with a documented basis | Signal (never blocks) |
+| Rule 9.3 Checkpoint | calls since the last handoff, derived from the ledger | Signal (never blocks) |
 | Rule 9.4 Dead Ends + Logging | Document failed approaches, log progress | Instruction |
 
-> **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote. Where it is not deployed, Rule 1 is enforced by the agent reading this line — because TAUSIK generates no payload for that host, NOT because the host cannot accept one; only the first claim is ours to make. The rest hold everywhere: QG-0, QG-2 and the session limit live in the `tausik-project` MCP server and the CLI. For a process-level Rule 1 without a mechanism, route writes through `tausik_task_start` / `tausik_task_done_v2` and treat raw file edits as non-conformant in review.
+> **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote. Where it is not deployed, Rule 1 is enforced by the agent reading this line — because TAUSIK generates no payload for that host, NOT because the host cannot accept one; only the first claim is ours to make. The rest hold everywhere: QG-0 and QG-2 live in the `tausik-project` MCP server and the CLI; the session limit lives there too, as a signal that never blocks. For a process-level Rule 1 without a mechanism, route writes through `tausik_task_start` / `tausik_task_done_v2` and treat raw file edits as non-conformant in review.
 
-Full rule set: [SENAR v1.3](https://senar.tech).
+Full rule set: [SENAR v1.5](https://senar.tech).
 """
 
 
@@ -172,11 +172,11 @@ Check status: `.tausik/tausik gates status`. Fix blocking failures before commit
 
 TOOL_ROUTING = """## Tool Routing — when to use which
 
-Don't reach for `Grep`/`Glob` first. TAUSIK ships dedicated retrieval MCP servers; using them keeps context lean and surfaces project-specific knowledge that raw text search cannot.
+TAUSIK ships retrieval MCP servers for PROJECT KNOWLEDGE — decisions, memory, the roadmap — which raw text search cannot reach. For code, narrow before you read; the RAG index is one option with no measured edge over Grep.
 
 | Need | Primary | Fallback |
 |---|---|---|
-| Find a function/symbol/usage in code | `mcp__codebase-rag__search_code` | `Grep` (only if RAG returns no hits or index is stale) |
+| Find a function/symbol/usage in code | `Grep` with a `path`/`glob` | `mcp__codebase-rag__search_code` |
 | Recall a past project decision | `tausik_decisions_list` / `tausik_memory_search` (`type=convention/pattern`) | — |
 | Cross-project pattern or gotcha | `tausik_memory_search` (the shared store is folded into the results) | — |
 | Web lookup (docs, API, errors) | `WebFetch` | — |
@@ -202,7 +202,7 @@ MULTIMODEL_NOTE = """## Are you a non-Claude agent? (GPT-5.5, Composer, Codex, O
 
 TAUSIK is model-agnostic, but the surface you actually use differs from Claude Code:
 
-- **MCP tools first.** Every quality gate (QG-0, QG-2, session limit, dead-end tracking) is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
+- **MCP tools first.** Every quality gate (QG-0, QG-2, dead-end tracking) and the session signals is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
 - **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `harness/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
 - **PreToolUse hooks may not be deployed here.** The notice at the top of this file says whether they are, counted from this host's profile. Where they are not, `task_gate.py` does not protect Rule 1 ("no code without a task") and you self-enforce: always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write. The reason is that TAUSIK generates no hooks payload for some hosts — what a given host is capable of accepting is a separate question, and not one this file answers.
 - **Don't write to `~/.claude/`.** It is a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools, or the path under `CLAUDE_PLUGIN_DATA` if your host sets it.
@@ -289,7 +289,7 @@ def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
         f"You are {agent_name} working on this project. Follow these instructions strictly.\n\n"
         f"## Project: {project_name}\n\n"
         f"Stack: {stack_str}\n"
-        f"Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.3](https://senar.tech)\n"
+        f"Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.5](https://senar.tech)\n"
     )
 
 

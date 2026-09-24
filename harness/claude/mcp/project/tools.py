@@ -154,7 +154,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_start",
-        "description": "Start working on a task (sets status to active). QG-0 enforced: task must have goal + acceptance_criteria",
+        "description": "Start a task. QG-0: needs goal + acceptance_criteria",
         "inputSchema": {
             "type": "object",
             "properties": {"slug": {"type": "string"}},
@@ -492,22 +492,13 @@ TOOLS = [
     },
     {
         "name": "tausik_session_handoff",
-        "description": "Save handoff data for session continuity",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "handoff": {
-                    "type": "object",
-                    "description": "Handoff data (what was done, next steps, blockers)",
-                },
-            },
-            "required": ["handoff"],
-        },
+        "description": "Save handoff: generated from the journal; optional authored next_steps/warnings on top",
+        "inputSchema": {"type": "object", "properties": {"handoff": {"type": "object"}}},
     },
     {
         "name": "tausik_session_last_handoff",
-        "description": "Get last session's handoff data",
-        "inputSchema": {"type": "object", "properties": {}},
+        "description": "Live handoff, or session_id's",
+        "inputSchema": {"type": "object", "properties": {"session_id": {"type": "integer"}}},
     },
     # === Hierarchy: epic, story, roadmap ===
     {
@@ -630,7 +621,7 @@ TOOLS = [
     # === Knowledge: memory, decisions, search ===
     {
         "name": "tausik_memory_add",
-        "description": "Save project memory (pattern, gotcha, convention, context, dead_end)",
+        "description": "Save project memory",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -642,6 +633,7 @@ TOOLS = [
                 "content": {"type": "string"},
                 "tags": {"type": "array", "items": {"type": "string"}},
                 "task_slug": {"type": "string"},
+                "provenance": {"type": "string", "enum": ["observed", "inferred", "told"]},
             },
             "required": ["type", "title", "content"],
         },
@@ -850,13 +842,15 @@ TOOLS = [
     },
     {
         "name": "tausik_decide",
-        "description": "Record an architectural decision with rationale. Optionally link to a task via task_slug",
+        "description": "Record a decision",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "decision": {"type": "string"},
                 "rationale": {"type": "string"},
                 "task_slug": {"type": "string"},
+                "rejected": {"type": "array", "items": {"type": "string"}},
+                "supersedes": {"type": "integer"},
             },
             "required": ["decision"],
         },

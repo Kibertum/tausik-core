@@ -47,6 +47,7 @@ def _do_memory_add(svc: Any, args: dict) -> str:
         args["content"],
         _coerce_tags(args.get("tags")),
         args.get("task_slug"),
+        provenance=args.get("provenance") or "inferred",
     )
 
 
@@ -217,7 +218,11 @@ KNOWLEDGE_HANDLERS = {
     "tausik_memory_graph": _do_memory_graph,
     # --- Decisions ---
     "tausik_decide": lambda svc, args: svc.decide(
-        args["decision"], args.get("task_slug"), args.get("rationale")
+        args["decision"],
+        args.get("task_slug"),
+        args.get("rationale"),
+        rejected=_coerce_tags(args.get("rejected")),
+        supersedes=args.get("supersedes"),
     ),
     "tausik_decisions_list": _do_decisions_list,
     # --- Dead ends ---

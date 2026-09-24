@@ -88,6 +88,13 @@ def cmd_knowledge(svc: ProjectService, args: Any) -> None:
         detail = ", ".join(f"{n} {name}" for name, n in counts.items())
         print(f"Restored {total} record(s) from {args.from_dir} ({detail}).")
         return
+    if sub == "promote":
+        from knowledge_promote import preview, promote
+
+        kind, rid = ("memory", args.memory) if args.memory else ("decision", args.decision)
+        print("\n".join(preview(svc, kind, rid)))
+        print(promote(svc, kind, rid) if args.yes else "Nothing written: add --yes to copy it.")
+        return
     if sub == "import-brain":
         from knowledge_import import format_counts, import_from_brain_mirror
 
@@ -97,7 +104,7 @@ def cmd_knowledge(svc: ProjectService, args: Any) -> None:
         return
     print(
         "Usage: tausik knowledge {export --to <dir> | restore --from <dir> | "
-        "import-brain [--dry-run]}"
+        "promote --memory|--decision ID [--yes] | import-brain [--dry-run]}"
     )
 
 
@@ -112,6 +119,7 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
                 args.tags,
                 args.task,
                 getattr(args, "to_global", False),
+                getattr(args, "provenance", "inferred"),
             )
         )
     elif c == "list":

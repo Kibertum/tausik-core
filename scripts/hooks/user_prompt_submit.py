@@ -1,23 +1,16 @@
 #!/usr/bin/env python3
-"""UserPromptSubmit hook: nudge the agent on a coding-intent or code-discovery prompt.
+"""UserPromptSubmit hook: nudge the agent on a coding-intent prompt with no task.
 
-Fires before Claude processes the user's message and injects reminders via
-hookSpecificOutput.additionalContext. Two independent nudges:
+Fires before Claude processes the user's message and injects a reminder via
+hookSpecificOutput.additionalContext when the prompt looks like a coding
+request ("fix", "add", "напиши") and no TAUSIK task is active (SENAR Rule 1).
 
-- task nudge — the prompt looks like a coding request ("fix", "add", "напиши")
-  and no TAUSIK task is active (SENAR Rule 1).
-- rag-first nudge — the prompt looks like a code-discovery question
-  ("where is X", "где определ…"), so `mcp__codebase-rag__search_code` beats
-  Grep+Read on unfamiliar code. Fires regardless of active task.
-
-The rag-first nudge used to live on the Stop hook, where it was both useless and
-harmful: Stop fires after the agent has already searched, and a blocked Stop is
-rendered by the harness as a hook error that swallows the turn's output. It also
-matched its own reason text — Claude Code feeds a Stop block's reason back as a
-user-role message, and that text quoted every trigger phrase verbatim
-("where is X" / "how does Z work" / "где определ…"), so the nudge re-armed itself
-on every turn. UserPromptSubmit only ever sees genuine human prompts, which
-removes that class of bug rather than patching around it.
+A second, rag-first nudge (from "where is X" to search_code) lived here until
+1.10 and was removed by decision #390: a paired replay (docs/ru/research/
+rag-nudge-replay-protocol.md §7) measured 0 search_code calls in 62 with the
+nudges delivered and 0 in 76 without. Text injected every turn and never acted
+on is cost without effect. Machine-generated prompts (hook feedback,
+slash-command expansions) still never arm a nudge.
 See task ``keyword-detector-self-trigger-loop``.
 
 Always exits 0 (non-blocking). Skipped via TAUSIK_SKIP_HOOKS=1.
@@ -51,33 +44,10 @@ QUESTION_PATTERNS = (
 )
 
 
-# Code-discovery questions — "where is X" / "find Y" / "how does Z work".
-SEARCH_INTENT_KEYWORDS = (
-    # English
-    r"\bwhere\s+is\s+\w+",
-    r"\bwhere\s+(does|do)\s+\w+",
-    r"\bfind\s+(the\s+)?(function|method|class|definition|implementation|usage|usages|references)\b",
-    r"\bhow\s+does\s+\w+\s+(work|behave)",
-    r"\bhow\s+is\s+\w+\s+(implemented|used|called)",
-    r"\bwhich\s+(file|files|module|modules)\s+(define|defines|contain|contains)",
-    # Russian
-    r"\bгде\s+(определ|реализ|использ|объявл|задан)",
-    r"\bнайди\s+(функци|метод|класс|реализаци|использовани)",
-    r"\bкак\s+работает\s+\w+",
-    r"\bкакие\s+файлы\s+(содерж|определ|использ)",
-)
-
 # A prompt carrying this marker is machine-generated: either a hook's own
 # additionalContext echoed back, or a slash-command body expanded by the
 # harness. Both quote the trigger phrases above and must never re-arm a nudge.
 _MACHINE_PROMPT_MARKERS = ("[TAUSIK ", "<command-name>", "<command-message>")
-
-SEARCH_RECOMMENDATION = (
-    "**[TAUSIK rag-first nudge]** Your prompt looks like a code-discovery question. "
-    "Prefer `mcp__codebase-rag__search_code` for symbol/pattern lookup — it returns "
-    "ranked chunks, not full files, and is much cheaper token-wise than Grep+Read on "
-    "unfamiliar code. Use Grep/Read only for known file paths."
-)
 
 
 def _is_machine_prompt(prompt: str) -> bool:
@@ -87,14 +57,6 @@ def _is_machine_prompt(prompt: str) -> bool:
     if prompt.lstrip().startswith("/"):
         return True
     return any(marker in prompt for marker in _MACHINE_PROMPT_MARKERS)
-
-
-def _has_search_intent(prompt: str) -> bool:
-    """Return True if the prompt asks where/how some code lives."""
-    if not prompt:
-        return False
-    lowered = prompt.lower()
-    return any(re.search(pat, lowered) for pat in SEARCH_INTENT_KEYWORDS)
 
 
 def _has_coding_intent(prompt: str) -> bool:
@@ -151,10 +113,6 @@ def main() -> int:
             "or create a task via `/plan` (SENAR Rule 1, enforced by PreToolUse hook). "
             "Skipping this step means Write/Edit will be blocked."
         )
-
-    # Independent of task state: knowing *how* to search is orthogonal to Rule 1.
-    if _has_search_intent(prompt):
-        nudges.append(SEARCH_RECOMMENDATION)
 
     if not nudges:
         return 0

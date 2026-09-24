@@ -92,6 +92,12 @@ def extract_token_rows(path: str, session_id) -> list[dict]:
     # `replace_session_token_rows`.
     source = os.path.splitext(os.path.basename(path))[0] or None
     rows: list[dict] = []
+    # Entries of one API message share message.id and repeat its usage; its
+    # tool_use blocks are spread over those entries. Gather them per message
+    # (last usage wins) and split the usage ONCE across all of them — per entry
+    # it was charged once per block (session-metrics-sums-usage-once-per-content-block).
+    grouped: dict[str, dict] = {}
+    order: list[str] = []
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -111,43 +117,70 @@ def extract_token_rows(path: str, session_id) -> list[dict]:
             if not isinstance(content, list):
                 continue
             tool_uses = [b for b in content if isinstance(b, dict) and b.get("type") == "tool_use"]
+            msg_id = msg.get("id")
+            if msg_id:
+                g = grouped.get(str(msg_id))
+                if g is None:
+                    g = grouped[str(msg_id)] = {"entry": entry, "usage": usage, "tools": []}
+                    order.append(str(msg_id))
+                g["usage"] = usage
+                g["tools"].extend(tool_uses)
+                if tool_uses and not g.get("tool_entry"):
+                    g["tool_entry"] = entry
+                continue
             if not tool_uses:
                 continue
-            n = len(tool_uses)
-            ts = entry.get("timestamp") or ""
-            input_tokens = int(usage.get("input_tokens") or 0)
-            output_tokens = int(usage.get("output_tokens") or 0)
-            cache_read = int(usage.get("cache_read_input_tokens") or 0)
-            cache_create = int(usage.get("cache_creation_input_tokens") or 0)
-            context = _context_tokens(usage)
-            entry_model = entry.get("model") or msg.get("model") or None
-            if not isinstance(entry_model, str) or not entry_model.strip():
-                entry_model = None
-            row_session = resolve(ts)
-
-            def _split(total: int, idx: int) -> int:
-                base = total // n
-                if idx == n - 1:
-                    return total - base * (n - 1)
-                return base
-
-            for i, tu in enumerate(tool_uses):
-                rows.append(
-                    {
-                        "ts": ts,
-                        "session_id": row_session,
-                        "tool_name": tu.get("name") or "(unknown)",
-                        "input_tokens": _split(input_tokens, i),
-                        "output_tokens": _split(output_tokens, i),
-                        "cache_read": _split(cache_read, i),
-                        "cache_create": _split(cache_create, i),
-                        # None survives the split: an unmeasurable context stays
-                        # unmeasurable per tool, it does not become a zero share.
-                        "context_tokens": None if context is None else _split(context, i),
-                        "model": entry_model,
-                        "source": source,
-                    }
+            rows.extend(_rows_for(entry, usage, tool_uses, resolve, source))
+    for mid in order:
+        g = grouped[mid]
+        if g["tools"]:
+            rows.extend(
+                _rows_for(
+                    g.get("tool_entry") or g["entry"], g["usage"], g["tools"], resolve, source
                 )
+            )
+    return rows
+
+
+def _rows_for(entry: dict, usage: dict, tool_uses: list, resolve, source) -> list[dict]:
+    """One row per tool_use of one message; usage split evenly, remainder on the last."""
+    rows: list[dict] = []
+    msg = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+    n = len(tool_uses)
+    ts = entry.get("timestamp") or ""
+    input_tokens = int(usage.get("input_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or 0)
+    cache_read = int(usage.get("cache_read_input_tokens") or 0)
+    cache_create = int(usage.get("cache_creation_input_tokens") or 0)
+    context = _context_tokens(usage)
+    entry_model = entry.get("model") or msg.get("model") or None
+    if not isinstance(entry_model, str) or not entry_model.strip():
+        entry_model = None
+    row_session = resolve(ts)
+
+    def _split(total: int, idx: int) -> int:
+        base = total // n
+        if idx == n - 1:
+            return total - base * (n - 1)
+        return base
+
+    for i, tu in enumerate(tool_uses):
+        rows.append(
+            {
+                "ts": ts,
+                "session_id": row_session,
+                "tool_name": tu.get("name") or "(unknown)",
+                "input_tokens": _split(input_tokens, i),
+                "output_tokens": _split(output_tokens, i),
+                "cache_read": _split(cache_read, i),
+                "cache_create": _split(cache_create, i),
+                # None survives the split: an unmeasurable context stays
+                # unmeasurable per tool, it does not become a zero share.
+                "context_tokens": None if context is None else _split(context, i),
+                "model": entry_model,
+                "source": source,
+            }
+        )
     return rows
 
 

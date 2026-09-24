@@ -150,6 +150,10 @@ class RAGStore:
         self._conn.execute("DELETE FROM rag_chunks WHERE file_path=?", (file_path,))
         self._conn.commit()
 
+    def indexed_paths(self) -> list[str]:
+        """Every distinct file path the index holds chunks for."""
+        return [r[0] for r in self._conn.execute("SELECT DISTINCT file_path FROM rag_chunks")]
+
     def clear(self) -> None:
         """Drop all indexed data."""
         self._conn.execute("DELETE FROM rag_chunks")

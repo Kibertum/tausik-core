@@ -198,11 +198,33 @@ def memory_dedupe_lines(svc: Any, threshold: float = 0.85, limit: int = 200) -> 
     return lines
 
 
+def _provenance_debt(svc: Any) -> list[str]:
+    """Inferred memories nobody has confirmed are debt, and lint says how much (v65)."""
+    try:
+        rows = svc.be._q(  # noqa: SLF001 — read-only aggregate
+            "SELECT provenance, COUNT(*) AS n FROM memory WHERE archived_at IS NULL GROUP BY 1"
+        )
+    except Exception:  # noqa: BLE001 — a lint line must not break lint
+        return []
+    by = {r["provenance"]: r["n"] for r in rows}
+    total, inferred = sum(by.values()), by.get("inferred", 0)
+    if not inferred:
+        return []
+    return [
+        f"Provenance debt: {inferred} of {total} live memories are inferred, not observed. "
+        "Confirm one by re-adding it with --provenance observed and a test, a verify run "
+        "or a task journal it rests on."
+    ]
+
+
 def memory_lint_lines(svc: Any, apply: bool = False) -> list[str]:
     result = svc.memory_lint(apply=apply)
     findings = result["findings"]
     if not findings:
-        return ["Memory lint: no contradictions, superseded, or stale-file issues found."]
+        return [
+            "Memory lint: no contradictions, superseded, or stale-file issues found.",
+            *_provenance_debt(svc),
+        ]
     if result["applied"]:
         head = (
             f"Memory lint: {result['count']} finding(s); archived "
@@ -219,4 +241,4 @@ def memory_lint_lines(svc: Any, apply: bool = False) -> list[str]:
         lines.append(
             f'  #{f["id"]:<5} [{f["kind"]:<11}] {f["reason"]}  "{(f["title"] or "")[:50]}"'
         )
-    return lines
+    return lines + _provenance_debt(svc)
