@@ -44,9 +44,9 @@ class TestScanInvisibleUnicode:
         assert len(mid) == 1 and mid[0]["kind"] == "zero-width-nbsp"
 
     def test_zero_width_and_bidi_flagged(self):
-        zw = scan_invisible_unicode("sec​ret")  # ZWSP splitting a word
+        zw = scan_invisible_unicode("sec\u200bret")  # ZWSP splitting a word
         assert zw and zw[0]["kind"] == "zero-width-space"
-        bidi = scan_invisible_unicode("delete ‮napkin")  # RLO override
+        bidi = scan_invisible_unicode("delete \u202enapkin")  # RLO override
         assert bidi and bidi[0]["kind"] == "bidi-override"
 
     def test_finding_shape(self):
@@ -86,7 +86,7 @@ class TestScanSkillTree:
 
     def test_payload_in_data_json_is_found(self, tmp_path):
         (tmp_path / "SKILL.md").write_text("# ok\n", encoding="utf-8")
-        (tmp_path / "config.json").write_text('{"k": "v​x"}', encoding="utf-8")
+        (tmp_path / "config.json").write_text('{"k": "v\u200bx"}', encoding="utf-8")
         assert "config.json" in scan_skill_tree(str(tmp_path))
 
     def test_invalid_utf8_byte_does_not_hide_payload(self, tmp_path):

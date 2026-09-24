@@ -11,6 +11,7 @@ here, so existing ``from project_config import X`` call sites are unchanged.
 from __future__ import annotations
 
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def _price_pair(value: object, key: str) -> dict[str, float] | None:
             val = float(raw)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return None
-        if val != val or val < 0:  # NaN or negative
+        if math.isnan(val) or val < 0:
             return None
         return val
 
@@ -155,7 +156,9 @@ def lookup_llm_usd_per_million_tokens(cfg: dict | None, model_id: str | None) ->
 
 
 # --- SENAR Rule 9.2: Session duration limit (minutes) ---
-# SENAR v1.3: sessions exceeding 180 min show diminishing returns.
+# Advisory threshold, not a gate (decision #376). Inherited from the SENAR 1.3
+# §9.2 guideline; its measured basis is `tausik session recompute`, cited with
+# a date in docs/*/session-active-time.md (SENAR 1.5 §9.4(c)).
 # Measured against ACTIVE minutes (gap-based), not wall clock — AFK breaks
 # don't count. See backend_session_metrics.compute_active_minutes.
 DEFAULT_SESSION_MAX_MINUTES = 180

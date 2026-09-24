@@ -21,10 +21,10 @@ def _touch(path: str, content: str = "# stub\n") -> None:
 
 @pytest.fixture
 def qwen_layout(tmp_path):
-    """Simulate .qwen/mcp/{codebase-rag,project}/server.py."""
+    """Simulate .qwen/mcp/codebase-rag/rag_server.py and .qwen/mcp/project/server.py."""
     target_dir = tmp_path / ".qwen"
-    for name in ("codebase-rag", "project"):
-        _touch(str(target_dir / "mcp" / name / "server.py"))
+    for name, entry in {"codebase-rag": "rag_server.py", "project": "server.py"}.items():
+        _touch(str(target_dir / "mcp" / name / entry))
     return {"target_dir": str(target_dir), "project_dir": str(tmp_path)}
 
 

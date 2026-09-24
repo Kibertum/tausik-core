@@ -51,7 +51,7 @@ _DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
 # (server-name, relative path under an mcp/ root) — order is the emit order.
 _SERVERS = (
     ("tausik-project", os.path.join("project", "server.py")),
-    ("codebase-rag", os.path.join("codebase-rag", "server.py")),
+    ("codebase-rag", os.path.join("codebase-rag", "rag_server.py")),
 )
 
 # OpenCode reads project config from the project ROOT, not from .opencode/.

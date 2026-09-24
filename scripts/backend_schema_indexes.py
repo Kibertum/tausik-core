@@ -82,4 +82,21 @@ CREATE INDEX IF NOT EXISTS idx_gate_runs_outcome ON gate_runs(outcome);
 -- v62: the defect-escape EXISTS over tasks.defect_of scanned the wide tasks
 -- table per done row (5.04 s of status's 5.3 s on 1504 done tasks).
 CREATE INDEX IF NOT EXISTS idx_tasks_defect_of ON tasks(defect_of);
+CREATE INDEX IF NOT EXISTS idx_sessions_host ON sessions(host_session_id);
+-- schema-index-drift-fresh-vs-migrated (1.10): these twelve were created only
+-- inside their migrations, so every fresh database lacked them. This block is
+-- the CURRENT index set; tests/test_schema_index_parity.py compares both paths
+-- in full, so an index stated only in a migration turns it red.
+CREATE INDEX IF NOT EXISTS idx_brain_events_session ON brain_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_brain_events_ts ON brain_events(ts);
+CREATE INDEX IF NOT EXISTS idx_brain_events_type ON brain_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_memory_archived_at ON memory(archived_at);
+CREATE INDEX IF NOT EXISTS idx_redactions_at ON redactions(redacted_at);
+CREATE INDEX IF NOT EXISTS idx_redactions_entity ON redactions(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_task ON reviews(task_slug);
+CREATE INDEX IF NOT EXISTS idx_reviews_type ON reviews(run_type);
+CREATE INDEX IF NOT EXISTS idx_sessions_model ON sessions(model_id);
+CREATE INDEX IF NOT EXISTS idx_task_deps_on ON task_deps(depends_on_slug);
+CREATE INDEX IF NOT EXISTS idx_task_deps_task ON task_deps(task_slug);
+CREATE INDEX IF NOT EXISTS idx_usage_events_tool ON usage_events(tool_name, recorded_at);
 """

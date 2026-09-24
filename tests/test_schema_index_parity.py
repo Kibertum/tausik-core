@@ -38,6 +38,16 @@ from backend_schema_indexes import POST_MIGRATION_INDEXES_SQL  # noqa: E402
 from test_migrations import V1_SCHEMA  # noqa: E402
 
 
+def _definitions(conn: sqlite3.Connection) -> dict[str, str]:
+    """Index name -> its CREATE text, whitespace and IF NOT EXISTS normalised."""
+    return {
+        name: " ".join((sql or "").replace(" IF NOT EXISTS", "").split())
+        for name, sql in conn.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%'"
+        )
+    }
+
+
 def _indexes(conn: sqlite3.Connection) -> set[str]:
     """Explicit indexes only — `sqlite_autoindex_*` are UNIQUE side effects."""
     return {
@@ -152,3 +162,24 @@ class TestPostMigrationIndexesReachBothPaths:
         back on both paths, which is the point of stating the CURRENT set in one
         place rather than trusting each migration's snapshot."""
         assert "idx_tasks_no_file_changes_declared" in _indexes(migrated)
+
+
+class TestFreshAndMigratedCarryTheSameIndexes:
+    """The FULL comparison, both directions (schema-index-drift-fresh-vs-migrated).
+
+    The class above was scoped to POST_MIGRATION_INDEXES_SQL because the full
+    comparison was red for older reasons: twelve indexes lived only inside their
+    migrations. They are in the block now, so the whole set can be pinned. This
+    closes the FORM, not the list: an index stated only in a migration is missing
+    on a fresh database, and one dropped by a table rebuild that recreates indexes
+    from a frozen list (the v43 shape) is missing on a migrated one.
+    """
+
+    def test_no_index_exists_on_one_path_only(self, fresh, migrated):
+        f, m = _indexes(fresh), _indexes(migrated)
+        assert (sorted(f - m), sorted(m - f)) == ([], [])
+
+    def test_same_named_indexes_are_defined_alike(self, fresh, migrated):
+        f, m = _definitions(fresh), _definitions(migrated)
+        differ = {n: (f[n], m[n]) for n in f.keys() & m.keys() if f[n] != m[n]}
+        assert not differ

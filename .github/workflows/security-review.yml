@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install security tools
-        run: pip install bandit
+        run: pip install -c ci-constraints.txt bandit
 
       - name: Run Bandit security scan
         id: bandit

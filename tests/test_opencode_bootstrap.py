@@ -29,11 +29,12 @@ CONFIG = "opencode.json"
 
 
 def _mk_servers(target_dir: str, names: tuple[str, ...] = ("project", "codebase-rag")):
-    """Create fake server.py files inside <target_dir>/mcp/<name>/server.py."""
+    """Create fake entry points: mcp/project/server.py, mcp/codebase-rag/rag_server.py."""
     for name in names:
         d = os.path.join(target_dir, "mcp", name)
         os.makedirs(d, exist_ok=True)
-        with open(os.path.join(d, "server.py"), "w", encoding="utf-8") as f:
+        entry = "rag_server.py" if name == "codebase-rag" else "server.py"
+        with open(os.path.join(d, entry), "w", encoding="utf-8") as f:
             f.write("# fake server\n")
 
 

@@ -112,7 +112,7 @@ def generate_mcp_json(project_dir: str, ide_dir: str, venv_python: str | None = 
     proj_arg = _CLAUDE_MCP_VAR
 
     # Core MCP servers (always managed)
-    rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "server.py")
+    rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "rag_server.py")
     if os.path.exists(rag_server):
         servers["codebase-rag"] = _stdio_mcp_server(
             cmd,
@@ -161,7 +161,7 @@ def generate_cursor_mcp_json(
     cmd = _pp(python_exe)
     proj_arg = _CURSOR_VAR
 
-    rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "server.py")
+    rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "rag_server.py")
     if os.path.exists(rag_server):
         servers["codebase-rag"] = _stdio_mcp_server(
             cmd,

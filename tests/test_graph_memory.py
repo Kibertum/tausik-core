@@ -7,6 +7,7 @@ auto-supersede, edge cases, CLI smoke.
 from __future__ import annotations
 
 import os
+import sqlite3
 import subprocess
 import sys
 
@@ -334,7 +335,7 @@ class TestMigration:
 
     def test_edge_check_constraints(self, db):
         """Invalid relation should be rejected by CHECK constraint."""
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             db._ins(
                 "INSERT INTO memory_edges(source_type,source_id,target_type,target_id,"
                 "relation,confidence,valid_from,created_at) VALUES(?,?,?,?,?,?,?,?)",
@@ -342,7 +343,7 @@ class TestMigration:
             )
 
     def test_edge_invalid_source_type(self, db):
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             db._ins(
                 "INSERT INTO memory_edges(source_type,source_id,target_type,target_id,"
                 "relation,confidence,valid_from,created_at) VALUES(?,?,?,?,?,?,?,?)",

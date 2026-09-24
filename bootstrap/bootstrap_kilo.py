@@ -29,7 +29,7 @@ from bootstrap_paths import portable_path
 # (server-name, relative path under an mcp/ root) — order is the emit order.
 _SERVERS = (
     ("tausik-project", os.path.join("project", "server.py")),
-    ("codebase-rag", os.path.join("codebase-rag", "server.py")),
+    ("codebase-rag", os.path.join("codebase-rag", "rag_server.py")),
 )
 
 # Default Kilo config files to write, relative to project_dir (Decision #120).

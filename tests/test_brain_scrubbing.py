@@ -293,7 +293,7 @@ def test_blocklist_cyrillic_homoglyph_bypass_blocked_named_detector():
             id="blocklist_all_cyrillic_homoglyphs_blocked",
         ),
         pytest.param(
-            "Contact the meg​acorp team by Friday",  # ZWSP
+            "Contact the meg\u200bacorp team by Friday",  # ZWSP
             {"project_names": ["megacorp"]},
             False,
             id="blocklist_zero_width_bypass_blocked",
@@ -311,7 +311,7 @@ def test_blocklist_cyrillic_homoglyph_bypass_blocked_named_detector():
             id="blocklist_html_numeric_entity_bypass_blocked",
         ),
         pytest.param(
-            "Talk to М​egacorp tomorrow",  # Cyrillic M + ZWSP
+            "Talk to М\u200begacorp tomorrow",  # Cyrillic M + ZWSP
             {"project_names": ["megacorp"]},
             False,
             id="blocklist_mixed_homoglyph_and_zero_width_blocked",

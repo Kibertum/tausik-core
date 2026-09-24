@@ -11,6 +11,7 @@ the read-path assertions live in `test_knowledge_read` where they belong.
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import sys
 
@@ -72,8 +73,12 @@ class TestTheLabelItself:
 
     def test_a_root_spelled_differently_is_still_the_same_project(self):
         """No mapping table can help here; canonicalisation has to."""
-        assert ko.origin_fingerprint(r"C:\Projects\repo") == ko.origin_fingerprint("C:/Projects/repo")
-        assert ko.origin_fingerprint(r"C:\Projects\repo\\") == ko.origin_fingerprint(r"C:\Projects\repo")
+        assert ko.origin_fingerprint(r"C:\Projects\repo") == ko.origin_fingerprint(
+            "C:/Projects/repo"
+        )
+        assert ko.origin_fingerprint(r"C:\Projects\repo\\") == ko.origin_fingerprint(
+            r"C:\Projects\repo"
+        )
 
     def test_a_project_recognises_its_own_row_without_a_dictionary(self):
         """Why no reverse mapping is stored: the label is COMPUTED, not assigned."""
@@ -355,12 +360,12 @@ class TestAbsolutenessIsSpellingNotInterpreterOpinion:
         rooted path is absolute here on Linux and on Windows, on 3.12 and on
         3.13 — because the question is about the string, not about the host.
         """
-        assert ko._ABSOLUTE_RE.match("/work/clients/acme/repo/a.py")
-        assert ko._ABSOLUTE_RE.match(r"\work\clients\acme\repo\a.py")
-        assert ko._ABSOLUTE_RE.match(r"C:\Projects\clients\acme")
-        assert ko._ABSOLUTE_RE.match("c:/Projects/clients/acme")
-        assert not ko._ABSOLUTE_RE.match("team/backend")
-        assert not ko._ABSOLUTE_RE.match("already/relative.py")
+        assert ko.is_absolute("/work/clients/acme/repo/a.py")
+        assert ko.is_absolute(r"\work\clients\acme\repo\a.py")
+        assert ko.is_absolute(r"C:\Projects\clients\acme")
+        assert ko.is_absolute("c:/Projects/clients/acme")
+        assert not ko.is_absolute("team/backend")
+        assert not ko.is_absolute("already/relative.py")
 
     def test_a_rooted_path_in_this_platforms_spelling_is_redacted(self):
         """End to end, in the separator this host actually uses.
@@ -385,3 +390,36 @@ class TestAbsolutenessIsSpellingNotInterpreterOpinion:
         """NEGATIVE: `origin_project` is free text; `team/backend` is not a path."""
         assert ko.relative_source_file("team/backend", "/root") == "team/backend"
         assert ko.relative_source_file("already/relative.py", "/root") == "already/relative.py"
+
+
+# two-absoluteness-predicates-must-become-one: this module kept its own regex
+# until 1.10. The one predicate must answer exactly as that regex did on every
+# spelling either module cared about, or unifying them changed what is redacted.
+_REMOVED_REGEX = re.compile(r"^(?:[/\\]|[A-Za-z]:[/\\])")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "/work/a.py",
+        r"\work\a.py",
+        r"\\server\share\a.py",
+        "//server/share/a.py",
+        r"C:\x",
+        "d:/x",
+        "C:x",
+        "team/backend",
+        "name@deadbeef",
+        "already/relative.py",
+        "",
+    ],
+)
+def test_the_one_predicate_answers_as_the_removed_regex_did(value):
+    assert ko.is_absolute(value) is bool(_REMOVED_REGEX.match(value))
+
+
+def test_no_second_copy_of_the_rule_lives_in_knowledge_origin():
+    import path_glob
+
+    assert ko.is_absolute is path_glob.is_absolute
+    assert not hasattr(ko, "_ABSOLUTE_RE")

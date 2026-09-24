@@ -43,22 +43,24 @@ import hashlib
 import os
 import re
 
+from path_glob import is_absolute
+
 # `name@deadbeef`. The name half excludes separators on purpose: that is what
 # tells a label apart from a path, and it is the whole test the migration uses
 # to decide whether a stored value has already been dealt with.
 _LABEL_RE = re.compile(r"^[^/\\]+@[0-9a-f]{8}$")
 
-# What the migration accepts as "this is a project root someone stored", spelled
-# so it means the same thing on every platform: a leading separator, or a
-# Windows drive, or a UNC share. `os.path.isabs` cannot be used — on Linux it
-# calls `C:\Projects\clients\acme\repo` relative, and the whole point is to redact
+# What the migration accepts as "this is a project root someone stored" is
+# `path_glob.is_absolute`, one rule for the whole repository since 1.10: a
+# leading separator, a Windows drive, or a UNC share, the same on every
+# platform. `os.path.isabs` cannot be used — on Linux it calls
+# `C:\Projects\clients\acme\repo` relative, and the whole point is to redact
 # rows written on Windows no matter where they are read.
 #
 # The narrowness is the feature. `origin_project` is free text by design, so a
 # value that merely CONTAINS a separator — `team/backend`, a hand-set tag — is
 # not a path, and fingerprinting it would destroy a legitimate value
 # irreversibly to fix a disclosure that was never there.
-_ABSOLUTE_RE = re.compile(r"^(?:[/\\]|[A-Za-z]:[/\\])")
 
 FINGERPRINT_LEN = 8
 
@@ -142,7 +144,7 @@ def redacted_origin(value: str | None) -> str | None:
     """
     if not value or is_origin_label(value):
         return None
-    if not _ABSOLUTE_RE.match(value):
+    if not is_absolute(value):
         return None
     # `resolve=False`: never touch the filesystem for a value someone else
     # stored. See `_canonical` — this runs on every open, and one unreachable
@@ -163,8 +165,8 @@ def relative_source_file(source_file: str | None, project_root: str) -> str | No
     store that had already normalised them, and re-resolving them against a root
     they may not belong to would be a guess.
 
-    Absoluteness is decided by `_ABSOLUTE_RE`, the predicate this module already
-    defines a hundred lines above with the reason spelled out — and this function
+    Absoluteness is decided by `is_absolute`, the predicate the migration already
+    uses a hundred lines above with the reason spelled out — and this function
     was the one place that did not use it. It asked `os.path.isabs`, and that
     answer moves: Python 3.13 changed `ntpath.isabs` so a path with one leading
     separator and no drive letter (`\\work\\clients\\acme\\repo\\a.py`) is no
@@ -176,7 +178,7 @@ def relative_source_file(source_file: str | None, project_root: str) -> str | No
     """
     if not source_file:
         return source_file
-    if not _ABSOLUTE_RE.match(source_file):
+    if not is_absolute(source_file):
         return source_file
     root = os.path.abspath(project_root)
     resolved = os.path.abspath(source_file)

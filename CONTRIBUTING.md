@@ -2,7 +2,7 @@
 
 Thank you for your interest in TAUSIK! This guide explains how to set up a development environment, run tests, and submit changes.
 
-TAUSIK implements [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering methodology for AI-native development.
+TAUSIK implements [SENAR v1.5 Core](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open engineering methodology for AI-native development.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ python bootstrap/bootstrap.py --init
 # Activate the venv and install dev tools
 source .tausik/venv/bin/activate   # Linux/Mac
 .tausik\venv\Scripts\activate      # Windows
-pip install pytest pytest-xdist ruff pyyaml
+pip install -c ci-constraints.txt pytest pytest-xdist ruff pyyaml
 ```
 
 > Bootstrap automatically finds the best Python >= 3.11, creates `.tausik/venv/`, and installs dependencies from `requirements.txt`. Your system Python is not modified.
@@ -121,7 +121,7 @@ python bootstrap/bootstrap.py --init
 # Активируйте venv и установите dev-инструменты
 source .tausik/venv/bin/activate   # Linux/Mac
 .tausik\venv\Scripts\activate      # Windows
-pip install pytest pytest-xdist ruff pyyaml
+pip install -c ci-constraints.txt pytest pytest-xdist ruff pyyaml
 ```
 
 > Bootstrap автоматически находит Python >= 3.11, создаёт `.tausik/venv/` и устанавливает зависимости из `requirements.txt`. Ваш системный Python не модифицируется.
