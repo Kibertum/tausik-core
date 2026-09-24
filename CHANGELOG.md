@@ -9,6 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — infrastructure refusals carry their own code; an unsigned receipt turns the run red (github#109)
+
+Fail-closed covered policy verdicts, not the environment. When a project key was configured but the receipt could not be signed, verify printed a WARNING and the run stayed green and closable. Now it is red with `INFRASTRUCTURE: SIGNER_UNAVAILABLE`; a failed run write says `RECEIPT_PERSISTENCE_UNAVAILABLE`, an unreadable gate configuration `POLICY_PROFILE_UNAVAILABLE`. A project without a key is unaffected. Codes live in `scripts/infra_refusal.py`.
+
 ### Fixed — search finds a word in any case and number (github#124)
 
 The FTS tables have no stemming and the sanitizer stripped `*`, so each word form found only itself: «задача» 565 records, «задачам» 27. A trailing `*` is now kept (`гейт*`), and a Cyrillic word of five letters or more is searched together with its stem (`(form OR stem*)`) — «задача», «задачи» and «задачам» all find 900. Stars elsewhere, unpaired quotes and operators are still neutralised. The technique is in the agent contract.

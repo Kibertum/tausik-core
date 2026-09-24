@@ -281,7 +281,9 @@ def enforce_verify_first(
         _block(
             report,
             "config-load",
-            f"{type(e).__name__}: {e}",
+            __import__("infra_refusal").line(
+                "POLICY_PROFILE_UNAVAILABLE", f"{type(e).__name__}: {e}"
+            ),
             "Verify-First cannot tell which gates to enforce: the config failed "
             "to load. Fix `.tausik/config.json` (`tausik doctor` names the key), "
             "then retry.",

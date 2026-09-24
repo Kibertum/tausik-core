@@ -395,6 +395,8 @@ def run_gates_with_cache(
     # ran at all, so there is nothing to write and no write to fail. That path
     # is untouched — "nothing to record" is not "failed to record".
     if results:
+        # A local sink when the caller passed none: the signer check below reads it.
+        details = details if details is not None else {}
         summary = summarize_results(results)
         try:
             _record_verification(
@@ -419,6 +421,20 @@ def run_gates_with_cache(
             # defect: `task done` could not tell it apart from a run whose
             # evidence exists.
             return False, [*results, record_failure_result(exc)], RECORD_FAILED_STATUS
+        # SIGNER_UNAVAILABLE: a key is configured and the receipt was not signed.
+        # This used to be a printed WARNING on a green, closable run.
+        if passed and details is not None and details.get("receipt_status") == "error":
+            from infra_refusal import SIGNER_UNAVAILABLE, line
+
+            signer = {
+                "name": "verify-signer",
+                "passed": False,
+                "skipped": False,
+                "severity": "block",
+                "output": line(SIGNER_UNAVAILABLE),
+                "duration_ms": 0,
+            }
+            return False, [*results, signer], "signer-unavailable"
     if not cache_ok:
         cache_status = "bypass"
     elif not git_diff_consistent:

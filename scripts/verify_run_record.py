@@ -194,6 +194,8 @@ def record_run(
         # printed a ready-to-copy command in a keyless project and that
         # command was guaranteed to fail. The reason travels with the absence
         # so the renderer can say why instead of listing three other causes.
+        if handle_out is not None:
+            handle_out["receipt_status"] = receipt_status  # read by the infra check
         if entitled and expires_at and receipt_status == STATUS_SIGNED:
             _mint(conn, run_id, expires_at=expires_at, handle_out=handle_out)
         elif entitled and handle_out is not None:
@@ -339,6 +341,10 @@ def record_failure_result(exc: BaseException) -> dict[str, Any]:
         "skipped": False,
         "severity": "block",
         "output": (
+            __import__("infra_refusal").line(
+                "RECEIPT_PERSISTENCE_UNAVAILABLE", f"{type(exc).__name__}: {exc}"
+            )
+            + " "
             f"Failed to record the verification run: {type(exc).__name__}: {exc}. "
             "The gates may well have passed, but their evidence was not "
             "persisted — so this run certifies nothing and cannot be reused. "
@@ -444,6 +450,8 @@ def _record_verification(
                 details["handle_expires_at"] = handle_out["expires_at"]
             elif handle_out.get("no_handle_reason"):
                 details["no_handle_reason"] = handle_out["no_handle_reason"]
+            if handle_out.get("receipt_status"):
+                details["receipt_status"] = handle_out["receipt_status"]
         return run_id
     raise AssertionError("unreachable")  # pragma: no cover — loop returns or raises
 
