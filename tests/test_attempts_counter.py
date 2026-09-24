@@ -70,7 +70,9 @@ class TestActivationsCount:
     def test_unblock_is_a_re_activation_and_counts(self, svc):
         svc.task_start("t1", _internal_force=True)
         svc.task_block("t1", "waiting")
-        msg = svc.task_unblock("t1", force=True)
+        # No `force`: since 1.10 capacity is a signal, so nothing on unblock
+        # needs bypassing (decision #376) and the flag is refused.
+        msg = svc.task_unblock("t1")
         assert _attempts(svc) == 2
         assert "attempt #2" in msg
 

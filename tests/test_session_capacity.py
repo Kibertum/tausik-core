@@ -63,40 +63,39 @@ class TestSummary:
 
 
 class TestEnforcement:
-    def test_blocks_when_overshoot(self, svc):
-        svc.session_start()
-        _ready_task(svc, "big", budget=300)
-        with pytest.raises(ServiceError, match="capacity"):
-            svc.task_start("big")
+    """Capacity is a SIGNAL since 1.10 (decision #376): the numbers are printed
+    with the start and never refuse it. Until 1.10 every test here asserted a
+    refusal; measured over 70 sessions the refusal ended 13 of them and drove
+    nine restarts in a row, while the gate had no declared prevented effect
+    (SENAR 1.5 §8.6(a)) and so was never a Quality Gate."""
+
+    # The "overshoot starts with an advisory" case lives once, in
+    # tests/test_session_signal_not_gate.py — the dedupe gate counts shapes.
 
     def test_passes_under_budget(self, svc):
         svc.session_start()
         _ready_task(svc, "small", budget=50)
-        svc.task_start("small")
+        result = svc.task_start("small")
         assert svc.be.task_get("small")["status"] == "active"
+        assert "Session capacity" not in result
 
-    def test_no_session_is_a_refusal_not_a_pass(self, svc):
-        """v2-session-split-and-drop. This test used to assert the OPPOSITE —
-        "no session_start -> capacity check is no-op" — and that pinned a
-        fail-open: the 200-call gate stopped gating and said nothing. It also
-        inverted the incentive, because the cheapest way past a capacity refusal
-        was to end the session and never start another.
-
-        An absent session is not unlimited capacity; it is an unmeasured one."""
+    def test_no_session_is_named_not_passed_over_in_silence(self, svc):
+        """v2-session-split-and-drop kept one thing from the refusal era: an
+        absent session is UNMEASURED capacity, not unlimited, and the agent is
+        told so. What changed in 1.10 is the consequence — the task starts."""
         _ready_task(svc, "t", budget=300)
-        with pytest.raises(ServiceError, match="no session is open"):
-            svc.task_start("t")
-        assert svc.be.task_get("t")["status"] == "planning"
+        result = svc.task_start("t")
+        assert svc.be.task_get("t")["status"] == "active"
+        assert "no session is open" in result
 
-    def test_the_refusal_names_what_else_a_missing_session_switches_off(self, svc):
-        """A missing session also silences usage telemetry, token metrics and
-        model pinning — all of which fail by recording nothing. The refusal is
-        the only place an agent is told, so it has to say it."""
+    def test_the_advisory_names_what_else_a_missing_session_switches_off(self, svc):
+        """A missing session also silences token metrics, model pinning and the
+        per-session brain slice — all of which fail by recording nothing. The
+        advisory is the only place an agent is told, so it has to say it."""
         _ready_task(svc, "t", budget=300)
-        with pytest.raises(ServiceError) as exc:
-            svc.task_start("t")
-        assert "tausik session start" in str(exc.value)
-        assert "telemetry" in str(exc.value)
+        result = svc.task_start("t")
+        assert "tausik session start" in result
+        assert "model pinning" in result
 
     def test_a_budgetless_task_still_starts_without_a_session(self, svc):
         """The gate only has an opinion about tasks that declared a budget —
@@ -127,29 +126,29 @@ class TestUnblockEnforcement:
     session capacity check that fires on task_start. task_unblock now
     runs the same check."""
 
-    def test_unblock_blocks_when_overshoot(self, svc):
+    def test_unblock_overshoot_is_an_advisory_not_a_refusal(self, svc):
         svc.session_start()
         _ready_task(svc, "big", budget=300)
         # Burn capacity with a smaller task that's allowed to start
         _ready_task(svc, "small", budget=150)
         svc.task_start("small")
-        # Now manually create a blocked state on `big` (skip task_start
-        # capacity check by adding+blocking via direct backend update —
-        # simulates task that was blocked before capacity was burned)
+        # A blocked state created directly — the task was blocked before the
+        # capacity was burned.
         svc.be.task_update("big", status="blocked")
-        with pytest.raises(ServiceError, match="capacity"):
-            svc.task_unblock("big")
+        msg = svc.task_unblock("big")
+        assert "unblocked" in msg
+        assert "exceeds remaining" in msg
+        assert svc.be.task_get("big")["status"] == "active"
 
-    def test_unblock_force_bypasses_capacity(self, svc):
-        """force=True is the audit-logged escape hatch."""
+    def test_unblock_force_is_refused_as_retired(self, svc):
+        """force=True used to be the audit-logged escape hatch; with no gate
+        left to bypass it is refused rather than silently accepted."""
         svc.session_start()
         _ready_task(svc, "big", budget=300)
-        _ready_task(svc, "small", budget=150)
-        svc.task_start("small")
         svc.be.task_update("big", status="blocked")
-        msg = svc.task_unblock("big", force=True)
-        assert "unblocked" in msg
-        assert svc.be.task_get("big")["status"] == "active"
+        with pytest.raises(ServiceError, match="retired"):
+            svc.task_unblock("big", force=True)
+        assert svc.be.task_get("big")["status"] == "blocked"
 
     def test_unblock_passes_when_under_capacity(self, svc):
         """Capacity available → unblock proceeds normally."""
@@ -160,14 +159,15 @@ class TestUnblockEnforcement:
         assert "unblocked" in msg
         assert svc.be.task_get("small")["status"] == "active"
 
-    def test_unblock_without_session_is_refused(self, svc):
-        """Unblocking returns a task to active, so it consumes capacity exactly
-        like a start. It used to be exempt because the gate no-oped without a
-        session — same fail-open, second door."""
+    def test_unblock_without_session_names_the_absent_session(self, svc):
+        """Unblocking returns a task to active, so it gets the same signal a
+        start gets: an absent session is named, not passed over in silence."""
         _ready_task(svc, "t", budget=300)
         svc.be.task_update("t", status="blocked")
-        with pytest.raises(ServiceError, match="no session is open"):
-            svc.task_unblock("t")
+        msg = svc.task_unblock("t")
+        assert "unblocked" in msg
+        assert "no session is open" in msg
+        assert svc.be.task_get("t")["status"] == "active"
 
 
 # === The gauge counts THIS shift, not a closed task's whole life ===

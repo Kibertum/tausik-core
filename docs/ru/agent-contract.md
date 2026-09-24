@@ -185,44 +185,17 @@ cap'ается на `deep`. Warning at-1.5×budget работает для лю�
 автоматически (events + PostToolUse hook); если actual > 1.5×budget — TAUSIK
 логирует warning для re-calibration.
 
-`tausik task start <slug> --force` — bypass session capacity gate when
-overshoot is intentional (audit event + notes line trace it).
+`tausik task start <slug> --force` — отозван в 1.10: ёмкость сессии больше не
+гейт, а сигнал в выводе `task start`; флаг отвечает отказом с причиной
+(решение #376).
 
 ---
 
-## SENAR Compliance (v1.3 Core)
+## SENAR Compliance
 
-| Элемент SENAR | Реализация в TAUSIK | Enforcement |
-|---|---|---|
-| QG-0 Context Gate | `task start` проверяет goal + AC + negative scenario + scope warning | Hard (CLI + MCP блокирует) |
-| QG-0 Security Surface | Предупреждает для auth/payment/PII задач без security AC | Warning |
-| QG-2 Implementation Gate | `task done` = evidence + --ac-verified + **scoped** gates + verify cache (no bypass) | Hard (CLI + MCP, --force удалён) |
-| Rule 1 Задача перед кодом | CLAUDE.md + skills + `/plan`; PreToolUse `task_gate` блокирует Write/Edit/MultiEdit/NotebookEdit без активной задачи, `bash_write_gate` — Bash-запись файлов (heredoc, `sed -i`, `tee`, redirections) | Hard (PreToolUse hook) + Instruction |
-| Rule 2 Scope Boundaries | `scope_paths` ACL + PreToolUse `scope_write_gate`/`bash_write_gate` блокируют запись вне union объявленных областей (Write/Edit/MultiEdit/NotebookEdit **и** Bash) | Hard (PreToolUse hook, если объявлен `scope_paths`) + Warning |
-| Rule 3 Verify Against Criteria | Per-criterion AC evidence парсинг | Hard + Warning |
-| Rule 4 External Validation | Субагент `tausik-external-reviewer` на ДРУГОЙ модели (separation of duties, read-only); требуется при measured-high closure через L3-триггер | Hard (при тонком доказательстве) |
-| Rule 5 Verification Checklist | 28-item checklist, 4 тира; **pytest gate scoped по relevant_files**, verify cache reuse в окне 10 мин; вердикт даёт структурированный AC-evidence parser (`service_ac_evidence`), а не словарь: предупреждение — если НИ ОДИН критерий не называет тест, ручной прогон или ревью (голая галочка не считается); хард-блок на планировочных тирах substantial/deep — если ни один критерий не ссылается на **существующий** тест: путь обязан нормализоваться ВНУТРЬ `tests/` (обход через `..` не засчитывается), а названная после `::` функция/класс — быть определена в файле (принимается полный pytest node id `file::Class::method` и параметризованный `::test_x[case]`). Нерезолвимая цитата = отсутствие доказательства (fail-closed). Корень берётся от ПРОЕКТА (`CLAUDE_PROJECT_DIR` / `find_tausik_dir`), поэтому вердикт не зависит от каталога запуска. Чего гейт НЕ устанавливает и не заявляет: что тест исполнялся, что он прошёл и что он относится к этой задаче. Рабочая форма строки: `AC-N: ✓ tests/test_foo.py::test_bar` | Warning + Hard (substantial/deep) |
-| Rule 7 Root Cause | Defect-задачи: keyword floor **блокирует** done без root cause; structured-форма (category+description+prevention) — advisory escalating nudge + coverage в `metrics` | Hard (floor) + Warning (structured) |
-| Rule 8 Knowledge Capture | Warning при task_done + `--no-knowledge` для confirm-none | Warning |
-| Rule 9.2 Лимит сессии | `task start` блокируется при >180 мин **active time** (bounded sum: каждый gap = `min(Δ, 10 мин)`, длинный AFK клипуется). `session extend` продлевает; `session recompute` retro. | Hard (CLI + MCP блокирует) |
-| Rule 9.3 Checkpoint | `/checkpoint` + auto-reminder в `/task` | Instruction |
-| Rule 9.4 Dead Ends | `tausik_dead_end` MCP + CLI + skills напоминают | Instruction |
-| Rule 9.5 Periodic Audit | `tausik_audit_check/mark` MCP + CLI | Warning |
-| Rule 9.15 AI Output QA | `/review` с 5 параллельными агентами + iterative loop | Instruction |
-| Метрика: Throughput | tasks_done / sessions | Hard (auto) |
-| Метрика: Lead Time | avg(completed_at - created_at) | Hard (auto) |
-| Метрика: FPSR | tasks(attempts=1) / done * 100%; `attempts` считает активации (`task start`, `task unblock`) и красные верификации активной задачи (verify с exit ≠ 0, включая отказ гейтов task-done); 0 = не активировалась/не считалось, историю не переписываем (#207) | Hard (auto) |
-| Метрика: DER | DISTINCT(defect_of) / non-defect done * 100% | Hard (auto) |
-| Метрика: Dead End Rate | dead_ends / total_tasks * 100% | Hard (auto) |
-| Метрика: Cost per Task | avg hours by complexity | Hard (auto) |
-| Section 5.1 Explorations | `tausik_explore_*` MCP + CLI | Hard |
-| Multi-lang Gates | Auto-enable по стеку (TS, Go, Rust, PHP, Java) | Hard (auto) |
-| MCP Coverage | 146 инструмента; agent-loop verbs полностью покрыты, CLI-only — только намеренные maintenance/operator verbs (список в mcp.md) | Hard |
-| Batch Execution | `/run plan.md` — автономное выполнение планов | Instruction |
-| Structured Logs | `task_logs` таблица с phase + FTS5 | Hard (auto) |
-| Fake Test Detection | 10 паттернов в testing review agent | Warning |
+Заявление (форма SENAR 1.5 §13.1): «TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23». Раскрытия при нём и проверка публикации редакции — в README и `scripts/senar_claim.py`.
 
----
+Матрица соответствия — одна, в [senar-compliance-matrix.md](senar-compliance-matrix.md): гейты, правила, метрики, каждая строка с именем кода. Здесь она больше не дублируется: две копии одной таблицы расходятся, и эта копия относила правила Стандарта 9.x к «Core», которых в SENAR Core нет. Что из неё важно агенту: QG-0 и QG-2 — жёсткие (CLI + MCP); Rule 1 и Rule 2 держат PreToolUse-хуки; время сессии и ёмкость вызовов — сигналы, не ворота (решение #376, 1.10); Rule 4 — внешнее ревью на другой модели при тонком доказательстве.
 
 ## Как правила доезжают до агента (замер #230)
 

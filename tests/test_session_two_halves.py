@@ -31,7 +31,6 @@ if _SCRIPTS not in sys.path:
 
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
 
 
 @pytest.fixture
@@ -101,23 +100,27 @@ class TestContinuityDoesNotDependOnTheHygieneWindow:
         """The counter is HYGIENE. It used to be reset as a side effect of
         writing the continuity document — two halves in one function."""
         svc.session_start()
-        svc.be.meta_set("tool_call_count", "37")
+        svc.be.meta_set("checkpoint_warn_bucket", "4")
         svc.session_handoff({"summary": "s"})
-        assert svc.be.meta_get("tool_call_count") == "37"
+        assert svc.be.meta_get("checkpoint_warn_bucket") == "4"
 
     def test_the_counter_reset_exists_as_its_own_named_operation(self, svc):
         sys.path.insert(0, os.path.join(_ROOT, "harness", "claude", "mcp", "project"))
         from handlers_session import reset_checkpoint_counter
 
-        svc.be.meta_set("tool_call_count", "37")
+        svc.be.meta_set("checkpoint_warn_bucket", "4")
         reset_checkpoint_counter(svc)
-        assert svc.be.meta_get("tool_call_count") == "0"
+        assert svc.be.meta_get("checkpoint_warn_bucket") == "0"
 
 
 class TestHygieneDoesNotFailOpen:
-    """Half (2) must refuse when it cannot measure, not wave things through."""
+    """Half (2) must NAME what it cannot measure, not wave it through in silence.
 
-    def test_capacity_gate_refuses_without_a_session(self, svc):
+    Until 1.10 it refused; decision #376 made hygiene a signal, so the task
+    starts — but the absent session is still stated in the output, which is
+    the property #223 actually protected (silence, not the refusal itself)."""
+
+    def test_capacity_signal_names_the_absent_session(self, svc):
         svc.epic_add("e", "E")
         svc.story_add("e", "s", "S")
         svc.task_add("s", "t", "T", goal="g", role="developer")
@@ -126,8 +129,10 @@ class TestHygieneDoesNotFailOpen:
             acceptance_criteria="1. works\n2. Returns an error on invalid input",
             call_budget=300,
         )
-        with pytest.raises(ServiceError, match="no session is open"):
-            svc.task_start("t")
+        result = svc.task_start("t")
+        assert svc.be.task_get("t")["status"] == "active"
+        assert "no session is open" in result
+        assert "unmeasured" in result
 
 
 class TestNothingWasDeleted:
@@ -142,15 +147,11 @@ class TestNothingWasDeleted:
         assert metrics["sessions_total"] >= 1
         assert "session_hours" in metrics
 
-    def test_audit_cadence_still_counts_sessions(self, svc):
-        """SENAR Rule 9.5 counts SESSIONS since the last audit — one of the
-        things that genuinely needs the session as a unit."""
-        svc.session_start()
+    def test_audit_cadence_counts_closures_not_sessions(self, svc):
+        """1.10 (decision #376): SENAR Rule 9.5 moved off the session clock.
+        Opening and closing sessions no longer advances it; closures do."""
         svc.audit_mark()
-        svc.session_end("S1")
-        for _ in range(3):
+        for _ in range(5):
             svc.session_start()
             svc.session_end("more")
-        assert svc.be.session_current() is None
-        svc.session_start()
-        assert svc.audit_overdue_sessions() >= 3
+        assert svc.audit_overdue_closures() == 0

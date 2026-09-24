@@ -498,7 +498,11 @@ class TestSessions:
         msg = svc.session_handoff(handoff)
         assert "saved" in msg
         result = svc.session_last_handoff()
-        assert result["completed"] == ["t1"]
+        # 1.10: `completed` is projected from the records (no task was closed
+        # here, so none); the authored claim is kept beside it, not on top.
+        assert result["completed"] == []
+        assert result["authored"]["completed"] == ["t1"]
+        assert result["next_steps"] == ["t2"]
 
     def test_handoff_without_an_open_session_attaches_to_the_last_one(self, svc):
         """v2-session-split-and-drop. This used to raise "No active session",
@@ -510,7 +514,9 @@ class TestSessions:
         svc.session_end("S1")
         msg = svc.session_handoff({"completed": ["x"], "next_steps": ["y"]})
         assert "Handoff saved" in msg and "closed" in msg
-        assert svc.session_last_handoff() == {"completed": ["x"], "next_steps": ["y"]}
+        live = svc.session_last_handoff()
+        assert live["authored"]["completed"] == ["x"]
+        assert live["next_steps"] == ["y"]
 
     def test_handoff_refused_only_when_no_session_ever_existed(self, svc):
         """The one honest refusal left: with no row at all there is nothing to

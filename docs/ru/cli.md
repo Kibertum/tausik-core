@@ -31,7 +31,12 @@ aidd validate                  # Проверяет claim'ы из conventions.md
                                #   ok / drift / unverifiable. Exit 1 при hard drift, 2 если нет conventions.md,
                                #   0 иначе. Пустой/непарсимый claim → unverifiable, никогда не падает. Только stdlib.
 status [--compact]             # Обзор проекта + SENAR; --compact → JSON одной строкой
+update-check [--now]           # Спросить GitHub (не чаще раза в сутки, отсоединённо из SessionStart), вышла ли новая версия; status её называет
 metrics                        # Метрики SENAR: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
+metrics target NAME min|max VALUE --basis "..."   # Задать цель; без --basis отказ (SENAR §9.4(c))
+                                # Отчёт печатает метод, популяцию и период каждой цифры,
+                                # «no population» вместо 0% при пустом знаменателе и каждую
+                                # цель с основанием; пересечение пишет одно событие metric_target_crossed
 metrics [--cost]               # С --cost: агрегат по usage_events по task_slug (то же что `metrics cost`)
 metrics record-session         # Записать LLM usage (tokens/cost/tool/model) для текущей или явной сессии
 metrics log-usage              # Одна строка manual в usage_events (--task-slug опционально; session_usage_metrics не трогаем)
@@ -93,8 +98,11 @@ task undepends <slug> --after <slug>  # Снять объявленный пор
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
           [--full] [--top-n N] [--max-lines N]   # >25 строк — свёртка по статусу/роли; --full = полная таблица
 task show <slug>                # Полная информация: план, заметки, решения, defect_of, AC
-task start <slug> [--force]     # planning → active (QG-0: требует goal + AC + negative scenario)
-                                # --force байпасит session capacity gate (audit event + note)
+task start <slug>               # planning → active (QG-0: требует goal + AC + negative scenario);
+                                #   время сессии и ёмкость вызовов — совет в выводе, не отказ (1.10, #376)
+                                #   --force отозван: флаг отвечает отказом с причиной
+task obsolete <slug> --reason "..."   # закрыть задачу, которую решило время: запись остаётся, без QG-2,
+                                #   вне FPSR/DER/cycle/lead/калибровки; причина >=10 символов; только CLI (#390)
 task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ...] [--evidence "..."]
                  [--verify-handle <run_id>.<nonce>]
                                 # QG-2: --ac-verified подтверждает проверку AC (требует evidence в notes
@@ -228,6 +236,13 @@ verify [--task SLUG] [--relevant-files PATH ...]
 это тупик — тестов там нет и не будет. Флаг объявляет это ЯВНО: прогон
 записывается зелёным с `no_tests_declared = 1`.
 
+То же, когда выполнились только гейты НА ВЕСЬ ПРОЕКТ — без `file_extensions`, без
+`file_patterns` и без `{files}` в команде, вроде своего `make check`. Их PASS
+одинаков, менялись объявленные файлы или нет, поэтому, пока все гейты с файловой
+областью пропущены, прогон считается полностью пропущенным, а отказ называет
+гейты на весь проект. Конфиг только из таких гейтов это не затрагивает. Гейты
+тестов и сборки поставляемых стеков поэтому объявляют расширения своего языка.
+
 Флаг покупает видимость, а не разрешение. Закрытие всё равно происходит без
 единого выполненного гейта — разница в том, что теперь такие закрытия можно
 пересчитать одним запросом, а не отличать их от проверенных нельзя вовсе:
@@ -285,6 +300,11 @@ gates enable <name>             # Включить gate
 gates disable <name>            # Выключить gate
 ```
 
+Гейт `ruff_format` (block, на verify и commit) гоняет `ruff format --check` по Python-файлам
+задачи. Файлы, расходившиеся на момент его появления, заморожены в `tausik/gates.json`
+→ `ruff_format.legacy_unformatted` и пропускаются; перечень только сокращается — отформатировал
+файл из перечня, убери его из перечня той же правкой (решение #386).
+
 Гейт `test_dedupe` (block, на task-done и commit) краснеет на РОСТЕ числа
 структурно неотличимых тестов. База — храповик в закоммиченном
 `tausik/gates.json`, существующий долг не блокирует. Предмет —
@@ -306,7 +326,8 @@ drift                          # Запустить все реализован�
 drift --detector schema        # Только drift-1 (схема артефактов)
 drift --detector provenance    # Только drift-7 (провенанс TC↔требование)
 drift --detector supersession  # ADR-007: delta-ADAPT на superseded-родителе
-drift --detector standard      # Сдвиг САМОГО стандарта (корпус против наших объявлений)
+drift --detector standard      # Сдвиг САМОГО стандарта RENAR (корпус против наших объявлений)
+drift --detector senar         # Сдвиг SENAR: заявленная редакция против выпущенной, форма Core (ключ senar_standard_corpus)
 ```
 
 - **drift-1 (schema)** — ре-валидация SPEC/ADAPT против closed-lists + cross-field
@@ -403,26 +424,33 @@ role seed                       # Bootstrap из harness/roles/*.md и испо�
 ## Сессии
 
 ```bash
-session start                   # Начать новую сессию (возвращает ID)
-session end [--summary TEXT]    # Завершить активную сессию
+session start [--host-id ID]    # Начать сессию; с --host-id — сессию хоста, идемпотентно (1.10, #376)
+session end [--summary TEXT] [--host-id ID]  # Завершить активную; с --host-id — ровно сессию этого хоста
 session current                 # Показать активную сессию
-session list [--limit N]        # Последние сессии (default: 10)
-session handoff <json_data>     # Сохранить данные передачи для следующей сессии
-session last-handoff            # Получить передачу предыдущей сессии
-session extend [--minutes N]    # Продлить active-time лимит сверх 180 мин (SENAR Rule 9.2)
+session list [--limit N]        # Последние сессии (default: 10); столбец handoff показывает, у каких он записан
+session handoff [json] [--host-id ID]  # Handoff из журнала; json — авторские next_steps/warnings поверх (1.10)
+session last-handoff [--session N]  # Живой handoff; с --session — handoff сессии N (нет сессии / нет handoff — разные отказы)
+session extend [--minutes N]    # Поднять порог совета по active-time (`session_max_minutes`; совет, не ворота)
 session recompute               # Retro: сравнить wall-clock vs active (gap-based) минуты
 ```
 
-Лимит сессии — 180 мин **active** time (gap-based, паузится после 10 мин idle), не wall clock. Threshold настраивается в `.tausik/config.json` → `session_idle_threshold_minutes`. См. `session-active-time.md`.
+Время сессии считается по **active** time (gap-based, пауза после 10 мин idle), не wall clock; порог `session_max_minutes` — совет, не отказ (1.10). См. `session-active-time.md`.
 На `session end` TAUSIK также делает best-effort запись usage через `scripts/hooks/session_metrics.py --auto --record` (поддержаны transcript roots и Claude, и Cursor).
 
 ## Знания
 
 ```bash
+knowledge promote --memory ID | --decision ID [--yes]   # Скопировать существующую запись в общую базу: сначала показывает весь текст, пишет только с --yes, хранит проект и slug происхождения, повторную копию отказывает
 decide <text> [--task SLUG] [--rationale TEXT] [--global]   # --global: общее хранилище ~/.tausik-knowledge, без строки в проекте
-decisions [--limit N]           # Список решений (default: 20)
+    [--rejected "вариант :: почему" ...] [--supersedes N --because TEXT]
+    # --rejected повторяемый и необязательный; --supersedes требует причины и существующего N
+decisions [--limit N] [--status all|active|superseded] [--task SLUG] [--rejected ЗАПРОС]
+                                # отменённые решения не удаляются: они уходят из `active`
+                                # и из блока памяти и показывают, кто их заменил
 
 memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG] [--global]
+           [--provenance observed|inferred|told]   # по умолчанию inferred; observed обязан назвать тест,
+           # прогон verify (verify #N) или задачу с журналом, иначе понижается, и об этом сказано
 memory list [--type TYPE] [--limit N]
 memory search <query>           # FTS5 полнотекстовый поиск
 memory show <id>
@@ -459,6 +487,10 @@ memory dedupe [--threshold 0.85] [--limit 200]     # Список near-duplicate
 
 ```bash
 dead-end <approach> <reason> [--task SLUG] [--tags T1 T2 ...]
+    # С 1.10 тупик называет свою задачу: без --task привязывается к единственной активной,
+    # а если активной нет или их несколько — отказ. Задача, на которой был отказ
+    # (красный verify, блок, вторая попытка), закрывается только с тупиком по ней
+    # или строкой журнала `NO-DEAD-END: <почему тупика нет>` (от 10 символов).
 # Документирует неудачный подход с причиной. Сохраняется как memory тип dead_end.
 ```
 
@@ -473,8 +505,8 @@ explore current                                 # Показать активн�
 ## Периодический аудит (SENAR Rule 9.5)
 
 ```bash
-audit check                     # Показать, просрочен ли периодический аудит
-audit mark                      # Отметить аудит выполненным
+audit check                     # Просрочен ли аудит: закрытий с последней отметки ≥ audit_every_closures (17)
+audit mark                      # Отметить аудит выполненным сейчас (сессия не нужна)
 audit vendors [--json]          # Аудит клонированных vendor skill repos (read-only): классифицирует
                                 # как 'installed' (в installed_skills config) или 'vendored_unused'
                                 # (кандидат на `skill repo remove`). Никогда не удаляет.
@@ -505,7 +537,9 @@ audit evidence [--json] [--no-git]
 
 ```bash
 review record --task <slug> --type {L1|L2|L3} \
-              [--critical N] [--warnings N] [--notes "..."]
+              [--critical N] [--warnings N] [--reason "..."] [--notes "..."]
+              # --critical > 0 без --reason отказывается: CRITICAL записывается
+              # с причиной (SENAR 1.5 §10.15(f); шкала: severity-scale.md)
 review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
 review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
 ```
@@ -591,18 +625,25 @@ doc extract <path>              # Конвертировать DOCX/PPTX/XLSX/HT
 
 Opt-in: требует `markitdown` и Python ≥3.11.
 
-## Обход гейта записывается (SENAR 1.4 §8.6(j))
+## Обход гейта записывается (SENAR 1.5 §8.6(j))
 
 Правка артефакта задачи по маршруту, перед которым гейт не стоит — ВКЛЮЧАЯ
 прямую правку супервизором, — допускает эффект, объявленный QG-0, без
 положительного вердикта; §8.6(h) считает это обходом независимо от намерения.
-Это НЕ запрет, а регулируемое исключение: законные случаи названы стандартом и
-остаются доступными — инцидент при недоступной агентской мощности, среда, где
-агент не запускается. Требуется ЗАПИСЬ.
+Это НЕ запрет, а регулируемое исключение, и оно остаётся доступным. Требуется
+ЗАПИСЬ — в каждом случае.
+
+Признанный случай один — среда, в которой нельзя запустить ни одного агента и не на что переключиться (SENAR 1.5 §4.1, редакция от 07.09.2026; пересматривается по §10.13 при смене поколения моделей). CLI печатает его в отказе по-английски: `The one recognized case is an environment in which no agent can be run and there is nothing to switch to`.
+
+SENAR 1.4 §4.1 перечислял пять случаев. Остальные четыре — агент застрял, агент прошёл
+большую часть пути, правка дешевле подготовки контекста, срочный хотфикс —
+решаются агентскими средствами там, где агентская среда есть. Если они всё же
+случились, они записываются. Относится ли случай к признанному, решает старший,
+одобряющий обход.
 
 ```bash
 events emit-supervision --vector direct_edit --task <slug> \
-    --rationale "инцидент, агент недоступен" \
+    --rationale "на этом хосте нет среды агента, переключиться не на что" \
     --risk-accepted "правка уходит без scoped verify" \
     --remediation "перепрогнать verify и перезакрыть задачу" \
     --approved-by "владелец"
@@ -761,6 +802,7 @@ db prune                       # удалить старые .tausik/tausik.db.b
 config show                    # показать разрешённую конфигурацию с её тирами
 config set <ключ> <значение>   # записать переопределение в .tausik/config.json
 redact --pattern <шаблон>      # вычистить секрет из истории знаний (--apply — не сухой прогон)
+                               # только CLI, намеренно: инструмента MCP нет (решение #385, scripts/mcp_cli_only.py)
 redact list                    # показать применённые вычистки
 
 # --- выпуск и сеть ---
@@ -792,4 +834,4 @@ serve [--host H] [--port P]    # поднять локальную точку п
 | Типы памяти | pattern, gotcha, convention, context, dead_end |
 | Роли | Свободный текст (без enum); реестр в `harness/roles/{slug}.md` |
 | SENAR gates | QG-0 (Context Gate на `task start`), QG-2 (Implementation Gate на `task done`) |
-| Лимит сессии | 180 мин **active** по умолчанию (настраивается: `session_max_minutes`, idle threshold: `session_idle_threshold_minutes`) |
+| Время сессии | Сигнал с порогом `session_max_minutes` по active time (idle: `session_idle_threshold_minutes`); не отказывает |

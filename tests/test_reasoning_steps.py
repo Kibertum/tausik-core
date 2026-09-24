@@ -59,6 +59,7 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
     conn.execute(
         "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
     )  # defect_of: v10 column, indexed by v62  # FK target
+    conn.execute("CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)")  # ALTER target for v63
     # events exists in the v1 baseline on every real DB; v34 ALTERs it.
     # ddl-parity: historical — форма v31 до migration v34, канон уже содержит
     # entry_hash/prev_hash, которые этот прогон только собирается добавить.

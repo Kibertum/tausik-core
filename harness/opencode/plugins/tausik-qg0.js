@@ -199,6 +199,29 @@ export const TausikQG0 = async ({ $, directory, worktree }) => {
 
   return {
     /**
+     * The TAUSIK session IS the host session (decision #376, TAUSIK 1.10).
+     * OpenCode 1.1.42 publishes `session.created` / `session.deleted` to
+     * plugins (measured in the binary, session #266); the session opens and
+     * closes with them, keyed by OpenCode's own session id. Best-effort: a
+     * failing CLI must never break the editor, and an event without an id
+     * opens nothing.
+     *
+     * @param {{event: {type?: string, properties?: Record<string, any>}}} arg
+     */
+    event: async ({ event }) => {
+      try {
+        const type = event && event.type;
+        if (type !== "session.created" && type !== "session.deleted") return;
+        const p = (event && event.properties) || {};
+        const id = p.sessionID || (p.info && p.info.id) || p.id;
+        if (!id) return;
+        const verb = type === "session.created" ? "start" : "end";
+        await $`${_cliPath(root)} session ${verb} --host-id ${String(id)}`.quiet().text();
+      } catch (_e) {
+        // Session bookkeeping is not a gate: it must never throw into the host.
+      }
+    },
+    /**
      * @param {{tool: string}} input
      * @param {{args: Record<string, unknown>}} _output
      */

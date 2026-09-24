@@ -8,78 +8,64 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from tausik_utils import ServiceError
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
-def apply_force_capacity_audit(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> str:
-    """Compute + persist force-bypass audit; return user-facing line ('' = no-op)."""
-    msg = force_audit_message(be, slug, task)
-    if msg:
-        be.task_append_notes(slug, msg)
-        be.event_add("task", slug, "capacity_force_start", msg)
-    return msg
+# `task start --force` used to bypass the session capacity gate with an audit
+# event. 1.10 retired the gate itself (decision #376): capacity is a signal
+# printed with the start, so there is nothing left to force. The flag is kept
+# only to say so — silently accepting it would teach the old habit.
+FORCE_RETIRED = (
+    "`--force` is retired: session capacity is no longer a gate on task start "
+    "(decision #376, TAUSIK 1.10). Start the task without it; capacity is "
+    "printed as a signal with the start."
+)
 
 
-def force_audit_message(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> str:
-    """MED-7: Audit-trail line when `task_start --force` bypasses capacity.
+def session_capacity_advisory(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> str:
+    """Session capacity as a SIGNAL: what the numbers say about this start, never a refusal.
 
-    Empty when the bypass is a no-op (no budget / no session / fits).
+    Until 1.10 this was `check_session_capacity`, a gate: a task whose budget
+    exceeded the remaining call capacity could not start, and `--force` was
+    the audited way past it. Measured over 70 sessions (#196-#265) the capacity gate
+    ended 13 of them and drove nine restarts in a row (#252-#260) - the agent
+    stood at a gate that has no declared prevented effect on the system or on
+    the task record (SENAR 1.5 §8.6(a)), so it was never a Quality Gate.
+    Decision #376: capacity is printed with the start and refuses nothing.
+
+    What stays from decision #223: an ABSENT session is still named, not
+    passed over in silence - it is an unmeasured capacity, and the same
+    `tausik session start` restores token metrics, model pinning and the
+    per-session brain slice. A budget-less task gets no line at all: the
+    signal has an opinion only about what asked to be accounted for.
+
+    Returns the advisory text, or "" when there is nothing to say.
     """
     budget = task.get("call_budget")
     if not budget or budget <= 0:
         return ""
-    from project_config import DEFAULT_SESSION_CAPACITY_CALLS, load_config
-
-    cap = load_config().get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
-    summary = be.session_capacity_summary(cap)
-    if summary["session"] is None or budget <= summary["remaining"]:
-        return ""
-    return (
-        f"FORCED start: budget={budget} exceeds remaining {summary['remaining']}/{cap} this session"
-    )
-
-
-def check_session_capacity(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> None:
-    """Block task_start if its budget would overshoot the session's call budget.
-
-    NO OPEN SESSION IS A REFUSAL, NOT A PASS (v2-session-split-and-drop). This
-    used to `return` on `summary["session"] is None`, which meant the 200-call
-    gate stopped gating and said nothing — the one shape of failure this project
-    treats as worse than a false block. It also inverted the incentive: the
-    cheapest way past a capacity refusal was to end the session and never start
-    another, and nothing would ever mention it again.
-
-    The refusal is cheap to satisfy (`tausik session start`) and it is the same
-    action that restores the rest of what a missing session silently switches
-    off — usage telemetry, token metrics and model pinning all no-op without one
-    (docs/ru/sessions.md). A budget-less task still passes untouched: this gate
-    only has an opinion about tasks that declared a budget.
-    """
-    budget = task.get("call_budget")
-    if not budget or budget <= 0:
-        return
     from project_config import DEFAULT_SESSION_CAPACITY_CALLS, load_config
 
     cfg = load_config()
     cap = cfg.get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
     summary = be.session_capacity_summary(cap)
     if summary["session"] is None:
-        raise ServiceError(
-            f"Session capacity gate: '{slug}' declares budget={budget}, but no "
-            f"session is open, so there is nothing to account it against. An "
-            f"absent session is not unlimited capacity — it is an unmeasured "
-            f"one. Start a session: `tausik session start`. (Without one, usage "
-            f"telemetry, token metrics and model pinning also record nothing.)"
+        return (
+            f"Session capacity: '{slug}' declares budget={budget}, but no session is "
+            f"open, so nothing accounts for it - an absent session is unmeasured "
+            f"capacity, not unlimited. `tausik session start` also restores token "
+            f"metrics, model pinning and the per-session brain slice."
         )
     if budget > summary["remaining"]:
-        raise ServiceError(
-            f"Session capacity gate: '{slug}' budget={budget} exceeds remaining "
-            f"{summary['remaining']}/{cap} this session. Split task, delegate to "
-            f"subagent, or `tausik session end` and start a fresh session."
+        return (
+            f"Session capacity: '{slug}' budget={budget} exceeds remaining "
+            f"{summary['remaining']}/{cap} this session. A signal, not a gate: "
+            f"consider a checkpoint, a split or a delegation. Basis for the number: "
+            f"docs/ru/session-active-time.md (SENAR 1.5 §9.4(c))."
         )
+    return ""
 
 
 def record_call_actual(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> str:

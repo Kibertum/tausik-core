@@ -385,6 +385,12 @@ class TestTheSchemaFigureIsCounted:
     that cannot drift, and a CI clone may not carry the tag to read it from."""
 
     _SHIPPED_IN_1_8 = 44
+    # Tag v1.9.0 shipped SCHEMA_VERSION = 62 (session #264). Until the release
+    # the page tracked the live tree; once published it describes the artifact,
+    # and v63 (1.10, host sessions) must not reopen a closed release's notes —
+    # a test on a number in a document holds what the document is ABOUT
+    # (decision #371), and this page is about 1.9.
+    _SHIPPED_IN_1_9 = 62
     _FIGURE = {
         "ru": re.compile(r"### Схема БД: (\d+) → (\d+)"),
         "en": re.compile(r"### Database schema: (\d+) → (\d+)"),
@@ -394,19 +400,18 @@ class TestTheSchemaFigureIsCounted:
         "en": {17: "Seventeen", 18: "Eighteen", 19: "Nineteen", 20: "Twenty"},
     }
 
-    @staticmethod
-    def _schema_version() -> int:
-        src = (_REPO / "scripts" / "backend_schema.py").read_text(encoding="utf-8")
-        return int(re.search(r"^SCHEMA_VERSION = (\d+)", src, re.M).group(1))
+    @classmethod
+    def _schema_version(cls) -> int:
+        return cls._SHIPPED_IN_1_9
 
     @pytest.mark.parametrize("lang", ["ru", "en"])
-    def test_the_heading_ends_at_the_live_schema_version(self, lang):
+    def test_the_heading_ends_at_the_shipped_schema_version(self, lang):
         m = self._FIGURE[lang].search(_PAGES[lang].read_text(encoding="utf-8"))
         assert m, "the schema heading is gone — the figure this test reads"
         assert int(m.group(1)) == self._SHIPPED_IN_1_8
         assert int(m.group(2)) == self._schema_version(), (
-            f"{lang}: the page says the schema ends at {m.group(2)}, the tree says "
-            f"{self._schema_version()} — a migration landed and the notes did not move"
+            f"{lang}: the page says the schema ends at {m.group(2)}, tag v1.9.0 "
+            f"shipped {self._schema_version()}"
         )
 
     @pytest.mark.parametrize("lang", ["ru", "en"])

@@ -31,7 +31,12 @@ aidd validate                  # Check conventions.md ## Code claims (language/v
                                #   ok / drift / unverifiable. Exit 1 on hard drift, 2 if conventions.md missing,
                                #   0 otherwise. Blank/unparseable claim → unverifiable, never crashes. Stdlib-only.
 status [--compact]             # Project overview + SENAR session duration warning (active vs wall); --compact → one-line JSON
+update-check [--now]           # Ask GitHub (at most daily, detached from SessionStart) whether a newer TAUSIK exists; status names it
 metrics                        # SENAR metrics: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
+metrics target NAME min|max VALUE --basis "..."   # Set a target; refused without --basis (SENAR §9.4(c))
+                                # The report prints method, population and period per figure,
+                                # "no population" instead of 0% over an empty denominator, and each
+                                # target with its basis; a crossing writes one metric_target_crossed event
 metrics [--cost]               # With --cost: rollup usage_events by task_slug (same as `metrics cost`)
 metrics record-session         # Persist LLM usage (tokens/cost/tool/model) for current or explicit session
 metrics log-usage              # Append one manual usage_events row (--task-slug optional; no session_usage_metrics overwrite)
@@ -94,8 +99,11 @@ task undepends <slug> --after <slug>  # Withdraw a declared order
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
           [--full] [--top-n N] [--max-lines N]   # >25 rows roll up by status/role; --full = full table
 task show <slug>                # Full info: plan, notes, decisions, defect_of, AC
-task start <slug> [--force]     # planning -> active (QG-0: requires goal + AC + negative scenario)
-                                # --force bypasses session capacity gate (audit event + note)
+task start <slug>               # planning -> active (QG-0: requires goal + AC + negative scenario);
+                                #   session time and call capacity are advice in the output, not a refusal (1.10, #376)
+                                #   --force is retired: the flag is refused with the reason
+task obsolete <slug> --reason "..."   # close a task time resolved: kept on record, no QG-2, left out of
+                                #   FPSR/DER/cycle/lead/calibration; reason >=10 chars; CLI-only (#390)
 task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ...] [--evidence "..."]
                                 # QG-2: --ac-verified confirms AC verification (requires evidence in notes
                                 #       OR --evidence inline). v1.5 Verify-First Contract: heavy gates
@@ -219,6 +227,14 @@ config and migrations that is a dead end — no test maps to those files and non
 ever will. The flag declares this EXPLICITLY: the run is recorded green under
 `no_tests_declared = 1`.
 
+The same holds when the only gates that ran are PROJECT-WIDE — a gate with no
+`file_extensions`, no `file_patterns` and no `{files}` in its command, such as a
+custom `make check`. Its PASS is the same whether the declared files changed or
+not, so while every file-scoped gate skipped, the run is treated as all-skipped
+and the refusal names the project-wide gates. A config made only of project-wide
+gates is not affected. The test and build gates of the shipped stacks declare
+their language's extensions for this reason.
+
 The flag buys visibility, not permission. The closure still happens with no gate
 executed; what changes is that such closures are now countable with one query
 instead of being indistinguishable from verified ones:
@@ -274,6 +290,11 @@ gates enable <name>             # Enable gate
 gates disable <name>            # Disable gate
 ```
 
+The `ruff_format` gate (block, on verify and commit) runs `ruff format --check` over the
+task's Python files. Files that diverged when it landed are frozen in `tausik/gates.json`
+→ `ruff_format.legacy_unformatted` and skipped; the list only shrinks — format a listed file
+and remove it from the list in the same change (decision #386).
+
 The `test_dedupe` gate (block, on task-done and commit) reddens on GROWTH in
 structurally indistinguishable tests. The baseline is a ratchet in the committed
 `tausik/gates.json`, so existing debt blocks nobody. The subject is
@@ -296,7 +317,8 @@ drift                          # Run every implemented detector
 drift --detector schema        # drift-1 only (artifact schema)
 drift --detector provenance    # drift-7 only (TC↔requirement provenance)
 drift --detector supersession  # ADR-007: a delta-ADAPT on a superseded parent
-drift --detector standard      # THE STANDARD moving (corpus vs our declarations)
+drift --detector standard      # THE RENAR STANDARD moving (corpus vs our declarations)
+drift --detector senar         # SENAR moving: claimed edition vs released, Core shape (key senar_standard_corpus)
 ```
 
 - **drift-1 (schema)** — re-validates SPEC/ADAPT against the closed lists +
@@ -395,26 +417,33 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 ## Sessions
 
 ```bash
-session start                   # Start new session (returns ID)
-session end [--summary TEXT]    # End active session
+session start [--host-id ID]    # Start a session; with --host-id the host's session, idempotent (1.10, #376)
+session end [--summary TEXT] [--host-id ID]  # End the active one; with --host-id exactly that host's session
 session current                 # Show active session
-session list [--limit N]        # Recent sessions (default: 10)
-session handoff <json_data>     # Save handoff JSON for next session
-session last-handoff            # Get handoff from last session
-session extend [--minutes N]    # Extend session beyond 180-min active limit (SENAR Rule 9.2)
+session list [--limit N]        # Recent sessions (default: 10); the handoff column shows which carry one
+session handoff [json] [--host-id ID]  # Handoff generated from the journal; json = authored next_steps/warnings on top (1.10)
+session last-handoff [--session N]  # The live handoff; with --session, session N's (missing session / no handoff are distinct refusals)
+session extend [--minutes N]    # Raise the active-time advisory threshold (`session_max_minutes`; advice, not a gate)
 session recompute               # Retro: compare wall-clock vs active (gap-based) minutes for past sessions
 ```
 
-Session limit is 180 min **active** time (gap-based, paused after 10 min idle). Threshold is configurable via `.tausik/config.json` → `session_idle_threshold_minutes`. See `session-active-time.md`.
+Session time is counted as **active** time (gap-based, paused after 10 min idle), not wall clock; the `session_max_minutes` threshold is advice, not a refusal (1.10). See `session-active-time.md`.
 On `session end`, TAUSIK also performs a best-effort usage capture via `scripts/hooks/session_metrics.py --auto --record` (supports both Claude and Cursor transcript roots).
 
 ## Knowledge
 
 ```bash
+knowledge promote --memory ID | --decision ID [--yes]   # Copy an existing record to the shared store: shows the whole text first, writes only with --yes, keeps origin project/slug, refuses a second copy
 decide <text> [--task SLUG] [--rationale TEXT] [--global]   # --global: the shared store ~/.tausik-knowledge, no project row
-decisions [--limit N]           # List decisions (default: 20)
+    [--rejected "option :: why" ...] [--supersedes N --because TEXT]
+    # --rejected is repeatable and optional; --supersedes needs a reason and an existing N
+decisions [--limit N] [--status all|active|superseded] [--task SLUG] [--rejected QUERY]
+                                # superseded decisions are never deleted: they leave `active`
+                                # and the memory block, and show who replaced them
 
 memory add <type> <title> <content> [--tags T1 T2 ...] [--task SLUG] [--global]
+           [--provenance observed|inferred|told]   # default inferred; observed must name a test,
+           # a verify run (verify #N) or a task with a journal, otherwise it is downgraded and says so
 memory list [--type TYPE] [--limit N]
 memory search <query>           # FTS5 full-text search
 memory show <id>
@@ -451,6 +480,10 @@ memory dedupe [--threshold 0.85] [--limit 200]     # List near-duplicate pairs a
 
 ```bash
 dead-end <approach> <reason> [--task SLUG] [--tags T1 T2 ...]
+    # Since 1.10 a dead end names its task: without --task it binds to the single active
+    # task, and with none or several active it is refused. A task that saw a failure
+    # (a red verify, a block, a second attempt) closes only with a dead end linked to it
+    # or a journal line `NO-DEAD-END: <why there is none>` (10+ characters).
 # Documents a failed approach with reason. Saved as memory type dead_end.
 ```
 
@@ -465,8 +498,8 @@ explore current                                 # Show active exploration with e
 ## Periodic Audit (SENAR Rule 9.5)
 
 ```bash
-audit check                     # Show whether periodic audit is overdue
-audit mark                      # Mark audit as completed
+audit check                     # Is the audit overdue: closures since the last mark >= audit_every_closures (17)
+audit mark                      # Mark the audit done now (no session needed)
 audit vendors [--json]          # Audit cloned vendor skill repos (read-only): classifies each as
                                 # 'installed' (in installed_skills config) or 'vendored_unused'
                                 # (candidate for `skill repo remove`). Never deletes.
@@ -497,7 +530,9 @@ Track L1/L2/L3 review runs and surface the **ADR** (Adversarial Defect Rate) met
 
 ```bash
 review record --task <slug> --type {L1|L2|L3} \
-              [--critical N] [--warnings N] [--notes "..."]
+              [--critical N] [--warnings N] [--reason "..."] [--notes "..."]
+              # --critical > 0 without --reason is refused: CRITICAL is recorded
+              # with its reason (SENAR 1.5 §10.15(f); scale: severity-scale.md)
 review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
 review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
 ```
@@ -582,18 +617,25 @@ doc extract <path>              # Convert DOCX/PPTX/XLSX/HTML/EPUB/PDF to markdo
 
 Opt-in: requires `markitdown` and Python ≥3.11. See `docs/en/markitdown-integration.md`.
 
-## A bypassed gate leaves a record (SENAR 1.4 §8.6(j))
+## A bypassed gate leaves a record (SENAR 1.5 §8.6(j))
 
 Editing a task's artifact by a route no gate stands in front of — INCLUDING a
 direct edit by the supervisor — admits the effect QG-0 declared without a
 positive verdict; §8.6(h) counts that as a bypass regardless of intent. This is
-NOT a prohibition but a regulated exception: the legitimate cases the standard
-names stay open — an incident while agent capacity is unavailable, an
-environment where the agent does not run. What is required is a RECORD.
+NOT a prohibition but a regulated exception, and it stays available. What is
+required is a RECORD, in every case.
+
+The one recognized case is an environment in which no agent can be run and there is nothing to switch to (SENAR 1.5 §4.1, revision of 2026-09-07; re-read under §10.13 when the model generation changes).
+
+SENAR 1.4 §4.1 listed five cases. The other four — an agent stuck, an agent most of
+the way there, a fix cheaper than preparing context, a deadline hotfix — are
+addressable by agent means where an agent environment exists. They are still
+recorded if they happen. The senior who approves the bypass decides whether a
+case is the recognized one.
 
 ```bash
 events emit-supervision --vector direct_edit --task <slug> \
-    --rationale "incident, agent capacity unavailable" \
+    --rationale "no agent environment on this host, nothing to switch to" \
     --risk-accepted "the fix ships without a scoped verify" \
     --remediation "re-run verify and re-close the task" \
     --approved-by "owner"
@@ -763,6 +805,7 @@ db prune                       # delete the oldest .tausik/tausik.db.bak.* files
 config show                    # the resolved configuration, with the tier each value came from
 config set <key> <value>       # persist an override into .tausik/config.json
 redact --pattern <pattern>     # scrub a secret from the knowledge history (--apply: not a dry run)
+                               # CLI only, deliberately: not an MCP tool (decision #385, scripts/mcp_cli_only.py)
 redact list                    # show the redactions already applied
 
 # --- release and network ---
@@ -793,4 +836,4 @@ serve [--host H] [--port P]    # run the local receipt-verification endpoint
 | Memory types | pattern, gotcha, convention, context, dead_end |
 | Roles | Free text (no enum); registry under `harness/roles/{slug}.md` |
 | SENAR gates | QG-0 (Context Gate on `task start`), QG-2 (Implementation Gate on `task done`) |
-| Session limit | 180 min **active** by default (configurable: `session_max_minutes`, idle threshold: `session_idle_threshold_minutes`) |
+| Session time | A signal with threshold `session_max_minutes` on active time (idle: `session_idle_threshold_minutes`); never refuses |

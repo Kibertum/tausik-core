@@ -210,8 +210,15 @@ def cmd_session_recompute(svc: ProjectService, args: Any) -> None:
     rows = recompute_all_sessions(svc.be._q, svc.be._q1, threshold)
     if args.limit:
         rows = rows[-args.limit :]
+    from project_config import DEFAULT_SESSION_MAX_MINUTES, load_config
+    from session_pressure import summary
+
+    advisory = int(load_config().get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES))
+    stats = summary(rows, advisory)
     if args.json:
-        print(_json.dumps({"threshold_min": threshold, "sessions": rows}, indent=2))
+        print(
+            _json.dumps({"threshold_min": threshold, "summary": stats, "sessions": rows}, indent=2)
+        )
         return
     if not rows:
         print("No sessions to recompute.")
@@ -229,6 +236,14 @@ def cmd_session_recompute(svc: ProjectService, args: Any) -> None:
         print(f"{r['id']:>4} {wall:>6} {active:>7} {idle_pct:>6}  {r['started_at']}")
     total_idle = f"{round((1 - total_active / total_wall) * 100)}%" if total_wall > 0 else "  -"
     print(f"{'TOTAL':>4} {total_wall:>6} {total_active:>7} {total_idle:>6}")
+    # The basis a self-set threshold owes (SENAR 1.5 §9.4(c)), as a command's
+    # output rather than a remembered number.
+    print(
+        f"SUMMARY active minutes over {stats['sessions']} session(s): "
+        f"median {stats.get('median_active')}, p90 {stats.get('p90_active')}, "
+        f"max {stats.get('max_active')}; above the {advisory}-min advisory "
+        f"threshold: {stats.get('over_threshold')}"
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests

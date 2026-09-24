@@ -90,14 +90,14 @@ Pre-1.4 there was a parallel `tausik_task_done_v2` alias for the structured-JSON
 |---|---|---|
 | `tausik_session_start` | Start session | — |
 | `tausik_session_end` | End session | — |
-| `tausik_session_extend` | Extend active-time limit beyond 180 min | — |
+| `tausik_session_extend` | Raise the active-time advisory threshold (advice, not a gate) | — |
 | `tausik_session_current` | Current active session | — |
 | `tausik_session_list` | List sessions | — |
 | `tausik_session_handoff` | Save handoff data | `handoff` (object) |
-| `tausik_session_last_handoff` | Get handoff from previous session | — |
+| `tausik_session_last_handoff` | The live handoff, or session `session_id`'s | `session_id` (opt.) |
 | `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. The `session` and `self_check` sections are projected to the rendered fields only (no `watched_modules`/`current_mtimes`, no duplicated handoff) — use `tausik_self_check` for full telemetry. | — |
 
-Session limit is gap-based **active time** (paused after 10-min idle gap), not wall clock. See `session-active-time.md`.
+Session time is gap-based **active time** (paused after 10-min idle gap), not wall clock, and it is advice, never a refusal (1.10). See `session-active-time.md`.
 
 ## Hierarchy (Epics and Stories)
 
@@ -126,7 +126,7 @@ See also `tausik_reason_step` (RENAR trace) under "Tasks".
 
 | Tool | Description | Required Parameters |
 |---|---|---|
-| `tausik_spec_add` | Create a SPEC artifact. `type` is a closed list of 11 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC); a new type is an amendment to the standard, not free text | `slug`, `type`, `title`, `version` |
+| `tausik_spec_add` | Create a SPEC artifact. `type` is a closed list (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC/UC; UC needs a body with `role` and a statement ref on every step); a new type is an amendment to the standard, not free text | `slug`, `type`, `title`, `version` |
 | `tausik_spec_list` | List SPECs, optionally filtered by type (JSON) | — |
 | `tausik_spec_show` | SPEC + linked tasks (JSON) | `slug` |
 | `tausik_spec_update` | Patch mutable fields (title/version/content_ref/status); `type` and `slug` are immutable | `slug` |
@@ -210,7 +210,7 @@ from QG-4, which is optional and measures business outcome.
 
 | Tool | Description | Required Parameters |
 |---|---|---|
-| `tausik_memory_add` | Save to project memory | `type`, `title`, `content` |
+| `tausik_memory_add` | Save to project memory; `provenance` observed / inferred (default) / told | `type`, `title`, `content` |
 | `tausik_memory_search` | Full-text search in memory | `query` |
 | `tausik_memory_list` | List entries (filter by type) | — |
 | `tausik_memory_show` | Show entry by ID | `id` |
@@ -219,7 +219,7 @@ from QG-4, which is optional and measures business outcome.
 | `tausik_memory_compact` | Aggregate recent task_logs (phases + top words + top files) | — |
 | `tausik_memory_archive` (v1.5) | Soft-archive memory rows older than a duration (90d / 12w / 2m / 1y). Dry-run unless `confirm: true`. | `before` (string), `confirm` (bool, optional) |
 | `tausik_memory_dedupe` (v1.5) | List near-duplicate memory pairs above a similarity threshold (read-only). | `threshold` (float, optional), `limit` (int, optional) |
-| `tausik_decide` | Record an architectural decision | `decision` |
+| `tausik_decide` | Record a decision; optional `rejected` (list of "option :: why") and `supersedes` (id, reason in `rationale`) | `decision` |
 | `tausik_decisions_list` | List decisions | — |
 
 Memory types: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.

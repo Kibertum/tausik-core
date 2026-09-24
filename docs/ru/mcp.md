@@ -90,11 +90,11 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 |---|---|---|
 | `tausik_session_start` | Начать сессию | — |
 | `tausik_session_end` | Завершить сессию | — |
-| `tausik_session_extend` | Продлить active-time лимит сверх 180 мин | — |
+| `tausik_session_extend` | Поднять порог совета по active-time (совет, не ворота) | — |
 | `tausik_session_current` | Текущая активная сессия | — |
 | `tausik_session_list` | Список сессий | — |
 | `tausik_session_handoff` | Сохранить handoff data | `handoff` (object) |
-| `tausik_session_last_handoff` | Получить handoff из предыдущей сессии | — |
+| `tausik_session_last_handoff` | Живой handoff или handoff сессии `session_id` | `session_id` (опц.) |
 | `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked задачи + self_check в одном envelope. Питает Phase 1 в `/start`. Секции `session` и `self_check` спроецированы только до рендерящихся полей (без `watched_modules`/`current_mtimes`, без дубля хендоффа) — полная телеметрия через `tausik_self_check`. | — |
 
 Лимит сессии — gap-based **active time** (паузится после 10-min idle gap), не wall clock. См. `session-active-time.md`.
@@ -123,7 +123,7 @@ RENAR-подложка: формальные требования (**SPEC**) и 
 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
-| `tausik_spec_add` | Создать SPEC-артефакт. `type` — закрытый список 11 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC); новый тип = поправка к стандарту, не free-text | `slug`, `type`, `title`, `version` |
+| `tausik_spec_add` | Создать SPEC-артефакт. `type` — закрытый список (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC/UC; UC требует тела с `role` и ссылкой на утверждение в каждом шаге); новый тип = поправка к стандарту, не free-text | `slug`, `type`, `title`, `version` |
 | `tausik_spec_list` | Список SPEC, опц. фильтр по типу (JSON) | — |
 | `tausik_spec_show` | SPEC + связанные задачи (JSON) | `slug` |
 | `tausik_spec_update` | Патч изменяемых полей (title/version/content_ref/status); `type`+`slug` иммутабельны | `slug` |
@@ -208,7 +208,7 @@ read-only проекции над подписанными пунктами ни
 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
-| `tausik_memory_add` | Сохранить в проектную память | `type`, `title`, `content` |
+| `tausik_memory_add` | Сохранить в проектную память; `provenance` observed / inferred (по умолчанию) / told | `type`, `title`, `content` |
 | `tausik_memory_search` | Полнотекстовый поиск | `query` |
 | `tausik_memory_list` | Список (фильтр по типу) | — |
 | `tausik_memory_show` | Показать запись по ID | `id` |
@@ -217,7 +217,7 @@ read-only проекции над подписанными пунктами ни
 | `tausik_memory_compact` | Aggregate recent task_logs (phases + top words + top files) | — |
 | `tausik_memory_archive` (v1.5) | Soft-archive памяти старше duration (90d / 12w / 2m / 1y). Dry-run если нет `confirm: true`. | `before` (string), `confirm` (bool, опционально) |
 | `tausik_memory_dedupe` (v1.5) | Список near-duplicate memory-пар выше порога similarity (read-only). | `threshold` (float, опц.), `limit` (int, опц.) |
-| `tausik_decide` | Записать архитектурное решение | `decision` |
+| `tausik_decide` | Записать решение; необязательные `rejected` (список «вариант :: почему») и `supersedes` (id, причина в `rationale`) | `decision` |
 | `tausik_decisions_list` | Список решений | — |
 
 Типы памяти: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
