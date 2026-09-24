@@ -17,5 +17,4 @@ edges: []
 
 3. ЗЕРКАЛА IDE ОТСТАЮТ МОЛЧА: .cursor/.kilo/.opencode/.qwen/scripts/hooks/session_metrics.py оставались на ДОРЕЛИЗНОЙ версии функции (без max_bytes) — bootstrap для этих IDE не перезапускали после 32df941. Правь только scripts/, затем `python bootstrap/bootstrap.py --no-detect --ide all` и проверь grep-ом, что все пять зеркал подхватили.
 
-Связано: [[konvenciya-215]] о формате evidence и [[216]] о том, что зелёная сьюта не доказывает целостность контроля.</content>
-<parameter name="tags">["tests", "regression", "mirrors", "bootstrap", "defect-escape"]
+Связано: [[konvenciya-215]] о формате evidence и [[216]] о том, что зелёная сьюта не доказывает целостность контроля.

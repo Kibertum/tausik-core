@@ -27,5 +27,4 @@ def rewrite(text):
 
 Two passes are needed: first `agents/` (with slash) for path strings, then `"agents"` and `'agents'` for separate string literals in `os.path.join(..., "agents", ...)` patterns. Skip `bootstrap_vendor.py` entirely since every reference there is the host/vendor concept.
 
-Verify with `git ls-files | xargs grep` on tracked files only (gitignored generated outputs like `.cursorrules` are stale until bootstrap-overwrite, but bootstrap may PRESERVE them — `generate_cursorrules` checks `if not os.path.exists(path)` before writing).</content>
-<parameter name="tags">["rename", "refactor", "namespace", "find-replace", "v1.4-polish"]
+Verify with `git ls-files | xargs grep` on tracked files only (gitignored generated outputs like `.cursorrules` are stale until bootstrap-overwrite, but bootstrap may PRESERVE them — `generate_cursorrules` checks `if not os.path.exists(path)` before writing).

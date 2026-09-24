@@ -5,7 +5,7 @@ status: done
 epic: shared-brain
 story: brain-tausik-integration
 complexity: medium
-role: null
+role: developer
 stack: python
 tier: null
 call_budget: null
@@ -26,8 +26,7 @@ completed_at: "2026-04-25T10:47:13Z"
 
 ## Goal
 
-Add `tausik brain move <id> --to-local` / `--to-brain` subcommand + matching MCP tool to reclassify a record that was filed in the wrong store. Reads source row, scrubs, writes to target, deletes from source on ok. Handles: scrub_blocked (abort, keep source), notion_error (abort), cross-project ownership check for to-local (source_project_hash must match current project). Updates `/brain` skill to document the new subcommand.</goal>
-<parameter name="role">developer
+Add `tausik brain move <id> --to-local` / `--to-brain` subcommand + matching MCP tool to reclassify a record that was filed in the wrong store. Reads source row, scrubs, writes to target, deletes from source on ok. Handles: scrub_blocked (abort, keep source), notion_error (abort), cross-project ownership check for to-local (source_project_hash must match current project). Updates `/brain` skill to document the new subcommand.
 
 ## Acceptance Criteria
 

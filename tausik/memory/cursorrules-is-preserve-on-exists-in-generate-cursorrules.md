@@ -11,5 +11,4 @@ edges: []
 
 Workaround during a refactor: delete `.cursorrules` before re-bootstrapping, or accept that gitignored stale local files don't affect AC #5 ("regenerated cleanly from harness/") which is satisfied for fresh projects.
 
-Same preserve-on-exists semantics may apply to other generators in `bootstrap_generate.py` — verify before assuming a regen will refresh a target.</content>
-<parameter name="tags">["bootstrap", "cursorrules", "regen", "preserve-on-exists"]
+Same preserve-on-exists semantics may apply to other generators in `bootstrap_generate.py` — verify before assuming a regen will refresh a target.

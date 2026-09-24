@@ -11,7 +11,7 @@ tier: null
 call_budget: null
 defect_of: null
 scope: "scripts/backend_queries.py (event_count_in_window)\nscripts/service_task.py (task_done модификация)\nscripts/hooks/task_call_counter.py (новый файл)\nbootstrap/bootstrap_generate.py (PostToolUse registration)\n.claude/settings.json (mirror updated config)\ntests/test_agent_units_recording.py (новый файл)"
-scope_exclude: "scripts/project_cli*.py (CLI флаги — отдельная задача agent-units-cli-flags)\nscripts/backend_crud.py (helpers уже добавлены в agent-units-schema)\nscripts/backend_schema.py / backend_migrations.py (schema готова)\nagents/skills/plan/ (отдельная задача plan-skill-agent-aware)</scope_exclude>\n</invoke>\n<invoke name=\"mcp__tausik-project__tausik_task_start\">\n<parameter name=\"slug\">agent-units-recording"
+scope_exclude: "scripts/project_cli*.py (CLI флаги — отдельная задача agent-units-cli-flags)\nscripts/backend_crud.py (helpers уже добавлены в agent-units-schema)\nscripts/backend_schema.py / backend_migrations.py (schema готова)\nagents/skills/plan/ (отдельная задача plan-skill-agent-aware)"
 relevant_files:
   - "scripts/backend_queries.py"
   - "scripts/service_task.py"

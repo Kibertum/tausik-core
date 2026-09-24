@@ -7,8 +7,7 @@ edges: []
 
 ## Decision
 
-v14c-mass-parametrize-batch-3 (size=2 long-tail, ~145 групп / 290 тестов): WONT FIX в 1.4.0. Не переносится в 1.4.1 (по требованию пользователя «не дробить минор»). При следующем audit cycle — point-fix вручную, если конкретные группы попадут в видимое место.</decision>
-<parameter name="task_slug">v14c-mass-parametrize-batch-3
+v14c-mass-parametrize-batch-3 (size=2 long-tail, ~145 групп / 290 тестов): WONT FIX в 1.4.0. Не переносится в 1.4.1 (по требованию пользователя «не дробить минор»). При следующем audit cycle — point-fix вручную, если конкретные группы попадут в видимое место.
 
 ## Rationale
 

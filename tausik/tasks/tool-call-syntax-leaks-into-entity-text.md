@@ -1,7 +1,7 @@
 ---
 slug: tool-call-syntax-leaks-into-entity-text
 title: "Синтаксис tool-call протекает в текстовые поля сущностей и уезжает в git-проекцию: 64 файла, 147 строк"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-open-defects
 complexity: medium
@@ -12,11 +12,21 @@ call_budget: 90
 defect_of: null
 scope: "Слой валидации текстовых полей (scripts/tausik_utils.py или сервисный вход — определить при исполнении), tests/, разовый скрипт уборки данных, строки БД и их проекция в tausik/. После правки scripts/ обязателен bootstrap --ide all."
 scope_exclude: "НЕ чистить дерево регулярным выражением по всем файлам сразу. НЕ трогать формат проекции и сериализатор — данные испорчены в БД, а экспортёр их честно отражает. НЕ расширять гард на произвольный XML или HTML в тексте: ловится конкретная конструкция вызова инструмента, иначе гард начнёт отвергать легитимную техническую прозу."
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/call_syntax_guard.py"
+  - "scripts/project_backend.py"
+  - "tests/test_call_syntax_guard.py"
+scope_paths:
+  - "scripts/call_syntax_guard.py"
+  - "scripts/project_backend.py"
+  - "tests/*.py"
+  - "tausik/**"
+  - "CHANGELOG*.md"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-24T07:50:57Z"
 ---
 
 ## Goal
@@ -51,3 +61,11 @@ CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены �
 
 - 2026-08-01T19:33:43Z [planning] — РАЗВЕДКА СЕССИИ #155 (агент, только поиск; задача НЕ начата). ОГОВОРКА О МЕТОДЕ: агент часть выводов получил ПРЯМЫМ чтением .tausik/tausik.db в режиме mode=ro. Это нарушает жёсткое ограничение проекта «нет прямого доступа к БД, только MCP/CLI». Находки ниже я привожу как ГИПОТЕЗЫ, требующие перепроверки через CLI/MCP внутри задачи; метод не узаконивается. ЧИСЛА (пересчитаны агентом, не взяты из карточки): 64 файла — СОВПАЛО. Строк 151, а не 147. Расхождение объяснено: исходный замер перечислял закрывающие теги по списку полей и пропустил </reason> и </decision> — ровно 4 строки, они названы поимённо. 65-й файл — сама карточка задачи, цитирующая маркеры в прозе; исключена верно. РАЗБИВКА: tasks 31 файл / 62 строки, memory 26 / 60, decisions 7 / 29, stories 0, epics 0. Ноль в stories (234 файла) и epics (100) — диагностически важно. ВИД ПРОТЕЧКИ: маркеров antml, function_calls, thinking — НОЛЬ. Есть <parameter name="…"> 83, </invoke> 17, </parameter> 17, <invoke name="…"> 9. Плюс закрывающие теги ПО ИМЕНИ ПОЛЯ: </content> 25, </evidence> 22, </goal> 10, </rationale> 5, </acceptance_criteria> 5, </scope_exclude> 3, </reason> 2, </decision> 2. ГЛАВНАЯ ГИПОТЕЗА (проверить внутри задачи): рассогласование диалекта закрывающего тега. Агент утверждает, что перед мусором ВСЕГДА стоит закрывающий тег, совпадающий с ИМЕНЕМ ПОЛЯ, без единого исключения по имени: memory.content -> </content> (23), task_logs.message -> </evidence> (21), tasks.notes -> </evidence> (15), tasks.goal -> </goal> (9), decisions.rationale -> </rationale> (5), tasks.acceptance_criteria (3), tasks.scope_exclude (3), decisions.decision (2). То есть параметр открывался как <parameter name="goal">, а закрывался как </goal>; разборщик искал </parameter>, не среагировал и сжевал ВЕСЬ остаток блока вызова в это одно поле. Это объясняет и нулевой antml (протекла только внутренность блока, с места сбоя), и перекос 83 открывающих против 17 закрывающих. ПОДТВЕРЖДЕНИЕ ТИХОЙ ПОТЕРИ АРГУМЕНТОВ: у четырёх задач (changelog-gate-runs-persist-undocumented, verify-record-failure-swallowed, cli-verify-bypasses-cache-guards, task-done-evidence-written-after-the-gate-that-reads-it) колонка complexity ПУСТА, при этом внутри проглоченного goal видно переданное значение (simple/medium). Вызов принят частично, ошибки не было. ЭТО ПЕРЕПРОВЕРИТЬ ЧЕРЕЗ CLI — вывод сделан прямым чтением БД. НЕ РАЗОВЫЙ СЛУЧАЙ: даты испорченных строк 2026-04-24 → 2026-07-28, то есть три месяца и много сессий. ВЫВОД ДЛЯ ГАРДА: признак — не «любой XML в тексте», а НЕЗАКРЫТАЯ КОНСТРУКЦИЯ ВЫЗОВА: закрывающий тег, чьё имя совпадает с именем записываемого поля, либо любой <parameter name="…"> / <invoke name="…"> в значении. На легитимной прозе даёт ноль ложных срабатываний (единственный файл с маркерами-цитатами держит их внутри кавычек-ёлочек). ЧЕГО НЕ ХВАТИЛО АГЕНТУ: (1) какой харнесс/модель это писала — в репозитории настроены .claude, .opencode, .qwen, .kilo, .kilocode, .cursor, и диалект <parameter name="X">…</X> не является диалектом Claude; нужны транскрипты или телеметрия за 24.04–28.07. (2) Где именно теряется терминатор — в MCP-слое, в CLI-парсере или в харнессе; по данным неразличимо, среди проглоченных вызовов есть и MCP (tausik_memory_add, tausik_task_start), и встроенные (Bash, Grep), то есть сбой ВЫШЕ уровня конкретного инструмента.
 - 2026-08-25T13:47:12Z [planning] — ЖИВОЕ ВОСПРОИЗВЕДЕНИЕ РУКАМИ (сессия #179, 25 августа). Агент вызвал memory_add и по ошибке закрыл поле content раньше времени: закрывающий тег, второй content с заглушкой и tags уехали ВНУТРЬ текста записи. Запись #410 сохранилась с этим хвостом, MCP не возразил ни словом. Обнаружено только чтением memory_show — то есть глазами, ровно тем способом, который эта задача и должна заменить. ЧТО ЭТО ДОБАВЛЯЕТ К ЗАМЕРУ: прежний замер (64 файла, 147 строк) — археология уже сохранённого. Здесь видно, что канал ОТКРЫТ СЕЙЧАС и течёт при обычной работе, а не только исторически. Ни MCP-слой, ни memory lint, ни авто-экспорт в tausik/memory/ не заметили, что в тексте записи лежит разметка вызова инструмента. Починено вручную: #410 удалена, содержание переписано без разметки как #411. Ручная починка не есть решение задачи — механизма, который бы это отверг на входе, по-прежнему нет.
+- 2026-09-24T07:36:55Z [implementation] — Measurement BEFORE the guard (session #272, via the backend API over DB field values, not the YAML projection): structural signature = a closing tag followed by the opening of another parameter/invoke/tag. 64 corrupted entities, 65 fields: task.goal 10, task.notes 16, task.scope_exclude 3, task.acceptance_criteria 3, memory.content 26, decision.rationale 5, decision.decision 2. The one card that QUOTES the syntax in prose (this task) is NOT flagged — zero false positives on live data. The looser 'any tag' pattern would have flagged it.
+- 2026-09-24T07:45:03Z [implementation] — AC-1: ✓ tests/test_call_syntax_guard.py::test_a_swallowed_call_in_a_task_field_is_refused_by_name — 'Refused: goal contains the tail of a tool call'.
+- 2026-09-24T07:45:03Z [implementation] — Root cause: no write path checked text for the structural tail of a partially parsed tool call; a closing tag named after the field plus the next parameter was stored verbatim (and the swallowed parameters were lost).
+- 2026-09-24T07:45:04Z [implementation] — AC-2: ✓ tests/test_call_syntax_guard.py::test_every_writer_goes_through_the_one_boundary — the guard sits in SQLiteBackend._run_write (all _ex/_ins) and _update (names the field); one boundary, so a new text field needs nothing. Not covered: the shared knowledge store (knowledge_write, a separate DB) — named here.
+- 2026-09-24T07:45:04Z [implementation] — AC-3: ✓ measurement — before enabling: 64 corrupted entities / 65 fields (task.goal 10, notes 16, scope_exclude 3, AC 3, memory 26, decision.rationale 5, decision.decision 2) + 23 task_logs; prose card flagged 0; the looser 'any tag' pattern would have flagged it. One malformed variant (<relevant_files">) found on the tree and added to the signature.
+- 2026-09-24T07:45:04Z [implementation] — AC-4: ✓ measurement — cleanup from snapshot .tausik/tausik.db.bak.20260924T073736-before-leak-cleanup: per-entity report in the repair run (64 entities + 23 log lines), journals cut only inside the damaged entry (10/10 entries kept on v14b-rename-harness), 4 complexities + 1 role + 1 AC recovered from the tail; state export --check OK; structural grep on the tree: 0.
+- 2026-09-24T07:45:05Z [implementation] — AC-5: ✓ tests/test_call_syntax_guard.py::test_prose_about_the_syntax_is_not_refused and tests/test_call_syntax_guard.py::test_the_refusal_is_raised_not_logged — negative; state import --dry-run: 0 parse errors; mutation (guard disabled) turned the refusal tests red; restored.
+- 2026-09-24T07:45:05Z [implementation] — AC-6: ✓ measurement — full suite: 10959 passed before two ratchet effects of this session's commits were fixed: test_dedupe (one new shape merged by parametrising) and publication_lines (internal host / dev path spread into newly tracked projection files — struck out with tausik redact after snapshot .tausik/tausik.db.bak.20260924T074400-before-redact).

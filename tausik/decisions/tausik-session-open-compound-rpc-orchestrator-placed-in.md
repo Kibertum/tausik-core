@@ -11,7 +11,4 @@ tausik_session_open compound RPC orchestrator placed in handler layer (not servi
 
 ## Rationale
 
-self_check is a harness-local module (lives next to handlers.py for module-resolution reasons), not a script — placing the compound in service layer would force a layering violation. Best-effort design lets /start render a degraded dashboard rather than crash, matching the existing _handle_self_check error-key pattern. Token economy: 5 round-trips → 1 (status compact already includes exploration_open + audit_overdue_sessions from v14b-status-exploration-audit-signals, so the compound just needs to bundle session + handoff + tasks split + self_check on top).</rationale>
-</invoke>
-<invoke name="mcp__tausik-project__tausik_memory_add">
-<parameter name="type">gotcha
+self_check is a harness-local module (lives next to handlers.py for module-resolution reasons), not a script — placing the compound in service layer would force a layering violation. Best-effort design lets /start render a degraded dashboard rather than crash, matching the existing _handle_self_check error-key pattern. Token economy: 5 round-trips → 1 (status compact already includes exploration_open + audit_overdue_sessions from v14b-status-exploration-audit-signals, so the compound just needs to bundle session + handoff + tasks split + self_check on top).

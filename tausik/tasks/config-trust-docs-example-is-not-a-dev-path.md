@@ -28,7 +28,7 @@ completed_at: "2026-09-12T14:27:29Z"
 
 ## Goal
 
-tests/test_publication_lines.py: dev-machine path (D:/Work) появился в 40 файлах при закреплённых 39 — пример projects-записи в docs/{en,ru}/config-trust-tiers.md написан путём с машины владельца. Заменить на нейтральный путь; полный lane снова зелёный.
+tests/test_publication_lines.py: dev-machine path ([вычеркнуто: dev-machine-path]) появился в 40 файлах при закреплённых 39 — пример projects-записи в docs/{en,ru}/config-trust-tiers.md написан путём с машины владельца. Заменить на нейтральный путь; полный lane снова зелёный.
 
 ## Acceptance Criteria
 
@@ -42,5 +42,5 @@ git revert одной правки примера.
 
 ## Journal
 
-- 2026-09-12T14:26:18Z [implementation] — Root cause (documentation): the projects example in config-trust-tiers.md (task user-tier-weakening-is-project-scoped) used the owner's real drive path D:/Work/…, which the publication-lines guard counts as a dev-machine leak; the scoped verify of that task did not map to tests/test_publication_lines.py. Prevention: neutral /home/me/… example; the full lane caught it the same day.
+- 2026-09-12T14:26:18Z [implementation] — Root cause (documentation): the projects example in config-trust-tiers.md (task user-tier-weakening-is-project-scoped) used the owner's real drive path [вычеркнуто: dev-machine-path]/…, which the publication-lines guard counts as a dev-machine leak; the scoped verify of that task did not map to tests/test_publication_lines.py. Prevention: neutral /home/me/… example; the full lane caught it the same day.
 - 2026-09-12T14:26:19Z [implementation] — AC verified: AC-1 ✓ tests/test_publication_lines.py 13/13 (dev-machine path back at 39 files). AC-2 ✓ Negative: the key is still an absolute directory with forward slashes (/home/me/clients/vaflower), so the realpath/normcase paragraph keeps its example. AC-3 ✓ signed verify below. Note: the edit was applied before this task could start — the capacity gate refused the start in session #245; recorded here rather than hidden.

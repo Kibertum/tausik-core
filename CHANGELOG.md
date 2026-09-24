@@ -9,6 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a swallowed tool call can no longer land inside entity text (github#75)
+
+When a host parser misread where a parameter ended, the rest of the call — the next parameter, the closing of the invocation, sometimes a second call — was written into the text field: 64 entities and 23 journal lines of this project carried it, and four tasks had silently lost their complexity. Every write now passes one boundary (`_run_write` in the backend) that refuses a closing tag followed by another parameter or invocation and names the field; prose that quotes the syntax is not matched (on the live data, the one card describing this defect passed). The existing damage was repaired entry by entry from a database snapshot: tails cut, journal entries around them kept, and the four lost complexities recovered from the swallowed text.
+
 ### Fixed — the complexity check no longer counts the state projection as work (github#76)
 
 `COMPLEXITY UNDERSTATED` counted generated `tausik/` projection files as behaviour: two real closes showed 9 of 10 and 23 of 26 declared files that the exporter had written, so the more diligently a task journaled, the more understated it looked — and each false detection went to the supervision log that feeds calibration. The generated directories now have one source, `scripts/derived_trees.py`, which the exporters themselves read; the check reads it too. Thresholds are unchanged, and nine real code files still warn.

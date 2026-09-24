@@ -11,7 +11,7 @@ tier: null
 call_budget: null
 defect_of: null
 scope: "scripts/project_parser.py (CLI argparse)\nscripts/project_cli.py (cmd_task dispatcher)\nscripts/service_task.py (task_add signature расширение)\nscripts/project_backend.py (_TASK_FIELDS + backend.task_add)\nagents/claude/mcp/project/tools.py + handlers.py (MCP schema + handler)\n.claude/mcp/project/tools.py + handlers.py (mirror)\ntests/test_agent_units_cli.py (новый файл)"
-scope_exclude: "scripts/project_cli_extra.py / project_cli_ops.py / project_cli_verify.py (не относятся к task add/update)\nagents/cursor/mcp/* (cursor-специфичные, отдельная среда)\nagents/skills/plan/ (отдельная задача plan-skill-agent-aware)\nbootstrap/ (не нужно править — задача не меняет hooks)</scope_exclude>\n</invoke>\n<invoke name=\"mcp__tausik-project__tausik_task_start\">\n<parameter name=\"slug\">agent-units-cli-flags"
+scope_exclude: "scripts/project_cli_extra.py / project_cli_ops.py / project_cli_verify.py (не относятся к task add/update)\nagents/cursor/mcp/* (cursor-специфичные, отдельная среда)\nagents/skills/plan/ (отдельная задача plan-skill-agent-aware)\nbootstrap/ (не нужно править — задача не меняет hooks)"
 relevant_files:
   - "scripts/project_parser.py"
   - "scripts/project_cli.py"

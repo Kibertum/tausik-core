@@ -48,7 +48,7 @@ completed_at: "2026-09-12T18:24:28Z"
 
 ## Goal
 
-ЗАМЕР, смена #247, 2026-09-12: внешний корпус стандарта (d:/Work/Kibertum/clients/kibertum/standards/renar, коммит 30f4a64 от 18:09) стал редакцией v1.1, а renar/conformance.md и RENAR-CONFORMANCE.yaml заявляют renar-version 1.0. tests/test_renar_standard_drift.py::test_the_live_corpus_agrees_with_us красный на этой машине: детектор 'standard' даёт version-behind (warn) — §13.4.3 требует re-assessment при minor-выпуске. Известно заранее (журнал our-conformance-generator-cites-the-wrong-chapter): §13.3.8 implements-edge на v1.1 становится обязательным — положений восемь, а не семь. Контекст владельца: решение об отказе от заявки RENAR-1 (§1.5.4, internal product) — переоценка может быть подъёмом версии манифеста и восьмым положением, а не новой заявкой; это решение владельца, не агента.
+ЗАМЕР, смена #247, 2026-09-12: внешний корпус стандарта ([вычеркнуто: dev-machine-path]/Kibertum/clients/kibertum/standards/renar, коммит 30f4a64 от 18:09) стал редакцией v1.1, а renar/conformance.md и RENAR-CONFORMANCE.yaml заявляют renar-version 1.0. tests/test_renar_standard_drift.py::test_the_live_corpus_agrees_with_us красный на этой машине: детектор 'standard' даёт version-behind (warn) — §13.4.3 требует re-assessment при minor-выпуске. Известно заранее (журнал our-conformance-generator-cites-the-wrong-chapter): §13.3.8 implements-edge на v1.1 становится обязательным — положений восемь, а не семь. Контекст владельца: решение об отказе от заявки RENAR-1 (§1.5.4, internal product) — переоценка может быть подъёмом версии манифеста и восьмым положением, а не новой заявкой; это решение владельца, не агента.
 
 ## Acceptance Criteria
 

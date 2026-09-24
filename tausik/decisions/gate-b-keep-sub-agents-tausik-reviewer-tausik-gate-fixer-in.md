@@ -7,8 +7,7 @@ edges: []
 
 ## Decision
 
-Gate B: KEEP sub-agents (tausik-reviewer + tausik-gate-fixer) in v1.4.0. Quantitative token-reduction remeasure DEFERRED to post-1.4 telemetry sweep — current token_metrics.jsonl has insufficient post-sub-agent sample sessions (need ≥10) for valid baseline comparison.</decision>
-<parameter name="task_slug">v14b-post-subagent-remeasure
+Gate B: KEEP sub-agents (tausik-reviewer + tausik-gate-fixer) in v1.4.0. Quantitative token-reduction remeasure DEFERRED to post-1.4 telemetry sweep — current token_metrics.jsonl has insufficient post-sub-agent sample sessions (need ≥10) for valid baseline comparison.
 
 ## Rationale
 

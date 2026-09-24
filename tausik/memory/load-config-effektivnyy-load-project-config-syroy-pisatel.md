@@ -17,5 +17,4 @@ edges: []
 
 Побочный эффект для ТЕСТОВ: патчить надо тот загрузчик, который зовёт код под тестом. tests/test_doctor_auto_verify_hint.py патчил project_config.load_config, а doctor перешёл на load_config_with_rejections — патч тихо промахнулся, и doctor начал читать реальный конфиг машины. Симптом был не «ошибка патча», а исчезнувшее предупреждение.
 
-Изоляция сьюты: tests/conftest.py::_isolated_config_trust_tiers (autouse) уводит TAUSIK_USER_CONFIG во временный путь и снимает TAUSIK_MANAGED_CONFIG — иначе сьюта измеряет машину разработчика.</content>
-<parameter name="tags">["config", "trust-tiers", "tests", "mocking"]
+Изоляция сьюты: tests/conftest.py::_isolated_config_trust_tiers (autouse) уводит TAUSIK_USER_CONFIG во временный путь и снимает TAUSIK_MANAGED_CONFIG — иначе сьюта измеряет машину разработчика.

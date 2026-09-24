@@ -47,13 +47,7 @@ completed_at: "2026-05-03T20:01:18Z"
 7. Run filesize gate manually to confirm: `tausik gates list` shows no exempt; `tausik verify --task` on this task passes filesize gate.
 8. Existing test suite (full battery via TAUSIK_VERIFY_FULL=1) still green — no broken imports / behavior changes.
 9. CHANGELOG bilingual entry under Phase B Fixed: "filesize debt paydown — 4 oversized modules split, exempt list cleared".
-10. tausik verify (CLI) green; ruff green.</acceptance_criteria>
-<parameter name="scope">scripts/backend_queries.py + new scripts/backend_queries_usage.py; bootstrap/bootstrap_generate.py + new bootstrap/bootstrap_hooks.py; scripts/service_verification.py + new scripts/security_pattern.py; scripts/gate_runner.py + new scripts/gate_command_runner.py; .tausik/config.json (clear exempt_files); CHANGELOG.md + CHANGELOG.ru.md; new tests/test_filesize_split_smoke.py.</parameter>
-<parameter name="scope_exclude">Do NOT change any function/class behavior — purely move-and-reimport. Do NOT touch backend_queries' callers (project_service / service_*). Do NOT alter the hooks-block contents in bootstrap (only relocate the builder). Do NOT touch CI workflows. Do NOT consolidate other near-limit files (e.g. service_gates.py at ~500 lines) — out of this task's scope.</parameter>
-</invoke>
-<invoke name="mcp__tausik-project__tausik_task_start">
-<parameter name="slug">v14b-filesize-debt-paydown</parameter>
-</invoke>
+10. tausik verify (CLI) green; ruff green.
 
 ## Plan
 

@@ -21,6 +21,7 @@ from backend_init import init_schema
 from backend_queries import BackendQueriesMixin
 from backend_task_deps import BackendTaskDepsMixin
 from backend_transaction import BackendTransactionMixin
+from call_syntax_guard import refuse_call_syntax
 from tausik_utils import utcnow_iso
 
 logger = logging.getLogger("tausik.backend")
@@ -152,16 +153,17 @@ class SQLiteBackend(
         return _row_to_dict(row) if row else None
 
     def _ex(self, sql: str, params: tuple = ()) -> int:
-        cur = self._conn.execute(sql, params)
-        if not self._in_tx:
-            self._conn.commit()
-        return cur.rowcount
+        return self._run_write(sql, params).rowcount
 
     def _ins(self, sql: str, params: tuple = ()) -> int:
+        return self._run_write(sql, params).lastrowid or 0
+
+    def _run_write(self, sql: str, params: tuple) -> sqlite3.Cursor:
+        refuse_call_syntax(params)  # the one write boundary (call_syntax_guard)
         cur = self._conn.execute(sql, params)
         if not self._in_tx:
             self._conn.commit()
-        return cur.lastrowid or 0
+        return cur
 
     def _project_write(self, table: str, slug: str) -> None:
         """Keep the git-native projection in step with THIS write. Never raises.
@@ -311,12 +313,11 @@ class SQLiteBackend(
             raise ValueError(
                 f"Invalid fields for {table}: {bad}. Valid: {', '.join(sorted(allowed))}"
             )
+        refuse_call_syntax(fields.values(), fields.keys())  # names the field
         sets = ", ".join(f"{k}=?" for k in fields)
         vals = tuple(fields.values()) + (slug,)
         changed = self._ex(f"UPDATE {table} SET {sets} WHERE {slug_col}=?", vals)
-        # The projection follows the WRITE, not the caller's memory. `slug_col`
-        # is checked because the exporter identifies entities by slug: keyed on
-        # anything else, `slug` here is not the name it would look up.
+        # The projection follows the WRITE; the exporter keys entities by slug.
         if changed and slug_col == "slug":
             self._project_write(table, slug)
         return changed

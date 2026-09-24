@@ -18,8 +18,4 @@ edges: []
 - scoped-pytest СЛЕП к кросс-режущим: resolve_test_files_for_relevant = чистый basename-маппинг, задача закрывается зелёной ломая чужой тест. → scoped-pytest-blind-to-crosscutting-tests (#20).
 - Доки СЛАБЕЕ кода: senar-compliance-matrix зовёт scope-энфорсмент Warning, а scope_write_gate.py хардблокит exit-2; hooks.md знает 21 хук, не знает scope_write_gate.py (реально 22+1). → docs-enforcement-drift-matrix (#30).
 - status CLI↔MCP расходятся: CLI даёт risk+RENAR, MCP даёт exploration+audit, пересечения нет. → status-cli-mcp-divergence (#31).
-- Суита: 0 warnings (чисто). Версия консистентна на 1.7.0 в живой цепочке; устаревшие снапшоты: senar матрицы v1.5.1, TODO.md v1.5.0, scripts/README 1.1.0 → version-coherence-1-8 (#7).</content>
-<type>context</type>
-<tags>release-1.8,review,architecture,mypy,tests,doc-drift</tags>
-<task_slug>wave0-suite-green</task_slug>
-</invoke>
+- Суита: 0 warnings (чисто). Версия консистентна на 1.7.0 в живой цепочке; устаревшие снапшоты: senar матрицы v1.5.1, TODO.md v1.5.0, scripts/README 1.1.0 → version-coherence-1-8 (#7).

@@ -33,4 +33,4 @@ Pre-commit mypy hook поймал no-any-return на line 85 _bundle_body() во
 
 ## Journal
 
-- 2026-05-07T09:43:52Z [implementation] — AC-1: ✓ scripts/skill_bundles.py:85 теперь `body: dict[str, Any] = bundles[name]; return body`. AC-2: ✓ `python -m mypy scripts/skill_bundles.py` → "Success: no issues found in 1 source file". AC-3: ✓ pre-commit mypy will pass on next commit. NEGATIVE: ✓ tests/test_skill_bundles.py все 22 PASS — behavior unchanged, only type narrow.</evidence> <parameter name="relevant_files">["scripts/skill_bundles.py"]
+- 2026-05-07T09:43:52Z [implementation] — AC-1: ✓ scripts/skill_bundles.py:85 теперь `body: dict[str, Any] = bundles[name]; return body`. AC-2: ✓ `python -m mypy scripts/skill_bundles.py` → "Success: no issues found in 1 source file". AC-3: ✓ pre-commit mypy will pass on next commit. NEGATIVE: ✓ tests/test_skill_bundles.py все 22 PASS — behavior unchanged, only type narrow.

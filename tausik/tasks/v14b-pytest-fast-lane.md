@@ -10,8 +10,8 @@ stack: python
 tier: null
 call_budget: null
 defect_of: null
-scope: null
-scope_exclude: null
+scope: "pyproject.toml [tool.pytest.ini_options] (markers + addopts); test files in scope of #4 — file-level pytestmark only, no test logic changes; scripts/project_config.py or scripts/service_verification.py if env-var plumbing for --full is added; docs/{en,ru}/cli.md (slow lane explanation); CHANGELOG.md + CHANGELOG.ru.md."
+scope_exclude: "Do NOT rewrite individual test cases or refactor test fixtures — purely add markers and the config switch. Do NOT touch verify gate registry / cache logic. Do NOT touch CI workflows in this task (will be obvious follow-up if CI starts running fast-lane only — out of scope)."
 relevant_files:
   - pyproject.toml
   - "scripts/gate_runner.py"
@@ -58,10 +58,7 @@ completed_at: "2026-05-03T19:28:07Z"
 6. Measure: record fast-lane vs full-suite timings in CHANGELOG entry. Target: fast lane completes in < 60s on a clean run (down from ~405s observed in session #46).
 7. Update `docs/{en,ru}/cli.md` — explain the slow marker, default fast lane, and the --full / TAUSIK_VERIFY_FULL escape hatch.
 8. CHANGELOG bilingual entry under Phase B Added: "pytest fast lane — default `-m 'not slow'` cuts interactive verify from ~7m to <60s; full battery via `verify --full` / TAUSIK_VERIFY_FULL=1".
-9. tausik verify (CLI) green; ruff green; full-suite still green when run with `-m ''` (escape hatch works).</acceptance_criteria>
-<parameter name="scope">pyproject.toml [tool.pytest.ini_options] (markers + addopts); test files in scope of #4 — file-level pytestmark only, no test logic changes; scripts/project_config.py or scripts/service_verification.py if env-var plumbing for --full is added; docs/{en,ru}/cli.md (slow lane explanation); CHANGELOG.md + CHANGELOG.ru.md.</parameter>
-<parameter name="scope_exclude">Do NOT rewrite individual test cases or refactor test fixtures — purely add markers and the config switch. Do NOT touch verify gate registry / cache logic. Do NOT touch CI workflows in this task (will be obvious follow-up if CI starts running fast-lane only — out of scope).</parameter>
-</invoke>
+9. tausik verify (CLI) green; ruff green; full-suite still green when run with `-m ''` (escape hatch works).
 
 ## Plan
 
