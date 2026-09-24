@@ -14,6 +14,7 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
 | `session_idle_threshold_minutes` | `10` | Gap (in minutes) above which a pause between `events` rows is treated as AFK (excluded from active-time sum). |
 | `session_warn_threshold_minutes` | `150` | Stop-hook reminder threshold in `session_cleanup_check.py`. Should be < `session_max_minutes`. |
 | `session_capacity_calls` | `200` | Per-session tool-call budget. A task `call_budget` above what remains is an advisory line in `task start`, not a refusal. |
+| `answer_budget_words` | `200` | Word budget for the agent's final answer. On the next prompt, an answer over it (or without a verdict in its first line) gets one advisory line with the numbers; nothing is blocked. Measure with `tausik metrics answers`. |
 | `checkpoint_calls` | `40` | Calls since the last handoff before checkpoint advice (derived from the ledger). `0` switches it off. |
 | `journal_freshness_calls` | `40` | Calls since an active task's last log entry before journal advice. `0` switches it off. |
 | `audit_every_closures` | `17` | Task closures since the last audit mark before the SENAR 9.5 audit is overdue. |

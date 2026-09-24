@@ -41,6 +41,7 @@ metrics [--cost]               # With --cost: rollup usage_events by task_slug (
 metrics record-session         # Persist LLM usage (tokens/cost/tool/model) for current or explicit session
 metrics log-usage              # Append one manual usage_events row (--task-slug optional; no session_usage_metrics overwrite)
 metrics cost [--since ISO] [--until ISO]   # SUM tokens/cost + COUNT rows grouped by task (NULL slug excluded)
+metrics answers [--last N] [--json]   # Shape of the agent's final answers: words (median/p90), verdict-first %, list share, filler
 metrics tokens [--last N] [--rebuild] [--json]   # Context volume per tool over the last N sessions
                                 # Source: .tausik/token_metrics.jsonl, written by the SessionEnd hook
                                 #   scripts/hooks/session_metrics.py, which walks the transcript and

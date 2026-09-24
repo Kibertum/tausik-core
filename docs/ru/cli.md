@@ -41,6 +41,7 @@ metrics [--cost]               # С --cost: агрегат по usage_events п�
 metrics record-session         # Записать LLM usage (tokens/cost/tool/model) для текущей или явной сессии
 metrics log-usage              # Одна строка manual в usage_events (--task-slug опционально; session_usage_metrics не трогаем)
 metrics cost [--since ISO] [--until ISO]   # SUM токенов/cost и COUNT по task (slug NULL исключены)
+metrics answers [--last N] [--json]   # Форма итоговых ответов агента: слова (медиана/p90), вердикт первой строкой %, доля списков, «вода»
 metrics tokens [--last N] [--rebuild] [--json]   # Объём контекста по инструментам за последние N смен
                                 # Источник: .tausik/token_metrics.jsonl — его пишет SessionEnd hook
                                 #   scripts/hooks/session_metrics.py, обходя транскрипт и раскладывая

@@ -411,19 +411,15 @@ def _builtin_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                # v14b-start-lite-tool-truncation: coaching nudge when a
-                # tool's textual output exceeds the configured threshold
-                # (default 250 lines, override in
-                # .tausik/config.json::tool_output_truncation_threshold).
-                # Does NOT modify tool output — just emits stderr so the
-                # agent reads it next turn and adjusts strategy.
+                # Output-size nudge (tool_output_truncation_threshold); RAG hits after a Grep (#391).
                 "matcher": f"Read|Grep|Glob|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
                         "command": hook_cmd("tool_output_truncation_nudge.py"),
                         "timeout": 3,
-                    }
+                    },
+                    {"type": "command", "command": hook_cmd("rag_grep_context.py"), "timeout": 3},
                 ],
             },
             {

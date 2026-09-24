@@ -176,6 +176,9 @@ def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:
         # Local now: the helper crossed back from project_cli_ops with cmd_metrics.
         _print_usage_cost_rollup(svc, getattr(args, "since", None), getattr(args, "until", None))
         return True
+    if sub == "answers":
+        __import__("project_parser_answers").run(args)
+        return True
     if sub == "tokens":
         from service_token_metrics import print_cli
 

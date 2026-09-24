@@ -73,6 +73,9 @@ def _has_coding_intent(prompt: str) -> bool:
     return False
 
 
+_PAYLOAD: dict = {}
+
+
 def _read_prompt() -> str:
     try:
         data = json.load(sys.stdin)
@@ -80,8 +83,32 @@ def _read_prompt() -> str:
         return ""
     if not isinstance(data, dict):
         return ""
+    _PAYLOAD.update(data)
     value = data.get("prompt") or data.get("user_prompt") or data.get("message") or ""
     return value if isinstance(value, str) else ""
+
+
+def _answer_budget_nudge(project_dir: str) -> str | None:
+    """terse-answers-enforced-by-mechanism: score the answer the human just read.
+
+    Here and not on Stop: a blocked Stop swallows the turn's output. Never blocks,
+    never rewrites; a missing transcript or an answer within budget adds nothing.
+    """
+    path = _PAYLOAD.get("transcript_path")
+    if not isinstance(path, str) or not path:
+        return None
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from answer_shape import DEFAULT_BUDGET_WORDS, budget_nudge, last_final_answer
+        from tausik_utils import load_effective_config
+
+        budget = DEFAULT_BUDGET_WORDS
+        value = load_effective_config(project_dir).get("answer_budget_words")
+        if isinstance(value, int) and value > 0:
+            budget = value
+        return budget_nudge(last_final_answer(path), budget)
+    except Exception:  # noqa: BLE001 — an advisory line must never break the prompt hook
+        return None
 
 
 def main() -> int:
@@ -113,6 +140,10 @@ def main() -> int:
             "or create a task via `/plan` (SENAR Rule 1, enforced by PreToolUse hook). "
             "Skipping this step means Write/Edit will be blocked."
         )
+
+    budget_line = _answer_budget_nudge(project_dir)
+    if budget_line:
+        nudges.append(budget_line)
 
     if not nudges:
         return 0

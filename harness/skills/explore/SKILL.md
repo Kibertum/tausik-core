@@ -29,7 +29,7 @@ Investigation without full task formality.
    - What we hope to learn
 
 3. **Investigate:**
-   - **Locate code narrowly** — `Grep` with a `path`/`glob`, or `mcp__codebase-rag__search_code` (ranked chunks); neither has a measured edge.
+   - **Locate code through RAG** — `mcp__codebase-rag__search_code` for concepts; a `Grep` also brings the index's top chunks automatically.
    - Skim what the search returns, then `Read` the specific files that look relevant.
    - Try small experiments (do NOT write production code).
    - Document findings as you go in conversation.

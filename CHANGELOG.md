@@ -9,6 +9,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — RAG is the route to code by mechanism: every Grep brings the index's hits (story D, decision #391)
+
+Telling the agent to search RAG first changed nothing (0 `search_code` calls in 62 in a paired replay), so the index is now consulted for it: a PostToolUse hook on Grep searches `.tausik/rag/rag.db` for the identifiers of the pattern and adds the top three chunks (path:lines and the first lines) next to the Grep result. Read-only; an absent index or no hit adds nothing. Skills and the host routing template name RAG again as the route to code. This replaces the removal of the rag-first texts earlier in 1.10.
+
+### Added — an answer budget the agent sees on the next prompt (story J)
+
+The 1.9 answer rules were text; measured on this repository the final answer still ran a median 396 words (p90 915). On every human prompt the UserPromptSubmit hook now scores the answer that was just read and, when it is over `answer_budget_words` (default 200) or does not open with a verdict, adds one line naming the numbers and the shape to use. It never blocks and never rewrites; a Stop hook was not used because a blocked Stop swallows the turn's output. Effect: pending a re-measurement with `tausik metrics answers` against the 396-word baseline.
+
+### Added — `tausik metrics answers`: the shape of the agent's answers, measured (story J)
+
+The 1.9 answer rules were text, and answers stayed long. `tausik metrics answers --last N` reads the host transcripts of this project and reports the final answer of each turn — median and p90 words, share that states a verdict in the first line, list share, filler phrases — plus the interim text between tool calls. Baseline on this repository, last 10 sessions: median 396 words, p90 915, verdict first 95%, filler 0.08 per answer, interim 52 words per turn. Length, not filler, is the problem; the mechanism that acts on it is the next task. A transcript that cannot be read is reported as skipped, never as zero.
+
 ### Fixed — the scope gate measures a task from a git anchor, not from its start time (github#25, Sortula #49 / core#10)
 
 The scope-honesty check counted every commit since `started_at` plus every uncommitted change in the tree, so a long-lived task inherited other people's work — 576 files at the consumer, 2,690 here — and in a shared dirty tree every task inherited the whole tree. A task now takes a git snapshot of the working tree when it starts (`git stash create`, kept by `refs/tausik/baseline/<slug>`, never pushed by default), and "what changed" is the diff from that snapshot. Resuming a blocked task retakes the snapshot and writes a BASELINE line in the journal; closing it drops the ref. A file the task itself changes is still caught, committed or not; outside git the old time-based measure applies unchanged. The consumer's session-floor patch was not adopted: sessions are optional since 1.10.

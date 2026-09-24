@@ -219,3 +219,47 @@ class TestSettingsGeneration:
         cfg = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         hooks = cfg.get("hooks", {})
         assert "UserPromptSubmit" in hooks
+
+
+class TestAnswerBudget:
+    """terse-answers-enforced-by-mechanism: the answer the human just read is scored."""
+
+    def _transcript(self, tmp_path, answer):
+        p = tmp_path / "t.jsonl"
+        rec = {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": answer}]},
+        }
+        p.write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+        return str(p)
+
+    def _run_with(self, tmp_path, transcript):
+        return subprocess.run(
+            [sys.executable, _HOOK_PATH],
+            input=json.dumps({"prompt": "ok, what next?", "transcript_path": transcript}),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+            env={**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path), "PYTHONUTF8": "1"},
+        )
+
+    def test_a_long_answer_is_named_with_its_numbers(self, tmp_path):
+        _setup_empty_tausik(tmp_path)
+        long_answer = "Done: shipped.\n" + "word " * 400
+        ctx = _context(self._run_with(tmp_path, self._transcript(tmp_path, long_answer)))
+        assert "[TAUSIK answer budget]" in ctx and "budget 200" in ctx
+
+    def test_an_answer_within_budget_injects_nothing(self, tmp_path):
+        """NEGATIVE: a terse answer with a verdict adds no line."""
+        _setup_empty_tausik(tmp_path)
+        result = self._run_with(
+            tmp_path, self._transcript(tmp_path, "Done: 3 tasks closed.\n- A: 2")
+        )
+        assert result.returncode == 0 and result.stdout.strip() == ""
+
+    def test_a_missing_transcript_injects_nothing(self, tmp_path):
+        """NEGATIVE: never blocks, never guesses."""
+        _setup_empty_tausik(tmp_path)
+        result = self._run_with(tmp_path, str(tmp_path / "absent.jsonl"))
+        assert result.returncode == 0 and result.stdout.strip() == ""

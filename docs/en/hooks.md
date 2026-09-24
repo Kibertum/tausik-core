@@ -2,7 +2,7 @@
 
 # Hooks
 
-TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **22 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 24 gates in total (v1.4 introduced `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, and `task_cost_budget_check.py`; 1.8 added `scope_write_gate.py` and `bash_write_gate.py`; 1.9 added `read_ledger_gate.py`, off by default).
+TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **23 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 24 gates in total (v1.4 introduced `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, and `task_cost_budget_check.py`; 1.8 added `scope_write_gate.py` and `bash_write_gate.py`; 1.9 added `read_ledger_gate.py`, off by default).
 
 ## What Are Hooks
 
@@ -31,6 +31,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | `posttool_usage.py` (v1.4) | After any tool call | Records token-usage events to `usage_events` for per-task cost rollup |
 | `activity_event.py` | After any tool call | Records activity timestamps for **gap-based active-time** session metric (SENAR Rule 9.2) |
 | `tool_output_truncation_nudge.py` (v1.4) | After Read/Grep/Glob and every shell tool (Bash, PowerShell, `mcp__windows-mcp__PowerShell`) | Coaches the agent to narrow scope when tool output exceeds the configured line threshold (warn-only) |
+| `rag_grep_context.py` (1.10) | After Grep | Searches the RAG index for the identifiers of the Grep pattern and adds the top 3 chunks (path:lines) as context. Read-only; nothing when the index is absent or has no hit. |
 | `task_cost_budget_check.py` (v1.4) | After any tool call | Compares the active task's `cost_actual` / `tokens_actual` against budget; emits WARN at 1.5× and BLOCKER at 2× (throttled) |
 
 ## SessionStart
@@ -43,7 +44,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 
 | Hook | When | What It Does |
 |------|------|-------------|
-| `user_prompt_submit.py` | On user prompt | Detects coding-intent (EN+RU) → nudges if no active task. The code-discovery nudge toward `search_code` was removed in 1.10 (decision #390: 0 search_code calls with it in a paired replay). Ignores slash-command bodies and hook-generated text |
+| `user_prompt_submit.py` | On user prompt | Detects coding-intent (EN+RU) → nudges if no active task; scores the answer just read and, over `answer_budget_words` or without a verdict first, adds one line with the numbers. The code-discovery nudge toward `search_code` was removed in 1.10 (decision #390: 0 search_code calls with it in a paired replay). Ignores slash-command bodies and hook-generated text |
 
 ## Stop
 

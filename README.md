@@ -138,7 +138,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 <summary>Raw counts</summary>
 
 - **146 MCP tools** — full programmatic access to the project database.
-- **22 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
+- **23 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
 - **13 core skills** auto-deployed; 20 official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
 - **6 automatic metrics**, **a shared local knowledge store** (`~/.tausik-knowledge`, `--global`), **batch execution** (`/run plan.md`).
@@ -153,12 +153,12 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 
 | IDE | MCP tools | Skills | Hooks | Status |
 |---|---|---|---|---|
-| **Claude Code** | 146 | 13 core + opt-in | 22 (full) | First-class |
-| **Qwen Code** | 146 | 13 core + opt-in | 22 (parity with Claude) | First-class |
+| **Claude Code** | 146 | 13 core + opt-in | 23 (full) | First-class |
+| **Qwen Code** | 146 | 13 core + opt-in | 23 (parity with Claude) | First-class |
 | **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 146 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
 | **Cursor** | 146 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
-| VSCode + Claude Extension | 146 | 13 core + opt-in | 22 | Tested E2E |
-| **Codex CLI** | 146 | 13 core + opt-in | 22 (same declaration as Claude; enforce once you trust the project hooks in Codex) | First-class, live-verified in 1.9 |
+| VSCode + Claude Extension | 146 | 13 core + opt-in | 23 | Tested E2E |
+| **Codex CLI** | 146 | 13 core + opt-in | 23 (same declaration as Claude; enforce once you trust the project hooks in Codex) | First-class, live-verified in 1.9 |
 | **OpenCode** | 146 | 13 core + opt-in | — (one QG-0 plugin; gates at task start/done) | Supported via MCP |
 | Windsurf | MCP + rules | host-dependent | host-specific | Expected / manual |
 

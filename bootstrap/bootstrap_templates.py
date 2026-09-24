@@ -172,11 +172,11 @@ Check status: `.tausik/tausik gates status`. Fix blocking failures before commit
 
 TOOL_ROUTING = """## Tool Routing — when to use which
 
-TAUSIK ships retrieval MCP servers for PROJECT KNOWLEDGE — decisions, memory, the roadmap — which raw text search cannot reach. For code, narrow before you read; the RAG index is one option with no measured edge over Grep.
+TAUSIK ships retrieval MCP servers: RAG for code and project knowledge for decisions, memory and the roadmap. On hosts with hooks, every Grep also returns the RAG index's top chunks.
 
 | Need | Primary | Fallback |
 |---|---|---|
-| Find a function/symbol/usage in code | `Grep` with a `path`/`glob` | `mcp__codebase-rag__search_code` |
+| Find a function/symbol/usage in code | `mcp__codebase-rag__search_code` | `Grep` with a `path`/`glob` (RAG hits are added to it) |
 | Recall a past project decision | `tausik_decisions_list` / `tausik_memory_search` (`type=convention/pattern`) | — |
 | Cross-project pattern or gotcha | `tausik_memory_search` (the shared store is folded into the results) | — |
 | Web lookup (docs, API, errors) | `WebFetch` | — |

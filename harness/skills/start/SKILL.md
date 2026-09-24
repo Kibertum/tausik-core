@@ -64,7 +64,7 @@ Do **not** render: planning tasks list (use `tausik task next` on demand), metri
 
 ## Code search hierarchy
 
-Narrow before you read: `Grep` with a `path`/`glob`, `Read` with `offset`/`limit`. `mcp__codebase-rag__search_code` is available for symbols and patterns (ranked chunks); no measured effect on tool choice (docs/ru/research/rag-nudge-replay-protocol.md §7), so use whichever tool fits.
+Narrow before you read: `Grep` with a `path`/`glob`, `Read` with `offset`/`limit`. RAG is the route to code: after every `Grep` a hook adds the index's top chunks for the same identifiers, and `mcp__codebase-rag__search_code` answers questions by concept ("where is X handled") that a regex cannot.
 
 ## Gotchas
 
