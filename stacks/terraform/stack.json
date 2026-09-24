@@ -12,6 +12,7 @@
       "severity": "block",
       "trigger": ["verify", "commit"],
       "command": "terraform fmt -check && terraform validate 2>&1 | head -30",
+      "file_extensions": [".tf", ".tfvars"],
       "description": "Terraform fmt+validate — syntax only, NOT policy-as-code (Checkov/tfsec/Sentinel NOT included).",
       "stacks": ["terraform"],
       "timeout": 120

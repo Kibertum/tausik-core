@@ -39,7 +39,33 @@ CROSSCUTTING_SCOPE = ["scripts/", "docs/", "tests/"]
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PROJECT = os.path.dirname(_HERE)
-CORPUS = os.path.normpath(os.path.join(_PROJECT, "..", "..", "standards", "renar"))
+
+
+def _resolve_corpus() -> str:
+    """One source for the corpus path: the config key the drift detector reads.
+
+    This used to be a hardcoded sibling `standards/renar` — the SITE repository
+    once the standard moved to `standards/renar-standart` in September 2026, so
+    the path existed, carried no `standard/` and the suite went red on a moved
+    corpus while the detector, reading the same wrong place, answered
+    "unreadable" (task renar-drift-detector-reads-the-site-repo-not-the-standard).
+    The fallback names the standard's own repository, not the site.
+    """
+    import sys
+
+    sys.path.insert(0, os.path.join(_PROJECT, "scripts"))
+    try:
+        from renar_standard_drift import corpus_root
+
+        configured = corpus_root()
+    except Exception:  # noqa: BLE001 — no config on a bare clone: use the sibling default
+        configured = None
+    if configured:
+        return os.path.normpath(configured)
+    return os.path.normpath(os.path.join(_PROJECT, "..", "..", "standards", "renar-standart"))
+
+
+CORPUS = _resolve_corpus()
 STANDARD = os.path.join(CORPUS, "standard")
 
 # Sources whose RENAR citations are load-bearing: they justify a verdict, a
@@ -81,6 +107,14 @@ def _corpus_sections() -> set[str]:
     return found
 
 
+# `SENAR 1.5 §10.15(f)`, `SENAR §9.4(c)`: the other standard, cited in the same
+# documents. Read as RENAR it either dangles (§10.15) or, worse, "resolves" to an
+# unrelated RENAR section with the same number (§8.6, §9.4) — the dangerous class
+# this module exists for. Only a citation the line itself attributes to SENAR is
+# set aside; an unattributed `§N.N` is still read as RENAR.
+_SENAR_OWNED = re.compile(r"SENAR(?:\s+v?\d+(?:\.\d+)*)?\s*$")
+
+
 def _citations() -> dict[str, list[str]]:
     """section -> ["path:line", ...] over every citing source."""
     out: dict[str, list[str]] = {}
@@ -91,6 +125,8 @@ def _citations() -> dict[str, list[str]]:
         with open(path, encoding="utf-8", newline="") as fh:
             for lineno, line in enumerate(fh, 1):
                 for m in _CITE.finditer(line):
+                    if _SENAR_OWNED.search(line[: m.start()]):
+                        continue  # a SENAR section, not a RENAR one
                     out.setdefault(m.group(1), []).append(f"{rel}:{lineno}")
     return out
 
@@ -107,8 +143,7 @@ SIBLING_ROOT = os.path.normpath(os.path.join(_PROJECT, "..", "..", "standards"))
 corpus_required = pytest.mark.skipif(
     not os.path.isdir(SIBLING_ROOT),
     reason=(
-        "no ../../standards checkout on this machine — this control is DORMANT "
-        "here, not passing"
+        "no ../../standards checkout on this machine — this control is DORMANT here, not passing"
     ),
 )
 
@@ -138,9 +173,7 @@ def test_every_citation_resolves():
     sections = _corpus_sections()
     cites = _citations()
     assert cites, "no citations found — the scanner or CITING_SOURCES is broken"
-    dangling = {
-        sec: places for sec, places in sorted(cites.items()) if sec not in sections
-    }
+    dangling = {sec: places for sec, places in sorted(cites.items()) if sec not in sections}
     assert not dangling, "citations with no such section in the corpus:\n" + "\n".join(
         f"  §{sec} — cited at {', '.join(places)}" for sec, places in dangling.items()
     )

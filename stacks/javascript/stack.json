@@ -17,6 +17,7 @@
       "severity": "block",
       "trigger": ["verify"],
       "command": "npm test --silent 2>&1 | tail -30",
+      "file_extensions": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".vue", ".svelte"],
       "description": "JS/TS tests (jest/vitest). Override gates.js-test.command for yarn/bun/pnpm.",
       "stacks": ["javascript", "typescript", "react", "next", "vue", "nuxt", "svelte"],
       "timeout": 240

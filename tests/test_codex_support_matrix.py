@@ -31,10 +31,10 @@ PROMISED_RULES = (
     "Rule 1 Task before code",
     "Rule 2 Scope Boundaries",
 )
+SIGNAL_RULES = {"Rule 9.2 Session limit"}
 RULE_COVERAGE_NAMES = {
     "QG-0 Context Gate": "QG-0 Context Gate",
     "QG-2 Implementation Gate / Verify-First": "QG-2 Implementation Gate",
-    "Rule 9.2 Session limit": "Rule 9.2 Session limit",
     "Rule 1 Task before code": "Rule 1 Task before code",
     "Rule 2 Scope Boundaries": "Rule 2 Scope Boundaries",
 }
@@ -46,7 +46,7 @@ def _matrix_rows(path: Path, heading: str) -> dict[str, list[str]]:
     rows = {}
     for line in section.splitlines():
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) == 3 and cells[1] in {"hard", "instruction"}:
+        if len(cells) == 3 and cells[1] in {"hard", "instruction", "signal"}:
             rows[cells[0]] = cells
     return rows
 
@@ -62,8 +62,12 @@ def test_codex_matrix_is_complete_and_language_paired():
     ru_rows = _matrix_rows(_ROOT / "docs" / "ru" / "model-providers.md", RU_MATRIX_HEADING)
     assert tuple(en_rows) == PROMISED_RULES
     assert tuple(ru_rows) == PROMISED_RULES
-    assert all(row[1] == "hard" for row in en_rows.values())
-    assert all(row[1] == "hard" for row in ru_rows.values())
+    # Rule 9.2 is a signal since 1.10 (decision #376): it refuses nothing, so
+    # it needs no mechanism — and must not be advertised as hard again.
+    for rows in (en_rows, ru_rows):
+        assert {name: row[1] for name, row in rows.items()} == {
+            name: ("signal" if name in SIGNAL_RULES else "hard") for name in PROMISED_RULES
+        }
 
 
 def test_every_hard_codex_row_has_a_mechanism_in_the_generated_profile(tmp_path):

@@ -34,6 +34,7 @@ def tausik_env(tmp_path):
                 "gates": {
                     "pytest": {"enabled": False},
                     "ruff": {"enabled": False},
+                    "ruff_format": {"enabled": False},
                     "filesize": {"enabled": False},
                 }
             }
@@ -366,11 +367,12 @@ class TestMetrics:
 
 
 class TestDeadEnd:
-    def test_dead_end(self, project_env):
+    def test_dead_end_without_a_task_is_refused(self, project_env):
+        """Since 1.10 a dead end names its task (dead_end_gate.bind_task)."""
         cwd, env = project_env
         r = run_cli(["dead-end", "test approach", "test reason"], env, str(cwd))
-        assert r.returncode == 0
-        assert "documented" in r.stdout.lower() or "dead" in r.stdout.lower()
+        assert r.returncode != 0
+        assert "must name its task" in (r.stdout + r.stderr)
 
     def test_dead_end_with_task(self, project_env):
         cwd, env = project_env

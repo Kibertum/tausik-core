@@ -44,7 +44,9 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 # Every MCP server shipped by TAUSIK. Discovered, not hardcoded, so a new server or a
 # new IDE mirror is covered the moment it lands.
-_SERVERS = sorted(glob.glob(os.path.join(_ROOT, "harness", "*", "mcp", "*", "server.py")))
+# The entry point is `server.py` (project) or `rag_server.py` (codebase-rag, renamed
+# in 1.10 so mypy can check both) — match the suffix, not one file name.
+_SERVERS = sorted(glob.glob(os.path.join(_ROOT, "harness", "*", "mcp", "*", "*server.py")))
 
 _REQUIRED_HANDLERS = ("list_prompts", "list_resources")
 

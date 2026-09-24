@@ -243,6 +243,14 @@ COVERED: dict[str, tuple[Builder, Builder]] = {
 # gate -> (reason, module, red test, green test). The module is the one that
 # DOES drive both ends; the names are verified against its AST below.
 EXCUSED: dict[str, tuple[str, str, str, str]] = {
+    "ruff_format": (
+        "a formatter verdict needs the real ruff binary and a repository root to "
+        "resolve the frozen legacy list; its own module drives both ends in a "
+        "throwaway root",
+        "test_gate_ruff_format.py",
+        "test_an_unformatted_task_file_blocks",
+        "test_a_formatted_task_file_passes",
+    ),
     "test_dedupe": (
         "repo-wide ratchet: both ends are driven in its own module against the "
         "REAL measurement, because a synthetic fixture cannot produce a "

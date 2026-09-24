@@ -9,13 +9,15 @@ keep working.
 Hard QG-0 gates raised via `ServiceError`:
   - missing goal / acceptance_criteria
   - AC has no negative scenario (boundary-aware via gate_negative_scenario)
-  - SENAR Rule 9.2 session-duration overrun (when session_check_duration_fn supplied)
   - SENAR Rule 2: explicit medium/complex without scope declaration
     (scope_paths or legacy free-text scope; opt-out qg0.scope_hard_gate=false)
   - SENAR Rule 6: explicit medium/complex without rollback_plan
 
 Soft warnings returned in the list:
   - missing scope (simple/unset complexity) / scope_exclude (medium/complex)
+  - session active time over the advisory threshold (when
+    session_check_duration_fn supplied) — a signal, never a refusal since 1.10
+    (decision #376): QG-0 judges the task record only (SENAR 1.5 §8.1)
   - audit overdue (when audit_check_fn supplied)
   - security surface mentioned in title/goal but no security AC
   - <5/9 intent dimensions filled (prompt-master diagnostic)
@@ -147,8 +149,9 @@ def check_qg0_start(
     Raises ServiceError for hard-gate failures.
 
     Optional callbacks:
-      - `session_check_duration_fn`: returns warning string when SENAR Rule 9.2
-        session limit exceeded; raises ServiceError (hard-block).
+      - `session_check_duration_fn`: returns warning string when the session's
+        active time is over the advisory threshold; appended to soft warnings
+        (a signal, not a gate — decision #376).
       - `audit_check_fn`: returns warning string when SENAR Rule 9.5 audit overdue;
         appended to soft warnings.
     """
@@ -163,6 +166,10 @@ def check_qg0_start(
             f"QG-0 Context Gate: '{slug}' cannot start — missing {', '.join(missing)}. "
             f"Fix: .tausik/tausik task update {slug} --goal '...' --acceptance-criteria '...'"
         )
+    from ac_placeholder import refusal as placeholder_refusal  # substance, not presence
+
+    if thin := placeholder_refusal(task["goal"], task["acceptance_criteria"]):
+        raise ServiceError(f"{thin} Task '{slug}'.")
     # QG-0: SENAR Core Rule 2 scope. v15-scope-rule2-hardgate: explicit
     # medium/complex tasks must DECLARE scope — either structured
     # scope_paths (v30 ACL, enforced by scope_write_gate) or legacy
@@ -238,17 +245,18 @@ def check_qg0_start(
             f"SENAR requires at least one error/boundary case in acceptance criteria. "
             f"Fix: add a criterion like 'Returns 400 on invalid input' or 'Ошибка при пустом поле'."
         )
-    # SENAR Rule 9.2: session duration — block task_start after limit
+    # Session time is a SIGNAL, not a gate (decision #376; SENAR 1.5 §8.1: the
+    # QG-0 verdict is about the task record and about nothing else). Until 1.10
+    # an overrun refused the start. Over 70 measured sessions (#196–#265) one
+    # crossed the limit (#241, 246 active minutes) — there the refusal stopped
+    # a long run from starting its next task, which is exactly the autonomous
+    # work 1.10 is for, and nowhere did it prevent a declared effect. The warning is passed
+    # through as advice and the start proceeds.
     if session_check_duration_fn is not None:
         try:
             session_warning = session_check_duration_fn()
             if session_warning:
-                raise ServiceError(
-                    f"QG-0 Start Gate: {session_warning} "
-                    f"Use '/end' to finish session, or 'session extend' to continue."
-                )
-        except ServiceError:
-            raise
+                warnings.append(f"SESSION: {session_warning}")
         except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             pass  # callback unavailable — skip
     # SENAR Rule 9.5: audit overdue warning at task start

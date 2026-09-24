@@ -31,14 +31,18 @@ from typing import Any
 from verify_handle import HandleVerdict
 from verify_recent_lookup import extract_gate_signature
 
+
 def _no(
     reason: str,
     run: dict[str, Any] | None = None,
     files: list[str] | None = None,
 ) -> HandleVerdict:
     """A refusal. `files` is carried on the coverage refusals so a caller can
-    report WHAT the receipt claimed to cover alongside why it was rejected."""
-    return HandleVerdict(False, reason, run, files)
+    report WHAT the receipt claimed to cover alongside why it was rejected.
+    Every refusal carries its kind and next step (verify_refusal_kind)."""
+    from verify_refusal_kind import labelled
+
+    return HandleVerdict(False, labelled(reason), run, files)
 
 
 def _check_receipt(

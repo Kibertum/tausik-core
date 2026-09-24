@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import subprocess  # noqa: F401 — re-exported attr for backwards-compat monkeypatching (`gate_runner.subprocess.run`); the module is `subprocess` itself, so patching it here patches it globally for gate_command_runner too.
 import sys
 import time
@@ -41,6 +42,7 @@ from gate_renar_drift import run_renar_drift_gate  # noqa: F401, E402
 from gate_bootstrap_drift import run_bootstrap_drift_gate  # noqa: F401, E402
 from gate_test_resolver import resolve_test_files_for_relevant  # noqa: F401, E402
 from gate_registry import impl_for  # noqa: E402
+from verify_zero_gate import declares_file_scope  # noqa: E402
 import gate_outcome  # noqa: E402
 from gate_outcome import GateOutcome  # noqa: F401,E402 — re-exported for callers
 from tausik_utils import cli_invocation  # noqa: E402
@@ -130,6 +132,8 @@ def run_gates(
             # stack-mismatch skip persists as NULL while every other outcome
             # carries a real value.
             skipped["duration_ms"] = int((time.monotonic() - start_ms) * 1000)
+            # A gate outside the project's stacks is no part of this run's scope.
+            skipped["file_scoped"] = False
             results.append(skipped)
             if progress_callback:
                 progress_callback(
@@ -229,6 +233,9 @@ def run_gates(
             "scope": scope,
             "skipped": outcome.legacy_skipped,
             "duration_ms": int((time.monotonic() - start_ms) * 1000),
+            # Read by verify_zero_gate.unscoped_only: a project-wide PASS is
+            # not evidence about the declared files.
+            "file_scoped": declares_file_scope(gate),
         }
         results.append(result)
         if progress_callback:
@@ -335,9 +342,45 @@ def format_results(results: list[dict]) -> str:
         if not r["passed"] and output:
             # `output` is already the sentinel-free body — the scope line lives in
             # the trusted field above and is never duplicated here.
-            for line in output.split("\n")[:5]:
+            for line in failure_excerpt(output):
                 lines.append(f"         {line}")
     return "\n".join(lines)
+
+
+_PYTEST_VERDICT = re.compile(r"^(FAILED|ERROR) \S")
+_PYTEST_SUMMARY = re.compile(r"^=*\s*\d+ (failed|passed|error|errors)\b.*\bin [0-9.]+s")
+_HEAD, _TAIL = 5, 5
+
+
+def failure_excerpt(output: str) -> list[str]:
+    """What a reader needs from a failed gate's output, whatever its length.
+
+    It used to be the first five lines. A batched pytest run puts its FAILED
+    names and its "N failed" summary at the END, after "bringing up nodes..."
+    and pages of dots — so the report showed `[FAIL] pytest (block)` over a
+    body of progress dots and the agent had to reproduce the selection by hand
+    to learn which test was red (github#11: three times in session #263, again
+    in #266). Now: the head, every FAILED/ERROR line and every pytest summary
+    line wherever they stand, and the tail — in order, gaps marked `...`.
+    Output without pytest verdict lines (another tool, a crash) still shows
+    its head and tail, never nothing.
+    """
+    raw = output.split("\n")
+    if len(raw) <= _HEAD + _TAIL:
+        return raw
+    keep: set[int] = set(range(_HEAD)) | set(range(len(raw) - _TAIL, len(raw)))
+    for i, line in enumerate(raw):
+        stripped = line.strip()
+        if _PYTEST_VERDICT.match(stripped) or _PYTEST_SUMMARY.match(stripped):
+            keep.add(i)
+    out: list[str] = []
+    prev = -1
+    for i in sorted(keep):
+        if prev != -1 and i != prev + 1:
+            out.append("...")
+        out.append(raw[i])
+        prev = i
+    return out
 
 
 def check_file_conflicts(tasks: list[dict]) -> list[tuple[str, str, list[str]]]:

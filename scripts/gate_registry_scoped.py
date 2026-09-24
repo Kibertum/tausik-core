@@ -121,6 +121,24 @@ _SCOPED: tuple[GateSpec, ...] = (
         },
     ),
     GateSpec(
+        name="ruff_format",
+        prevents=(
+            "A verify signs, or a commit lands, over a task file the formatter would change. "
+            "Found in session #155: 86 files diverged and no gate asked; by 1.10 it was 117. "
+            "The inherited files are a frozen list that only shrinks (decision #386). "
+        ),
+        phase=PHASE_SCOPED,
+        impl="gate_ruff_format:run_ruff_format_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["commit", "verify"],
+            "command": None,
+            "description": "ruff format --check over the task's files, legacy list excepted",
+            "file_extensions": [".py"],
+        },
+    ),
+    GateSpec(
         name="test_dedupe",
         prevents=(
             "The population of structurally indistinguishable tests grows through a "

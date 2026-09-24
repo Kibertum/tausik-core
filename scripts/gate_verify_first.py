@@ -448,12 +448,15 @@ def enforce_verify_first(
             )
         return
 
-    # Default v1.4 behavior: refuse to close.
+    # Default v1.4 behavior: refuse to close — saying WHICH of three it is.
+    from verify_refusal_kind import head, last_run_kind
+
+    kind, why = last_run_kind(svc.be, slug)
     gate_names = ", ".join(g.get("name", "?") for g in verify_gates)
     _block(
         report,
         "verify-first",
-        f"QG-2: no fresh `tausik verify` run for this task "
+        f"{head(kind)} QG-2: no fresh `tausik verify` run for this task — {why} "
         f"(verify gates configured: {gate_names}). "
         f"Run `tausik verify --task {slug}` first — it caches; "
         f"then `task done` closes in milliseconds. To opt out "

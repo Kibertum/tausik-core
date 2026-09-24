@@ -125,3 +125,26 @@ def test_doctor_omits_warning_when_auto_verify_false(monkeypatch):
 def test_doctor_suppresses_warning_in_ci(monkeypatch):
     out = _run_doctor_capture({"task_done": {"auto_verify": True}}, {"CI": "true"})
     assert "Verify-First profile" not in out
+
+
+# doctor-warns-forever-about-a-deliberate-verify-profile: a written reason turns
+# the eternal warning into a report of the choice; no reason keeps the warning.
+@pytest.mark.parametrize(
+    ("reason", "acknowledged"),
+    [
+        pytest.param("vaflower: billing code is never cacheable", True, id="with-reason"),
+        pytest.param("   ", False, id="blank-is-none"),
+        pytest.param(None, False, id="absent"),
+    ],
+)
+def test_a_recorded_reason_turns_the_warning_into_a_report(reason, acknowledged):
+    td = {"auto_verify": True}
+    if reason is not None:
+        td["_auto_verify_reason"] = reason
+    out = _run_doctor_capture({"task_done": td}, {})
+    line = next(ln for ln in out.splitlines() if "Verify-First profile" in ln)
+    if acknowledged:
+        assert line.lstrip().startswith("OK") and "chosen: vaflower" in line
+    else:
+        assert line.lstrip().startswith("WARN")
+        assert "task_done._auto_verify_reason" in line

@@ -80,10 +80,54 @@ def executed_gates(results: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r for r in results if _outcome_of(r) in _EXECUTED]
 
 
+def declares_file_scope(gate: dict[str, Any]) -> bool:
+    """Whether a gate says WHICH files it examines.
+
+    `file_extensions`, `file_patterns`, or a command that takes the files. A
+    gate with none of these — `go test ./...`, `npm test`, a custom command —
+    runs over the whole project, and its PASS says nothing about the files a
+    task declared: it passes the same whether they changed or not.
+    """
+    cmd = str(gate.get("command") or "")
+    return bool(
+        gate.get("file_extensions")
+        or gate.get("file_patterns")
+        or "{files}" in cmd
+        or "{test_files_for_files}" in cmd
+    )
+
+
+def _file_scoped(result: dict[str, Any]) -> bool:
+    # A result written before `file_scoped` existed keeps the old reading.
+    return result.get("file_scoped", True) is not False
+
+
+def unscoped_only(results: Sequence[dict[str, Any]]) -> list[str]:
+    """Names of the gates that ran, when none of them was scoped to the files.
+
+    a-passing-irrelevant-gate-unblocks-an-empty-verify: every gate that
+    examines the declared files was skipped, and a gate that examines the
+    project as a whole passed. That PASS is not evidence about the change —
+    measured before this fix, it signed a receipt and closed a task whose only
+    relevant gate (pytest, no test mapped) never ran. Empty when a scoped gate
+    ran, and empty when NO gate in the run is scoped (a legacy config made of
+    project-wide commands only): there the run has nothing better to offer, and
+    refusing it would turn every close red.
+    """
+    ran = executed_gates(results)
+    if not ran or any(_file_scoped(r) for r in ran):
+        return []
+    if not any(_file_scoped(r) for r in results):
+        return []
+    return [str(r.get("name", "?")) for r in ran]
+
+
 def run_state(results: Sequence[dict[str, Any]]) -> str:
     """Classify a run for §8.6(e).
 
-    ``EXECUTED`` — at least one gate ran; the verdict rests on evidence.
+    ``EXECUTED`` — at least one gate ran; the verdict rests on evidence. A
+      run whose only executed gates are project-wide while every file-scoped
+      gate skipped is NOT this state (see `unscoped_only`).
     ``APPLICABLE_DID_NOT_RUN`` — a gate applied and produced nothing anyway.
       This is the state §8.6(e) forbids outright, and it is reported ahead of
       the legitimate one: a run holding both a legitimate skip and a gate that
@@ -96,7 +140,7 @@ def run_state(results: Sequence[dict[str, Any]]) -> str:
         # reached the gates. Treated as the forbidden state, because we cannot
         # say a gate did not apply when no gate was ever consulted.
         return APPLICABLE_DID_NOT_RUN
-    if executed_gates(results):
+    if executed_gates(results) and not unscoped_only(results):
         return EXECUTED
     if any(_outcome_of(r) == _FAILED_TO_RUN for r in results):
         return APPLICABLE_DID_NOT_RUN
@@ -121,7 +165,7 @@ def refusal(run_id: Any, task_slug: str) -> str:
     once, so the flag is spelled out rather than alluded to.
     """
     return (
-        f"verify-handle: run #{run_id} executed NO gate — it was recorded "
+        f"verify-handle: run #{run_id} executed NO gate over the declared files — it was recorded "
         "because you declared that none was expected, not because anything "
         "was checked. SENAR 1.4 §8.6(e): the absence of a negative finding is "
         "not a positive verdict, so this handle does not certify the closure "
@@ -143,8 +187,8 @@ def verdict_note(state: str) -> str:
             "gate that could not run."
         )
     return (
-        "NOT A VERDICT: no gate executed — you declared --no-tests-expected, "
-        "so nothing was checked. Recorded with no_tests_declared=1 for the "
+        "NOT A VERDICT: no gate examined the declared files — you declared "
+        "--no-tests-expected, so nothing about them was checked. Recorded with no_tests_declared=1 for the "
         f"audit trail. To close on it, say so explicitly: `{ACK_FLAG}`."
     )
 

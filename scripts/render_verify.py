@@ -56,6 +56,7 @@ def verify_lines(svc: Any, report: dict[str, Any], task_slug: str | None, scope:
         f"Verify (scope={scope}, task={task_slug or '-'}): "
         f"passed={report['passed']} status={report['status']} "
         f"trigger={report['trigger']}",
+        *_status_explained(report),
         format_results(results),
     ]
     duration_ms = report.get("duration_ms")
@@ -123,6 +124,24 @@ def _verdict_note(report: dict[str, Any], results: list[dict[str, Any]]) -> list
     from verify_zero_gate import run_state, verdict_note
 
     return [verdict_note(run_state(results))]
+
+
+def _status_explained(report: dict[str, Any]) -> list[str]:
+    """One sentence for a status whose name alone sends the reader the wrong way.
+
+    `scope-narrower-than-diff` (formerly `git-mismatch`, github#12) is NOT a
+    cache miss to retry: the run happened, the cache was refused because files
+    changed in git are not in the declared scope.
+    """
+    if report.get("status") != "scope-narrower-than-diff":
+        return []
+    n = (report.get("scope_description") or {}).get("undeclared_count")
+    count = f"{n} changed file(s)" if n else "changed files"
+    return [
+        f"  status explained: the run happened; the cache was refused because {count} "
+        "are not in the declared scope. Retrying changes nothing — declare them "
+        "with --relevant-files (or confirm they are not this task's)."
+    ]
 
 
 def _scope_notes(report: dict[str, Any], task_slug: str | None) -> list[str]:

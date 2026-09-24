@@ -20,7 +20,13 @@ from typing import Any, Callable
 
 from gate_runner import summarize_results
 
-from verify_zero_gate import ACK_FLAG, APPLICABLE_DID_NOT_RUN, run_state, verdict_note
+from verify_zero_gate import (
+    ACK_FLAG,
+    APPLICABLE_DID_NOT_RUN,
+    run_state,
+    unscoped_only,
+    verdict_note,
+)
 from verify_run_record import (
     RECORD_FAILED_STATUS,
     VerificationRecordError,
@@ -49,7 +55,8 @@ def handle_no_test_mapped(
     """Вернуть вердикт для прогона, в котором все гейты пропущены.
 
     Вызывается ТОЛЬКО когда files непусты, results непусты и каждый результат
-    помечен skipped — проверку этого условия делает вызывающий.
+    помечен skipped — или когда выполнились лишь гейты без файловой области
+    (unscoped_only), — проверку этого условия делает вызывающий.
     """
     # verify-no-test-mapped-dead-end: closing the CLI's bypass turned this
     # branch into a dead end for a whole class of work — a documentation or
@@ -128,17 +135,24 @@ def handle_no_test_mapped(
         else "Add tests/test_<basename>.py, or re-run verify with "
         "--no-tests-expected to declare that none should exist."
     )
+    wide = unscoped_only(results)
+    ran_wide = (
+        f" Only project-wide gate(s) ran ({', '.join(wide)}); they do not examine "
+        "the declared files, so their PASS is not evidence about them."
+        if wide
+        else ""
+    )
     if append_notes_fn is not None:
         append_notes_fn(
             slug,
-            f"FAIL: relevant_files {files} mapped to NO test files. {remedy}",
+            f"FAIL: relevant_files {files} mapped to NO test files.{ran_wide} {remedy}",
         )
     synth = {
         "name": "scoped-pytest",
         "passed": False,
         "skipped": False,
         "severity": "block",
-        "output": f"No tests mapped for {files}. {remedy}",
+        "output": f"No tests mapped for {files}.{ran_wide} {remedy}",
     }
     # Same reason the security block above records: this branch returned
     # without writing anything, so the one verdict that stops a closure

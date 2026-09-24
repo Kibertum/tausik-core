@@ -43,6 +43,27 @@ def _mock_run_gates():
 
 
 @pytest.fixture(autouse=True)
+def _qg0_substance_compat_shim(request, monkeypatch):
+    """Legacy fixtures start tasks with goal="g" and a five-word criterion.
+
+    QG-0 measures SUBSTANCE since 1.10 (scripts/ac_placeholder.py): 3 words of
+    goal, 5 of criteria, placeholders removed. Rewriting hundreds of fixtures
+    would test the fixtures, not the rule, so the thresholds are 0 here unless a
+    test opts in with ``@pytest.mark.qg0_substance`` — the same shape as the
+    Verify-First shim below.
+    """
+    if request.node.get_closest_marker("qg0_substance") is None:
+        try:
+            import ac_placeholder
+
+            monkeypatch.setattr(ac_placeholder, "MIN_AC_WORDS", 0)
+            monkeypatch.setattr(ac_placeholder, "MIN_GOAL_WORDS", 0)
+        except Exception:  # noqa: BLE001 — a test that cannot import it has no QG-0
+            pass
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _verify_first_autouse_compat_shim(request, monkeypatch):
     """Bridge legacy tests into v1.4 Verify-First without rewriting the suite.
 

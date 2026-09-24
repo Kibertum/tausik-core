@@ -990,7 +990,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
     def test_cache_refused_when_declared_underreports(self, conn, monkeypatch, tmp_path):
         """Pre-warm cache for declared=[scripts/foo.py]. Then declare the same
         files BUT git diff shows scripts/bar.py also changed → cache must
-        return status='git-mismatch', not 'hit'.
+        return status="scope-narrower-than-diff", not "hit".
 
         l26-verify-git-diff-wire: the undeclared file here is deliberately a
         NON-security one. Under-declaration on its own stays non-blocking
@@ -1036,7 +1036,7 @@ class TestRunGatesWithCacheGitDiffIntegration:
             ["scripts/foo.py"],
             task_created_at="2026-04-28T12:00:00Z",
         )
-        assert status2 == "git-mismatch"
+        assert status2 == "scope-narrower-than-diff"
         assert passed2 is True  # divergence alone must never fail the run
 
     def test_cache_refused_when_undeclared_file_is_security(self, conn, monkeypatch):

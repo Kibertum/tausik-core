@@ -25,6 +25,7 @@
       "severity": "block",
       "trigger": ["verify"],
       "command": "vendor/bin/phpunit 2>&1 | tail -30",
+      "file_extensions": [".php"],
       "description": "PHPUnit/Pest. Override via gates.phpunit.command for composer/pest.",
       "stacks": ["php", "laravel"],
       "timeout": 240
