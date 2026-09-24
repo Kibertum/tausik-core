@@ -9,6 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `tools/list` is never cached while it depends on the task's scope (github#91)
+
+MCP 2026-07-28 (SEP-2549) lets a client cache `tools/list` for `ttlMs`, while scope hiding (`mcp.scope_tools_exposure`) changes the list when the active task's `scope_tools` changes — a cached copy would show a surface that is no longer there. The project server now answers with `ttlMs: 0` and `cacheScope: "private"`. Held by a real stdio run that changes the scope between two calls in one session. The MCP SDK stays at 1.27; the 2026-07-28 SDK line is in beta.
+
 ### Fixed — infrastructure refusals carry their own code; an unsigned receipt turns the run red (github#109)
 
 Fail-closed covered policy verdicts, not the environment. When a project key was configured but the receipt could not be signed, verify printed a WARNING and the run stayed green and closable. Now it is red with `INFRASTRUCTURE: SIGNER_UNAVAILABLE`; a failed run write says `RECEIPT_PERSISTENCE_UNAVAILABLE`, an unreadable gate configuration `POLICY_PROFILE_UNAVAILABLE`. A project without a key is unaffected. Codes live in `scripts/infra_refusal.py`.

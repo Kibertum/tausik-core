@@ -97,7 +97,7 @@ def main():
     try:
         from mcp.server import Server
         from mcp.server.stdio import stdio_server
-        from mcp.types import TextContent, Tool
+        from mcp.types import ListToolsResult, TextContent, Tool
     except ImportError:
         print("Error: mcp package not installed. Run: pip install mcp", file=sys.stderr)
         sys.exit(1)
@@ -133,11 +133,13 @@ def main():
     # all tools. Hiding is a UX+token optimization, NOT the security barrier:
     # call_tool and the write-gate are untouched, so a hidden tool called
     # directly still passes existing enforcement.
-    from mcp_tool_scope import expose_tools
+    # The list depends on that state, so it carries ttlMs=0 / cacheScope=private
+    # (MCP 2026-07-28 CacheableResult): a client must not reuse a stale surface.
+    from mcp_tool_scope import LIST_CACHE_HINT, expose_tools
 
     @server.list_tools()
     async def list_tools():
-        return [
+        tools = [
             Tool(
                 name=t["name"],
                 description=t["description"],
@@ -145,6 +147,7 @@ def main():
             )
             for t in expose_tools(TOOLS, svc)
         ]
+        return ListToolsResult.model_validate({"tools": tools, **LIST_CACHE_HINT})
 
     # TAUSIK exposes no prompts and no resources — only tools. Some hosts (OpenCode)
     # request prompts/list and resources/list unconditionally, without consulting the

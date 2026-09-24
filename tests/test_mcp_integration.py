@@ -97,6 +97,15 @@ mcp_available = _check_mcp_available()
 skip_no_mcp = pytest.mark.skipif(not mcp_available, reason="mcp package not installed")
 
 
+def _protocol_version() -> str:
+    """The SDK's own latest revision, not a pinned 2024-11-05: a pinned date
+    silently turned the main startup test into a legacy-path test
+    (mcp-tools-list-caching-conflicts-with-scope-hiding)."""
+    from mcp.types import LATEST_PROTOCOL_VERSION
+
+    return LATEST_PROTOCOL_VERSION
+
+
 @skip_no_mcp
 class TestMCPServerStartup:
     def test_server_starts_and_accepts_initialize(self, project_dir):
@@ -116,7 +125,7 @@ class TestMCPServerStartup:
             init_msg = _jsonrpc(
                 "initialize",
                 {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": _protocol_version(),
                     "capabilities": {},
                     "clientInfo": {"name": "test", "version": "1.0"},
                 },

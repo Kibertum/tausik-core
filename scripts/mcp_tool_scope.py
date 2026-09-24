@@ -122,6 +122,14 @@ def _active_declared_tools(svc: Any) -> set[str] | None:
     return declared if any_declared else None
 
 
+# mcp-tools-list-caching-conflicts-with-scope-hiding (github#91, decision in the
+# task). MCP 2026-07-28 (SEP-2549) lets a client cache tools/list for `ttlMs`.
+# This list changes when the active task's scope_tools changes, so a cached
+# copy would show a surface that is no longer there: freshness 0, never shared.
+# SDK 1.27 does not model the fields; its result type allows extra keys.
+LIST_CACHE_HINT = {"ttlMs": 0, "cacheScope": "private"}
+
+
 def expose_tools(tools: list[dict], svc: Any) -> list[dict]:
     """Server entry point: the tool dicts to advertise for the current state.
 
