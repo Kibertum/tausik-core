@@ -40,6 +40,23 @@ if TYPE_CHECKING:
 # Named in the report so nobody reads "suggested" as "highest priority" again --
 # the wording that let a complexity sort pass for a plan for eleven releases.
 ORDERING_BASIS = "declared order first, then complexity score (complex > medium > simple)"
+RELEASE_BASIS = "release {version} first, then declared order, then complexity score"
+
+
+def release_story_ids(svc: ProjectService) -> tuple[list[int], str | None]:
+    """Story ids of the release composition in force, and its version; ([], None) if none."""
+    try:
+        from release_roadmap_composition import composition
+
+        comp = composition(svc.be._conn)
+    except Exception:  # noqa: BLE001 — no declared release: the old order applies
+        return [], None
+    ids = []
+    for story in comp.get("stories") or []:
+        row = svc.be.story_get(story.get("slug", ""))
+        if row:
+            ids.append(int(row["id"]))
+    return ids, comp.get("version")
 
 
 def _require(svc: ProjectService, slug: str) -> None:
@@ -112,7 +129,8 @@ def task_next_report(svc: ProjectService) -> dict[str, Any]:
     backlog was withheld from the comparison -- a "next task" chosen out of one
     candidate means something different from one chosen out of twenty.
     """
-    task: dict[str, Any] | None = svc.be.task_next_candidate()
+    ids, version = release_story_ids(svc)
+    task: dict[str, Any] | None = svc.be.task_next_candidate(ids)
     blocked: list[str] = svc.be._task_slugs_blocked_by_deps()
     claimed: list[str] = svc.be._task_slugs_claimed()
 
@@ -133,5 +151,5 @@ def task_next_report(svc: ProjectService) -> dict[str, Any]:
         "task": task,
         "blocked": blocked,
         "claimed": claimed,
-        "basis": ORDERING_BASIS,
+        "basis": RELEASE_BASIS.format(version=version) if ids else ORDERING_BASIS,
     }

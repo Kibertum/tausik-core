@@ -1,7 +1,7 @@
 ---
 slug: calibration-window-too-small-to-forecast
 title: "Окно калибровки n=10 даёт коэффициент, который за одну сессию проходит 0.49-0.71: прогноз срока на нём строить нельзя"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-open-defects
 complexity: medium
@@ -12,11 +12,22 @@ call_budget: 55
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/backend_tier_metrics.py"
+  - "scripts/status_view.py"
+  - "scripts/render_metrics.py"
+  - "tests/test_metrics_tier.py"
+scope_paths:
+  - "scripts/backend_tier_metrics.py"
+  - "scripts/status_view.py"
+  - "scripts/render_metrics.py"
+  - "tests/*.py"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-24T07:22:06Z"
 ---
 
 ## Goal
@@ -35,8 +46,18 @@ completed_at: null
 
 ## Acceptance Criteria
 
+1. The window is chosen by a backtest on historical closures, not by taste: estimators (mean of 10/30, median of 30/50, aggregate of 30/50, EWMA 0.1) predicting the actual/budget of the NEXT 20 closures, judged by MAE and jitter; the numbers are in the journal and the docstring. 2. The winner replaces 'mean of last 10' in calibration_drift; the spread (p25-p75) and n travel with the point everywhere it is printed (status, metrics). 3. NEGATIVE: fewer than 5 samples still gives no coefficient; a test pins median-of-30 and the spread on a crafted history. 4. NEGATIVE: the choice is not tuned to the current window — it is the backtest winner over 580 forecast points.
+
 ## Plan
 
 ## Rollback
 
+git revert; calibration returns to the mean of the last 10
+
 ## Journal
+
+- 2026-09-24T07:20:14Z [implementation] — Backtest (session #272, 650 closures with budget+actual, 580 forecast points, target = actual/budget aggregate of the next 20 closures): mean10 MAE 0.463 jitter 0.094; mean30 0.398/0.032; median30 0.364/0.016; median50 0.379/0.010; agg30 0.407/0.034; agg50 0.419/0.020; ewma0.1 0.421/0.074. Winner: median of last 30 — lowest error, 6x less jitter than the current mean of 10.
+- 2026-09-24T07:21:12Z [implementation] — AC-1: ✓ measurement — backtest logged above (7 estimators, 580 points, MAE+jitter); numbers repeated in the calibration_drift docstring.
+- 2026-09-24T07:21:12Z [implementation] — AC-2: ✓ tests/test_metrics_tier.py::test_calibration_is_the_median_of_the_last_30_with_its_spread — calibration_drift = median of last 30 with p25/p75; status: 'Calibration: overestimating (median actual/budget=0.48, p25-p75 0.34-0.99, n=30)'; metrics prints the same.
+- 2026-09-24T07:21:12Z [implementation] — AC-3: ✓ tests/test_metrics_tier.py::test_fewer_than_five_samples_still_give_no_coefficient — negative.
+- 2026-09-24T07:21:13Z [implementation] — AC-4: ✓ review — negative: the choice is the backtest winner over the whole history, not a fit to the current window; 38 status/metrics tests green.

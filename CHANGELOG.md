@@ -9,6 +9,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the complexity check no longer counts the state projection as work (github#76)
+
+`COMPLEXITY UNDERSTATED` counted generated `tausik/` projection files as behaviour: two real closes showed 9 of 10 and 23 of 26 declared files that the exporter had written, so the more diligently a task journaled, the more understated it looked — and each false detection went to the supervision log that feeds calibration. The generated directories now have one source, `scripts/derived_trees.py`, which the exporters themselves read; the check reads it too. Thresholds are unchanged, and nine real code files still warn.
+
+### Fixed — the calibration coefficient is the median of the last 30 closures, printed with its spread (github#77)
+
+The mean of the last 10 closures moved 0.71 → 0.49 within one session on the same backlog and fed release forecasts that differed by two sessions. A backtest over 580 forecast points (predicting the next 20 closures) chose the median of the last 30: error 0.364 against 0.463, and six times steadier. `status` and `metrics` now print the median with its p25–p75 spread and n — today `0.48 (0.34–0.99), n=30`.
+
+### Added — `path_artifact`: a guarded path moves its artifact in the same commit (github#90)
+
+A commit gate driven by a map in config — `gates.path_artifact.map`, a list of `{"paths": [globs], "artifacts": [files]}`: a staged change under a mapped path requires a substantive staged change to each artifact bound to it; a whitespace-only touch does not count. Unlike the changelog gate (bound to a task at `task done`), it is bound to paths, whoever commits. The default map is empty — another repository's paths are not ours — and the gate reports that out loud instead of passing; a staged set it cannot read blocks. Idea from check-feature-memory.mjs of unicorn-hub (MIT).
+
+### Fixed — `task next` offers the release first (github#142)
+
+`task next` ranked the whole backlog by score, so it suggested a task of no release (brainh-semantic-search) while 1.10 had 27 offerable tasks — the declared release was decoration for multi-agent work. It now ranks tasks of the release composition in force (read from decisions, as the roadmap does) first, then declared order and score; the reason line names the release. With no declared release, or nothing offerable in it, the old order applies.
+
 ### Changed — RAG is the route to code by mechanism: every Grep brings the index's hits (story D, decision #391)
 
 Telling the agent to search RAG first changed nothing (0 `search_code` calls in 62 in a paired replay), so the index is now consulted for it: a PostToolUse hook on Grep searches `.tausik/rag/rag.db` for the identifiers of the pattern and adds the top three chunks (path:lines and the first lines) next to the Grep result. Read-only; an absent index or no hit adds nothing. Skills and the host routing template name RAG again as the route to code. This replaces the removal of the rag-first texts earlier in 1.10.

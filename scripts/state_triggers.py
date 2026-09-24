@@ -140,7 +140,9 @@ def _tree_root(svc: ProjectService) -> str | None:
         )
         if os.path.basename(tausik_dir) != TAUSIK_DIR:
             return None
-        return os.path.join(os.path.dirname(tausik_dir), "tausik")
+        from derived_trees import PROJECTION_ROOT
+
+        return os.path.join(os.path.dirname(tausik_dir), PROJECTION_ROOT)
     except Exception:  # noqa: BLE001
         return None
 

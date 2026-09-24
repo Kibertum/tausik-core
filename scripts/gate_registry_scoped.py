@@ -121,6 +121,24 @@ _SCOPED: tuple[GateSpec, ...] = (
         },
     ),
     GateSpec(
+        name="path_artifact",
+        prevents=(
+            "A commit changes a guarded path without moving the artifact the project "
+            "bound to it (github#90). Guards nothing until the project declares its map: "
+            "the default map is empty and the gate says so on every commit. "
+        ),
+        phase=PHASE_SCOPED,
+        impl="gate_path_artifact:run_path_artifact_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["commit"],
+            "command": None,
+            "description": "a staged change under a mapped path needs its artifact in the same commit",
+            "map": [],
+        },
+    ),
+    GateSpec(
         name="ruff_format",
         prevents=(
             "A verify signs, or a commit lands, over a task file the formatter would change. "

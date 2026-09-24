@@ -47,7 +47,10 @@ class TaskTeamMixin:
 
     def task_next(self, agent_id: str | None = None) -> dict[str, Any] | None:
         """Pick next available task; auto-start if agent_id given (QG-0 enforced)."""
-        task: dict[str, Any] | None = self.be.task_next_candidate()  # type: ignore[attr-defined]
+        from service_task_order import release_story_ids
+
+        ids = release_story_ids(self)[0]  # type: ignore[arg-type]
+        task: dict[str, Any] | None = self.be.task_next_candidate(ids)  # type: ignore[attr-defined]
         if not task:
             return None
         if agent_id:

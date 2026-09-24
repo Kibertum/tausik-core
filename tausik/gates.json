@@ -88,6 +88,10 @@
       "test": "tests/test_gate_test_dedupe.py::test_growth_is_red_and_says_where",
       "violation": "one more test sharing an existing shape — the growth the ratchet exists to block; the proof drives it on the REAL repository measurement, because a synthetic fixture cannot produce a duplicate group across the actual test tree"
     },
+    "path_artifact": {
+      "test": "tests/test_gate_path_artifact.py::test_a_guarded_change_without_its_artifact_blocks",
+      "violation": "a staged change under a mapped path with no substantive staged change to the artifact bound to it"
+    },
     "ruff_format": {
       "test": "tests/test_gate_ruff_format.py::test_an_unformatted_task_file_blocks",
       "violation": "a task file that ruff format would change, not on the frozen legacy list"

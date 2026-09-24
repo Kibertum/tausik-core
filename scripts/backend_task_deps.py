@@ -156,17 +156,31 @@ class BackendTaskDepsMixin:
                 stack.append((parent, [*path, parent]))
         return []
 
-    def task_next_candidate(self) -> dict[str, Any] | None:
+    def task_next_candidate(
+        self, release_story_ids: list[int] | None = None
+    ) -> dict[str, Any] | None:
         """Highest-score offerable task whose predecessors are all done.
 
         Score still breaks ties, and deliberately so: the defect was that order
         could not be EXPRESSED, not that complexity was the wrong tie-break.
         Changing both at once would have left neither measured.
+
+        task-next-ignores-declared-wave-order: with `release_story_ids` (the
+        stories of the release composition in force) a task of the release is
+        offered before any other, so a high score elsewhere in the backlog no
+        longer outranks the release the project declared.
         """
+        ids = [int(i) for i in (release_story_ids or [])]
+        in_release = (
+            f"CASE WHEN t.story_id IN ({','.join('?' * len(ids))}) THEN 0 ELSE 1 END, "
+            if ids
+            else ""
+        )
         row: dict[str, Any] | None = self._q1(
             f"SELECT t.* FROM tasks t WHERE {_OFFERABLE} "
             f"AND NOT {_HAS_UNFINISHED_PREDECESSOR} "
-            "ORDER BY t.score DESC LIMIT 1"
+            f"ORDER BY {in_release}t.score DESC LIMIT 1",
+            tuple(ids),
         )
         return row
 

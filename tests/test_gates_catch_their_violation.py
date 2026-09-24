@@ -243,6 +243,13 @@ COVERED: dict[str, tuple[Builder, Builder]] = {
 # gate -> (reason, module, red test, green test). The module is the one that
 # DOES drive both ends; the names are verified against its AST below.
 EXCUSED: dict[str, tuple[str, str, str, str]] = {
+    "path_artifact": (
+        "reads the STAGED set of a real git repository; its own module drives both "
+        "ends in a throwaway repo",
+        "test_gate_path_artifact.py",
+        "test_a_guarded_change_without_its_artifact_blocks",
+        "test_a_guarded_change_with_its_artifact_passes",
+    ),
     "ruff_format": (
         "a formatter verdict needs the real ruff binary and a repository root to "
         "resolve the frozen legacy list; its own module drives both ends in a "

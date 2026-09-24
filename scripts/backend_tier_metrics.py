@@ -91,7 +91,14 @@ def session_capacity_summary(
 
 
 def calibration_drift(q: QueryFn) -> dict[str, Any] | None:
-    """Return drift label from last 10 measured done tasks; None if <5 samples.
+    """Drift label from the MEDIAN of the last 30 measured closures; None if <5.
+
+    calibration-window-too-small-to-forecast (1.10): the mean of the last 10
+    moved 0.71 -> 0.49 within one session on the same backlog. Backtest over 580
+    forecast points (predicting the next 20 closures): mean10 MAE 0.463, jitter
+    0.094; median30 MAE 0.364, jitter 0.016 — the winner, 21% less error and 6x
+    steadier. The spread (p25..p75) and n travel with the point, because a
+    coefficient without its spread misleads more than none.
 
     TOKENIZER-INDEPENDENT (l26-tokenizer-calibration re-check). This ratio is
     ``call_actual / call_budget`` — TOOL-CALL COUNTS, integers unaffected by the
@@ -107,16 +114,28 @@ def calibration_drift(q: QueryFn) -> dict[str, Any] | None:
         "FROM tasks WHERE status='done' AND resolution IS NULL "
         "AND call_budget IS NOT NULL AND call_actual IS NOT NULL "
         "AND call_budget > 0 "
-        "ORDER BY completed_at DESC LIMIT 10"
+        "ORDER BY completed_at DESC LIMIT 30"
     )
     if len(rows) < 5:
         return None
-    ratios = [r["a"] / r["b"] for r in rows]
-    avg_ratio = sum(ratios) / len(ratios)
+    ratios = sorted(r["a"] / r["b"] for r in rows)
+
+    def _q(frac: float) -> float:
+        k = (len(ratios) - 1) * frac
+        lo, hi = int(k), min(int(k) + 1, len(ratios) - 1)
+        return float(ratios[lo] + (ratios[hi] - ratios[lo]) * (k - lo))
+
+    avg_ratio = _q(0.5)  # the median; the key name is kept for its readers
     if avg_ratio > 1.3:
         label = "underestimating"
     elif avg_ratio < 0.7:
         label = "overestimating"
     else:
         label = "calibrated"
-    return {"label": label, "avg_ratio": round(avg_ratio, 2), "samples": len(rows)}
+    return {
+        "label": label,
+        "avg_ratio": round(avg_ratio, 2),
+        "samples": len(rows),
+        "p25": round(_q(0.25), 2),
+        "p75": round(_q(0.75), 2),
+    }

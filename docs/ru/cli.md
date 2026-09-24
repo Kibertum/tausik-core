@@ -301,6 +301,12 @@ gates enable <name>             # Включить gate
 gates disable <name>            # Выключить gate
 ```
 
+Гейт `path_artifact` (block, на commit) связывает ПУТИ с АРТЕФАКТАМИ: при
+`gates.path_artifact.map = [{"paths": ["scripts/**"], "artifacts": ["CHANGELOG.md"]}]`
+проиндексированная правка в `scripts/` требует содержательной правки
+`CHANGELOG.md` в том же коммите (только пробелы не считаются). Карта по умолчанию
+пуста — гейт ничего не охраняет и говорит об этом; нечитаемый набор файлов блокирует.
+
 Гейт `ruff_format` (block, на verify и commit) гоняет `ruff format --check` по Python-файлам
 задачи. Файлы, расходившиеся на момент его появления, заморожены в `tausik/gates.json`
 → `ruff_format.legacy_unformatted` и пропускаются; перечень только сокращается — отформатировал

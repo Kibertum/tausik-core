@@ -1,7 +1,7 @@
 ---
 slug: task-next-ignores-declared-wave-order
 title: "task next не уважает объявленный порядок волны: голова волны не выдаётся, выигрывает несвязанная задача"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-open-defects
 complexity: medium
@@ -12,11 +12,23 @@ call_budget: 60
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/backend_task_deps.py"
+  - "scripts/service_task_order.py"
+  - "scripts/service_task_team.py"
+  - "tests/test_task_next_prefers_the_release.py"
+scope_paths:
+  - "scripts/backend_task_deps.py"
+  - "scripts/service_task_order.py"
+  - "scripts/service_task_team.py"
+  - "scripts/render_task.py"
+  - "tests/*.py"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-24T07:16:26Z"
 ---
 
 ## Goal
@@ -33,6 +45,8 @@ completed_at: null
 
 ## Acceptance Criteria
 
+1. task next ranks first the offerable tasks whose story belongs to the release composition in force (release_roadmap_composition.composition, read from decisions), then by declared predecessor edges and score as before; the 'Chosen by' line names the release. 2. NEGATIVE: a test builds a backlog where a higher-score task outside the release competes with a release task and requires the release task. 3. NEGATIVE: with no declared composition (RoadmapUnreadable) the old order applies unchanged; a task outside the release is still offered when the release has nothing offerable. 4. Live: on this repository task next offers a 1.10 task (it offered brainh-semantic-search before).
+
 ## Plan
 
 ## Rollback
@@ -42,3 +56,8 @@ completed_at: null
 ## Journal
 
 - 2026-08-29T14:22:52Z [planning] — [#189] ВЕРНУТА В 1.9 ПОСЛЕ ПРОВЕРКИ ПЛАНА. Прогнал task next на готовом плане релиза: он предложил brainh-reliability — задачу из ЧУЖОГО эпика (brain-hardening, Notion sync), при 53 свободных задачах 1.9 и объявленном порядке в 28 рёбрах. Строка обоснования печатает «Chosen by: declared order first, then complexity score», но выбор идёт по ВСЕМУ бэклогу из 190+ открытых задач, а не по релизу. Следствие прямое: при многоагентной работе агенты разберут случайные задачи из разных эпиков вместо ленты релиза, и объявленный порядок работ окажется декорацией. Это делает задачу условием выполнимости плана, а не улучшением удобства — потому она переезжает из arch-debt в историю про параллельную работу.
+- 2026-09-24T07:15:34Z [implementation] — AC-1: ✓ tests/test_task_next_prefers_the_release.py::test_a_release_task_beats_a_higher_score_outside — task_next_candidate(release_story_ids) orders CASE story_id IN release first; service_task_order.release_story_ids reads composition(); basis 'release <v> first, then declared order, then complexity score'; team task_next uses it too.
+- 2026-09-24T07:15:34Z [implementation] — Root cause: backend_task_deps.task_next_candidate ordered only by score among offerable tasks; the release composition existed (release_roadmap_composition) but nothing in task next read it.
+- 2026-09-24T07:15:35Z [implementation] — AC-2: ✓ tests/test_task_next_prefers_the_release.py::test_a_release_task_beats_a_higher_score_outside — negative, score 99 outside vs 1 inside; mutation (release ordering dropped) -> red; restored.
+- 2026-09-24T07:15:35Z [implementation] — AC-3: ✓ tests/test_task_next_prefers_the_release.py::test_without_a_declared_release_the_old_order_holds and tests/test_task_next_prefers_the_release.py::test_outside_work_is_still_offered_when_the_release_has_none — negative.
+- 2026-09-24T07:15:35Z [implementation] — AC-4: ✓ measurement — live: task next now offers changed-path-does-not-require-its-artifact-to-move (1.10) with 'Chosen by: release 1.10 first'; before: brainh-semantic-search.

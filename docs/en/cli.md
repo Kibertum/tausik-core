@@ -291,6 +291,12 @@ gates enable <name>             # Enable gate
 gates disable <name>            # Disable gate
 ```
 
+The `path_artifact` gate (block, on commit) binds PATHS to ARTIFACTS: with
+`gates.path_artifact.map = [{"paths": ["scripts/**"], "artifacts": ["CHANGELOG.md"]}]`
+a staged change under `scripts/` needs a substantive staged change to
+`CHANGELOG.md` (whitespace-only does not count). The default map is empty, so it
+guards nothing and says so; an unreadable staged set blocks.
+
 The `ruff_format` gate (block, on verify and commit) runs `ruff format --check` over the
 task's Python files. Files that diverged when it landed are frozen in `tausik/gates.json`
 → `ruff_format.legacy_unformatted` and skipped; the list only shrinks — format a listed file

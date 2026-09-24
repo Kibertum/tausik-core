@@ -51,7 +51,11 @@ _CEREMONY_FILES = frozenset(
     }
 )
 
-_GENERATED_DIRS = ("docs/_generated/",)
+# Derived trees from their one source (complexity-proxy-counts-state-projection):
+# a hand list here missed the tausik/ projection and punished diligent journaling.
+from derived_trees import relative_dirs as _derived_dirs  # noqa: E402
+
+_GENERATED_DIRS = _derived_dirs()
 
 # `docs/ru/x.md` and `docs/en/x.md` are one document in two languages; so are
 # `README.md` and `README.ru.md`. A pair is one decision, so it counts once.

@@ -223,7 +223,8 @@ def extended_metrics_lines(m: dict[str, Any]) -> list[str]:
     if drift:
         out.append(
             f"\nCalibration drift: {drift['label']} "
-            f"(avg actual/budget = {drift['avg_ratio']}, n={drift['samples']})"
+            f"(median actual/budget = {drift['avg_ratio']}, "
+            f"p25-p75 {drift.get('p25')}-{drift.get('p75')}, n={drift['samples']})"
         )
     out += _escape_lines(m.get("defect_escape"))
     out += _bypass_lines(m.get("supervision_bypasses") or {})

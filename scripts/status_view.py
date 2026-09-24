@@ -303,7 +303,8 @@ def status_primary_lines(view: dict[str, Any]) -> list[str]:
     if drift:
         lines.append(
             f"Calibration: {drift['label']} "
-            f"(actual/budget={drift['avg_ratio']}, n={drift['samples']}) "
+            f"(median actual/budget={drift['avg_ratio']}, p25-p75 "
+            f"{drift.get('p25')}-{drift.get('p75')}, n={drift['samples']}) "
             "— descriptive, not a forecast"
         )
     cap = view["capacity"]
