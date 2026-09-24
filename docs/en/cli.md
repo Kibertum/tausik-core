@@ -540,6 +540,10 @@ review record --task <slug> --type {L1|L2|L3} \
               [--critical N] [--warnings N] [--reason "..."] [--notes "..."]
               # --critical > 0 without --reason is refused: CRITICAL is recorded
               # with its reason (SENAR 1.5 §10.15(f); scale: severity-scale.md)
+              [--reviewer-model M] [--author-model M]
+              # L3 only: both models are stored in notes; a same-family pair,
+              # a missing reviewer or an unknown author is refused (SENAR Rule 4).
+              # --author-model defaults to the model of the running session.
 review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
 review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
 ```

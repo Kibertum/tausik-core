@@ -390,8 +390,9 @@ arXiv 2602.11988 (ETH Zurich, 438 задач, 4 агента): контекст�
   Если автор уже на opus — ревьюер фолбэчится на fable.
 - **Триггер.** `risk_l3_trigger.check_l3_required` при measured-high closure
   блокирует `task done` (отбор описывает толщину доказательства, не предсказывает побег — решение #212) и в remediation называет `@tausik-external-reviewer`
-  с рекомендованной моделью. Записанный `tausik review record --type L3`
-  снимает блок. Opt-out: `config risk.l3_block_on_high=false` (→ warning).
+  с рекомендованной моделью и точным id модели автора. Записанный
+  `tausik review record --type L3 --author-model … --reviewer-model …` снимает
+  блок; запись с моделями одного семейства или без них отказывается (github#157). Opt-out: `config risk.l3_block_on_high=false` (→ warning).
 - **Evidence.** Вердикт ревьюера фиксируется в таблице `reviews` (run_type=L3) и
   попадает в метрики ADR (`tausik review metrics`).
 

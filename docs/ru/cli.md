@@ -547,6 +547,10 @@ review record --task <slug> --type {L1|L2|L3} \
               [--critical N] [--warnings N] [--reason "..."] [--notes "..."]
               # --critical > 0 без --reason отказывается: CRITICAL записывается
               # с причиной (SENAR 1.5 §10.15(f); шкала: severity-scale.md)
+              [--reviewer-model M] [--author-model M]
+              # только L3: обе модели пишутся в notes; пара одного семейства,
+              # отсутствие ревьюера или неизвестный автор — отказ (SENAR Rule 4).
+              # --author-model по умолчанию — модель текущей сессии.
 review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
 review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
 ```

@@ -89,7 +89,7 @@ def test_critical_with_a_reason_is_recorded_and_listed(capsys):
     cmd_review(
         svc,
         _args(
-            "record", "--task", "t", "--type", "L3", "--critical", "1",
+            "record", "--task", "t", "--type", "L2", "--critical", "1",
             "--reason", "hook fails open", "--notes", "pr#9",
         ),
     )  # fmt: skip

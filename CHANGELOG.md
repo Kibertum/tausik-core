@@ -9,6 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — an L3 review record proves separation of duties or is refused (github#157)
+
+`review record --type L3` stored free notes only, so a reviewer on the author's own model closed the review gate like any other; the invitation named the author's family at best. Now an L3 record takes `--reviewer-model` and `--author-model` (default: the running session's model), stores both in notes and is refused when they are the same family or either is unknown. The L3 delegation line carries the author's exact model id; `/review` records L2 when its agents ran on the author's model.
+
 ### Fixed — `tools/list` is never cached while it depends on the task's scope (github#91)
 
 MCP 2026-07-28 (SEP-2549) lets a client cache `tools/list` for `ttlMs`, while scope hiding (`mcp.scope_tools_exposure`) changes the list when the active task's `scope_tools` changes — a cached copy would show a surface that is no longer there. The project server now answers with `ttlMs: 0` and `cacheScope: "private"`. Held by a real stdio run that changes the scope between two calls in one session. The MCP SDK stays at 1.27; the 2026-07-28 SDK line is in beta.

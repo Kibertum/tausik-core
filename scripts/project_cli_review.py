@@ -27,6 +27,19 @@ def _notes_with_reason(critical: int, reason: str | None, notes: str | None) -> 
     return _REASON_PREFIX + reason + (f"\n{notes}" if notes else "")
 
 
+def _l3_notes_or_exit(args: Any, notes: str | None) -> str:
+    """SENAR Rule 4 on the record: both models named, different families."""
+    from review_separation import l3_refusal, models_note, resolve_author_model
+
+    author = resolve_author_model(getattr(args, "author_model", None))
+    reviewer = getattr(args, "reviewer_model", None)
+    refusal = l3_refusal(author, reviewer)
+    if refusal:
+        print(f"Error: L3 review not recorded — {refusal}", file=sys.stderr)
+        sys.exit(1)
+    return models_note(str(author), str(reviewer)) + (f"\n{notes}" if notes else "")
+
+
 def cmd_review(svc: ProjectService, args: Any) -> None:
     """tausik review — track L1/L2/L3 review runs (SENAR Rule 10.15)."""
     sub = getattr(args, "review_cmd", None)
@@ -37,6 +50,8 @@ def cmd_review(svc: ProjectService, args: Any) -> None:
             print(f"Error: task '{args.task}' not found", file=sys.stderr)
             sys.exit(1)
         notes = _notes_with_reason(args.critical, getattr(args, "reason", None), args.notes)
+        if args.run_type == "L3":
+            notes = _l3_notes_or_exit(args, notes)
         rid = svc.be.review_record(  # type: ignore[attr-defined]
             task_slug=args.task,
             run_type=args.run_type,

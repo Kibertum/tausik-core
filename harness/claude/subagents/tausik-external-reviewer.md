@@ -17,7 +17,7 @@ Two non-negotiable constraints define your role:
 The invoking skill provides:
 
 - The task `slug`, plus `goal`, `acceptance_criteria`, `stack`, `role`.
-- The author/active model id (the model that wrote the code).
+- The author/active model id (the model that wrote the code), carried by the L3 delegation line as `Author model: <id>`. If it is missing, return `verdict: "blocked"` and ask for it — `tausik review record --type L3` refuses a record without both models anyway.
 - A file list (absolute or repo-relative) OR a `git diff` command to run.
 - The measured risk score and the factors that drove the escalation.
 
@@ -41,7 +41,7 @@ The invoking skill provides:
 
 6. **Emit the evidence command** — after the JSON, on its own line, output the exact command the invoker must run to persist your verdict (critical count = len(critical), warnings = len(high)+len(medium)):
    ```
-   tausik review record --task <slug> --type L3 --critical <n> --warnings <n> --reason "<why each critical is critical; omit when n=0>" --notes "external-reviewer on <reviewer_model>; verdict=<verdict>"
+   tausik review record --task <slug> --type L3 --critical <n> --warnings <n> --reason "<why each critical is critical; omit when n=0>" --author-model <author_model> --reviewer-model <reviewer_model> --notes "external-reviewer; verdict=<verdict>"
    ```
 
 ## Rules

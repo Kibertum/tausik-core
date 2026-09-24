@@ -113,8 +113,12 @@ The `/review` skill runs **6 adversarial agents** — this is an **L3 review** (
   --critical {N_critical} \
   --warnings {N_high_plus_medium} \
   --reason "{why each CRITICAL is CRITICAL — required when N_critical > 0}" \
+  --author-model {model id of this session — it wrote the code} \
+  --reviewer-model {model the reviewer agents ran on, e.g. sonnet} \
   --notes "{1-line summary or commit/PR url}"
 ```
+
+An L3 record is refused when the two models are the same family, or when either is missing (SENAR Rule 4, github#157). If the agents inherited the session model, the pass was a separate context but not a separate model: record it as `--type L2`.
 
 Notes:
 - `--type L1` = author self-review, `L2` = peer (same context), `L3` = adversarial/external (this skill).

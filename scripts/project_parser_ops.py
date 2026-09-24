@@ -83,38 +83,6 @@ def add_audit(sub: argparse._SubParsersAction) -> None:
     )
 
 
-def add_review(sub: argparse._SubParsersAction) -> None:
-    """SENAR Rule 10.15: track L1/L2/L3 review runs + ADR metric."""
-    rev_p = sub.add_parser("review", help="Track L1/L2/L3 review runs (SENAR Rule 10.15)")
-    rev_sub = rev_p.add_subparsers(dest="review_cmd")
-
-    rec = rev_sub.add_parser("record", help="Record a review run")
-    rec.add_argument("--task", required=True, help="Task slug being reviewed")
-    rec.add_argument(
-        "--type",
-        dest="run_type",
-        required=True,
-        choices=["L1", "L2", "L3"],
-        help="L1=author, L2=peer, L3=adversarial/external",
-    )
-    rec.add_argument("--critical", type=int, default=0, help="Number of critical findings")
-    rec.add_argument("--warnings", type=int, default=0, help="Number of warnings")
-    rec.add_argument("--notes", default=None, help="Free-form notes (links, summary)")
-    rec.add_argument(
-        "--reason",
-        default=None,
-        help="Why the findings are CRITICAL; required when --critical > 0 (docs/en/severity-scale.md)",
-    )
-
-    ls = rev_sub.add_parser("list", help="List recent reviews")
-    ls.add_argument("--task", default=None, help="Filter by task slug")
-    ls.add_argument("--type", dest="run_type", default=None, choices=["L1", "L2", "L3"])
-    ls.add_argument("--limit", type=int, default=20)
-    ls.add_argument("--json", action="store_true", help="Output as JSON")
-
-    rev_sub.add_parser("metrics", help="Show ADR metric")
-
-
 def add_run(sub: argparse._SubParsersAction) -> None:
     run_p = sub.add_parser(
         "run",
@@ -480,6 +448,7 @@ def add_ops(sub: argparse._SubParsersAction) -> None:
     from project_parser_config import add_config
     from project_parser_graph import add_graph
     from project_parser_publish import add_publish
+    from project_parser_review import add_review
 
     for add in (
         add_dead_end,
