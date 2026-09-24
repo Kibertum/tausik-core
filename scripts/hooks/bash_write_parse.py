@@ -104,10 +104,17 @@ def _python_stdin_heredoc_writes(command: str) -> list[str]:
     """Literal writes in a heredoc that `python -` actually executes."""
     targets: list[str] = []
     for header, body in heredoc_bodies(command):
+        # The header is the whole line up to `<<`: `cd x; python - <<EOF` feeds
+        # the body to the LAST statement, not to `cd`.
+        segments = re.split(r";|&&|\|\||\|", header)
+        header = next((seg for seg in segments if "<<" in seg), segments[-1])
         header_tokens = tokenize(header)
         if header_tokens is None:
             continue
         _redirects, command_tokens = split_redirections(header_tokens)
+        # `PYTHONUTF8=1 python -`: a bare leading assignment is not the command.
+        while command_tokens and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", command_tokens[0]):
+            command_tokens = command_tokens[1:]
         command_tokens = _strip_prefixes(command_tokens)
         if not command_tokens:
             continue

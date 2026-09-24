@@ -42,10 +42,12 @@ FORMS: list[tuple[str, str, list[str]]] = [
     ("docstring", f'"""open("{T}", "w") is what this tests."""\n', []),
     ("string literal", f'PAYLOAD = \'open("{T}", "w")\'\n', []),
     ("f-string body", f'msg = f"""open("{T}", "w")"""\n', []),
+    # A straight-line bound name IS the literal: 917 of 1099 heredoc edit
+    # scripts in this project wrote this way and read as no write (task heredoc).
+    ("bound name (straight-line)", f'p = "{T}"\nopen(p, "w")\n', [T]),
     # --- calls that do not write: never a target ----------------------------
     ("read mode", f'open("{T}")\n', []),
     ("explicit read mode", f'open("{T}", "rb")\n', []),
-    ("computed path (name)", f'p = "{T}"\nopen(p, "w")\n', []),
     ("computed path (f-string)", 'd = "harness"\nopen(f"{d}/target.py", "w")\n', []),
     ("computed path (concat)", 'open("harness/" + "target.py", "w")\n', []),
     ("mode is not a literal", f'm = "w"\nopen("{T}", m)\n', []),
@@ -74,7 +76,11 @@ FORMS: list[tuple[str, str, list[str]]] = [
     ("Path bound literal", f'from pathlib import Path\np = "{T}"\nPath(p).write_text("x")\n', [T]),
     ("Path unlink", f'from pathlib import Path\nPath("{T}").unlink()\n', [T]),
     ("Path mkdir", f'from pathlib import Path\nPath("{T}").mkdir()\n', [T]),
-    ("Path rename both paths", f'from pathlib import Path\nPath("old.py").rename("{T}")\n', ["old.py", T]),
+    (
+        "Path rename both paths",
+        f'from pathlib import Path\nPath("old.py").rename("{T}")\n',
+        ["old.py", T],
+    ),
     ("shutil copy destination", f'import shutil\nshutil.copy("source.py", "{T}")\n', [T]),
     ("shutil move destination", f'import shutil\nshutil.move("source.py", dst="{T}")\n', [T]),
     ("os replace both paths", f'import os\nos.replace("old.py", "{T}")\n', ["old.py", T]),

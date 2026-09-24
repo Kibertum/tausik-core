@@ -182,7 +182,7 @@ def run_claudemd_state_gate() -> gate_outcome.GateOutcome:
                 "No CLAUDE.md — dynamic-state check skipped.",
             )
 
-        be = SQLiteBackend(db_path)
+        be = SQLiteBackend(db_path, read_only=True)  # a reader never migrates (#266)
         tail = build_compact_memory_tail(be)
         if not tail:
             return gate_outcome.not_applicable(

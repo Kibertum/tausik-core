@@ -59,33 +59,9 @@ _ALL_TOOLS_SPELLINGS = frozenset({"", "*"})
 #: Both directions rot (decision #335): an entry naming a difference that no
 #: longer exists fails just as loudly as a difference nobody declared.
 DECLARED_DIFFERENCES: dict[str, str] = {
-    "matcher:hook:PostToolUse:activity_event.py": (
-        "Claude names ten tools, Qwen registers for every tool. Activity events "
-        "drive gap-based ACTIVE time, and Qwen's wider net makes its sessions "
-        "look busier than Claude's on identical work. Accepted rather than "
-        "equalised here: narrowing Qwen would silently shorten sessions already "
-        "measured, and widening Claude changes a number the 1.9 economy baseline "
-        "is fixed against (decision #338)."
-    ),
-    "matcher:hook:PostToolUse:task_call_counter.py": (
-        "Claude counts Write/Edit/MultiEdit/Bash/PowerShell; Qwen counts every "
-        "tool. The two hosts therefore reach the session call budget at different "
-        "points on the same work. Named, not fixed: the budget is calibrated "
-        "against Claude's number, and changing the unit invalidates it."
-    ),
-    "matcher:hook:PostToolUse:tool_output_truncation_nudge.py": (
-        "Claude nudges on Read/Grep/Glob/Bash/PowerShell, Qwen on every tool. The "
-        "nudge is advisory in both cases, so the wider net costs nothing but a "
-        "little noise."
-    ),
-    "matcher:hook:PostToolUse:task_done_verify.py": (
-        "Qwen also registers the hook on task_done_v2, Bash and PowerShell; "
-        "Claude only on the tausik_task_done MCP tool. This is the one difference "
-        "with teeth: closing a task through the CLI is re-checked by the hook on "
-        "Qwen and not on Claude. It is a belt over braces either way — QG-2 runs "
-        "inside `task done` itself on both hosts — so the CLI path is verified "
-        "with or without the hook."
-    ),
+    # Empty since 1.10 (decision #389): the four PostToolUse matcher
+    # differences between Claude and Qwen were a hand-kept Qwen hook list,
+    # which now builds from the shared declaration like Claude and Codex.
 }
 
 

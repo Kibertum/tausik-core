@@ -32,9 +32,9 @@ class TaskTeamMixin:
         `acceptance` (or passing blank) leaves AC empty and task_start still
         demands goal + acceptance_criteria.
         """
-        from tausik_utils import slugify
+        from tausik_utils import task_slug_from_title
 
-        slug = slugify(title)
+        slug = task_slug_from_title(title)
         if self.be.task_get(slug):  # type: ignore[attr-defined]
             suffix = os.urandom(3).hex()
             slug = f"{slug[:44]}-{suffix}"

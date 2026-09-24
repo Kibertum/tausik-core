@@ -32,9 +32,16 @@ class TestMemoryBlockContent:
 
     def test_includes_decisions_conventions_deadends(self, tmp_path, monkeypatch):
         svc = _fresh_service(tmp_path, monkeypatch)
+        svc.epic_add("e", "E")  # a dead end names a REAL task since 1.10
+        svc.story_add("e", "s", "S")
+        svc.task_add("s", "t1", "T", role="developer", goal="g")
         svc.decide("Use SQLite, not Postgres, for local storage")
         svc.memory_add("convention", "kebab-case slugs", "All task slugs must be kebab-case.")
-        svc.dead_end("Tried mypy with strict-optional", "Too many false positives in legacy code")
+        svc.dead_end(
+            "Tried mypy with strict-optional",
+            "Too many false positives in legacy code",
+            task_slug="t1",
+        )
 
         block = svc.memory_block()
         assert "## TAUSIK Memory Block" in block

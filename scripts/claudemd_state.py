@@ -73,14 +73,18 @@ def build_dynamic_state(svc: Any, project_dir: str) -> str:
 
     active = [t for t in tasks if t["status"] == "active"]
     blocked = [t for t in tasks if t["status"] == "blocked"]
-    done_count = sum(1 for t in tasks if t["status"] == "done")
+    # An obsolete close is done but not delivered (task_obsolete.py): counted apart.
+    obsolete = sum(1 for t in tasks if t.get("resolution") == "obsolete")
+    done_count = sum(1 for t in tasks if t["status"] == "done") - obsolete
 
     session_info = f"#{session['id']} (active)" if session else "none"
     lines = [
         "## Current State",
         f"Session: {session_info} | Branch: {resolve_branch(project_dir)} | "
         f"{STAMP_LABEL}: {resolve_version()}",
-        f"Tasks: {done_count}/{len(tasks)} done, {len(active)} active, {len(blocked)} blocked",
+        f"Tasks: {done_count}/{len(tasks)} done"
+        + (f", {obsolete} obsolete" if obsolete else "")
+        + f", {len(active)} active, {len(blocked)} blocked",
     ]
     if active:
         lines.append(f"Active: {', '.join(t['slug'] for t in active)}")

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from tausik_utils import validate_length, validate_slug
+from tausik_utils import ServiceError, validate_length, validate_slug
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
@@ -39,10 +39,21 @@ class HierarchyMixin:
         def _require_epic(self, slug: str) -> dict[str, Any]: ...
         def _require_story(self, slug: str) -> dict[str, Any]: ...
 
+    def _new_slug(self, kind: str, slug: str) -> None:
+        """Validate a slug for a NEW entity and refuse one that exists, in one line.
+
+        The UNIQUE constraint used to answer instead, as a traceback from the
+        backend (session #266) — a caller could not tell a duplicate from a crash.
+        """
+        validate_slug(slug)
+        getter = {"epic": self.be.epic_get, "story": self.be.story_get, "task": self.be.task_get}
+        if getter[kind](slug):
+            raise ServiceError(f"{kind.capitalize()} '{slug}' already exists — pick another slug")
+
     def epic_add(self, slug: str, title: str, description: str | None = None) -> str:
         from tausik_utils import safe_single_line
 
-        validate_slug(slug)
+        self._new_slug("epic", slug)
         validate_length("title", title)
         title = safe_single_line(title) or title
         self.be.epic_add(slug, title, safe_single_line(description))
@@ -70,7 +81,7 @@ class HierarchyMixin:
         from tausik_utils import safe_single_line
 
         self._require_epic(epic_slug)
-        validate_slug(slug)
+        self._new_slug("story", slug)
         validate_length("title", title)
         title = safe_single_line(title) or title
         self.be.story_add(epic_slug, slug, title, safe_single_line(description))

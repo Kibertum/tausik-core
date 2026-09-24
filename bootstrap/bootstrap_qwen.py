@@ -19,12 +19,7 @@ from bootstrap_generate import _stdio_mcp_server, retire_managed_servers
 # second shell tool appeared, the Claude generator and this one would have had
 # to be edited in lockstep by whoever remembered. Sharing the constant makes
 # that impossible to get wrong.
-from bootstrap_hooks import (
-    BUILTIN_WRITE_MATCHER,
-    SHELL_MATCHER,
-    deployed_hooks_dir,
-    with_mcp_registrations,
-)
+from bootstrap_hooks import build_hooks_dict, deployed_hooks_dir
 
 
 def generate_settings_qwen(
@@ -73,7 +68,7 @@ def generate_settings_qwen(
     # MCP servers
     servers = existing.get("mcpServers", {})
     retire_managed_servers(servers)
-    rag_server = os.path.join(target_dir, "mcp", "codebase-rag", "server.py")
+    rag_server = os.path.join(target_dir, "mcp", "codebase-rag", "rag_server.py")
     if os.path.exists(rag_server):
         servers["codebase-rag"] = _stdio_mcp_server(
             _p(python_exe),
@@ -86,250 +81,12 @@ def generate_settings_qwen(
             [_p(project_server), "--project", _p(project_dir)],
         )
 
-    # Hooks — same SENAR enforcement as Claude Code
-    hooks = {
-        "PreToolUse": [
-            {
-                # l26-hook-contract-review parity: MultiEdit/NotebookEdit also write.
-                "matcher": BUILTIN_WRITE_MATCHER,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("task_gate.py"),
-                        "timeout": 10,
-                    }
-                ],
-            },
-            {
-                # v15-scope-enforce-write parity with bootstrap_hooks.py
-                # (+ l26-hook-contract-review: NotebookEdit added).
-                "matcher": BUILTIN_WRITE_MATCHER,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("scope_write_gate.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
-            {
-                # read-ledger: same mechanism as the Claude profile, and the
-                # parity test is the reason it is here rather than an
-                # afterthought. A guarantee that exists on one host and not
-                # another is exactly what this release refuses to ship.
-                "matcher": "Read",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("read_ledger_gate.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
-            {
-                # memory-route-gate: shell parity with bootstrap_hooks.py — a
-                # heredoc or a Set-Content writes what the Write path refuses.
-                "matcher": f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("memory_pretool_block.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
-            {
-                # secret-scan-covers-no-shell-channel (Decision #178): shell
-                # parity with bootstrap_hooks.py — a heredoc or `Set-Content
-                # -Value 'AKIA...'` carries the secret the Write path warns on.
-                "matcher": f"{BUILTIN_WRITE_MATCHER}|{SHELL_MATCHER}",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("secret_scan.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
-            {
-                "matcher": SHELL_MATCHER,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("bash_firewall.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
-            {
-                # l26-hook-contract-review parity: close the shell-write bypass
-                # of QG-0 + scope-ACL (see bootstrap_hooks.py for the rationale).
-                "matcher": SHELL_MATCHER,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("bash_write_gate.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
-            {
-                # `if` dropped for the reason bootstrap_hooks.py records: it was
-                # a second, dialect-specific copy of the decision the hook makes
-                # itself, and it named one shell.
-                "matcher": SHELL_MATCHER,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("git_push_gate.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
-        ],
-        "PostToolUse": [
-            {
-                # The tool TAUSIK ships, named at the moment an alternative was chosen:
-                # an MCP twin for a CLI call, and `symbol` for a grep after
-                # a definition. Measured before it existed — MCP 29.1% of
-                # framework calls, `symbol` 2 uses against 226 greps.
-                # Measured in session #233: 1,216 of 1,530 CLI invocations had an
-                # MCP twin and used the shell anyway — 79.5% — while the rules
-                # call MCP-first a hard constraint and nothing checked it.
-                #
-                # Shell tools only: the nudge is about choosing the shell over a
-                # tool, and it has nothing to say about a Write or a Read. It
-                # lands on BOTH hook-bearing hosts: a capability on one and not
-                # the other is what `cross_model_parity` refuses.
-                "matcher": SHELL_MATCHER,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("tool_choice_nudge.py"),
-                        "timeout": 6,
-                    }
-                ],
-            },
-            {
-                "matcher": "Write|Edit|MultiEdit",  # MultiEdit was off this hook (PR #5)
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("auto_format.py"),
-                        "timeout": 15,
-                    }
-                ],
-            },
-            {
-                "matcher": BUILTIN_WRITE_MATCHER,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("memory_posttool_audit.py"),
-                        "timeout": 5,
-                    }
-                ],
-            },
-            {
-                "matcher": (
-                    "mcp__tausik-project__tausik_task_done"
-                    "|mcp__tausik-project__tausik_task_done_v2"
-                    f"|{SHELL_MATCHER}"
-                ),
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("task_done_verify.py"),
-                        "timeout": 6,
-                    }
-                ],
-            },
-            {
-                "matcher": "*",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("task_call_counter.py"),
-                        "timeout": 5,
-                    },
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("posttool_usage.py"),
-                        "timeout": 4,
-                    },
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("activity_event.py"),
-                        "timeout": 5,
-                    },
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("tool_output_truncation_nudge.py"),
-                        "timeout": 3,
-                    },
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("task_cost_budget_check.py"),
-                        "timeout": 3,
-                    },
-                ],
-            },
-        ],
-        "SessionStart": [
-            {
-                "matcher": "",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("session_start.py"),
-                        "timeout": 6,
-                    }
-                ],
-            }
-        ],
-        "UserPromptSubmit": [
-            {
-                "matcher": "",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("user_prompt_submit.py"),
-                        "timeout": 5,
-                    }
-                ],
-            }
-        ],
-        "Stop": [
-            {
-                "matcher": "",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("keyword_detector.py"),
-                        "timeout": 5,
-                    },
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("session_cleanup_check.py"),
-                        "timeout": 5,
-                    },
-                ],
-            }
-        ],
-        "SessionEnd": [
-            {
-                "matcher": "",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": _hook_cmd("session_metrics.py", " --auto --record 2>&1 || true"),
-                    }
-                ],
-            },
-        ],
-    }
+    # Hooks: the SAME declaration Claude and Codex use (bootstrap_hooks.build_hooks_dict);
+    # only the command line is Qwen's own. This used to be a hand-kept copy that had
+    # drifted in 15 PostToolUse registrations (qwen-hooks-are-a-second-copy-of-the-declaration).
+    hooks = build_hooks_dict(_hook_cmd)
 
-    settings = {**existing, "mcpServers": servers, "hooks": with_mcp_registrations(hooks)}
+    settings = {**existing, "mcpServers": servers, "hooks": hooks}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=2)
 

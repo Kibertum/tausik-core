@@ -14,6 +14,7 @@ from __future__ import annotations
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
 from backend_schema import SCHEMA_VERSION
 from backend_migrations_postseed import run_post_migrations
+from backend_migrations_guard import _column_already_there, _stamp  # noqa: F401 — re-exported for tests
 from backend_migrations_v35 import MIGRATION_V35
 from backend_migrations_v36 import MIGRATION_V36
 from backend_migrations_v37 import MIGRATION_V37
@@ -42,6 +43,11 @@ from backend_migrations_v59 import MIGRATION_V59
 from backend_migrations_v60 import MIGRATION_V60
 from backend_migrations_v61 import MIGRATION_V61
 from backend_migrations_v62 import MIGRATION_V62
+from backend_migrations_v63 import MIGRATION_V63
+from backend_migrations_v64 import MIGRATION_V64
+from backend_migrations_v65 import MIGRATION_V65
+from backend_migrations_v66 import MIGRATION_V66
+from backend_migrations_v67 import MIGRATION_V67
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -419,10 +425,8 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v56: artifact graph -- code and docs as entities, every edge carrying the
     # layer it was obtained by (ag-artifacts-and-edges-with-provenance).
     56: MIGRATION_V56,
-    # v57: collapse the session_record pile
-    # (usage-events-sums-cumulative-snapshots-as-if-they-were-events) --
-    # DATA ONLY. SQL in backend_migrations_v57.py, a frozen literal like
-    # v52/v56 rather than a read of the live schema.
+    # v57: collapse the session_record pile -- DATA ONLY, a frozen literal in
+    # backend_migrations_v57.py (usage-events-sums-cumulative-snapshots-...).
     57: MIGRATION_V57,
     58: MIGRATION_V58,
     59: MIGRATION_V59,
@@ -431,6 +435,17 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v62: idx_tasks_defect_of -- status spent 5 s in one unindexed EXISTS and
     # the SessionStart hook timed out on it (backend_migrations_v62.py).
     62: MIGRATION_V62,
+    # v63: sessions.host_session_id -- the TAUSIK session is the host session
+    # (decision #376; backend_migrations_v63.py).
+    63: MIGRATION_V63,
+    # v64: SPEC-UC, twelfth SPEC type (RENAR 1.1 §8.3) -- guarded rebuild in
+    # run_post_migrations, empty marker here (backend_migrations_v64.py).
+    64: MIGRATION_V64,
+    # v65: memory.provenance -- observed | inferred | told (backend_migrations_v65.py).
+    65: MIGRATION_V65,
+    # v66: decisions.rejected -- alternatives turned down (backend_migrations_v66.py).
+    66: MIGRATION_V66,
+    67: MIGRATION_V67,  # tasks.resolution -- obsolete close
 }
 
 
@@ -453,12 +468,23 @@ def run_migrations(conn: "sqlite3.Connection", current_version: int) -> int:  # 
             statements = MIGRATIONS[ver]
             # Disable FK checks for table rebuilds (DROP/RENAME)
             conn.execute("PRAGMA foreign_keys=OFF")
-            conn.execute("BEGIN")
-            try:
+            # Write lock up front, version re-read under it: the loser of a race skips
+            # what the winner applied (#266 — deferred BEGIN died "database is locked").
+            conn.execute("BEGIN IMMEDIATE")
+            try:  # everything after BEGIN releases the lock on failure, the re-read too
+                row = conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
+                if row and int(row[0]) >= ver:
+                    conn.execute("COMMIT")
+                    conn.execute("PRAGMA foreign_keys=ON")
+                    current_version = int(row[0])
+                    continue
                 for stmt in statements:
                     stmt = stmt.strip()
                     if stmt and not stmt.startswith("--"):
+                        if _column_already_there(conn, stmt):
+                            continue
                         conn.execute(stmt)
+                _stamp(conn, ver)
                 conn.execute("COMMIT")
             except Exception:
                 conn.execute("ROLLBACK")

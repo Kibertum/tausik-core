@@ -351,6 +351,18 @@ def _builtin_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
+                # Same audit after `tausik task done` in the shell (own entry: a hyphen
+                # in an MCP name makes a matcher a regex, and Bash would match BashOutput).
+                "matcher": SHELL_MATCHER,
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_cmd("task_done_verify.py"),
+                        "timeout": 6,
+                    }
+                ],
+            },
+            {
                 # HIGH-5 review fix: only Write/Edit/MultiEdit + the shell tools
                 # count toward call_actual. Read/Grep/Glob are research, not
                 # work — including them inflates the calibration drift metric.

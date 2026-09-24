@@ -145,7 +145,9 @@ def root_cause_metrics(q: Callable[..., list[dict[str, Any]]]) -> dict[str, Any]
     by zero (AC4). Best-effort on shape: a row missing ``notes`` counts as
     unstructured rather than raising.
     """
-    rows = q("SELECT slug, notes FROM tasks WHERE defect_of IS NOT NULL AND status = 'done'")
+    rows = q(
+        "SELECT slug, notes FROM tasks WHERE defect_of IS NOT NULL AND status = 'done' AND resolution IS NULL"
+    )
     total = len(rows)
     structured = sum(1 for r in rows if has_structured_root_cause(r.get("notes")))
     coverage = (structured / total * 100.0) if total else 0.0

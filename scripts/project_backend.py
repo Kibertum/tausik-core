@@ -66,6 +66,8 @@ _TASK_FIELDS = frozenset(
         "done_model_version",
         "model_mismatch",
         "no_file_changes_declared",
+        "resolution",
+        "resolution_reason",
     }
 )
 
@@ -91,8 +93,16 @@ class SQLiteBackend(
 ):
     """All DB operations for TAUSIK. Single SQLite file, FTS5 search."""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, read_only: bool = False) -> None:
         self.db_path = db_path
+        if read_only:  # a reader never migrates — see backend_read_only (#266)
+            from backend_read_only import open_read_only
+
+            self._conn = open_read_only(db_path)
+            self._in_tx, self._savepoint_seq, self._pending_projection = False, 0, []
+            self._read_only = True
+            return
+        self._read_only = False
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self._conn = sqlite3.connect(db_path, timeout=10, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
@@ -109,7 +119,10 @@ class SQLiteBackend(
         init_schema(self._conn)
 
     def close(self) -> None:
-        """Close connection with WAL checkpoint."""
+        """Close connection with WAL checkpoint (a read-only one cannot checkpoint)."""
+        if getattr(self, "_read_only", False):
+            self._conn.close()
+            return
         try:
             self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         except Exception as e:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
@@ -119,7 +132,7 @@ class SQLiteBackend(
     def __enter__(self) -> "SQLiteBackend":
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
     # --- helpers ---

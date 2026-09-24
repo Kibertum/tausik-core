@@ -56,7 +56,7 @@ def _done_rows(q: QueryFn) -> list:
         "SELECT t.slug, t.complexity, t.role, t.tier, t.risk_score, "
         "CASE WHEN EXISTS(SELECT 1 FROM tasks d WHERE d.defect_of = t.slug) "
         "THEN 1 ELSE 0 END AS escaped, {verified} AS verified "
-        "FROM tasks t WHERE t.status='done'"
+        "FROM tasks t WHERE t.status='done' AND t.resolution IS NULL"
     )
     verified_expr = (
         "CASE WHEN EXISTS(SELECT 1 FROM verification_runs v "

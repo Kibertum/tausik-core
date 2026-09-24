@@ -137,7 +137,7 @@ def _path_value_target(node: ast.expr | None, bindings: dict[str, str]) -> str |
     return _path_constructor_target(node, bindings) or _literal_path(node, bindings)
 
 
-def _open_call_target(call: ast.Call) -> str | None:
+def _open_call_target(call: ast.Call, bindings: dict[str, str] | None = None) -> str | None:
     """The literal path an `open(...)` CALL writes, else None.
 
     FORMS, not examples (the distinction this project keeps paying for):
@@ -159,11 +159,13 @@ def _open_call_target(call: ast.Call) -> str | None:
         return None
     if name != "open":
         return None
-    path = _constant_str(call.args[0]) if call.args else None
+    # `p = "x"; open(p, "w")` — 917 of 1099 writing heredoc bodies in this
+    # project's transcripts wrote through a bound name and read as no write.
+    path = _literal_path(call.args[0], bindings or {}) if call.args else None
     mode = _constant_str(call.args[1]) if len(call.args) > 1 else None
     for kw in call.keywords:
         if kw.arg == "file":
-            path = _constant_str(kw.value)
+            path = _literal_path(kw.value, bindings or {})
         elif kw.arg == "mode":
             mode = _constant_str(kw.value)
     if not path or not mode or not (_WRITE_MODE_CHARS & set(mode)):
@@ -197,13 +199,15 @@ def _write_call_targets(call: ast.Call, bindings: dict[str, str]) -> list[str]:
     This is the sole catalogue consumer.  `open` stays separate because it
     predates the pathname family and has a distinct `file=` grammar.
     """
-    open_target = _open_call_target(call)
+    open_target = _open_call_target(call, bindings)
     if open_target is not None:
         return [open_target]
 
     func = call.func
     if isinstance(func, ast.Attribute):
         receiver = _path_constructor_target(func.value, bindings)
+        if receiver is None and isinstance(func.value, ast.Name):
+            receiver = bindings.get(func.value.id)  # `p = Path("x"); p.write_text(...)`
         if receiver is not None:
             if func.attr in _PATH_MUTATING_METHODS:
                 return [receiver]
@@ -228,6 +232,68 @@ def _write_call_targets(call: ast.Call, bindings: dict[str, str]) -> list[str]:
     return []
 
 
+def _literal_strings(node: ast.expr) -> list[str]:
+    """The strings of a literal list/tuple of strings (capped), else []."""
+    if not isinstance(node, (ast.List, ast.Tuple)) or len(node.elts) > 64:
+        return []
+    values = [_constant_str(e) for e in node.elts]
+    return [v for v in values if v is not None] if all(v is not None for v in values) else []
+
+
+def _loop_bindings(target: ast.expr, iterable: ast.expr) -> list[dict[str, str]]:
+    """Per-iteration string bindings of a loop over a literal list, else []."""
+    if not isinstance(iterable, (ast.List, ast.Tuple)) or len(iterable.elts) > 64:
+        return []
+    if isinstance(target, ast.Name):
+        return [{target.id: v} for v in _literal_strings(iterable)]
+    if not isinstance(target, ast.Tuple) or not all(isinstance(t, ast.Name) for t in target.elts):
+        return []
+    rounds: list[dict[str, str]] = []
+    for elt in iterable.elts:
+        if not isinstance(elt, (ast.Tuple, ast.List)) or len(elt.elts) != len(target.elts):
+            return []
+        pairs = zip(target.elts, elt.elts)
+        rounds.append({t.id: v for t, e in pairs if (v := _constant_str(e)) is not None})
+    return rounds
+
+
+_PARAM = "\x00param:"
+
+
+def _helper_param_writes(tree: ast.AST, module_bindings: dict[str, str]) -> list[str]:
+    """Writes through a helper's PARAMETER, resolved at its literal call sites.
+
+    `def rep(p, old, new): ... open(p, "w")` then `rep("scripts/x.py", ...)` is
+    the ordinary shape of an edit script; the path is a literal at the call and
+    a name inside the function. One level, same module, positional or keyword.
+    """
+    written: dict[str, list[tuple[int, str]]] = {}
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        params = [a.arg for a in fn.args.args]
+        seeded = _WriteVisitor()
+        seeded.bindings = {name: f"{_PARAM}{i}" for i, name in enumerate(params)}
+        for statement in fn.body:
+            seeded.visit(statement)
+        hits = {int(t[len(_PARAM) :]) for t in seeded.targets if t.startswith(_PARAM)}
+        if hits:
+            written[fn.name] = [(i, params[i]) for i in sorted(hits)]
+    targets: list[str] = []
+    for call in ast.walk(tree):
+        if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)):
+            continue
+        for index, name in written.get(call.func.id, []):
+            arg = call.args[index] if index < len(call.args) else None
+            for kw in call.keywords:
+                if kw.arg == name:
+                    arg = kw.value
+            value = _literal_path(arg, module_bindings)
+            if value is not None:
+                targets.append(value)
+    return targets
+
+
 class _WriteVisitor(ast.NodeVisitor):
     """Read calls with just enough local binding to retain literal paths."""
 
@@ -237,7 +303,8 @@ class _WriteVisitor(ast.NodeVisitor):
 
     def visit_Assign(self, node: ast.Assign) -> None:
         self.visit(node.value)
-        value = _constant_str(node.value)
+        # `p = "x"` and `p = Path("x")` both bind p to the path x.
+        value = _constant_str(node.value) or _path_constructor_target(node.value, self.bindings)
         for target in node.targets:
             if isinstance(target, ast.Name):
                 if value is None:
@@ -275,7 +342,16 @@ class _WriteVisitor(ast.NodeVisitor):
 
     def visit_For(self, node: ast.For) -> None:
         self.visit(node.iter)
-        self._visit_isolated(node.body)
+        rounds = _loop_bindings(node.target, node.iter)
+        if rounds:
+            for extra in rounds:  # `for p in ("a.py", "b.py")`, `for p, old in [("a.py", x)]`
+                outer = self.bindings
+                self.bindings = {**outer, **extra}
+                for statement in node.body:
+                    self.visit(statement)
+                self.bindings = outer
+        else:
+            self._visit_isolated(node.body)
         self._visit_isolated(node.orelse)
 
     visit_AsyncFor = visit_For
@@ -332,7 +408,8 @@ def writes_in_source(text: str) -> list[str]:
         return writes_in_text(text)
     visitor = _WriteVisitor()
     visitor.visit(tree)
-    return visitor.targets
+    own = [t for t in visitor.targets if not t.startswith(_PARAM)]
+    return own + _helper_param_writes(tree, visitor.bindings)
 
 
 def writes_in_inline_code(sub: list[str]) -> list[str]:

@@ -18,7 +18,7 @@ def per_tier_metrics(q: QueryFn) -> dict[str, dict[str, Any]]:
         "SELECT COALESCE(tier, 'unset') AS tier, COUNT(*) AS cnt, "
         "AVG(call_budget) AS avg_budget, AVG(call_actual) AS avg_actual, "
         "SUM(CASE WHEN attempts = 1 THEN 1 ELSE 0 END) AS first_pass "
-        "FROM tasks WHERE status='done' "
+        "FROM tasks WHERE status='done' AND resolution IS NULL "
         "GROUP BY COALESCE(tier, 'unset')"
     )
     for r in rows:
@@ -68,9 +68,16 @@ def session_capacity_summary(
         "SELECT COALESCE(COUNT(*),0) AS used FROM usage_events WHERE session_id = ?",
         (sess["id"],),
     )
+    # What active tasks still RESERVE: the part of each budget not yet spent,
+    # in any session. It used to be the full budget, so a task that spent 140
+    # of 150 calls in an earlier shift reserved 150 in every new one (GitLab #8,
+    # the second layer). The calls spent THIS session are in `used`; taking
+    # them off the reservation is what keeps them from being counted twice.
     planned_row = q1(
-        "SELECT COALESCE(SUM(call_budget),0) AS planned FROM tasks "
-        "WHERE status='active' AND call_budget IS NOT NULL"
+        "SELECT COALESCE(SUM(MAX(0, t.call_budget - ("
+        "  SELECT COUNT(*) FROM usage_events u WHERE u.task_slug = t.slug"
+        "))),0) AS planned FROM tasks t "
+        "WHERE t.status='active' AND t.call_budget IS NOT NULL"
     )
     used = int(used_row["used"] or 0) if used_row else 0
     planned = int(planned_row["planned"] or 0) if planned_row else 0
@@ -97,7 +104,7 @@ def calibration_drift(q: QueryFn) -> dict[str, Any] | None:
     """
     rows = q(
         "SELECT call_budget AS b, call_actual AS a "
-        "FROM tasks WHERE status='done' "
+        "FROM tasks WHERE status='done' AND resolution IS NULL "
         "AND call_budget IS NOT NULL AND call_actual IS NOT NULL "
         "AND call_budget > 0 "
         "ORDER BY completed_at DESC LIMIT 10"

@@ -146,16 +146,11 @@ def _handle_task_show(svc: Any, args: dict) -> str:
         f"Title: {task['title']}",
         f"Status: {task['status']}",
     ]
-    for field in (
-        "role",
-        "stack",
-        "complexity",
-        "goal",
-        "notes",
-        "acceptance_criteria",
-    ):
-        if task.get(field):
-            lines.append(f"{field}: {task[field]}")
+    # The same field list as `tausik task show` (scripts/task_detail_fields):
+    # scope_paths and rollback_plan are what the gates judge the agent by.
+    from task_detail_fields import detail_lines
+
+    lines.extend(detail_lines(task))
     if task.get("plan"):
         try:
             steps = json.loads(task["plan"])

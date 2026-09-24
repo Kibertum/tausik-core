@@ -480,7 +480,14 @@ def _op_memory_add(svc, w: _World) -> None:
 
 def _op_dead_end(svc, w: _World) -> None:
     d = w.uid("de")
-    w.mem.append(_mem_id(svc.dead_end(f"Подход {d}", "Не сработал по измеримой причине")))
+    # A dead end names a REAL task since 1.10; the first live one (no random draw,
+    # so the seeded sequence is unchanged). With none, the op has nothing to do.
+    t = next((x for x in w.tasks if svc.be.task_get(x)), None)
+    if t is None:
+        return
+    w.mem.append(
+        _mem_id(svc.dead_end(f"Подход {d}", "Не сработал по измеримой причине", task_slug=t))
+    )
 
 
 def _op_memory_delete(svc, w: _World) -> None:

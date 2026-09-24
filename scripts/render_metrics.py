@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from metric_methods import figure, method_lines
 from model_pinning import format_model_usage_section
 
 #: Per-tier rows are printed in the tier order the estimator uses, not in the
@@ -39,17 +40,21 @@ def metrics_lines(svc: Any) -> list[str]:
     for status, count in sorted(m["tasks"].items()):
         out.append(f"  {status}: {count}")
     out.append("\n--- SENAR Metrics ---")
-    out.append(f"Throughput:    {m['throughput']} tasks/session")
+    out.append(f"Throughput:    {figure(m, 'throughput', ' tasks/session')}")
     # "n/a" rather than 0: a zero here would be a claim about a measurement that
     # was never taken, and the two are not the same statement.
     lead = f"{m['lead_time_hours']}h" if m.get("lead_time_hours") is not None else "n/a"
     out.append(f"Lead Time:     {lead} (avg created→done)")
-    out.append(f"FPSR:          {m['fpsr']}% (first-pass success rate)")
-    out.append(f"DER:           {m['der']}% (defect escape rate)")
+    out.append(f"FPSR:          {figure(m, 'fpsr')} (first-pass success rate)")
+    out.append(f"DER:           {figure(m, 'der')} (defect escape rate)")
     cycle = f"{m['cycle_time_hours']}h" if m.get("cycle_time_hours") is not None else "n/a"
     out.append(f"Cycle Time:    {cycle} (avg started→done)")
     out.append(f"Knowledge CR:  {m['knowledge_capture_rate']} entries/task")
-    out.append(f"Dead End Rate: {m['dead_end_rate']}% ({m['dead_end_count']} dead ends)")
+    out.append(f"Dead End Rate: {figure(m, 'dead_end_rate')} ({m['dead_end_count']} dead ends)")
+    try:  # best-effort like every optional section (module docstring)
+        out += method_lines(m, _config(svc), getattr(svc, "be", None))
+    except Exception as e:  # noqa: BLE001 — a bad config must not cost the whole report
+        out.append(f"\n(methods and targets unavailable: {e})")
     cost = m.get("cost_per_task", {})
     if cost:
         out.append("\n--- Cost per Task ---")
@@ -68,6 +73,16 @@ def metrics_lines(svc: Any) -> list[str]:
     out += _usage_lines(m)
     out += list(format_model_usage_section(svc.be.usage_events_cost_rollup_by_model()))
     return out
+
+
+def _config(svc: Any) -> dict[str, Any]:
+    """The config of the project this service speaks for, not the cwd's."""
+    try:
+        from project_config import load_config
+
+        return load_config(svc.tausik_dir())
+    except Exception:  # noqa: BLE001 — best-effort, like every optional section
+        return {}
 
 
 def _risk_lines(svc: Any) -> list[str]:

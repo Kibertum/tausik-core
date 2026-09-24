@@ -225,9 +225,33 @@ def validate_content(field: str, value: str | None) -> None:
 
 
 def slugify(title: str, max_len: int = 50) -> str:
-    """Generate a slug from title: lowercase, alphanumeric + hyphens."""
-    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
-    return slug[:max_len] if slug else "task"
+    """A slug from a title, Cyrillic transliterated; "" when nothing usable is left.
+
+    It used to strip every non-ASCII letter, so a Russian title kept only the one
+    or two English words it happened to contain ('gates-json', 'heredoc', session
+    #238), and an all-Cyrillic title became the literal "task".
+    """
+    from slug_util import transliterate
+
+    slug = re.sub(r"[^a-z0-9]+", "-", transliterate(title)).strip("-")
+    if len(slug) > max_len:
+        cut = slug[:max_len]
+        slug = (cut.rsplit("-", 1)[0] if "-" in cut else cut).strip("-")
+    return slug
+
+
+#: Shorter than this, an auto-slug is not a usable address for a task.
+MIN_AUTO_SLUG = 3
+
+
+def task_slug_from_title(title: str) -> str:
+    """The auto-slug for a new task, or a refusal asking for --slug. Never a stub."""
+    slug = slugify(title)
+    if len(slug) < MIN_AUTO_SLUG:
+        raise ServiceError(
+            f"No usable slug can be made from the title {title!r}; name it with --slug"
+        )
+    return slug
 
 
 def format_status_compact_json(data: dict[str, Any], duration_warning: str | None) -> str:
@@ -249,6 +273,7 @@ def format_status_compact_json(data: dict[str, Any], duration_warning: str | Non
         "tasks_active": counts.get("active", 0),
         "tasks_blocked": counts.get("blocked", 0),
         "tasks_review": counts.get("review", 0),
+        "tasks_obsolete": counts.get("obsolete", 0),
         "session_id": int(sess["id"]) if sess else None,
         "epics": len(data.get("epics") or []),
     }
@@ -271,7 +296,7 @@ def format_status_compact_json(data: dict[str, Any], duration_warning: str | Non
             pass
         if exp.get("over_limit"):
             payload["exploration_over_limit"] = True
-    overdue = data.get("audit_overdue_sessions")
+    overdue = data.get("audit_overdue_closures")
     if overdue:
-        payload["audit_overdue_sessions"] = int(overdue)
+        payload["audit_overdue_closures"] = int(overdue)
     return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)

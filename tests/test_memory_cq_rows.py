@@ -13,6 +13,11 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+# The MCP formatter lives beside the project server. Inserted HERE, not inside
+# one test: under xdist the neighbour that inserted it ran in another worker.
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
+)
 
 from service_knowledge import CQ_SOURCE, build_cq_row
 
@@ -71,9 +76,6 @@ class TestCqRowShape:
 
 class TestRenderersTolerateMissingAddress:
     def test_mcp_formatter_omits_address_for_cq(self):
-        sys.path.insert(
-            0, os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
-        )
         from handlers_knowledge import _format_memory_hit
 
         line = _format_memory_hit(build_cq_row(_UNIT))

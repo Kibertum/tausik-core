@@ -187,3 +187,29 @@ def test_every_shell_gate_is_registered_for_every_shell_tool(claude_settings, qw
                     f"`if` pre-filter ({entry.get('if')!r}). The hook decides for "
                     "itself; a second copy of that decision drifts per dialect."
                 )
+
+
+def _shape(hooks: dict) -> dict[str, list]:
+    """Event -> ordered matchers: what a host must share, whatever its command lines."""
+    return {event: [e.get("matcher") for e in entries] for event, entries in hooks.items()}
+
+
+@pytest.fixture
+def codex_hooks(tmp_path):
+    import bootstrap_codex
+
+    return bootstrap_codex.build_codex_hooks(str(tmp_path / ".codex"))
+
+
+@pytest.mark.parametrize("host", ["claude_settings", "qwen_settings", "codex_hooks"])
+def test_every_host_registers_the_one_declared_set(host, request):
+    """qwen-hooks-are-a-second-copy-of-the-declaration: comparing script NAMES let
+    Qwen drift in fifteen PostToolUse registrations (catch-all matchers, missing
+    external-MCP registrations, a different task_done_verify matcher) without a
+    red test. The shape — events and their matchers in order — is the contract."""
+    from bootstrap_hooks import build_hooks_dict
+
+    live = request.getfixturevalue(host)
+    live_hooks = live.get("hooks", live) if host != "codex_hooks" else live
+    reference = build_hooks_dict(lambda script, suffix="": f"X/{script}{suffix}")
+    assert _shape(live_hooks) == _shape(reference)

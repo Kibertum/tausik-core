@@ -136,7 +136,18 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tstart.add_argument(
         "--force",
         action="store_true",
-        help="Bypass session capacity gate (logs audit event + notes)",
+        help="Retired in 1.10: session capacity is a signal, not a gate; passing this flag is refused with the reason (decision #376)",
+    )
+
+    tobs = task_sub.add_parser(
+        "obsolete",
+        help="Close a task whose premise time resolved: kept on record, no QG-2, left out of delivery metrics (a reason is required)",
+    )
+    tobs.add_argument("slug")
+    tobs.add_argument(
+        "--reason",
+        required=True,
+        help="What made the task unnecessary and where that is recorded (>=10 chars)",
     )
 
     tdone = task_sub.add_parser("done")

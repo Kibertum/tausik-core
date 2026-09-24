@@ -187,6 +187,10 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 zero_gate_ack=bool(getattr(args, "zero_gate_ack", False)),
             )
         )
+    elif c == "obsolete":
+        from task_obsolete import close_obsolete
+
+        print(close_obsolete(svc, args.slug, args.reason))
     elif c == "block":
         print(svc.task_block(args.slug, args.reason))
     elif c == "unblock":
@@ -295,10 +299,10 @@ def _print_with_warnings(result: str) -> None:
 
 
 def _auto_slug(title: str) -> str:
-    """Generate slug from title."""
-    from tausik_utils import slugify
+    """Generate slug from title (transliterated), or refuse — see task_slug_from_title."""
+    from tausik_utils import task_slug_from_title
 
-    return slugify(title)
+    return task_slug_from_title(title)
 
 
 def _print_task_detail(task: dict[str, Any]) -> None:
@@ -306,37 +310,11 @@ def _print_task_detail(task: dict[str, Any]) -> None:
     print(f"Task: {task['slug']}")
     print(f"Title: {task['title']}")
     print(f"Status: {task['status']}")
-    for field in (
-        "story_slug",
-        "epic_slug",
-        "role",
-        "stack",
-        "complexity",
-        "goal",
-        "acceptance_criteria",
-        "scope",
-        "scope_exclude",
-        "scope_paths",
-        "scope_tools",
-        "rollback_plan",
-        "notes",
-        "started_at",
-        "completed_at",
-        "blocked_at",
-        "relevant_files",
-        "tracker_refs",
-        "defect_of",
-        "claimed_by",
-        "attempts",
-        "started_model_id",
-        "started_model_version",
-        "done_model_id",
-        "done_model_version",
-        "model_mismatch",
-    ):
-        val = task.get(field)
-        if val:
-            print(f"{field}: {val}")
+    # One field list for the CLI and the MCP server (task_detail_fields).
+    from task_detail_fields import detail_lines
+
+    for line in detail_lines(task):
+        print(line)
     cost_budget = task.get("cost_budget_usd")
     cost_actual = task.get("cost_actual_usd")
     if cost_budget is not None or cost_actual is not None:

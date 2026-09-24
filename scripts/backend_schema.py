@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 62
+SCHEMA_VERSION = 67
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -81,7 +81,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- with ALTER TABLE, which appends. A column placed "logically" mid-table
     -- here would differ in ORDER from every migrated database, and
     -- test_schema_upgrade_parity reds on exactly that.
-    tracker_refs TEXT
+    tracker_refs TEXT,
+    -- v67 (a-task-cannot-be-closed-as-obsolete): NULL = delivered, 'obsolete' =
+    -- closed because time resolved the finding; left out of delivery metrics.
+    resolution TEXT CHECK(resolution IS NULL OR resolution IN ('obsolete')),
+    resolution_reason TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -90,7 +94,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     summary TEXT, tasks_done TEXT DEFAULT '[]',
     handoff TEXT,
     model_id TEXT,
-    model_version TEXT
+    model_version TEXT,
+    host_session_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS decisions (
@@ -101,7 +106,9 @@ CREATE TABLE IF NOT EXISTS decisions (
     -- Stable, machine-independent identity (state-git-stable-ids). NULLABLE at
     -- the column level; the UNIQUE index and the backfill live in the v42
     -- post-migration so fresh and migrated DBs converge on one schema shape.
-    slug TEXT
+    slug TEXT,
+    -- v66: JSON list of "option :: why" — what the decision turned down.
+    rejected TEXT
 );
 
 CREATE TABLE IF NOT EXISTS memory (
@@ -114,7 +121,10 @@ CREATE TABLE IF NOT EXISTS memory (
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
     -- Stable, machine-independent identity (state-git-stable-ids). See the
     -- matching note on `decisions.slug`.
-    slug TEXT
+    slug TEXT,
+    -- v65: where the claim came from; last, so fresh and migrated tables agree.
+    provenance TEXT NOT NULL DEFAULT 'inferred'
+        CHECK(provenance IN ('observed', 'inferred', 'told'))
 );
 
 CREATE TABLE IF NOT EXISTS explorations (
