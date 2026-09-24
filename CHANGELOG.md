@@ -9,6 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the user tier moves to `~/.config/tausik/config.json` (github#104)
+
+`~/.tausik/config.json` recreated the `~/.tausik` directory that 1.8 had moved the shared store out of — the directory that makes a home folder look like a project. The user tier now lives in `~/.config/tausik/config.json`. An existing `~/.tausik/config.json` is still read when it is the only one, so no setting is lost, and `tausik doctor` asks to move it; when both exist the new one wins and doctor says the legacy one is ignored. Project discovery already refused to treat the home `~/.tausik` as a project; a test now pins it for a home with a config-only `.tausik`.
+
 ### Fixed — a swallowed tool call can no longer land inside entity text (github#75)
 
 When a host parser misread where a parameter ended, the rest of the call — the next parameter, the closing of the invocation, sometimes a second call — was written into the text field: 64 entities and 23 journal lines of this project carried it, and four tasks had silently lost their complexity. Every write now passes one boundary (`_run_write` in the backend) that refuses a closing tag followed by another parameter or invocation and names the field; prose that quotes the syntax is not matched (on the live data, the one card describing this defect passed). The existing damage was repaired entry by entry from a database snapshot: tails cut, journal entries around them kept, and the four lost complexities recovered from the swallowed text.

@@ -79,6 +79,30 @@ def auto_verify_acknowledged_reason(cfg: dict) -> str | None:
     return reason.strip() if isinstance(reason, str) and reason.strip() else None
 
 
+def _user_tier_location_line() -> None:
+    """Where the user tier is read from — and when the legacy place shadows or is shadowed."""
+    from config_trust import (
+        USER_CONFIG_ENV,
+        default_user_config_path,
+        legacy_user_config_path,
+        user_config_path,
+    )
+
+    if os.environ.get(USER_CONFIG_ENV):
+        return
+    new, legacy, used = default_user_config_path(), legacy_user_config_path(), user_config_path()
+    if os.path.isfile(new) and os.path.isfile(legacy):
+        _print_warn(
+            "User tier",
+            f"{new} is used; {legacy} is ignored and recreates ~/.tausik — delete it.",
+        )
+    elif used == legacy:
+        _print_warn(
+            "User tier",
+            f"read from the legacy {legacy}; move it to {new} and delete ~/.tausik.",
+        )
+
+
 def _supports_utf8() -> bool:
     if sys.platform == "win32":
         if os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM"):
@@ -232,6 +256,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             "Config knobs",
             f"max={max_min}m warn={warn_th}m idle={idle_th}m capacity={cap} cache_ttl={ttl}s",
         )
+        _user_tier_location_line()
         av_hint = auto_verify_interactive_warning_detail(cfg, dict(os.environ))
         av_reason = auto_verify_acknowledged_reason(cfg)
         if av_hint and av_reason:

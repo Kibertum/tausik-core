@@ -120,7 +120,7 @@ def set_gate_enabled(name: str, enable: bool, tausik_dir: str | None = None) -> 
                 f"Gate '{name}' NOT {verb} — {r.reason}. The key was written to "
                 f"{get_config_path(tausik_dir)} but the effective config keeps {r.applied!r}. "
                 f"To change it for real, set it in the user tier "
-                f"(~/.tausik/config.json) or in $TAUSIK_MANAGED_CONFIG."
+                f"(~/.config/tausik/config.json) or in $TAUSIK_MANAGED_CONFIG."
             )
     # Backstop. With the present guard set this is unreachable: a project
     # DISABLE that a trusted tier contradicts produces a rejection above, and a

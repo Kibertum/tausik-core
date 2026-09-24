@@ -1,7 +1,7 @@
 ---
 slug: user-tier-config-recreates-the-directory-18-removed
 title: "Пользовательский тир конфига воссоздаёт каталог, который 1.8 убирала ломающим изменением"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-open-defects
 complexity: complex
@@ -12,16 +12,22 @@ call_budget: 55
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/config_trust.py"
+  - "scripts/project_cli_doctor.py"
+  - "scripts/gate_toggle.py"
+  - "tests/test_user_tier_location.py"
 scope_paths:
-  - "scripts/project_config.py"
-  - "scripts/*.py"
+  - "scripts/config_trust.py"
+  - "scripts/project_cli_doctor.py"
+  - "scripts/gate_toggle.py"
+  - "tests/*.py"
   - "docs/ru/*.md"
   - "docs/en/*.md"
-  - "tests/*.py"
+  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-24T08:11:12Z"
 ---
 
 ## Goal
@@ -45,3 +51,12 @@ completed_at: null
 git revert коммита; путь пользовательского тира возвращается прежним, миграция читает оба места
 
 ## Journal
+
+- 2026-09-24T07:54:05Z [implementation] — AC-1: ✓ measurement — owner's machine: ~/.tausik holds config.json (+ a .bak) and nothing else; find_tausik_dir already refuses the home tier dir (forbidden = realpath of ~/.tausik) and stops at home.
+- 2026-09-24T07:54:05Z [implementation] — AC-2: ✓ review — named as the return of the 1.8 trap the whats-new-1.8 note itself warned about.
+- 2026-09-24T07:54:05Z [implementation] — AC-3: ✓ tests/test_user_tier_location.py::test_nothing_configured_points_at_the_new_place — config_trust.default_user_config_path = ~/.config/tausik/config.json; legacy_user_config_path kept for reading.
+- 2026-09-24T07:54:06Z [implementation] — AC-4: ✓ tests/test_user_tier_location.py::test_a_home_tausik_with_only_a_config_is_not_a_project — discovery does not adopt the home .tausik; doctor names the legacy location out loud (User tier line).
+- 2026-09-24T07:54:06Z [implementation] — AC-5: ✓ review — docs/*/config-trust-tiers.md name the new path and the legacy read; gate_toggle's refusal text names the new path; whats-new 1.8/1.9 left as history.
+- 2026-09-24T07:54:06Z [implementation] — AC-6: ✓ tests/test_user_tier_location.py::test_a_home_tausik_with_only_a_config_is_not_a_project — negative.
+- 2026-09-24T07:54:07Z [implementation] — AC-7: ✓ tests/test_user_tier_location.py::test_a_legacy_only_setting_is_still_read and tests/test_user_tier_location.py::test_the_new_place_wins_when_both_exist — negative; 786 config/doctor/toggle tests green.
+- 2026-09-24T08:02:05Z [implementation] — NO-DEAD-END: the refused closes were doc_coverage asking for the new doctor line 'User tier' in docs/*/doctor.md — added; not an approach error.

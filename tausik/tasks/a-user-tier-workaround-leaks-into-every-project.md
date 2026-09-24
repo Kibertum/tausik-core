@@ -1,7 +1,7 @@
 ---
 slug: a-user-tier-workaround-leaks-into-every-project
 title: "Обходной путь в пользовательском тире молча распространяется на все проекты машины"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-open-defects
 complexity: medium
@@ -20,7 +20,7 @@ scope_paths:
   - "docs/en/*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-24T08:11:52Z"
 ---
 
 ## Goal
