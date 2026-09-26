@@ -9,6 +9,44 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a standard's name can no longer launder a project date
+
+Found by an adversarial review of the commit that added the spec-date rule, and it
+was the rule's own subject: the first version checked only that a standard's name
+preceded a date within 24 characters, with ANY prose allowed in between. So
+"MCP support added on 2026-09-26" — name used perfectly correctly, date plainly
+ours — had its date erased. A detector that silences its own subject is worse than
+none.
+
+Two corrections. The gap between name and date now admits a version and nothing
+else: separator characters and at most one version token. And the names are matched
+in UPPER CASE, because `sep` and `iso` are everyday vocabulary here — `os.sep`,
+`sep=` and `ISO-8601` appear dozens of times across scripts, tests and harness — so
+a case-insensitive match let any of them launder a date out of an ordinary sentence.
+
+A SECOND HOLE WAS FOUND BY MEASUREMENT, not by review, and the number was the tell.
+Tightening a rule can only raise the count of references it reports, because fewer
+dates get masked. The count fell by one instead. Cause: the first correction admitted
+a bare period so a dotted version would fit, and a period also ends a sentence — a
+standard named in one sentence was masking a date belonging to the next. A dot now
+reaches the gap only between digits, and the version token cannot end in one, since a
+trailing dot swallowed exactly that sentence boundary.
+
+Why the first negative half missed all of it: it asked two questions — reverse order,
+and a name too far away — and never the third, what happens when the name is used
+correctly and the date is still ours. The regression now covers all twelve names
+rather than the one that was reported, so a name added to the list later arrives with
+coverage.
+
+One earlier test asserted that `iso 2026-03-01` was a spec citation. It was wrong and
+is kept under a name that says so, because the correction is the lesson.
+
+Also from the review: a duplicated assertion removed from the FTS sanitizer tests, and
+the `test_dedupe` baseline move now carries its reason beside the number — it fell to
+286/677 as a side effect of rewriting four tests from string assertions to meaning
+assertions, not from any deliberate weeding. Notes ratchet: 235 → 234.
+
+
 ### Added — the question "is any code needed" is asked at task start, and the refusal now survives
 
 The project had a hard "no code without a task" and nothing about "no code without a

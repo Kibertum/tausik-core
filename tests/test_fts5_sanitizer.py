@@ -83,7 +83,6 @@ def test_fts5_boolean_operators_the_user_typed_do_not_survive_as_typed():
     assert "NOT" not in out
     assert "NEAR" not in out
     assert out == "alpha AND beta AND gamma AND delta AND epsilon"
-    assert "NEAR" not in out
     for word in ("alpha", "beta", "gamma", "delta", "epsilon"):
         assert word in out
 

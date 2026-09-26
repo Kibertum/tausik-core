@@ -262,11 +262,21 @@ class TestASpecVersionIsNotAProjectEvent:
             ),
             pytest.param("RFC 9457, 2026-01-15, fixes the media type", id="rfc_date_after_number"),
             pytest.param("shape mandated by SENAR 2026-04-02", id="senar_version"),
-            pytest.param("iso 2026-03-01 renamed the field", id="lowercase_name"),
+            pytest.param("CVE 2026-09-01 disclosure window", id="cve_version"),
         ],
     )
     def test_a_dated_standard_is_not_reported(self, text):
         assert "date" not in chr_.event_refs(text)
+
+    def test_a_lowercase_acronym_was_wrongly_accepted_here_and_no_longer_is(self):
+        """This case used to read `iso 2026-03-01` and assert silence. It was wrong.
+
+        Kept as a named test rather than deleted, because the correction is the
+        lesson: `iso` and `sep` are ordinary words in this tree, and accepting them
+        as spec names let an everyday sentence launder a date. The case that replaced
+        it above uses upper case, the way a real citation is written.
+        """
+        assert "date" in chr_.event_refs("iso 2026-03-01 renamed the field")
 
     @pytest.mark.parametrize(
         "text",
@@ -346,3 +356,114 @@ class TestTheModuleCarriesNoNoteOfItsOwn:
         """
         wrapped = '# Name FIRST only: "2026-09-26, замер\n# по MCP" is a project date\n'
         assert [kinds for _line, _text, kinds in chr_.refs_in_source(wrapped)] == [["date"]]
+
+
+class TestAStandardsNameDoesNotLaunderAProjectDate:
+    """The rule must prove the date IS the standard's version, not merely near its name.
+
+    FOUND BY ADVERSARIAL REVIEW of the commit that added the rule, and it is the
+    failure the rule was built to prevent: the first version checked only that a
+    name preceded a date within 24 characters, with any prose allowed in between.
+    So "MCP support added on 2026-09-26" -- a plain sentence about work done here --
+    had its date erased, and the detector acquired a blind spot in exactly its own
+    subject.
+
+    The gap survived my own negative half because that half asked two questions and
+    not the third: reverse order, and a name too far away. It never asked what
+    happens when the name is used CORRECTLY and the date still belongs to the
+    project. Same shape as convention #755.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("MCP support added on 2026-09-26", id="added_on"),
+            pytest.param("ISO week parsing landed 2026-09-26", id="landed"),
+            pytest.param("RFC compliance fixed 2026-09-26", id="fixed"),
+            pytest.param("SENAR audit run on 2026-09-01", id="audit_run"),
+            pytest.param("dropped the MCP shim, 2026-09-26", id="dropped_the_shim"),
+        ],
+    )
+    def test_prose_about_our_own_work_keeps_its_date(self, text):
+        assert "date" in chr_.event_refs(text), text
+
+    @pytest.mark.parametrize("name", chr_._EXTERNAL_STANDARDS)
+    def test_every_name_is_checked_not_just_the_one_that_was_reported(self, name):
+        """Each of the twelve, because the next name added must be covered too.
+
+        A regression test written for the reported case only would pass while the
+        eleven others stayed broken, and a later addition to the list would arrive
+        with no coverage at all.
+        """
+        assert "date" in chr_.event_refs(f"{name} handling landed on 2026-09-26")
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("MCP 2026-07-28 CacheableResult", id="name_then_date"),
+            pytest.param("RFC 9457, 2026-01-15, fixes the media type", id="number_between"),
+            pytest.param("shape mandated by SENAR 2026-04-02", id="mandated_by"),
+            pytest.param("MCP (2026-07-28) — the revision we answer to", id="parenthesised"),
+            pytest.param("SEP-2549 / 2026-07-28", id="sep_number_and_slash"),
+        ],
+    )
+    def test_a_version_citation_is_still_not_an_event(self, text):
+        """The narrowing must not undo the rule it narrows.
+
+        Only version-shaped characters may sit between the name and the date:
+        digits, dots, dashes, parens, commas, slashes, spaces. That admits every
+        real citation in this tree and no sentence.
+        """
+        assert "date" not in chr_.event_refs(text), text
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("sep argument added 2026-09-26", id="os_sep"),
+            pytest.param("iso-8601 helper landed 2026-09-26", id="iso_8601_lowercase"),
+            pytest.param("pep talk on 2026-09-26", id="pep_lowercase"),
+        ],
+    )
+    def test_a_lowercase_acronym_is_an_ordinary_word(self, text):
+        """`sep` and `iso` are everyday vocabulary HERE, not spec citations.
+
+        `os.sep`, `sep=` and `ISO-8601` appear dozens of times across scripts, tests
+        and harness. Matching case-insensitively made every one of them able to
+        launder a date, which is why the names are now recognised in upper case --
+        the way real citations of these standards are always written.
+        """
+        assert "date" in chr_.event_refs(text), text
+
+
+class TestTheGapAdmitsAVersionAndNotASentence:
+    """The second correction, caught by measurement rather than by review.
+
+    Tightening the rule should only ever RAISE the count of references, because
+    fewer dates get masked. It fell by one instead, and that number was the tell: the
+    first correction admitted a bare period into the gap so a version like `1.2.3`
+    would fit, and a period is also a sentence boundary. A dot now reaches the gap
+    only inside a version token.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("MCP. 2026-09-26 shipped", id="period_is_a_sentence_boundary"),
+            pytest.param("RFC 9457. 2026-09-26 we dropped it", id="period_after_a_version"),
+            pytest.param("PEP 8. On 2026-09-26 the formatter changed", id="period_then_prose"),
+        ],
+    )
+    def test_a_new_sentence_keeps_its_date(self, text):
+        assert "date" in chr_.event_refs(text), text
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("MCP v1.2.3 (2026-07-28)", id="dotted_version_prefixed_with_v"),
+            pytest.param("SEP-2549 / 2026-07-28", id="number_and_slash"),
+            pytest.param("ISO 8601:2026-04-02", id="colon_between"),
+        ],
+    )
+    def test_a_dotted_version_still_reaches_its_date(self, text):
+        """A dot inside a version token must not break the rule it was let in for."""
+        assert "date" not in chr_.event_refs(text), text

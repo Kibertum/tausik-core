@@ -61,6 +61,11 @@ _EVENT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 #:
 #: SENAR and RENAR are listed although the project implements them -- a dated
 #: version number is a property of THEIR document, not a record of a session here.
+#:
+#: MATCHED IN UPPER CASE, and the case is load-bearing. `sep` and `iso` are everyday
+#: vocabulary in this tree -- `os.sep`, `sep=`, `ISO-8601` appear dozens of times --
+#: so a case-insensitive match let any of them launder a date out of a sentence
+#: about our own work. Real citations of these standards are always upper case.
 _EXTERNAL_STANDARDS = (
     "MCP",
     "RENAR",
@@ -76,7 +81,24 @@ _EXTERNAL_STANDARDS = (
     "SEP",
 )
 
-#: A date the standard's name introduces, name first and within a short reach.
+#: What may stand between the name and the date: a VERSION and nothing else.
+#:
+#: No prose. That is the whole correction, and it is the difference between proving
+#: the date is the standard's version and merely finding it near the name. The first
+#: rule allowed any text in the gap, so a sentence about work done here -- name used
+#: perfectly correctly, date plainly ours -- had its date erased. A detector that
+#: silences its own subject is worse than none.
+#:
+#: NO BARE PERIOD either, and that is deliberate rather than tidy. A period ends a
+#: sentence, so admitting one would let a standard's name in one sentence mask a
+#: date belonging to the next. A dot reaches the gap only BETWEEN DIGITS, inside a
+#: version token -- which is also why the token cannot end in a dot: a trailing one
+#: would swallow the very sentence boundary this paragraph is about.
+_SEPARATORS = r"[\s:,;/()\[\]<>=~^#-]{0,8}"
+_VERSION_TOKEN = r"(?:v?\d+(?:\.\d+)*" + _SEPARATORS + r")?"
+_VERSION_GAP = _SEPARATORS + _VERSION_TOKEN
+
+#: A date the standard's name introduces, name first and across a version-only gap.
 #:
 #: Name FIRST only, though the reverse reads just as naturally. A project date
 #: FOLLOWED by a standard's name is still a project date -- it merely mentions the
@@ -87,11 +109,10 @@ _EXTERNAL_STANDARDS = (
 #: are read line by line and a quotation that wraps opens on one line and closes
 #: on the next. Spelling an example out here would have left a note the module
 #: cannot see itself carrying. What the rule costs and what it buys are counted in
-#: the journals of spec-dates-are-not-project-events and
-#: quoted-example-is-counted-as-a-note.
+#: the journals of spec-dates-are-not-project-events,
+#: quoted-example-is-counted-as-a-note and spec-date-rule-silences-a-real-project-date.
 _SPEC_DATE = re.compile(
-    r"\b(?:" + "|".join(_EXTERNAL_STANDARDS) + r")\b[^.\n]{0,24}?\b20\d\d-\d\d-\d\d\b",
-    re.IGNORECASE,
+    r"\b(?:" + "|".join(_EXTERNAL_STANDARDS) + r")\b" + _VERSION_GAP + r"\b20\d\d-\d\d-\d\d\b"
 )
 
 
