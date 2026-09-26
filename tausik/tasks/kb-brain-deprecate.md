@@ -79,3 +79,13 @@ git revert; старый brain-стек возвращается
 - 2026-08-03T07:46:09Z [implementation] — AC-4: ✓ tests/test_knowledge_import.py::TestTheImportIsIdempotent::test_a_second_run_imports_nothing
 - 2026-08-03T07:46:09Z [implementation] — AC-5: ✓ tests/test_decide_never_autopublishes.py::TestPublishingKeepsTheLocalCopy::test_keeping_the_source_is_the_default
 - 2026-08-03T07:46:10Z [implementation] — AC-6: ✓ tests/test_knowledge_import.py::TestWhatIsAndIsNotBroughtOver::test_cached_web_pages_are_not_imported
+- 2026-09-26T18:41:36Z [done] — EVIDENCE-RETIRED: tests/test_brain_move.py::TestMoveToBrain::test_decision_happy_path — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
+- 2026-09-26T18:41:36Z [done] — EVIDENCE-RETIRED: tests/test_brain_move.py::TestMoveToBrain::test_keep_source_preserves_local_row — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
+- 2026-09-26T18:41:40Z [done] — EVIDENCE-RETIRED: tests/test_decide_classifies_what_it_publishes.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
+- 2026-09-26T18:41:46Z [done] — EVIDENCE-RETIRED: tests/test_decide_never_autopublishes.py::TestNotionRemainsOptional::test_a_decision_is_recorded_with_the_brain_disabled — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
+- 2026-09-26T18:41:46Z [done] — EVIDENCE-RETIRED: tests/test_decide_never_autopublishes.py::TestNotionRemainsOptional::test_the_record_path_does_not_open_the_wiki_at_all — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
+- 2026-09-26T18:41:46Z [done] — EVIDENCE-RETIRED: tests/test_decide_never_autopublishes.py::TestPublishingKeepsTheLocalCopy::test_keeping_the_source_is_the_default — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
+- 2026-09-26T18:41:46Z [done] — EVIDENCE-RETIRED: tests/test_decide_never_autopublishes.py::TestPublishingKeepsTheLocalCopy::test_the_cli_offers_an_explicit_way_to_move_instead — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
+- 2026-09-26T18:41:47Z [done] — EVIDENCE-RETIRED: tests/test_decide_never_autopublishes.py::TestRecordingNeverPublishes::test_a_general_sounding_decision_stays_local — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
+- 2026-09-26T18:41:47Z [done] — EVIDENCE-RETIRED: tests/test_decide_never_autopublishes.py::TestRecordingNeverPublishes::test_the_classifier_is_not_consulted_at_all — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
+- 2026-09-26T18:41:49Z [done] — EVIDENCE-RETIRED: tests/test_notion_is_optional.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)

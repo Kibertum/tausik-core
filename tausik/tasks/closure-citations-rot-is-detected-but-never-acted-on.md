@@ -1,7 +1,7 @@
 ---
 slug: closure-citations-rot-is-detected-but-never-acted-on
 title: "Сорок четыре ссылки на доказательства в закрытых задачах не разрешаются, и детектор третью смену подряд сообщает об этом впустую"
-status: active
+status: done
 epic: release-110-deferred-from-19
 story: release110-open-defects
 complexity: medium
@@ -12,20 +12,22 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths:
-  - "scripts/audit_closure_evidence.py"
+relevant_files:
   - "scripts/closure_amendments.py"
+  - "scripts/audit_closure_evidence.py"
   - "scripts/project_cli_audit.py"
-  - "scripts/repo_coherence_collectors.py"
+  - "tests/test_closure_amendments.py"
+  - "tests/test_closure_evidence_remainder.py"
+scope_paths:
+  - "scripts/closure_amendments.py"
+  - "scripts/audit_closure_evidence.py"
+  - "scripts/project_cli_audit.py"
+  - "tests/test_closure_amendments.py"
+  - "tests/test_closure_evidence_remainder.py"
   - "tausik/gates.json"
-  - "tests/*.py"
-  - "docs/ru/*.md"
-  - "docs/en/*.md"
-  - "CHANGELOG*.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-26T19:11:18Z"
 ---
 
 ## Goal
@@ -61,3 +63,15 @@ git revert <commit>. Работа состоит из ДОПИСАННЫХ за�
 - 2026-09-24T08:40:51Z [implementation] — CHECKPOINT (stopped by owner, token budget). DONE, uncommitted: scripts/closure_amendments.py (grammar EVIDENCE-MOVED/RETIRED/UNPROVEN), audit_closure_evidence.py (_apply_outcomes, successor_ref, buckets reconciled/retired/unproven), project_cli_audit.py (answer: command per finding), tests/test_closure_amendments.py 7 green; old audit tests 41 green. NEXT: (1) regenerate triage plan from tausik audit evidence --json; rule order: same name elsewhere in tests => MOVED; rotted candidate introduced by the removing commit => MOVED; file/test deleted by a named commit => RETIRED with that commit; never_existed => UNPROVEN. Last run: 185 task-ref pairs = 110 RETIRED (84 from 77703c4a Notion removal), 23 MOVED, 52 UNPROVEN. Before applying: 15 never_existed with class-rename candidates (TestNoLaneExcludesByPath~TestNoCiLaneExcludesTestFiles, otel TestExportEnabled~TestExportToggle, knowledge_export TestTheDestinationMustBeLocal~TestRemoteDestinationsAreRefused) - MOVED when the exact method exists under the candidate class. (2) apply via tausik task log per pair (check task log accepts done tasks). (3) re-run audit: open rotted/never_existed = 0; tausik/gates.json closure_evidence.baseline to 0/0; adjust tests/test_closure_evidence_remainder.py. (4) mutation, CHANGELOG EN/RU (github#150), AC-1..6 evidence, Root cause line, close.sh, commit.
 - 2026-09-25T18:02:49Z [implementation] — Смена #275: scripts/audit_closure_evidence.py оставался неотформатированным и ронял tests/test_gate_ruff_format.py::test_the_legacy_list_only_shrinks на всём дереве. Применён ruff format — правка несемантическая, сделана соседней задачей, чтобы не держать дерево красным.
 - 2026-09-26T16:40:57Z [implementation] — ЗАМЕР РЕВЬЮ смены #277, важный для этой задачи: неразрешимых цитат 107 в 60 задачах, храповик объявлял 99+36. РОСТ НЕ ОТ ПЕРЕИМЕНОВАНИЙ — проверено: у трёх задач, закрытых в этой смене, все цитаты разрешаются. Верхушка списка — brain-decide-publishes-unclassified-rationale (9), kb-brain-deprecate (8), publish-risk-gate-docstring-lies-after-205 (6), r14-brain-metrics (4), kb-notion-publisher (4). То есть цитаты осиротели от УДАЛЕНИЯ файлов тестов при отказе от Notion и brain (решение #358), а не от порчи. Это меняет предмет задачи: часть остатка — не гниль, а ожидаемое следствие принятого удаления, и объявлять её надо с этой причиной, отдельно от настоящей порчи.
+- 2026-09-26T18:51:31Z [implementation] — 95 поправок EVIDENCE-RETIRED применены машинально, и причина каждой ВЗЯТА ИЗ GIT, а не сочинена: имя коммита, удалившего файл. Четыре коммита-виновника, крупнейший 77703c4a — отказ от Notion.
+- 2026-09-26T18:51:31Z [implementation] — РАЗБОР ВЫПОЛНЕН, смена #277. Счётчики до: rotted 108, never_existed 39. После: rotted 38, never_existed 0, retired 87, unproven 22. Объявленный остаток опущен с 99/36 до 38/0.
+- 2026-09-26T18:51:32Z [implementation] — ГЛАВНАЯ НАХОДКА РАЗБОРА, и она про сам аудит: из 39 цитат класса never_existed 27 обвинялись в выдумке НАПРАСНО. Аудит разрешает путь буквально, а цитата вида 'test_brain_config.py' без каталога не совпадает ни с одним путём git — при том что tests/test_brain_config.py существовал и удалён тем же 77703c4a. Вердикт never_existed есть обвинение прошлого закрытия в фабрикации, и ошибка в эту сторону дороже пропуска настоящей выдумки: незаслуженное обвинение обесценивает весь регистр. Заведена audit-calls-a-bare-basename-invented.
+- 2026-09-26T18:51:32Z [implementation] — ДВА СЛЕДСТВИЯ РАЗБОРА В ТЕСТАХ. test_база_объявлена_и_названа_числом требовал остаток СТРОГО больше нуля — требование писалось при ненулевом остатке и после разбора запрещало бы успех. Ноль теперь допущен как законное и притом сильнейшее значение: он означает, что класс разобран, а не что его перестали считать.
+- 2026-09-26T18:51:32Z [implementation] — ОСТАЛОСЬ 38 rotted, и они НЕ размечены намеренно: файл жив, узел переименован, успешник предлагается по схожести имени. Записать его исходом значило бы утвердить покрытие, которого никто не читал, — а сам аудит прямо говорит 'confirm it by reading the test'. Это работа на чтение, не на скрипт.
+- 2026-09-26T19:05:15Z [implementation] — AC-1 ✓ замер до правки записан выше: rotted 108, never_existed 39 при остатке 99/36. AC-2 ✓ грамматика применена, находка гаснет по наличию поправки в КАЖДОЙ цитирующей задаче. AC-3 ✓ вывод audit evidence даёт готовую команду на каждую непогашенную находку.
+- 2026-09-26T19:05:15Z [implementation] — AC-4 ✓ ВЫПОЛНЕН БУКВАЛЬНО: rotted 0, never_existed 0. Разложено на 24 reconciled (MOVED с РАЗРЕШАЮЩЕЙСЯ ссылкой), 102 retired, 22 unproven; 16 illustrative — отдельная корзина примеров в прозе. Объявленный остаток в gates.json опущен до 0/0, дальше любой рост есть high.
+- 2026-09-26T19:05:15Z [implementation] — AC-5 ✓ проверено на живом дереве: MOVED на неразрешающуюся ссылку находку НЕ гасит — три цитаты с параметризованным суффиксом [en] остались rotted после первой поправки, потому что узел pytest не есть член AST. Переведены на член без суффикса, тогда погасли.
+- 2026-09-26T19:05:15Z [implementation] — AC-6 ✓ поправка лишь в одной из цитирующих задач не гасит: manifest-publishes-confirmations-we-know-are-unearned цитировал два разных ref, и находка держалась, пока не был разобран второй.
+- 2026-09-26T19:05:16Z [implementation] — Negative: ни одна причина не сочинена. У RETIRED назван коммит из git (git log -S для члена, git log --diff-filter=D для файла), у MOVED успешник подтверждён чтением докстринга — и несколько из них сами называют прежнее имя, то есть подтверждение авторское, а не моё.
+- 2026-09-26T19:05:16Z [implementation] — СВОЯ ОШИБКА НАЙДЕНА И ИСПРАВЛЕНА, и она того класса, против которого вся эта осторожность: я перевёл цитату на test_header_paragraph_matches_the_registry_state внутри TestPublishedManifest, а он лежит на уровне МОДУЛЯ. Ссылка не разрешилась, находка не погасла — то есть механизм поймал меня. Верный успешник в классе оказался test_section_matches_the_registry_including_when_it_is_empty. Исправлено ДОПИСЫВАНИЕМ: журнал append-only, а parse строит словарь по старой ссылке, поэтому последняя строка побеждает.
+- 2026-09-26T19:05:16Z [implementation] — ТРИ ПРЕДЛОЖЕНИЯ АУДИТА ОТВЕРГНУТЫ ЧТЕНИЕМ, и это главное содержание работы: TestAppendTokenRows -> TestExtractTokenRows (append и extract — разные операции), test_mirror_partner_protected -> test_no_partner_for_root (защита партнёра против его отсутствия), test_confirm_fails_fast -> test_confirm_idempotent (быстрый отказ против идемпотентности). Принять их пачкой значило бы перевести три цитаты на тесты, которые их не покрывают.

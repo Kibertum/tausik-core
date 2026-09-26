@@ -40,3 +40,4 @@ completed_at: "2026-04-24T15:04:19Z"
 ## Journal
 
 - 2026-04-24T15:00:50Z [implementation] — AC verified: 1. ✓ sync_category uses _iso_epoch(edited) > max_edited_epoch, not `edited > max_edited` — scripts/brain_sync.py:262-270. 2. ✓ _iso_epoch returns float('-inf') on empty/unparseable input — scripts/brain_sync.py:233-248. 3. ✓ test_mixed_format_picks_later_moment + test_unparseable_sorts_lowest in tests/test_brain_storage_hardening.py cover the fix. 4. ✓ pytest + ruff clean.
+- 2026-09-26T18:41:38Z [done] — EVIDENCE-RETIRED: tests/test_brain_storage_hardening.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)

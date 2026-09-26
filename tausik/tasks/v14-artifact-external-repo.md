@@ -39,3 +39,4 @@ completed_at: "2026-05-01T11:58:52Z"
 ## Journal
 
 - 2026-05-01T11:57:16Z [implementation] — AC verified: 1. ✓ docs/en + docs/ru brain-artifact-taxonomy.md — раздел External repo / безопасность / skip_external_repo_url_reachability_check. 2. ✓ validate_external_repo_url_for_store + GET reachability; scrub включает URL; stripped перед Notion. 3. ✓ pytest tests/test_brain_artifact_external_repo.py — отказ при сетевой ошибке; draft would_publish_ok false. AC-1: ✓ taxonomy doc. AC-2: ✓ tests/test_brain_artifact_external_repo.py.
+- 2026-09-26T18:41:32Z [done] — EVIDENCE-RETIRED: tests/test_brain_artifact_external_repo.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)

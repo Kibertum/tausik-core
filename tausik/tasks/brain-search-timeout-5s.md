@@ -37,3 +37,4 @@ Lower DEFAULT_TIMEOUT in brain_notion_client.py and add SEARCH_TIMEOUT_S read-pa
 
 - 2026-05-06T16:03:38Z [implementation] — Added SEARCH_TIMEOUT_S=5.0; lowered DEFAULT_TIMEOUT 30->10; added timeout kwarg to search(), databases_query(), _request(); 5 new tests pass (38/38 total).
 - 2026-05-06T16:04:14Z [implementation] — AC verified: 1) ✓ DEFAULT_TIMEOUT=10.0 (was 30.0); 2) ✓ SEARCH_TIMEOUT_S=5.0 used in search() and databases_query() default path; 3) ✓ NotionClient._request accepts timeout kwarg, search/databases_query expose it; 4) ✓ 5 new tests in test_brain_notion_client.py — read-path uses 5s, override works, default fallback works; pytest 38/38 passed in 0.37s
+- 2026-09-26T18:44:23Z [done] — EVIDENCE-RETIRED: test_brain_notion_client.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport); cited without its directory

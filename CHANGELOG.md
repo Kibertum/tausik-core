@@ -9,6 +9,77 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the rotted-citation register is empty: 108 and 39 went to zero
+
+The audit had reported the same list for three sessions and nothing retired a
+finding, so every coherence pass reopened it. The amendment grammar built last
+session was applied: rotted 108 → 38, never_existed 39 → **0**, with 87 retired and
+22 unproven. The declared remainder drops from 99/36 to 38/0.
+
+95 retirements were applied mechanically and none of their reasons was invented:
+each names the commit that deleted the file, read out of git. Four commits account
+for all of them, the largest being 77703c4a, the Notion removal.
+
+THE FINDING THAT MATTERS MOST IS ABOUT THE AUDIT ITSELF. Of the 39 citations marked
+`never_existed` — "git never had this" — 27 were accusations with nothing behind
+them. The audit resolves a path literally, and a citation written as
+`test_brain_config.py` rather than `tests/test_brain_config.py` matches no git path,
+although the file existed and was deleted by that same commit. A `never_existed`
+verdict accuses a past closure of FABRICATING its evidence, and being wrong in that
+direction costs more than missing a real invention: an undeserved accusation
+devalues the whole register, and the reader starts skipping the category. Filed as
+`audit-calls-a-bare-basename-invented`.
+
+38 remain, and they are deliberately not marked. Their file still exists and the
+member was renamed; the successor is proposed by name similarity, and recording it
+as an outcome would assert coverage nobody read — which the audit itself says in as
+many words. That is reading work, not script work.
+
+One test had to change with it: the remainder test required a baseline strictly
+greater than zero, written when the remainder was non-zero. Zero is now accepted as
+a legitimate and in fact the strongest declared value — it means the class was
+triaged, not that it stopped being counted.
+
+
+The register closed completely rather than partly: 24 reconciled (a MOVED whose new
+ref RESOLVES), 102 retired, 22 unproven, and 16 illustrative left in their own bucket
+as examples quoted in prose. The declared remainder is 0/0, so any growth from here
+is high with nothing left to explain.
+
+Three of the audit's successor suggestions were REFUSED by reading, and that is the
+substance of the work rather than a footnote: `TestAppendTokenRows` →
+`TestExtractTokenRows` is append versus extract, `test_mirror_partner_protected` →
+`test_no_partner_for_root` is a partner's protection versus its absence, and
+`test_confirm_fails_fast` → `test_confirm_idempotent` is a different property
+entirely. Accepting them wholesale would have moved three citations onto tests that
+do not cover them.
+
+The mechanism also caught the author: one MOVED pointed at a member that lives at
+module level, not inside the class the citation named, so the ref did not resolve and
+the finding stayed open until it was corrected — by appending, since the journal is
+append-only and the last outcome for a ref wins. Three more citations carried a
+pytest parameter suffix (`[en]`), which can never resolve as an AST member and had to
+move to the member without it.
+
+### Changed — a flaky assertion now says what it got, because its cause is unmeasured
+
+`test_unknown_path_is_404` failed once in a full parallel run and 0 times in 24
+isolated ones. The readiness hypothesis was rejected by reading rather than by
+running: `_wait_until_serving` is already a deadline with a condition, catches both
+exception families, and fails loudly — its own docstring records an earlier
+measurement of that very race. The observed failure was an ASSERTION failure, so the
+wait was not involved.
+
+Nothing was fixed on a guess. What changed is that the next occurrence will be
+evidence: a bare `== 404` turned the observation into a dead end, so the assertion
+now prints the status it got, the response body and the server port — the only
+things that distinguish "the server answered something else" from "a different
+server answered". Recorded as dead end #752.
+
+The acceptance criterion asking for zero failures after the fix is unmeetable as
+written and says so: the loop was already zero before, so zero after proves nothing.
+
+
 ### Fixed — a long-lived task was charged for everyone else's month
 
 Reported from a consumer project: a task opened on 24.08 was still open a month

@@ -48,3 +48,4 @@ completed_at: "2026-05-07T12:00:48Z"
 ## Journal
 
 - 2026-05-07T12:00:41Z [implementation] — AC verified: 1) ✓ regex +4 topics (csrf/graphql/feature-flag/circuit-breaker) с 6 false-positive guards; 2) ✓ scripts/brain_universality_semantic.py (288L) с find_similar_universal через FTS5; 3) ✓ wire через emit_universality_hint — все 3 call-sites используют оба слоя; 4) ✓ tests/test_brain_universality_semantic.py 32 tests + extended test_brain_universality.py +9 кейсов; 5) ✓ нет ML/embedding/ChromaDB deps; 6) ✓ pytest 3190 PASS, ruff/mypy clean, doctor clean, filesize OK, bootstrap drift-clean.
+- 2026-09-26T18:41:40Z [done] — EVIDENCE-RETIRED: tests/test_brain_universality_semantic.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)

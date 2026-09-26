@@ -40,3 +40,4 @@ last_pull_at=max_edited → boundary-страница re-fetches every sync. Adv
 ## Journal
 
 - 2026-04-24T15:08:16Z [planning] — AC verified: 1. ✓ _make_filter returns `{"timestamp": "last_edited_time", "last_edited_time": {"after": last_pull_at}}` — scripts/brain_sync.py:218-225. 2. ✓ tests/test_brain_sync.py::test_sync_category_second_run_uses_last_pull_at_filter now asserts `{"after": ...}`. 3. ✓ test_filter_uses_strict_after_when_cursor_set + test_filter_none_when_no_cursor in tests/test_brain_storage_hardening.py. 4. ✓ pytest + ruff clean.
+- 2026-09-26T18:41:39Z [done] — EVIDENCE-RETIRED: tests/test_brain_sync.py::test_sync_category_second_run_uses_last_pull_at_filter — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)

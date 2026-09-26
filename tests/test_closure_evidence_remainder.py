@@ -114,8 +114,14 @@ class TestЖивойОстатокЗакреплёнЧислом:
     def test_база_объявлена_и_названа_числом(self):
         node = json.loads((_REPO / "tausik" / "gates.json").read_text(encoding="utf-8"))
         baseline = node["closure_evidence"]["baseline"]
-        assert isinstance(baseline["rotted"], int) and baseline["rotted"] > 0
-        assert isinstance(baseline["never_existed"], int) and baseline["never_existed"] > 0
+        # НОЛЬ — законное объявленное значение, и притом сильнейшее: он означает,
+        # что класс разобран до конца, а не что его перестали считать. Требование
+        # «строго больше нуля» писалось, когда остаток был ненулевым, и после
+        # полного разбора регистра оно запрещало бы успех.
+        for name in ("rotted", "never_existed"):
+            assert isinstance(baseline[name], int), f"{name} не число"
+            assert baseline[name] >= 0, f"{name} отрицателен"
+        assert set(baseline) >= {"rotted", "never_existed"}, "класс исчез из объявления"
 
     def test_причина_записана_рядом_с_числом(self):
         """Число без объяснения через полгода читается как «кто-то смирился»."""

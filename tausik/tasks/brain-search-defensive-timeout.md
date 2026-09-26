@@ -36,3 +36,4 @@ On Notion timeout/network error: return empty results + warning, never propagate
 ## Journal
 
 - 2026-05-06T16:07:40Z [implementation] — Defensive handling already exists in search_with_fallback (try/except Exception → brain_fallback.classify_error). Added test_search_fallback_notion_network_error_classified_as_offline that injects NotionNetworkError directly and asserts: 1) no propagation, 2) local results returned, 3) warning has offline/local-mirror/network keyword. AC verified: 1) ✓ search_with_fallback already catches NotionNetworkError via except Exception (brain_mcp_read.py:198); 2) ✓ urllib.URLError wraps to NotionNetworkError in brain_notion_client._request, then caught; 3) ✓ new test passes (30/30 in test_brain_mcp_read.py)
+- 2026-09-26T18:44:22Z [done] — EVIDENCE-RETIRED: test_brain_mcp_read.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport); cited without its directory

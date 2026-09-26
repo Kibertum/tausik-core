@@ -44,3 +44,4 @@ search/get молча передают client=None при отсутствии �
 ## Journal
 
 - 2026-04-24T19:15:35Z [implementation] — AC verified: добавлен _token_missing_warning(cfg) в оба handlers.py (claude+cursor, diff только docstring). Warning инжектится в result['warnings'] search и в warnings tuple get когда client is None. 6 новых тестов в tests/test_brain_mcp_handlers.py: token_missing_emits_warning×2, token_present_no_warning×2 (status quo), disabled_no_token_warning (AC 4 negative), without_env_name_fallback (AC 5 boundary). pytest 16/16 passed. ruff clean.
+- 2026-09-26T18:41:34Z [done] — EVIDENCE-RETIRED: tests/test_brain_mcp_handlers.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport)
