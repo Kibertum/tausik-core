@@ -19,6 +19,8 @@ depends_on:
   - capacity-counts-the-task-window-not-the-session-work
   - separation-of-duties-is-asserted-not-attested
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

@@ -18,6 +18,8 @@ scope_tools: []
 depends_on:
   - four-accepted-adrs-were-never-assessed
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

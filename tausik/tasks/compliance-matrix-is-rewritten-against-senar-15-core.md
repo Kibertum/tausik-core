@@ -42,6 +42,8 @@ depends_on:
   - qg0-does-not-refuse-work-for-session-time-or-capacity
   - senar-corpus-drift-is-detected-like-renar
 completed_at: "2026-09-23T19:03:41Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

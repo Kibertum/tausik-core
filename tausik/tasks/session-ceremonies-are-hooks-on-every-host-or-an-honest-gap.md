@@ -27,6 +27,8 @@ scope_tools: []
 depends_on:
   - session-is-the-host-session-not-a-ritual
 completed_at: "2026-09-23T18:34:37Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

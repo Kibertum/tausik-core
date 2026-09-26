@@ -21,6 +21,8 @@ scope_tools: []
 depends_on:
   - four-byte-identical-copies-of-the-harness
 completed_at: "2026-08-26T00:09:14Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

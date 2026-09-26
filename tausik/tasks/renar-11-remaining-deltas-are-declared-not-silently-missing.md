@@ -31,6 +31,8 @@ scope_tools: []
 depends_on:
   - spec-uc-is-the-twelfth-spec-type
 completed_at: "2026-09-23T19:10:26Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

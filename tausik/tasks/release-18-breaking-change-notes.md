@@ -23,6 +23,8 @@ scope_tools: []
 depends_on:
   - release-19-notes-page-does-not-exist-yet
 completed_at: "2026-09-08T16:04:56Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

@@ -68,6 +68,23 @@ def session_capacity_advisory(be: "SQLiteBackend", slug: str, task: dict[str, An
     return ""
 
 
+def start_advisories(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> list[str]:
+    """Every advisory a task start prints, already prefixed, in a stable order.
+
+    One function rather than a growing list of assignments at the call site: each
+    advisory is the same kind of thing -- a signal, never a refusal (decision #376)
+    -- and service_task.py sits at its 500-line ceiling, so a third one added there
+    would have to displace something.
+
+    An empty list is the common case: capacity is quiet until a budget is exceeded,
+    and the necessity question is quiet on simple tasks by measurement.
+    """
+    from code_necessity import code_necessity_prompt
+
+    out = [session_capacity_advisory(be, slug, task), code_necessity_prompt({**task, "slug": slug})]
+    return [f"ℹ {line}" for line in out if line]
+
+
 def record_call_actual(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> str:
     """Compute and persist call_actual = events + per-task tool counter.
 

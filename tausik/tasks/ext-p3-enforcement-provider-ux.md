@@ -18,6 +18,8 @@ scope_tools: []
 depends_on:
   - provider-generates-artifacts-not-the-if-ide-ladder
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

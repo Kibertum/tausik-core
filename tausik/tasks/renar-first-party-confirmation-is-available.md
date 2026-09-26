@@ -33,6 +33,8 @@ scope_tools: []
 depends_on:
   - renar-drift-detector-reads-the-site-repo-not-the-standard
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

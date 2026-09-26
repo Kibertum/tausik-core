@@ -18,6 +18,8 @@ scope_tools: []
 depends_on:
   - separation-of-duties-is-asserted-not-attested
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

@@ -37,6 +37,8 @@ depends_on:
   - metrics-disclose-method-and-thresholds-carry-a-basis
   - severity-scale-is-documented-and-used-by-review
 completed_at: "2026-09-23T19:17:44Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

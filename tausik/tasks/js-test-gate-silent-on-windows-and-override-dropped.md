@@ -24,6 +24,8 @@ scope_tools: []
 depends_on:
   - check-result-conflates-could-not-run-with-passed
 completed_at: "2026-08-25T22:44:11Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

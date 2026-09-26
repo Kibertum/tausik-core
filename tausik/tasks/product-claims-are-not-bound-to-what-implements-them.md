@@ -44,6 +44,8 @@ scope_tools: []
 depends_on:
   - ag-artifacts-and-edges-with-provenance
 completed_at: "2026-09-07T08:41:43Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

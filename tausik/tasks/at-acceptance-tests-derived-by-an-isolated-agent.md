@@ -61,6 +61,8 @@ scope_tools: []
 depends_on:
   - final-tz-is-the-acceptance-reference-and-we-have-none
 completed_at: "2026-09-06T18:15:36Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

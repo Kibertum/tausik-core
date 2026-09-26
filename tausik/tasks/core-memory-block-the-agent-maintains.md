@@ -18,6 +18,8 @@ scope_tools: []
 depends_on:
   - memory-supersede-edges-are-data
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

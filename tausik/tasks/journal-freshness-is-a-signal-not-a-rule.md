@@ -28,6 +28,8 @@ scope_tools: []
 depends_on:
   - qg0-does-not-refuse-work-for-session-time-or-capacity
 completed_at: "2026-09-23T18:20:43Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

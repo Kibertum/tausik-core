@@ -18,6 +18,8 @@ scope_tools: []
 depends_on:
   - commit-per-closed-task
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

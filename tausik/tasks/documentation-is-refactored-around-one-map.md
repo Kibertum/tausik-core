@@ -28,6 +28,8 @@ scope_tools: []
 depends_on:
   - doc-language-pairs-have-drifted-and-three-are-unpaired
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

@@ -118,3 +118,72 @@ def test_task_done_refuses_a_task_that_never_started(svc):
         svc.task_done("stale", ac_verified=True)
     assert "task obsolete stale" in str(exc.value)
     assert svc.be.task_get("stale")["status"] == "planning"
+
+
+class TestTheRefusalSurvivesTheTree:
+    """A refusal that does not reach `tausik/tasks/` is a refusal nobody will read.
+
+    The record lived only in the database: `state_export` never selected
+    `resolution` or `resolution_reason`, so in the tracked tree a task refused as
+    unnecessary was `status: done` and nothing else -- indistinguishable from one
+    that shipped. MEASURED before the fix: the database held 1617 delivered plus 3
+    obsolete, and all 1620 task files said `done` with no trace of the difference.
+
+    WHY THE ROUND-TRIP GATE WAS GREEN THROUGHOUT: it re-serializes the database and
+    byte-compares the result to the tree, so both sides of the comparison come from
+    the same exporter. A column the exporter never selects cannot appear on either
+    side. The gate is structurally unable to see an omission, which is why this
+    pair needs a test that names the two fields.
+    """
+
+    def test_an_obsolete_close_reaches_the_tree_with_its_reason(self, svc):
+        from state_export import build_tree
+
+        close_obsolete(svc, "stale", REASON)
+        tree, _ = build_tree(svc)
+        doc = tree["tasks/stale.md"]
+        assert "resolution: obsolete" in doc
+        assert REASON in doc
+
+    def test_a_delivered_task_is_told_apart_from_a_refused_one(self, svc):
+        """Both are `status: done`, so the distinction has to be somewhere else.
+
+        The delivered task carries the keys with no value. Empty rather than absent
+        is the point: a missing line means the exporter dropped the field, which is
+        exactly how this pair went unnoticed for two releases.
+        """
+        from state_export import build_tree
+
+        close_obsolete(svc, "stale", REASON)
+        tree, _ = build_tree(svc)
+        delivered, refused = tree["tasks/delivered.md"], tree["tasks/stale.md"]
+        assert "status: done" in delivered and "status: done" in refused
+        assert "resolution:" in delivered and "resolution: obsolete" not in delivered
+        assert "resolution: obsolete" in refused
+
+    def test_the_reason_comes_back_on_import(self, svc, tmp_path):
+        """Export then import: the refusal has to survive the clone, not just the write.
+
+        A field written but never read back is lost on the first `git pull` followed
+        by `tausik sync`, which is the path a second machine takes.
+        """
+        import state_import
+        from state_export import build_tree
+        from state_serialize import write_tree
+
+        close_obsolete(svc, "stale", REASON)
+        tree, _ = build_tree(svc)
+        root = tmp_path / "tree"
+        # The exporter's own writer, not `write_text`: on Windows the default
+        # newline translation appends a carriage return to the `---` fence and the
+        # parser rejects the file, failing this test for the wrong reason.
+        write_tree(str(root), tree)
+
+        fresh = ProjectService(SQLiteBackend(str(tmp_path / "fresh.db")))
+        try:
+            state_import.import_tree(fresh, str(root))
+            back = fresh.be.task_get("stale")
+            assert back["resolution"] == "obsolete"
+            assert back["resolution_reason"] == REASON
+        finally:
+            fresh.be.close()

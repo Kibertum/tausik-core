@@ -23,6 +23,8 @@ scope_tools: []
 depends_on:
   - spec-closed-list-is-nine-while-the-standard-has-eleven
 completed_at: "2026-08-31T15:03:45Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

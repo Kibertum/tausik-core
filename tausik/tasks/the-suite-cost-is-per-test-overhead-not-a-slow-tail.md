@@ -17,6 +17,8 @@ scope_paths: []
 scope_tools: []
 depends_on: []
 completed_at: "2026-09-24T05:57:45Z"
+resolution: obsolete
+resolution_reason: "premise refuted twice by measurement: session #241 full run 130-175 s and session #269 136 s for 10854 tests (about 12.5 ms per test) against the 1003 s this task was filed on; nothing to optimise"
 ---
 
 ## Goal

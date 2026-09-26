@@ -42,6 +42,8 @@ scope_tools: []
 depends_on:
   - four-ide-registries-collapse-into-one
 completed_at: "2026-09-07T20:45:41Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

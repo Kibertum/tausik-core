@@ -51,6 +51,8 @@ depends_on:
   - one-live-handoff-slot-supersedes-the-previous
   - session-is-the-host-session-not-a-ritual
 completed_at: "2026-09-23T17:34:39Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

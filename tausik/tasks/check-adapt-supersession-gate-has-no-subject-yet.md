@@ -38,6 +38,8 @@ scope_tools: []
 depends_on:
   - our-only-spec-is-derived-without-either-allowed-source-field
 completed_at: "2026-09-04T20:10:56Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

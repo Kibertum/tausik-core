@@ -27,6 +27,8 @@ scope_tools: []
 depends_on:
   - clause-evidence-string-still-says-nine-spec-types
 completed_at: "2026-08-31T19:56:22Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

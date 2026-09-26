@@ -21,6 +21,8 @@ scope_paths:
 scope_tools: []
 depends_on: []
 completed_at: "2026-07-21T00:14:35Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

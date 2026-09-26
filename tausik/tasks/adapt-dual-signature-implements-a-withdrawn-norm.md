@@ -53,6 +53,8 @@ scope_tools: []
 depends_on:
   - actz-the-contract-contour-artifact-is-missing
 completed_at: "2026-09-06T12:53:11Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

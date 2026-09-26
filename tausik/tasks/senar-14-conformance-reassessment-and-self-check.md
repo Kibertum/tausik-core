@@ -34,6 +34,8 @@ depends_on:
   - senar-14-fail-closed-when-no-gate-actually-ran
   - senar-14-gates-declare-the-effect-they-prevent
 completed_at: "2026-09-08T17:49:57Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

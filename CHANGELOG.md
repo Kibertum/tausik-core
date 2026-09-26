@@ -9,6 +9,47 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the question "is any code needed" is asked at task start, and the refusal now survives
+
+The project had a hard "no code without a task" and nothing about "no code without a
+need". MEASURED BEFORE ANYTHING WAS BUILT, and the measurement changed the design:
+the share of closures that record a refusal ran at 3.0%, 2.7%, 3.1%, 0.0% from March
+to June 2026, then 10.8% in July, 27.5% in August, 23.3% in September. The discipline
+grew roughly eightfold in three months with no mechanism at all, so a mechanism was
+not what was missing — and a seventh gate would have been filled without looking.
+
+What ships is one line of text at `task start`, printed beside the capacity advisory
+because it is the same kind of thing: a signal, never a refusal. The order is the
+content — is code needed at all, then is it already in the standard library or a
+native capability, only then write your own — and it is checked by position, not by
+presence, because a text carrying all three ideas in the wrong order teaches the
+wrong habit.
+
+It stays silent on simple tasks, and that condition was measured too: refusal rate is
+6.9% on simple (35/508), 12.4% on medium (92/741), 14.4% on complex (25/174), and
+15.1% for the architect role. Medium and complex hold 72% of all recorded refusals.
+A note printed on every start is read on none of them.
+
+THE REFUSAL OUTCOME WAS BEING LOST, which is the defect this task uncovered.
+`task obsolete --reason` has existed since schema v67 and already demands a reason, so
+nothing needed inventing — but `state_export` never selected `resolution` or
+`resolution_reason`. The database held 1617 delivered plus 3 obsolete; all 1620 task
+files in the tracked tree said `done` with no trace of the difference, and the reason
+disappeared entirely on an export/import round trip. Both fields now travel, in both
+directions, and three tests hold it — including one that imports the tree back and
+reads the reason out of a fresh database.
+
+The round-trip gate stayed green throughout and could not have done otherwise: it
+re-serializes the database and byte-compares the result to the tree, so both sides of
+the comparison come from the same exporter. A column it never selects cannot appear on
+either side. That structural blind spot is filed as its own defect, along with
+`tracker_refs`, which the tree also drops.
+
+Attempted and refused: writing the rule into the generated hard constraints. The
+180-line budget on that file rejected it, correctly — the file is at its ceiling, so a
+new rule is now a trade against an existing one rather than an addition.
+
+
 ### Fixed — the detector no longer carries a note of its own
 
 Closing the previous task, the ratchet flagged a comment in the detector itself:

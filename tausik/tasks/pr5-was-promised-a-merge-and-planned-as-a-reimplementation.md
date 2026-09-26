@@ -19,6 +19,8 @@ scope_tools: []
 depends_on:
   - github-is-primary-by-decision-and-gitlab-is-primary-in-practice
 completed_at: "2026-09-14T15:21:04Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

@@ -39,6 +39,8 @@ depends_on:
   - enforcement-coverage-is-two-of-five-hosts
   - four-ide-registries-collapse-into-one
 completed_at: "2026-09-07T21:07:38Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

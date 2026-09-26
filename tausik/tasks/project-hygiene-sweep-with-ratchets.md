@@ -28,6 +28,8 @@ depends_on:
   - memory-and-repo-hygiene-sweep-with-a-ratchet
   - repo-inventory-what-is-here-that-should-not-be
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

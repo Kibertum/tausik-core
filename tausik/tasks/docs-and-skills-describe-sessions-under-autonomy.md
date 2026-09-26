@@ -32,6 +32,8 @@ depends_on:
   - context-pressure-is-a-measured-signal-with-a-basis
   - handoff-is-generated-from-the-journal
 completed_at: "2026-09-23T19:10:12Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

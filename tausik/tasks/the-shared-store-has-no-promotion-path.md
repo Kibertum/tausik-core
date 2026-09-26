@@ -34,6 +34,8 @@ scope_tools: []
 depends_on:
   - the-routing-table-names-two-of-four-stores
 completed_at: "2026-09-23T20:09:53Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

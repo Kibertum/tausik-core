@@ -32,6 +32,8 @@ scope_tools:
   - Write
 depends_on: []
 completed_at: "2026-06-12T01:05:19Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

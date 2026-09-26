@@ -56,6 +56,8 @@ scope_tools: []
 depends_on:
   - four-accepted-adrs-were-never-assessed
 completed_at: "2026-09-06T17:15:35Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

@@ -23,6 +23,8 @@ scope_tools: []
 depends_on:
   - documentation-is-refactored-around-one-map
 completed_at: null
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

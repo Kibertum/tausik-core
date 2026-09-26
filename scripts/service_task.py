@@ -19,7 +19,7 @@ from service_gates import GatesMixin
 from model_pinning import model_start_updates
 from service_reasoning import ReasoningMixin
 from service_replay import ReplayMixin
-from service_recording import FORCE_RETIRED as _FORCE_RETIRED, session_capacity_advisory
+from service_recording import FORCE_RETIRED as _FORCE_RETIRED, start_advisories
 from service_task_done import TaskDoneReportMixin, _format_task_done_failures  # noqa: F401
 
 if TYPE_CHECKING:
@@ -157,11 +157,11 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if force:
             raise ServiceError(_FORCE_RETIRED)
         qg0_warnings: list[str] = []
-        capacity_advice = ""
+        advisories: list[str] = []
         if not _internal_force:
             qg0_warnings = self._check_qg0_start(slug, task)
-            # A signal, not a gate (decision #376): printed with the start, never a refusal.
-            capacity_advice = session_capacity_advisory(self.be, slug, task)
+            # Signals, not gates (decision #376): printed with the start, never refusals.
+            advisories = start_advisories(self.be, slug, task)
         updates: dict[str, Any] = {
             "status": "active",
             "attempts": task.get("attempts", 0) + 1,
@@ -177,8 +177,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         rebased = on_activation(self.be, self.tausik_dir(), slug, first=not task.get("started_at"))
         msgs.extend([rebased] if rebased else [])  # scope measured from a git anchor
         msgs.extend(qg0_warnings)
-        if capacity_advice:
-            msgs.append(f"ⓘ {capacity_advice}")
+        msgs.extend(advisories)
         # v15-ow-hook-recognize: worker notice for a delegated task, else the banner.
         from service_delegate import start_recognition_message
 
@@ -263,7 +262,8 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         # A re-activation gets the same capacity SIGNAL a start gets (decision #376).
         if force:
             raise ServiceError(_FORCE_RETIRED)
-        advice = session_capacity_advisory(self.be, slug, task)
+        # An unblock re-activates, so it gets the same advisories a start gets.
+        advice = start_advisories(self.be, slug, task)
         # An unblock is a re-activation, an attempt like `task start` (1239 closes
         # showed `attempts: 1` while it was not; attempts-counter-never-increments).
         attempts = task.get("attempts", 0) + 1
@@ -272,7 +272,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         msg = f"Task '{slug}' unblocked (attempt #{attempts})."
         note = on_activation(self.be, self.tausik_dir(), slug, first=False)  # re-anchor
         msg += f"\n{note}" if note else ""
-        return f"{msg}\nⓘ {advice}" if advice else msg
+        return "\n".join([msg, *advice])
 
     def task_review(self, slug: str) -> str:
         task = self._require_task(slug)

@@ -20,6 +20,8 @@ scope_paths:
 scope_tools: []
 depends_on: []
 completed_at: "2026-09-24T05:57:45Z"
+resolution: obsolete
+resolution_reason: "record_direct_edit was deleted by task dead-and-unreferenced-code-must-not-ship-in-a-rele and committed in 077e0957; tests/test_direct_edit_bypass_record.py pins the removal and the live path"
 ---
 
 ## Goal

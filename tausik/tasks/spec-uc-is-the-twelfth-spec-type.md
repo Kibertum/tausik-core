@@ -57,6 +57,8 @@ scope_tools: []
 depends_on:
   - renar-drift-detector-reads-the-site-repo-not-the-standard
 completed_at: "2026-09-23T17:12:27Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

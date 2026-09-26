@@ -24,6 +24,8 @@ depends_on:
   - qg0-does-not-refuse-work-for-session-time-or-capacity
   - usage-attribution-is-keyed-by-task-not-session
 completed_at: "2026-09-23T19:23:39Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

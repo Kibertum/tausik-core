@@ -46,6 +46,8 @@ scope_tools: []
 depends_on:
   - session-model-recorded-on-non-claude-hosts
 completed_at: "2026-09-07T21:34:21Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

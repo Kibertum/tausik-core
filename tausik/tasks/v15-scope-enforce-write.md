@@ -31,6 +31,8 @@ scope_tools:
   - Bash
 depends_on: []
 completed_at: "2026-06-12T01:11:59Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

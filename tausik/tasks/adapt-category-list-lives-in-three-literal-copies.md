@@ -28,6 +28,8 @@ scope_tools: []
 depends_on:
   - adapt-finding-categories-count-is-written-not-derived
 completed_at: "2026-09-06T11:47:24Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

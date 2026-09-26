@@ -32,6 +32,8 @@ scope_tools: []
 depends_on:
   - usage-attribution-is-keyed-by-task-not-session
 completed_at: "2026-09-23T18:20:35Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

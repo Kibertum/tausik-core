@@ -156,9 +156,17 @@ class TestTheBodyStaysWithinItsBudget:
         seventh item, which was paid for in LINES (the file sits at 180 of its
         180-line budget) rather than in characters.
 
+        A third re-base was ATTEMPTED and abandoned, and the attempt is worth more
+        than the line would have been: "no code without a need" was written into the
+        hard constraints, and `test_line_count_in_range` refused it because the file
+        already sits at its 180-line ceiling. A new rule is now a TRADE against an
+        existing one, not an addition. The ordering it carried reaches the agent from
+        the task-start prompt instead (scripts/code_necessity.py).
+
         So this is the weaker of two guards and says so: the 180-line budget in
         test_bootstrap_generate is the binding one, and this one only catches text
-        growing inside lines the line count cannot see.
+        growing inside lines the line count cannot see. Each re-base names what was
+        bought, because a budget raised without a reason is not a budget.
         """
         assert len(body) <= 15178
 

@@ -26,6 +26,8 @@ scope_tools: []
 depends_on:
   - full-lane-runs-serial-on-a-twenty-core-machine
 completed_at: "2026-09-08T09:12:55Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

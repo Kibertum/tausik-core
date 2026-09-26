@@ -34,6 +34,8 @@ scope_tools: []
 depends_on:
   - mandatory-clause-13-3-3-is-checked-by-counting-artifacts
 completed_at: "2026-09-04T19:53:22Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

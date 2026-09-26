@@ -124,6 +124,14 @@ def test_fixed_frontmatter_key_order_for_task(svc):
         # a plan that evaporates on clone is the defect that feature was filed about.
         "depends_on",
         "completed_at",
+        # The OUTCOME travels too. An obsolete close is `status: done` with a
+        # resolution, so without these two a task refused as unnecessary reads in
+        # the tree exactly like one that was delivered. They are emitted for every
+        # task, empty included, ON PURPOSE: with a fixed key set a field the
+        # exporter drops shows up as a missing line, and a dropped field is how
+        # this pair went two releases unnoticed.
+        "resolution",
+        "resolution_reason",
     ]
 
 

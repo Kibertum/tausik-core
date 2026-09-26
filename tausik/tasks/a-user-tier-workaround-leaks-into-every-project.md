@@ -21,6 +21,8 @@ scope_paths:
 scope_tools: []
 depends_on: []
 completed_at: "2026-09-24T08:11:52Z"
+resolution: obsolete
+resolution_reason: "resolved in 1.9 by 5a52ef88: doctor names every trusted-tier weakening with tier, file, MACHINE-WIDE vs project scope, the recorded reason or NO REASON RECORDED, and points at the per-project form; pinned by tests/test_doctor_trust_tier_weakening.py (machine_wide, disabled_reason, no_reason tests). Checked in session #272."
 ---
 
 ## Goal

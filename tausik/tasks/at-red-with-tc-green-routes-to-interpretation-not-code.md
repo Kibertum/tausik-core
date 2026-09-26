@@ -48,6 +48,8 @@ depends_on:
   - at-acceptance-tests-derived-by-an-isolated-agent
   - tc-as-a-first-class-artifact-coverage-from-statements
 completed_at: "2026-09-06T20:53:37Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

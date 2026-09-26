@@ -57,6 +57,8 @@ scope_tools: []
 depends_on:
   - our-conformance-claim-rests-on-a-mode-the-standard-removed
 completed_at: "2026-09-04T14:56:37Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

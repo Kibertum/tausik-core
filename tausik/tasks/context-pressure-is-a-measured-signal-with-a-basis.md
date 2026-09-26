@@ -43,6 +43,8 @@ depends_on:
   - counters-are-derived-from-events-not-maintained
   - qg0-does-not-refuse-work-for-session-time-or-capacity
 completed_at: "2026-09-23T18:20:52Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

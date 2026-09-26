@@ -49,6 +49,8 @@ scope_tools: []
 depends_on:
   - pr5-was-promised-a-merge-and-planned-as-a-reimplementation
 completed_at: "2026-09-13T17:07:42Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

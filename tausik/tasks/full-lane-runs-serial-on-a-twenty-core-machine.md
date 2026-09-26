@@ -28,6 +28,8 @@ scope_tools: []
 depends_on:
   - hang-guard-promises-eleven-times-headroom-and-has-one
 completed_at: "2026-08-30T18:33:40Z"
+resolution: null
+resolution_reason: null
 ---
 
 ## Goal

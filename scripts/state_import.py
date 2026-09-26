@@ -213,6 +213,8 @@ def _task_cols(rec: dict, story_id: int | None) -> dict:
         "defect_of": _fm(fm, "defect_of"),
         "call_budget": _fm(fm, "call_budget"),
         "completed_at": _fm(fm, "completed_at"),
+        "resolution": _fm(fm, "resolution"),
+        "resolution_reason": _fm(fm, "resolution_reason"),
     }
 
 

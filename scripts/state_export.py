@@ -153,6 +153,11 @@ def _task_doc(task: dict[str, Any], story_slug: str | None, epic_slug: str | Non
         # the very defect task-next-cannot-express-plan-order was filed about.
         ("depends_on", sorted(task.get("_depends_on") or [])),
         ("completed_at", normalize_ts(task.get("completed_at"))),
+        # An obsolete close is `status: done` with a resolution, and without these
+        # two a refused task is indistinguishable in the tree from a delivered one.
+        # They travel because the reason is the whole content of a refusal.
+        ("resolution", task.get("resolution")),
+        ("resolution_reason", task.get("resolution_reason")),
     ]
     body = join_sections(
         section("Goal", task.get("goal")),
@@ -235,7 +240,8 @@ def build_tree(svc: ProjectService) -> tuple[dict[str, str], list[str]]:
     tasks = q(
         "SELECT id, slug, title, status, stack, complexity, role, tier, goal, plan, "
         "acceptance_criteria, scope, scope_exclude, rollback_plan, scope_paths, "
-        "scope_tools, relevant_files, defect_of, call_budget, completed_at, story_id "
+        "scope_tools, relevant_files, defect_of, call_budget, completed_at, story_id, "
+        "resolution, resolution_reason "
         "FROM tasks"
     )
     task_logs = q("SELECT task_slug, message, phase, created_at, id FROM task_logs")
@@ -331,7 +337,8 @@ def export_one(svc: ProjectService, kind: str, slug: str) -> tuple[str, str] | N
         rows = q(
             "SELECT id, slug, title, status, stack, complexity, role, tier, goal, plan, "
             "acceptance_criteria, scope, scope_exclude, rollback_plan, scope_paths, "
-            "scope_tools, relevant_files, defect_of, call_budget, completed_at, story_id "
+            "scope_tools, relevant_files, defect_of, call_budget, completed_at, story_id, "
+            "resolution, resolution_reason "
             "FROM tasks WHERE slug=?",
             (slug,),
         )
