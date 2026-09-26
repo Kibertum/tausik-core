@@ -9,6 +9,42 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a specification's version date is no longer read as a project event
+
+The comment-note detector counted every ISO date as a record of something that
+happened here, so `MCP 2026-07-28 CacheableResult` — the revision of the protocol
+the cache header answers to — was reported as a note belonging in memory. It does
+not: without the date the reader cannot tell whether the code still matches the
+standard.
+
+MEASURED FIRST, and the number argued against changing anything: 2 of 237 comment
+references, both the same MCP date. Two cases could have been declared a subset.
+The fix was made for the reason stated when the task was filed — the class grows
+with every standard the project reads, and a finding nobody can act on teaches
+everyone to skip its whole category. That is the price of a false positive, known
+in advance rather than forecast.
+
+The rule is declared rather than buried in a regular expression:
+`comment_history_refs._EXTERNAL_STANDARDS` lists the twelve names, and it says why
+SENAR and RENAR are among them although the project implements them — a dated
+version number is a property of *their* document. It is deliberately narrow: the
+name must come *before* the date and within a short reach, because the reverse
+direction would also swallow "2026-09-26, measured against MCP", a project date
+that merely mentions a standard.
+
+The negative half is pinned first: a date without a standard's name still counts,
+a line carrying both a spec version and a project date keeps the reference, and
+the other four kinds of reference read the unmasked text — a comment naming a
+session still reports that session even when it also dates a standard. The two
+real lines are checked by reading the files from disk, so rewording a comment
+cannot fake a pass.
+
+Ratchet lowered by measurement: 239 → 236 references, 151 → 148 files. Two of the
+three came from the new rule; the third was this module's own comment, which had
+carried a measurement marker and the count — exactly the note the module exists to
+discourage. The number moved to the task journal.
+
+
 ### Fixed — the rotted-citation register is empty: 108 and 39 went to zero
 
 The audit had reported the same list for three sessions and nothing retired a

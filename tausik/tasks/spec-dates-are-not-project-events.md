@@ -1,7 +1,7 @@
 ---
 slug: spec-dates-are-not-project-events
 title: "Детектор записок считает событием дату внешней спецификации"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: harness-costs-less-per-task
 complexity: simple
@@ -12,11 +12,19 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/comment_history_refs.py"
+  - "tests/test_comment_history_refs.py"
+  - "tausik/gates.json"
+scope_paths:
+  - "scripts/comment_history_refs.py"
+  - "tests/test_comment_history_refs.py"
+  - "tausik/gates.json"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-26T21:07:09Z"
 ---
 
 ## Goal
@@ -38,3 +46,18 @@ AC-1 ЗАМЕР ПЕРВЫМ: названо числом, сколько из 2
 Правка одного правила в детекторе; откат — git revert. Храповик при откате возвращается к текущему числу.
 
 ## Journal
+
+- 2026-09-26T21:02:07Z [implementation] — AC-1 ЗАМЕР ПЕРВЫМ: из 237 ссылок в комментариях остатка даты ВНЕШНЕЙ спецификации — 2 (0,8%). Обе «MCP 2026-07-28»: scripts/mcp_tool_scope.py:126 и harness/claude/mcp/project/server.py:137. Прочие 235 — события проекта, детектор по ним прав.
+- 2026-09-26T21:02:07Z [implementation] — AC-1 РЕШЕНИЕ ПО ЧИСЛУ, и число само по себе правку НЕ оправдывает: два случая можно было объявить подмножеством и не трогать код. Правка сделана по другой причине, названной в цели задачи: класс растёт с каждым стандартом, который проект читает, а находка, которую нельзя исправить, учит пролистывать всю свою категорию. Это цена, известная заранее, а не прогноз.
+- 2026-09-26T21:02:07Z [implementation] — AC-2 Правило ОБЪЯВЛЕНО, а не спрятано: scripts/comment_history_refs.py::_EXTERNAL_STANDARDS — список из 12 имён (MCP, RENAR, SENAR, RFC, CVE, CVSS, GHSA, PEP, ISO, OWASP, JSON-RPC, SEP) с обоснованием, почему SENAR и RENAR там, хотя проект их реализует: датированный номер версии есть свойство ЧУЖОГО документа. Регулярное выражение _SPEC_DATE собирается из этого списка.
+- 2026-09-26T21:02:08Z [implementation] — AC-2 УЗКО НАРОЧНО: имя стандарта только ПЕРЕД датой и в пределах 24 символов. Обратное направление читается так же естественно, но проглотило бы «2026-09-26, замер по MCP» — дату проекта, лишь упомянувшую стандарт. Оба настоящих случая в дереве — «MCP <дата>», так что обратное направление не подтверждено замером и не добавлено.
+- 2026-09-26T21:02:08Z [implementation] — AC-3 И ГЛУШИТЬ ОСТАЛЬНОЕ НЕ СМЕЕТ: маскированный текст читает ТОЛЬКО проверка даты, остальные четыре вида — исходный. test_the_other_kinds_ignore_the_mask: «смена #277 привела код к MCP 2026-07-28» по-прежнему даёт ['session'].
+- 2026-09-26T21:02:08Z [implementation] — AC-3 НЕГАТИВ ЗАКРЕПЛЁН: tests/test_comment_history_refs.py::TestASpecVersionIsNotAProjectEvent::test_a_project_date_is_still_reported — три случая, включая границу «MCP surface reworked, and on 2026-09-26 …», где имя стандарта есть, но 30 символов повествования отделяют его от даты. Плюс test_both_dates_are_weighed_not_just_the_first: строка с версией спецификации И датой проекта ссылку СОХРАНЯЕТ — маскирование по вхождению, не по строке.
+- 2026-09-26T21:02:08Z [implementation] — AC-4 СЛУЧАЙ, А НЕ ФОРМУЛИРОВКА: test_the_two_real_lines_in_the_tree_are_silent читает harness/claude/mcp/project/server.py и scripts/mcp_tool_scope.py С ДИСКА и требует, чтобы refs_in_source не дал ни одной находки вида date. Переформулировка комментария тест не обманет — обманет только удаление файла.
+- 2026-09-26T21:02:09Z [implementation] — ПУТЬ: замер → число (2) → отказ править по числу → правка по цене ложного срабатывания → узкое правило → негатив первым → собственный храповик поймал мой же комментарий. 46 тестов файла зелёные.
+- 2026-09-26T21:02:09Z [implementation] — ХРАПОВИК ОПУЩЕН ЗАМЕРОМ: comment_history_refs 239→236 ссылок, 151→148 файлов (полный охват scripts+bootstrap+harness+tests). Из трёх снятых два — правило спецдат, третий — собственная записка модуля: мой первый #:-комментарий к _SPEC_DATE содержал слово MEASURED с числом 2/237, то есть был ровно той запиской, которую модуль и отговаривает писать. Число ушло в этот журнал, в комментарии остался инвариант.
+- 2026-09-26T21:06:48Z [implementation] — NO-DEAD-END: единственный красный прогон — bootstrap_drift, мой собственный порядок действий: закрытие запущено до 'bootstrap.py --ide all', и 6 развёрнутых файлов профиля отставали от источника. Подход не опровергнут, тупика нет: редеплой и повторный verify (#2948) зелёные. Это уже третий раз за смену, поэтому уходит в память как конвенция, а не как тупик.
+- 2026-09-26T21:07:41Z [done] — AC-1: ✓ измерено скриптом по refs_in_source над scripts+tests: 2 из 237 — даты внешних спецификаций, оба случая «MCP 2026-07-28». Число названо ДО правки и решение принято по нему.
+- 2026-09-26T21:07:42Z [done] — AC-2: ✓ tested via tests/test_comment_history_refs.py::TestASpecVersionIsNotAProjectEvent::test_a_dated_standard_is_not_reported (5 случаев) — правило объявлено списком scripts/comment_history_refs.py::_EXTERNAL_STANDARDS, а не спрятано в регулярном выражении.
+- 2026-09-26T21:07:42Z [done] — AC-4: ✓ tested via tests/test_comment_history_refs.py::TestASpecVersionIsNotAProjectEvent::test_the_two_real_lines_in_the_tree_are_silent — читает server.py и mcp_tool_scope.py С ДИСКА, то есть проверяет СЛУЧАЙ; переформулировка комментария тест не обманет.
+- 2026-09-26T21:07:42Z [done] — Domain: правило осмысленно вне тестов — «MCP 2026-07-28» в живом коде объясняет, какой ревизии протокола отвечает заголовок кэша tools/list, и без даты читатель не может сверить код со стандартом. Перенос такой строки в память сделал бы инвариант непроверяемым, то есть детектор требовал бы вредного действия.

@@ -53,14 +53,58 @@ _EVENT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("measurement", re.compile(r"\b(?:ЗАМЕР|ЗАМЕРЕНО|MEASURED)\b")),
 )
 
+#: Names of standards this project does not own. A date next to one is the VERSION
+#: OF A SPECIFICATION, not something that happened here: "MCP 2026-07-28
+#: CacheableResult" says which revision of the protocol the cache header answers
+#: to, and moving that into memory would leave the reader unable to tell whether
+#: the code still matches the standard.
+#:
+#: SENAR and RENAR are listed although the project implements them -- a dated
+#: version number is a property of THEIR document, not a record of a session here.
+_EXTERNAL_STANDARDS = (
+    "MCP",
+    "RENAR",
+    "SENAR",
+    "RFC",
+    "CVE",
+    "CVSS",
+    "GHSA",
+    "PEP",
+    "ISO",
+    "OWASP",
+    "JSON-RPC",
+    "SEP",
+)
+
+#: A date the standard's name introduces, name first and within a short reach.
+#:
+#: Name FIRST only, though the reverse reads just as naturally: "2026-09-26, замер
+#: по MCP" is a project date that merely mentions a standard, and matching the
+#: reverse direction would swallow it. What the rule costs and what it buys are
+#: counted in the journal of spec-dates-are-not-project-events, not here -- this
+#: comment would otherwise be the very note the module exists to discourage.
+_SPEC_DATE = re.compile(
+    r"\b(?:" + "|".join(_EXTERNAL_STANDARDS) + r")\b[^.\n]{0,24}?\b20\d\d-\d\d-\d\d\b",
+    re.IGNORECASE,
+)
+
 
 def event_refs(text: str) -> list[str]:
     """Which kinds of event reference a piece of prose carries, in a stable order.
 
     A list rather than a bool: the closure note says WHAT kind of record the
     author is duplicating, and "session" and "date" call for different memories.
+
+    Spec versions are masked for the date check ONLY, and the other four kinds
+    still read the original text: a line saying "смена #277 привела код к MCP
+    2026-07-28" duplicates a session record whatever its date means.
     """
-    return [kind for kind, pattern in _EVENT_PATTERNS if pattern.search(text)]
+    without_specs = _SPEC_DATE.sub(" ", text)
+    return [
+        kind
+        for kind, pattern in _EVENT_PATTERNS
+        if pattern.search(without_specs if kind == "date" else text)
+    ]
 
 
 def comment_part(line: str) -> str:

@@ -234,3 +234,82 @@ class TestTheHashInsideAStringIsNotAComment:
     )
     def test_comment_part_reads_only_the_comment(self, line, expected):
         assert chr_.comment_part(line) == expected
+
+
+class TestASpecVersionIsNotAProjectEvent:
+    """MEASURED FIRST, and the number decided the shape of the fix.
+
+    Of the 237 comment references in the remainder, 2 are the dated version of an
+    external specification -- both "MCP 2026-07-28". Two is small, and the honest
+    reading is that it does not justify a broad rule: what justifies one is that
+    the class grows with every standard the project reads, and a finding nobody can
+    act on teaches everyone to skip its whole category.
+
+    So the rule is as narrow as the measurement supports: the standard's name
+    first, within a short reach, and the other four kinds of reference untouched.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param(
+                "MCP 2026-07-28 (SEP-2549) lets a client cache tools/list for a ttl",
+                id="mcp_with_sep",
+            ),
+            pytest.param(
+                "(MCP 2026-07-28 CacheableResult): a client must not reuse a stale surface",
+                id="mcp_cacheable_result",
+            ),
+            pytest.param("RFC 9457, 2026-01-15, fixes the media type", id="rfc_date_after_number"),
+            pytest.param("shape mandated by SENAR 2026-04-02", id="senar_version"),
+            pytest.param("iso 2026-03-01 renamed the field", id="lowercase_name"),
+        ],
+    )
+    def test_a_dated_standard_is_not_reported(self, text):
+        assert "date" not in chr_.event_refs(text)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("переписано 2026-09-26", id="bare_project_date"),
+            pytest.param("2026-09-26: ratchet lowered to zero", id="date_leads_the_line"),
+            pytest.param(
+                "MCP surface reworked, and on 2026-09-26 the count finally reached zero",
+                id="name_too_far_from_the_date",
+            ),
+        ],
+    )
+    def test_a_project_date_is_still_reported(self, text):
+        """The narrowing must not cost the check its subject.
+
+        The third case is the boundary: a standard's name appears, but 30 characters
+        of project narrative separate it from the date, and that is a project event
+        mentioning a standard rather than a standard's version.
+        """
+        assert "date" in chr_.event_refs(text)
+
+    def test_both_dates_are_weighed_not_just_the_first(self):
+        """A line carrying a spec version AND a project date keeps the reference.
+
+        Masking is per occurrence, not per line: dropping the whole line would lose
+        the second date, which is the one that belongs in memory.
+        """
+        text = "brought to MCP 2026-07-28 during the rewrite of 2026-09-26"
+        assert "date" in chr_.event_refs(text)
+
+    def test_the_other_kinds_ignore_the_mask(self):
+        """Only the date check reads the masked text.
+
+        A sentence can name a standard's version and still duplicate a session
+        record; masking the whole sentence would have hidden the session too.
+        """
+        assert chr_.event_refs("смена #277 привела код к MCP 2026-07-28") == ["session"]
+
+    def test_the_two_real_lines_in_the_tree_are_silent(self):
+        """Read off the files rather than retyped, so a reword cannot fake a pass."""
+        for rel in ("scripts/mcp_tool_scope.py", "harness/claude/mcp/project/server.py"):
+            source = (_REPO / rel).read_text(encoding="utf-8")
+            dated = [
+                (line, text) for line, text, kinds in chr_.refs_in_source(source) if "date" in kinds
+            ]
+            assert dated == [], f"{rel}: {dated}"

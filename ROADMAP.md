@@ -24,9 +24,9 @@
 | `release110-senar-15-claimed-honestly`<br>1.10 F. SENAR 1.5 Core заявлен честно: матрица по редакции, метрики с методом, детектор дрейфа стандарта | done | 0 | 0 | 6 |
 | `release110-renar-11-first-party-and-spec-uc`<br>1.10 G. RENAR 1.1: детектор смотрит в источник, SPEC-UC двенадцатый, подтверждение первой стороной — по решению владельца | done | 0 | 0 | 3 |
 | `release110-site-docs-and-hygiene`<br>1.10 H. Полный рефакторинг сайта, всей документации и гигиена проекта | active | 12 | 0 | 7 |
-| `release110-open-defects`<br>1.10 I. Открытые дефекты: ни один известный баг трекеров и линии разработки не переезжает в следующую версию | active | 1 | 0 | 32 |
+| `release110-open-defects`<br>1.10 I. Открытые дефекты: ни один известный баг трекеров и линии разработки не переезжает в следующую версию | active | 3 | 0 | 32 |
 | `release110-terse-answers`<br>1.10 J. Ответ агента короткий и структурный: замер, а не текст-пожелание | done | 0 | 0 | 2 |
-| **Итого** | | **16** | **0** | **91** |
+| **Итого** | | **18** | **0** | **91** |
 
 ## Что в релиз НЕ входит
 
@@ -40,7 +40,6 @@
 | `deferred-110-audit-hygiene` | active | 12 |
 | `deferred-110-knowledge-lifecycle` | open | 21 |
 | `deferred-110-outward-loop-and-test-authorship` | active | 12 |
-| `harness-costs-less-per-task` | active | 1 |
 
 **Закрытые, составом не названные.** Их работа в дереве релиза, но обещанием релиза она не объявлена; отложенной цены у них нет.
 
@@ -48,6 +47,7 @@
 |---|---|
 | `deferred-110-context-and-output-shape` | 0 |
 | `generated-code-is-lean-and-ascii` | 3 |
+| `harness-costs-less-per-task` | 7 |
 
 ## Траектория объёма
 
