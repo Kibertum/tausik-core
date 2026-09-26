@@ -9,6 +9,131 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the instructions a consumer receives now state both code-style rules
+
+Measured before anything was written: `bootstrap_templates.py` and its tiers
+module contained zero mentions of identifier language or of where a working note
+belongs. The owner's observation about Russian variable names in consumer projects
+had nothing in the shipped instructions to contradict it.
+
+Two rules, in a section of their own rather than under Hard Constraints, because
+neither refuses anything: the first is a `doctor` row, the second a line printed
+at closure. Filing them with the non-negotiables would be the kind of small
+untruth this project spends its tests preventing.
+
+Both are written as descriptions carrying their reason, and a test asserts the
+reason sits in the SAME bullet as its rule — a why parked at the end of a section
+belongs to no rule in particular. A second test scans the whole generated
+instruction set for ten phrasings of "use fewer tokens" and requires none: a
+harness that asks for thrift gets an agent reluctant to take on ambitious work,
+which costs more than the prose saves.
+
+THE SECTION WAS PAID FOR, NOT APPENDED. The generated body sits under an 80–180
+line budget and stood at exactly 180. Following the precedent set when 1.9 added
+the compaction contract, the lines came from compressing prose — three paragraphs
+merged in Quality Gates and Tool Routing, the new section written at four lines
+instead of sixteen — with no rule dropped. The body now measures 179.
+
+
+### Added — a note about what happened is offered to memory, not left in a comment
+
+The owner observed agents using comments as memory notes. Two kinds of prose were
+separated before anything was built:
+
+* An INVARIANT — why the code is the way it is — belongs in the docstring. It is
+  read by whoever changes the code next, and it is this project's strongest habit.
+  Nothing touches it.
+* An EVENT — what happened, when, in which session — belongs in project memory,
+  where it is searchable, datable and supersedable. In a comment it is paid for on
+  every read of the file, never updated, and found only by someone who already
+  opened that file.
+
+The marker is a REFERENCE, not a tone: "session #241", "decision #350",
+"2026-09-07", "ЗАМЕР" are addresses into the project's own record, which a check
+can hold, unlike a judgement about style.
+
+The measurement narrowed the target rather than confirming it. Of 2584 history
+references across 642 files, only 239 in 151 files are in COMMENTS; the rest are in
+docstrings, where "this literal is frozen because of decision #646" IS the reason
+the code is that way. A check aimed at 2584 would have been aimed at the habit
+worth keeping.
+
+Closing a task now names the event references THAT TASK added — read from
+`git diff`, so a note someone else wrote is never dragged in — and prints the
+`memory add` that files it, while the author still remembers what it meant. It
+does not block: a gate that refused a close over prose would be switched off the
+same week and would take the reasoning with it. The 239 already here are a
+declared remainder that may only shrink, because editing history to look tidier is
+the harm rather than the fix.
+
+Its own test found the bug worth recording: the first version accepted only lines
+BEGINNING with a hash and so missed the commonest shape of a note, a tail on a
+line of code. Fixing that by splitting on the first hash would have introduced the
+opposite error — a hash lives inside string literals, and `"github#7"` is a real
+ticket reference this repository stores.
+
+
+### Added — identifiers are ASCII, and `doctor` says so
+
+A name is an interface. Traces, `grep`, pytest node ids, coverage reports and
+people without a Cyrillic keyboard all read it, and a non-ASCII one breaks
+quietly: on console encoding, on a regex over `\w`, on a backslash in `sh`. Prose
+is not the subject — a docstring or comment in any language passes, because the
+check reads the AST rather than the text.
+
+The owner reported consumer projects declaring Russian variable names. Two numbers
+name the mechanism: the product trees (`scripts`, `bootstrap`, `harness`) hold
+ZERO such identifiers, while `tests` holds 271 across 20 files. There was nothing
+in the product code to copy, so the house style an agent imitates is the one it
+sees in the tests.
+
+The product trees are now held at zero by a ratchet. The 271 test names are a
+DECLARED REMAINDER, and that is a measurement rather than an indulgence: 83
+evidence citations across 21 tasks point at Cyrillic pytest node ids, and the task
+journal is append-only. Renaming would turn working evidence into unresolvable
+references — the exact harm this project keeps a citation-rot detector for. The
+remainder may only shrink.
+
+`doctor` gained an `Identifier style` row that scans a project's own code, not our
+directory names: a consumer has no `scripts` or `harness`, so a check that knew
+only ours would report zero on any tree, and a zero obtained by looking nowhere is
+the worst kind of green.
+
+
+### Added — MCP tool schemas load on demand (`mcp.compact_tool_list`, off by default)
+
+The advertised tool list is a per-request tax: 147 tools serialize to 14,337
+tokens, resent on every turn whether or not a single one is called. Measured
+against real usage in `.tausik/token_metrics.jsonl` — the only source that
+records a tool NAME, since `events.action='tool_use'` stores none — 75 of 5,782
+calls were MCP at all (1.3%), against 4,977 Bash calls (86%), and six distinct
+MCP tools were ever invoked.
+
+With the flag on, full schemas stay with a 21-tool core and the other 126 appear
+as a name plus the first 60 characters of their description. Any of those schemas
+is one `tausik_tool_schema(name=…)` call away. The list drops to 8,600 tokens,
+−40%.
+
+The 60-character cut is a measurement, not a preference: the full first line
+saves 27%, name-only saves 52%, and name-only was rejected because it removes the
+cue an agent uses to decide whose schema to ask for — the saving goes back out as
+an extra turn. A second measurement fell out of the same pass: repeating the
+pointer sentence in all 126 descriptions cost about 1,260 tokens of pure
+repetition, so it is stated once, in the fetching tool's own description.
+
+Off by default deliberately. The cost of being wrong is an extra turn in every
+conversation, and the consumer pays it, so this is enabled after checking
+turns-per-task in your own logs.
+
+The core set is not the six measured tools. It also carries what a first turn
+needs and what the gates depend on — `task_start`, `task_done`, `verify` — because
+a saving paid for with an extra turn is not a saving, and an agent that cannot
+reach the tool that lifts a refusal is worse off than one paying for schemas.
+
+The surface ratchet moved 146 → 147 tools with the raise argued in the ratchet
+itself: this one tool is what makes the other 126 cheap.
+
+
 ### Fixed — an L3 review record proves separation of duties or is refused (github#157)
 
 `review record --type L3` stored free notes only, so a reviewer on the author's own model closed the review gate like any other; the invitation named the author's family at best. Now an L3 record takes `--reviewer-model` and `--author-model` (default: the running session's model), stores both in notes and is refused when they are the same family or either is unknown. The L3 delegation line carries the author's exact model id; `/review` records L2 when its agents ran on the author's model.

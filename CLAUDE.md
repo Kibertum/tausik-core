@@ -64,8 +64,9 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #266 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
-Tasks: 1517/1686 done, 0 active, 0 blocked
+Session: #275 (active) | Branch: v1-10 | TAUSIK: 1.9.0
+Tasks: 1601/1711 done, 3 obsolete, 2 active, 0 blocked
+Active: closure-citations-rot-is-detected-but-never-acted-on, mcp-tool-schemas-load-on-demand
 
 ### Memory tail
 Context (5):
@@ -75,17 +76,17 @@ Context (5):
 - #722 Замер сессий #196–#265 (смена #266): ни одна из 70 смен не достигла 180 активных минут; агентов оста
 - #720 RENAR 1.1 (19.09.2026) — дельты для TAUSIK: первая сторона §1.4.4, SPEC-UC, комплект описания
 Decisions (5):
-- #379 1.10 — СОСТАВ ДОПОЛНЕН ИСТОРИЕЙ I: ОТКРЫТЫЕ ДЕФЕКТЫ. Владелец, смена #266: «не забудь посмотреть открытые тикеты, баги, 
-- #378 1.10 — СОСТАВ ДОПОЛНЕН ИСТОРИЕЙ H; ПАКЕТ И ПЛАГИН — В 2.0. Владелец, смена #266: «пакет и плагин надо в 2.0; с остальным
-- #377 СЛЕДУЮЩИЕ ВЕРСИИ РАСПЛАНИРОВАНЫ (смена #266, указание владельца привести в порядок все задачи). 1.11 — кандидаты, состав
-- #376 1.10 — УСТАВ И СОСТАВ ПЕРЕСМОТРЕНЫ. Владелец, смена #266: «планировать 1.10; привести в порядок все задачи, roadmap в Gi
-- #375 НАПРАВЛЕНИЕ 1.10 ПЕРЕСМОТРЕНО ВЛАДЕЛЬЦЕМ (смена #266, 23.09.2026), его словами: «Мое пожелание — полное изменение логики
+- #396 1.10 ДОПОЛНЕН ИСТОРИЕЙ harness-costs-less-per-task. Указание владельца, смена #275: внедрить лучшие практики из разбора 
+- #395 Разделение обязанностей L3 проверяется при ЗАПИСИ: review record --type L3 требует модели ревьюера и автора и отказывает
+- #394 tools/list отдаёт ttlMs=0 и cacheScope=private, скрытие по scope_tools сохраняется (github#91)
+- #393 Пользовательский тир с 1.10 — ~/.config/tausik/config.json. Старый ~/.tausik/config.json читается, только если он единст
+- #392 Выпуск 1.10 — состав дополнен историей J (решение #391, указание владельца смены #272). Состав: release110-sessions-are-
 Conventions (5):
+- #742 Generated trees are declared once in scripts/derived_trees.py; exporters and checks read it
+- #738 Ответ владельцу: итог первой строкой, дальше только факты списком; без пересказа процесса
+- #728 Не объявлять CHANGELOG и общие страницы docs в --relevant-files задачи: следующая запись в CHANGELOG
 - #717 GitHub roadmap — как в Harvester: milestone vX.Y.Z, [KIND]-заголовки, kind/area/priority, [EPIC] с s
 - #711 Проверка соразмерна правке: полная лента — CI и релизный гейт, тест — на поведение, порождённое поро
-- #701 Owner forbids external artifacts (claude.ai Artifact pages): reports are answered in the terminal or
-- #698 Текст отказа в документации для агента снимается с живого вызова и удерживается тестом по фразе из к
-- #686 Хост, добавляемый в SCAFFOLD_IDES, проверяется ЗАМЕРОМ БИНАРЯ, а не документацией
 Dead ends (3):
 - #693 Verify review journal with tracked output documents as relevant files
 - #692 Capture Codex PreToolUse JSON through a temporary generated command hook
@@ -97,9 +98,9 @@ Dead ends (3):
 - [decision] Коэффициент калибровки на окне n=10 непригоден для прогноза срока релиза: за одну сессию #153 он про
 - [convention] Windows: команду с вложенными кавычками писать ФАЙЛОМ, а не однострочником
 - [convention] TAUSIK 1.8: verify --task без --relevant-files не сертифицирует закрытие задачи
-- [gotcha] JDK 21+: обновление openjdk ломает fork/exec у уже запущенной JVM (jspawnhelper сверяет версию) — се
-- [gotcha] yes y | ./install.sh под set -o pipefail возвращает 141 (SIGPIPE у yes) при УСПЕШНОМ install.sh — бр
-- [gotcha] NPMplus 2026-07-15-r1 / 2026-07-23-r1 молча теряют ACL всех proxy-хостов (GHSA-c8f8-6gxh-hf2g, CVSS 
+- [gotcha] sh (Git Bash на Windows): кириллица в ИМЕНАХ переменных — не переменная, а команда
+- [gotcha] Claude Code, Bash-инструмент: heredoc схлопывает обратный слэш даже в кавычках
+- [gotcha] Windows (Bash-инструмент агента): кириллица в аргументах curl превращается в '?' ДО отправки
 - [pattern] Смоук интерактива без Playwright: headless Chrome + CDP из Node 22+
 - [pattern] Установка TAUSIK в новый клиентский проект — рецепт и подводные камни
 - [pattern] Проверять содержимое ответа, а не только HTTP-код
