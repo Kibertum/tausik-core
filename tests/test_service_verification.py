@@ -1063,6 +1063,15 @@ class TestRunGatesWithCacheGitDiffIntegration:
             "changed_files_since",
             lambda ts, **_kw: {"scripts/foo.py", "scripts/auth.py"},
         )
+        # Второй шов, которого до этой смены не существовало: отказ спрашивает,
+        # лежит ли чувствительный файл в рабочем дереве СЕЙЧАС. Здесь лежит — это
+        # и есть случай, ради которого отказ написан. Без подмены тест был бы
+        # зелёным по другой причине: настоящий git не знает ни одного из этих путей.
+        monkeypatch.setattr(
+            verify_git_diff,
+            "uncommitted_changes",
+            lambda *_a, **_kw: ["scripts/auth.py"],
+        )
         passed, results, status = sv.run_gates_with_cache(
             conn,
             "task-sec",

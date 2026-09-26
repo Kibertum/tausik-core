@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import re
 import subprocess
-from typing import Any, Callable
+from typing import Callable
 
 from senar_version_claim import DECLARED_SENAR_VERSION
 
@@ -111,12 +111,3 @@ def missing_disclosures(text: str, lang: str) -> list[str]:
     if not records:
         return missing + ([] if EMPTY_MARKERS[lang] in text else ["the empty-register statement"])
     return missing + [r["clause"] for r in records if r["clause"] not in text]
-
-
-def disclosure_section() -> dict[str, Any]:
-    return {
-        "claim": claim_sentence(),
-        "nonconformities": list(NONCONFORMITIES),
-        "unimplemented-should": list(UNIMPLEMENTED_SHOULD),
-        "empty-because": EMPTY_BECAUSE if not (NONCONFORMITIES or UNIMPLEMENTED_SHOULD) else None,
-    }

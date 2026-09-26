@@ -9,6 +9,57 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a long-lived task was charged for everyone else's month
+
+Reported from a consumer project: a task opened on 24.08 was still open a month
+later and could not be closed. The refusal in `verify_scope_honesty` reads "changed
+since task start", and that window had swallowed the rest of the team's landed work
+— billing, payments, files the task never touched. Being security-sensitive by
+pattern, they tripped the block, and there was no remedy: declaring another team's
+files as this task's scope is a lie, and not declaring them is a refusal with no way
+out. The owner left the task open and said he was not going to spend time on it,
+which is how a gate stops being read — and it takes the real finding with it.
+
+The same root as the session-capacity defect: a quantity measured over the task's
+whole LIFETIME charged to the task as its own. There, a call counter; here, a list
+of changed files.
+
+The block now asks about the UNCOMMITTED subset. A committed change already passed
+the commit hook — the secret scan, the shell firewall, the memory-route gate. What
+the scoped gates would genuinely never see is a change still in the working tree at
+closing time, and that is what the refusal is for. The wide window stays in the
+record as `security_undeclared`, so the divergence is still reported; only the
+refusal narrowed. Git that cannot answer keeps every candidate: this is the one
+check whose silence must not read as permission.
+
+The commit-message signal was measured and rejected by number: of the last 400
+commits, 50 name a task slug — 12% — so "commits belonging to this task" cannot be
+derived from what a commit says.
+
+Four existing tests had been green for the wrong reason. Their `_runner` stub
+answered `git log` and `git diff` but not `git status`, because until now there was
+no second seam to answer; the helper gained a `dirty` parameter whose default
+reproduces the old assumption, which could not even be expressed before.
+
+
+### Removed — two dead symbols, one of them shipped hours earlier
+
+`senar_claim.disclosure_section` and `token_price.cost_of_row` each had exactly one
+reference in the tree: their own definition. No string-based call either — a grep
+over `.py`, `.json` and `.md` across scripts, harness, docs, tests and bootstrap
+found nothing else.
+
+The second was written in this same session and never called: `breakdown` computes
+the same figures inline. It reached a pushed commit and the next review run found
+it, which is the argument for running the symbol sweep repeatably rather than once
+(convention #682 — deletion uncovers the next layer, so the sweep was re-run after
+these two and reports nothing new).
+
+`disclosure_section` only assembled a dict out of constants in its own module, all
+of which remain reachable directly, so nothing is lost. `claim_sentence` and
+`missing_disclosures` are untouched.
+
+
 ### Added — the compaction contract says where everything it dropped still is
 
 The task asked for the session history to be saved to a searchable file. Measuring

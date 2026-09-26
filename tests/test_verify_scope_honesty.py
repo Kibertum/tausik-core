@@ -78,11 +78,27 @@ FOREIGN_SLUG = "nine-open-tasks-are-invisible-to-release-scope"
 SOURCE = "scripts/verify_scope_honesty.py"
 
 
-def _runner(log_files=(), diff_files=(), returncode=0):
-    """Fake `subprocess.run` for git: first call is `log`, second is `diff`."""
+def _runner(log_files=(), diff_files=(), returncode=0, dirty=None):
+    """Fake `subprocess.run` for git: `log`, `diff`, and now `status`.
+
+    `dirty` names the paths `git status --porcelain` reports as uncommitted, in
+    porcelain form. It defaults to "everything the log says changed", because that
+    is what every test written before the in-flight split assumed without being
+    able to say so: there was one seam, and the block read the wide window.
+
+    The parameter exists so a test can say the opposite — that a file changed a
+    month ago by somebody else and is long since committed. That case is the whole
+    defect this helper now lets us express.
+    """
+    porcelain = log_files if dirty is None else dirty
 
     def run(cmd, **_kw):
-        payload = log_files if "log" in cmd else diff_files
+        if "status" in cmd:
+            payload = [f" M {path}" for path in porcelain]
+        elif "log" in cmd:
+            payload = list(log_files)
+        else:
+            payload = list(diff_files)
         return types.SimpleNamespace(returncode=returncode, stdout="\n".join(payload))
 
     return run
@@ -759,3 +775,86 @@ class TestParentStoryIsNotUndeclared:
         )
         assert d["status"] == vsh.STATUS_UNDER_DECLARED
         assert d["undeclared"] == ["scripts/service_gates.py"]
+
+
+class TestSomebodyElsesMonthDoesNotBlock:
+    """The defect a consumer reported, and the reason the block narrowed.
+
+    A task opened on 24.08 was still open a month later. The window "changed since
+    task start" had swallowed everyone else's landed work — billing, payments, files
+    the task never touched — and being security-sensitive by pattern they tripped the
+    refusal. There was no remedy: declaring another team's files as this task's scope
+    is a lie, and not declaring them is a block with no way out. The owner left the
+    task open and said he was not going to spend time on it, which is how a gate
+    stops being read, taking the real finding down with it.
+
+    What a COMMITTED change already passed is the commit hook: the secret scan, the
+    shell firewall, the memory-route gate. What the scoped gates would genuinely
+    never see is a change still in the working tree at closing time. So the block
+    now asks about that, and the wide window stays in the record as a warning.
+    """
+
+    def test_a_committed_sensitive_file_is_reported_but_does_not_block(self, tmp_path):
+        d = vsh.describe_declared_scope(
+            ["src/moved.py"],
+            "2026-08-24T00:00:00Z",
+            root=_git_root(tmp_path),
+            # Changed since the task started, and NOT dirty now: somebody else
+            # committed it weeks ago.
+            runner=_runner(["src/billing/payments.py"], [], dirty=[]),
+        )
+        assert d["status"] == vsh.STATUS_UNDER_DECLARED, "divergence must still be seen"
+        assert d["security_undeclared"] == ["src/billing/payments.py"], "and still reported"
+        assert d["security_blocking"] == []
+        assert vsh.security_block_reason(d) is None
+
+    def test_an_in_flight_sensitive_file_still_blocks(self, tmp_path):
+        """The negative half. Narrowing the window must not become a hole: a
+        sensitive change the closing author has in hand is exactly what the scoped
+        gates would verify with nothing."""
+        d = vsh.describe_declared_scope(
+            ["src/moved.py"],
+            "2026-08-24T00:00:00Z",
+            root=_git_root(tmp_path),
+            runner=_runner(["src/auth.py"], [], dirty=["src/auth.py"]),
+        )
+        assert d["security_blocking"] == ["src/auth.py"]
+        reason = vsh.security_block_reason(d)
+        assert reason is not None
+        assert "UNCOMMITTED" in reason
+        assert "gated at commit time" in reason, "the refusal must say what it no longer covers"
+
+    def test_a_mixed_set_blocks_only_on_the_in_flight_part(self, tmp_path):
+        d = vsh.describe_declared_scope(
+            ["src/moved.py"],
+            "2026-08-24T00:00:00Z",
+            root=_git_root(tmp_path),
+            runner=_runner(["src/auth.py", "src/billing/payments.py"], [], dirty=["src/auth.py"]),
+        )
+        assert sorted(d["security_undeclared"]) == ["src/auth.py", "src/billing/payments.py"]
+        assert d["security_blocking"] == ["src/auth.py"]
+
+    def test_git_that_cannot_answer_keeps_every_candidate(self, tmp_path):
+        """Absence of an answer must not read as permission — this is the one check
+        whose silence would be a pass."""
+        import verify_git_diff
+
+        original = verify_git_diff.uncommitted_changes
+        try:
+            verify_git_diff.uncommitted_changes = lambda *a, **k: None
+            d = vsh.describe_declared_scope(
+                ["src/moved.py"],
+                "2026-08-24T00:00:00Z",
+                root=_git_root(tmp_path),
+                runner=_runner(["src/auth.py"], [], dirty=[]),
+            )
+        finally:
+            verify_git_diff.uncommitted_changes = original
+        assert d["security_blocking"] == ["src/auth.py"]
+        assert vsh.security_block_reason(d) is not None
+
+    def test_a_description_without_the_key_keeps_its_old_behaviour(self):
+        """A persisted description from before the split must not silently gain a
+        pass; it falls back to the wide set it was written with."""
+        old = {"status": "under-declared", "security_undeclared": ["src/auth.py"]}
+        assert vsh.security_block_reason(old) is not None

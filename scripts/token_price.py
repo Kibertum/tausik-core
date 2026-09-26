@@ -85,20 +85,6 @@ def rates_for(model: str | None, prices: dict[str, dict[str, float]]) -> dict[st
     return best[1] if best else None
 
 
-def cost_of_row(row: dict[str, Any], prices: dict[str, dict[str, float]]) -> float | None:
-    """Dollars for one recorded call, or ``None`` when its model is unpriced."""
-    rates = rates_for(row.get("model"), prices)
-    if rates is None:
-        return None
-    total = 0.0
-    for kind, field in _FIELD_OF_KIND.items():
-        rate = rates.get(kind)
-        if rate is None:
-            continue
-        total += (int(row.get(field) or 0) / 1_000_000) * rate
-    return total
-
-
 def breakdown(rows: list[dict[str, Any]], prices: dict[str, dict[str, float]]) -> dict[str, Any]:
     """Cost by billing kind, plus what could not be priced.
 

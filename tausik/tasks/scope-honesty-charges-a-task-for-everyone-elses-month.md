@@ -1,7 +1,7 @@
 ---
 slug: scope-honesty-charges-a-task-for-everyone-elses-month
 title: "Честность области считает чужой месяц работы правками задачи: закрыть долгоживущую задачу нечем"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-open-defects
 complexity: medium
@@ -12,11 +12,18 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/verify_scope_honesty.py"
+  - "tests/test_verify_scope_honesty.py"
+  - "tests/test_service_verification.py"
+scope_paths:
+  - "scripts/verify_scope_honesty.py"
+  - "tests/test_verify_scope_honesty.py"
+  - "tests/test_service_verification.py"
+  - "tausik/gates.json"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-26T18:28:04Z"
 ---
 
 ## Goal
@@ -42,3 +49,12 @@ AC-1 ЗАМЕР ПЕРВЫМ: воспроизведено на задаче, н
 Правка определения окна области; откат — git revert, гейт возвращается к календарному окну. Данные не затрагиваются.
 
 ## Journal
+
+- 2026-09-26T18:19:31Z [implementation] — AC-2 ЗАМЕР ПРИЗНАКА ВЫПОЛНЕН И ПРИЗНАК ОТВЕРГНУТ ЧИСЛОМ: из 400 последних коммитов слаг задачи называют 50, то есть 12%; различных слагов упомянуто 185 из 1718. Определять принадлежность коммита задаче по сообщению нельзя — восемь из девяти коммитов не назовут ничего.
+- 2026-09-26T18:19:32Z [implementation] — AC-3 ✓ tests/test_verify_scope_honesty.py::TestSomebodyElsesMonthDoesNotBlock::test_a_committed_sensitive_file_is_reported_but_does_not_block — расхождение по-прежнему видно и сообщается, отказа нет
+- 2026-09-26T18:19:32Z [implementation] — AC-4 ✓ НЕГАТИВ, главный: test_an_in_flight_sensitive_file_still_blocks — чувствительная правка в руках закрывающего по-прежнему отклоняется; test_a_mixed_set_blocks_only_on_the_in_flight_part; test_git_that_cannot_answer_keeps_every_candidate — молчание git не читается как разрешение
+- 2026-09-26T18:19:32Z [implementation] — НАЙДЕН ТОЧНЫЙ БЛОКИРУЮЩИЙ ПУТЬ: не предупреждение честности области (оно WARN), а verify_scope_honesty.security_block_reason — отказ, когда чувствительный по шаблону файл изменён 'с начала задачи' и отсутствует в relevant_files. Именно он и описан владельцем: биллинг и платежи чужой работы за месяц попадают в окно, проходят is_security_sensitive и дают отказ без средства.
+- 2026-09-26T18:19:32Z [implementation] — ПРАВКА: окно ОТКАЗА сужено до НЕЗАКОММИЧЕННОГО пересечения (новое поле security_blocking), широкое окно осталось в записи как security_undeclared. Довод: закоммиченное уже прошло гейты коммита — сканер секретов, firewall оболочки, memory_route; чего scoped-гейты действительно никогда не увидят, так это правку, лежащую в рабочем дереве в момент закрытия.
+- 2026-09-26T18:19:33Z [implementation] — AC-5 ✓ родство названо: тот же корень, что у session-capacity-counts-a-tasks-whole-life-not-this-shift — календарное окно вместо собственных правок. Общей правки не вышло: там величина складывается из счётчиков задачи, здесь из git, и одно средство на оба не годится. Сказано прямо, а не подразумевается.
+- 2026-09-26T18:19:33Z [implementation] — ТЕСТЫ ПОДМЕНЯЛИ ОДИН ШОВ, ПОТОМУ ЧТО ВТОРОГО НЕ БЫЛО: помощник _runner отвечал на git log и git diff, но не на git status, и четыре существующих теста стали зелёными по неверной причине. Помощник расширен параметром dirty, и по умолчанию он равен изменённому за окно — то есть воспроизводит прежнее допущение, которое до этой правки нельзя было даже выразить.
+- 2026-09-26T18:28:01Z [implementation] — AC-1 НЕ ВЫПОЛНЕН И ЭТО НАЗВАНО, А НЕ ОБОЙДЕНО: два числа критерия (сколько файлов гейт зовёт недообъявленными и сколько из них задача действительно трогала) снимаются только на том проекте, где дефект наблюдался. Его базы у меня нет, и выдумывать числа вместо замера нельзя. Правка обоснована другим замером — AC-2, отвергнувшим признак по коммитам числом 12%, — и точной локализацией блокирующего пути в коде. Владельцу сказано прямо: проверить у себя, что задача переезда закрывается, а расхождение остаётся предупреждением.

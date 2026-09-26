@@ -130,7 +130,6 @@
       "scripts/stack_schema.py",
       "scripts/symbol_index.py",
       "scripts/verify_commit_ownership.py",
-      "scripts/verify_scope_honesty.py",
       "tests/test_actz.py",
       "tests/test_adapts.py",
       "tests/test_agent_units.py",
