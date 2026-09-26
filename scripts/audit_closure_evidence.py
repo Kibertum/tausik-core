@@ -43,16 +43,13 @@ Read-only, and non-blocking BY DESIGN: renaming a test is a legitimate
 operation. The point is that decay becomes VISIBLE, not that refactoring
 becomes punished.
 
-KNOWN LIMITATION, STATED RATHER THAN HIDDEN. Reconciling a finding does not
-retire it. The cure for a rotted citation is an APPENDED note naming the
-current address — the original receipt line is never rewritten, because a
-closure receipt is a historical record. The stale citation therefore stays in
-the corpus and keeps being reported: after the first reconciliation pass of
-session #186, ``resolved`` rose from 945 to 950 while ROTTED stayed at 16.
-So these counts are a FLOOR, not a health bar; what carries signal is the
-DELTA between runs. Making a reconciled finding retire itself would need the
-audit to read a task's later notes as an amendment of its earlier ones, which
-is a separate design question and deliberately not answered here.
+A FINDING IS RETIRED BY AN OUTCOME, NOT BY A REWRITE. Until 1.10 an appended
+reconciliation note did not retire anything, so the same list came back on
+every pass and nobody acted on it (closure-citations-rot-is-detected-but-never-
+acted-on). A task's later journal lines are now read as outcomes of its earlier
+citations — MOVED / RETIRED / UNPROVEN, grammar in ``closure_amendments`` — and
+a finding every citing task has answered leaves ROTTED / NEVER_EXISTED for its
+own counted bucket. The receipt line itself is never rewritten.
 
 Public API:
     audit_closure_evidence(repo_root, tasks, ...) -> dict
@@ -82,6 +79,11 @@ UNKNOWN_HISTORY: Final[str] = "unknown_history"
 # by a factor of two. Hiding them would fix the number and lose the evidence
 # that the number was ever wrong.
 ILLUSTRATIVE: Final[str] = "illustrative"
+# Outcomes appended to the journal (closure_amendments): a finding that every
+# citing task has answered is moved out of ROTTED / NEVER_EXISTED into these.
+RECONCILED: Final[str] = "reconciled"
+RETIRED: Final[str] = "retired"
+UNPROVEN: Final[str] = "unproven"
 
 _DEFAULT_TEST_ROOTS: Final[tuple[str, ...]] = ("tests",)
 # difflib cutoff. 0.6 is the stdlib default and was measured on this corpus: it
@@ -327,7 +329,48 @@ def _classify(
     names = _flat_names(tree)
     near = difflib.get_close_matches(lost, sorted(names), n=1, cutoff=_SUCCESSOR_CUTOFF)
     finding["successor_candidate"] = near[0] if near else None
+    finding["lost_segment"] = lost
     return finding
+
+
+def successor_ref(finding: dict[str, Any]) -> str | None:
+    """The candidate as a full citation: the lost segment swapped for its successor."""
+    near, lost, path = (
+        finding.get("successor_candidate"),
+        finding.get("lost_segment"),
+        finding.get("path"),
+    )
+    if not (near and lost and path):
+        return None
+    member = str(finding["ref"]).partition("::")[2]
+    return f"{path}::{member.replace(lost, near, 1)}"
+
+
+def _apply_outcomes(
+    repo_root: str,
+    findings: list[dict[str, Any]],
+    outcomes: dict[str, dict[str, tuple[str, str]]],
+    index: dict[str, list[str]],
+    name_cache: dict[str, ast.Module | None],
+    probe: GitProbe | None,
+) -> None:
+    """Move a finding every citing task has answered into its outcome bucket."""
+    import closure_amendments as ca
+
+    if not outcomes:
+        return
+    targets = {v for per in outcomes.values() for k, v in per.values() if k == ca.MOVED}
+    resolves = {
+        t: _classify(repo_root, t, index, name_cache, probe)["verdict"] == RESOLVED for t in targets
+    }
+    bucket = {ca.MOVED: RECONCILED, ca.RETIRED: RETIRED, ca.UNPROVEN: UNPROVEN}
+    for f in findings:
+        if f["verdict"] not in (ROTTED, NEVER_EXISTED, UNKNOWN_HISTORY):
+            continue
+        got = ca.outcome_for(f["ref"], f.get("tasks") or [], outcomes, resolves)
+        if got:
+            f["was"] = f["verdict"]
+            f["verdict"] = bucket[got]
 
 
 def audit_closure_evidence(
@@ -344,13 +387,19 @@ def audit_closure_evidence(
     ``probe=None`` disables the git question: every unresolved citation then
     lands in UNKNOWN_HISTORY instead of being guessed at.
     """
+    import closure_amendments
+
     index = index_test_files(repo_root, test_roots)
     name_cache: dict[str, ast.Module | None] = {}
     per_ref: dict[str, dict[str, Any]] = {}
+    outcomes: dict[str, dict[str, tuple[str, str]]] = {}
     scanned = with_refs = total = 0
 
     for task in tasks:
         scanned += 1
+        amended = closure_amendments.parse(task.get("notes") or "")
+        if amended:
+            outcomes[task.get("slug") or "?"] = amended
         refs = extract_refs(task.get("notes") or "")
         if refs:
             with_refs += 1
@@ -366,11 +415,14 @@ def audit_closure_evidence(
                 entry["tasks"].append(slug)
 
     findings = [e for e in per_ref.values() if e["verdict"] != RESOLVED]
+    _apply_outcomes(repo_root, findings, outcomes, index, name_cache, probe)
     findings.sort(key=lambda e: (e["verdict"], e["ref"]))
     counts = {
         verdict: sum(1 for e in findings if e["verdict"] == verdict)
-        for verdict in (ROTTED, NEVER_EXISTED, UNKNOWN_HISTORY, ILLUSTRATIVE)
-    }
+        for verdict in (
+            ROTTED, NEVER_EXISTED, UNKNOWN_HISTORY, ILLUSTRATIVE, RECONCILED, RETIRED, UNPROVEN,
+        )
+    }  # fmt: skip
     return {
         "tasks_scanned": scanned,
         "tasks_with_refs": with_refs,

@@ -78,11 +78,16 @@ def cmd_audit_evidence(svc: ProjectService, args: Any) -> None:
     from audit_closure_evidence import (
         ILLUSTRATIVE,
         NEVER_EXISTED,
+        RECONCILED,
+        RETIRED,
         ROTTED,
         UNKNOWN_HISTORY,
+        UNPROVEN,
         audit_closure_evidence,
         default_probe,
+        successor_ref,
     )
+    from closure_amendments import template
 
     # --no-git is not a speed switch: without history the audit CANNOT tell a
     # rename from a path that never existed, so it withholds the verdict rather
@@ -106,6 +111,11 @@ def cmd_audit_evidence(svc: ProjectService, args: Any) -> None:
     # Printed with the others, not folded away: the three counts above are only
     # trustworthy while a reader can see how many refs were set aside and why.
     print(f"  ILLUSTRATIVE (an example quoted, not a citation): {counts[ILLUSTRATIVE]}")
+    # Answered in the journal (closure_amendments) — retired, still counted.
+    print(
+        f"  answered: MOVED {counts[RECONCILED]}, RETIRED {counts[RETIRED]}, "
+        f"UNPROVEN closures {counts[UNPROVEN]}"
+    )
     for verdict, blurb in (
         (
             ROTTED,
@@ -130,6 +140,10 @@ def cmd_audit_evidence(svc: ProjectService, args: Any) -> None:
             reason = f"  <- {why}" if why else ""
             print(f"    - {f['ref']}{amb}{hint}{reason}")
             print(f"        cited by: {', '.join(f['tasks'])}")
+            if verdict in (ROTTED, NEVER_EXISTED, UNKNOWN_HISTORY):
+                # The addressee: what to append so this finding stops recurring.
+                for slug in f["tasks"]:
+                    print(f"        answer: {template(f['ref'], slug, successor_ref(f))}")
     print("\n  A successor is a suggestion from name similarity. Confirm it by reading the")
     print("  test before treating it as the same check under a new name.")
 
