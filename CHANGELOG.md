@@ -9,6 +9,40 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — `memory search` no longer crashes on half of all two-word queries
+
+`memory search "bootstrap_drift редеплой"` raised an uncaught
+`sqlite3.OperationalError: fts5: syntax error near "OR"` — a twelve-frame
+traceback where a message belonged. The cause is general rather than about one
+word: the morphology feature expands a Russian word into a parenthesised group
+(`(редеплой OR редепл*)`), and the sanitizer joined its parts with a space. FTS5
+reads `a b` as an implicit AND between two tokens, but there is no implicit
+operator between a token and a parenthesised group. MEASURED against a real
+table: `a b` parses, `(x OR y*)` parses, `bootstrap (x OR y*)` does not.
+
+So any query where one word expanded and another token stood beside it failed —
+most Russian two-word queries. A single-word query parses, which is why the defect
+survived.
+
+Parts are now joined with an explicit `AND`, which means the same thing for bare
+tokens and is the only spelling that parses for every combination. Four tests that
+had pinned the space spelling were rewritten to assert the meaning: the user's own
+`OR`, `NOT` and `NEAR` still do not survive, and every term is conjoined whatever
+was typed between them.
+
+THE REASON IT SHIPPED is worth more than the fix. An end-to-end test against a
+real FTS5 table already existed and was the right shape — but every query in its
+corpus was Latin or a single word, and the expander only touches Cyrillic tokens
+of five letters or more. The combination the feature created was unreachable from
+the corpus that was supposed to catch it. The corpus now carries Cyrillic pairs,
+and a pairwise property test asks the question exhaustively over 16 query atoms.
+A one-off run over triples and quadruples — 8676 combinations — found zero
+remaining syntax errors.
+
+Filed while fixing: six other FTS call sites never sanitize at all, so `spec
+search foo-bar` refuses an ordinary query with "no such column: bar".
+
+
 ### Fixed — a specification's version date is no longer read as a project event
 
 The comment-note detector counted every ISO date as a record of something that

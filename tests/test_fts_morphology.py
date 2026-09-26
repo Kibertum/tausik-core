@@ -49,14 +49,19 @@ def test_another_word_form_finds_the_record(svc, query):
     "query, expected",
     [
         pytest.param("гейт*", "гейт*", id="trailing-star-kept"),
-        pytest.param("a*b", "a b", id="star-in-the-middle"),
+        pytest.param("a*b", "a AND b", id="star-in-the-middle"),
         pytest.param("*", "", id="lone-star"),
         pytest.param('"unpaired', "unpaired", id="unpaired-quote"),
-        pytest.param("foo AND bar", "foo bar", id="operator"),
+        pytest.param("foo AND bar", "foo AND bar", id="operator"),
     ],
 )
 def test_only_a_trailing_star_survives_the_sanitizer(query, expected):
-    """NEGATIVE: keeping a trailing star opens no path to syntax errors."""
+    """NEGATIVE: keeping a trailing star opens no path to syntax errors.
+
+    The `operator` case reads oddly and is correct: the user's `AND` is stripped
+    as an operator, then the sanitizer conjoins the two remaining terms with its
+    own. Same string, different author -- and the user can no longer choose `OR`.
+    """
     assert _sanitize_fts5(query) == expected
 
 

@@ -77,7 +77,13 @@ def _sanitize_fts5(query: str) -> str:
         else:
             wrapped.append(expand(tok))  # word forms: `(form OR stem*)`
     parts = wrapped + stars + phrases
-    return " ".join(parts) if parts else ""
+    # Joined with an EXPLICIT `AND`, not a space. FTS5 reads `a b` as an implicit
+    # AND between two tokens, but there is no implicit operator between a token
+    # and a parenthesised group, so the moment `expand` turned one word into
+    # `(form OR stem*)` a space-joined query became `syntax error near "OR"`.
+    # Explicit AND means the same thing for bare tokens and is the only spelling
+    # that parses for every combination the parts can take.
+    return " AND ".join(parts) if parts else ""
 
 
 class BackendQueriesMixin(
