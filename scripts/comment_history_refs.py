@@ -78,11 +78,17 @@ _EXTERNAL_STANDARDS = (
 
 #: A date the standard's name introduces, name first and within a short reach.
 #:
-#: Name FIRST only, though the reverse reads just as naturally: "2026-09-26, замер
-#: по MCP" is a project date that merely mentions a standard, and matching the
-#: reverse direction would swallow it. What the rule costs and what it buys are
-#: counted in the journal of spec-dates-are-not-project-events, not here -- this
-#: comment would otherwise be the very note the module exists to discourage.
+#: Name FIRST only, though the reverse reads just as naturally. A project date
+#: FOLLOWED by a standard's name is still a project date -- it merely mentions the
+#: standard -- and matching that direction would swallow it.
+#:
+#: The shape is described rather than quoted, and that is not squeamishness: a
+#: reference inside quotation marks is invisible to this module, because comments
+#: are read line by line and a quotation that wraps opens on one line and closes
+#: on the next. Spelling an example out here would have left a note the module
+#: cannot see itself carrying. What the rule costs and what it buys are counted in
+#: the journals of spec-dates-are-not-project-events and
+#: quoted-example-is-counted-as-a-note.
 _SPEC_DATE = re.compile(
     r"\b(?:" + "|".join(_EXTERNAL_STANDARDS) + r")\b[^.\n]{0,24}?\b20\d\d-\d\d-\d\d\b",
     re.IGNORECASE,

@@ -313,3 +313,36 @@ class TestASpecVersionIsNotAProjectEvent:
                 (line, text) for line, text, kinds in chr_.refs_in_source(source) if "date" in kinds
             ]
             assert dated == [], f"{rel}: {dated}"
+
+
+class TestTheModuleCarriesNoNoteOfItsOwn:
+    """The detector's own source is the one file it must be clean of.
+
+    MEASURED: of 236 references in the remainder exactly one was a quoted example,
+    and it was in this module -- an illustration of the rule, spelled out with a
+    real date. One case in 236 did not justify an ILLUSTRATIVE class, and the class
+    would have cost more than it saved: a rule keyed on quotation marks misfires on
+    English possessives, and `task's defect ... `[FAIL] pytest`` already reads as a
+    quoted span to a naive scanner.
+
+    A LIMITATION FOUND BY THE SAME MEASUREMENT, and the reason the example is now
+    described rather than quoted: a quotation that wraps is invisible here. The
+    opening mark landed on one line and the closing mark on the next, and
+    `comment_lines` reads one line at a time. Seeing it would mean joining
+    consecutive comment lines into blocks, which would change the file-and-line
+    report the closure note prints.
+    """
+
+    def test_the_detector_source_is_clean(self):
+        source = (_REPO / "scripts" / "comment_history_refs.py").read_text(encoding="utf-8")
+        found = chr_.refs_in_source(source)
+        assert found == [], f"the detector carries {len(found)} note(s) of its own: {found}"
+
+    def test_a_wrapped_quotation_is_still_invisible(self):
+        """The limitation is pinned so nobody claims a coverage that does not exist.
+
+        If someone later joins comment lines into blocks, this test fails and asks
+        them to say so on purpose rather than discovering it by surprise.
+        """
+        wrapped = '# Name FIRST only: "2026-09-26, замер\n# по MCP" is a project date\n'
+        assert [kinds for _line, _text, kinds in chr_.refs_in_source(wrapped)] == [["date"]]

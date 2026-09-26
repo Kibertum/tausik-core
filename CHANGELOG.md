@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the detector no longer carries a note of its own
+
+Closing the previous task, the ratchet flagged a comment in the detector itself:
+the sentence explaining why the spec-date rule is one-directional illustrated it
+with a real date, and the detector read the illustration as a note belonging in
+memory. It was right by its own rule and wrong about the intent — the same shape
+as quoting a test reference in a journal and thereby filing a citation.
+
+MEASURED FIRST: exactly 1 of 236 references in the remainder was a quoted example,
+and it was this one. So no ILLUSTRATIVE class was added. The measurement also
+priced that class, and the price is why: a rule keyed on quotation marks misfires
+on English possessives — `task's defect` followed by a backquoted literal already
+reads as a quoted span — and this tree is full of English prose.
+
+A LIMITATION SURFACED BY THE SAME MEASUREMENT and it is now pinned rather than
+promised: a quotation that wraps is invisible to the detector. The opening mark sat
+on one line and the closing mark on the next, and comments are read one line at a
+time. Seeing it would mean joining consecutive comment lines into blocks, which
+would change the file-and-line report the closure note prints.
+
+So the one case was removed where it arose: the rule's shape is now described in
+words instead of shown with a date, which loses nothing — the date was a choice,
+not a necessity. Two tests hold the result: the detector's own source must contain
+no reference at all, and the wrapped-quotation limitation fails loudly if anyone
+later changes how comments are read.
+
+Ratchet: 236 → 235 references, 148 → 147 files.
+
+
 ### Fixed — `memory search` no longer crashes on half of all two-word queries
 
 `memory search "bootstrap_drift редеплой"` raised an uncaught
