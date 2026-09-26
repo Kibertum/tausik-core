@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Справочник инструментов
 
-**146 инструмента** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**147 инструмента** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 153 инструментов.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 154 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (146): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (147): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
 
@@ -331,7 +331,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 146 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 147 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Область tool-поверхности (`mcp.scope_tools_exposure`)
 
@@ -352,7 +352,7 @@ Rule 2) и всегда-безопасного ядра — целиком се�
 write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
 `list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
 
-**Замер стоимости.** Полная авторская поверхность — 146 тула ~ 62 КБ определений
+**Замер стоимости.** Полная авторская поверхность — 147 тула ~ 62 КБ определений
 (~15.9k оценочных токенов; `tests/test_mcp_tool_token_cost.py` фиксирует это и
 держит храповиком). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
 эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой
@@ -363,3 +363,20 @@ write-гейт не тронут. Область пересчитывается 
 ## Запуск Tausik MCP-сервера
 
 Bootstrap-шаг генерирует IDE-specific MCP-launchers под `harness/<ide>/mcp/`. Claude Code читает `.claude/settings.json` (auto-generated). Для регенерации запустите `python .tausik-lib/bootstrap/bootstrap.py --refresh`.
+
+## Экономия контекста: схемы по требованию
+
+`mcp.compact_tool_list` в `.tausik/config.json` (по умолчанию **выключено**).
+Включённый, он оставляет полные схемы только у ядра из 21 инструмента, а
+остальным 126 — имя и первые 60 символов описания. Схема любого из них
+добирается одним вызовом `tausik_tool_schema(name=...)`; `query` ищет по
+подстроке, пустой аргумент отдаёт перечень имён.
+
+ЗАМЕР, смена #275: список падает с 14 337 до 8 600 токенов, то есть на 40%, и
+эта цена платится в КАЖДОМ запросе. Выбор «60 символов» тоже замер, а не вкус:
+первая строка целиком даёт −27%, только имя — −52%, но «только имя» лишает
+модель признака, по которому выбирают, чью схему просить, и экономия уходит на
+лишний ход.
+
+Выключено по умолчанию намеренно: цена ошибки — лишний ход в каждом разговоре, и
+платит её потребитель. Включайте, сверив у себя число ходов на задачу.

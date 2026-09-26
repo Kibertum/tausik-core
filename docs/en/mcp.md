@@ -2,13 +2,13 @@
 
 # TAUSIK MCP — Tool Reference
 
-**146 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**147 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 152 count - total with it is 153 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 152 count - total with it is 154 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (146): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (147): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 
 There is also an optional `codebase-rag` server documented at the bottom.
 
@@ -333,7 +333,7 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 146 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 147 count — they belong to the optional `codebase-rag` server.
 
 ## Scoped tool surface (`mcp.scope_tools_exposure`)
 
@@ -354,7 +354,7 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 146 tools ≈ 62 KB of tool
+**Measured cost.** The full authored surface is 147 tools ≈ 62 KB of tool
 definitions (~15.9k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
 this and ratchets it). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet
@@ -364,3 +364,21 @@ asserts names stay unique and searchable so name-based dispatch still resolves.
 ## Launching the Tausik MCP Server
 
 The bootstrap step generates IDE-specific MCP launchers under `harness/<ide>/mcp/`. Claude Code reads `.claude/settings.json` (auto-generated). To regenerate IDE assets and MCP wiring, run `python bootstrap/bootstrap.py` from your TAUSIK checkout (or `python .tausik-lib/bootstrap/bootstrap.py` when using the submodule layout). Use **`python bootstrap/bootstrap.py --refresh`** only to rewrite `.tausik/config.json` (e.g. after setting **`TAUSIK_MODEL_PROFILE`**) without copying skills/scripts — it does **not** regenerate `.mcp.json` files.
+
+## Context economy: schemas on demand
+
+`mcp.compact_tool_list` in `.tausik/config.json` (**off** by default). When on,
+full schemas stay with a 21-tool core; the other 126 appear as a name and the
+first 60 characters of their description. Any of those schemas is one call away:
+`tausik_tool_schema(name=...)`, with `query` matching a substring and an empty
+argument returning the name list.
+
+Measured in session #275: the advertised list drops from 14,337 to 8,600 tokens
+— 40% — and that price is paid on EVERY request. The 60-character cut is also a
+measurement rather than a preference: the full first line saves 27%, name-only
+saves 52%, but name-only removes the cue an agent uses to decide whose schema to
+ask for, and the saving goes back out as an extra turn.
+
+Off by default on purpose: the cost of being wrong is an extra turn in every
+conversation, and the consumer pays it. Turn it on after checking turns-per-task
+in your own logs.

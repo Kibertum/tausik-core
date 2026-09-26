@@ -160,7 +160,22 @@ def _do_fts_optimize(svc: Any, args: dict) -> str:
 # Dispatch table: tool name -> handler(svc, args)
 # ---------------------------------------------------------------------------
 
+
+def _do_tool_schema(svc: Any, args: dict) -> str:
+    """Полная схема выгруженного инструмента.
+
+    Живёт здесь, а не в домене: предмет — сама поверхность инструментов, и
+    читать её надо из того же `TOOLS`, по которому валидируются аргументы.
+    Второй перечень был бы вторым источником правды о том, что мы объявляем.
+    """
+    from mcp_tool_tiers import schema_reply
+    from tools import TOOLS
+
+    return schema_reply(TOOLS, args.get("name"), args.get("query"))
+
+
 _DISPATCH: dict[str, _Handler] = {
+    "tausik_tool_schema": _do_tool_schema,
     # --- Exploration ---
     "tausik_explore_start": lambda svc, args: svc.exploration_start(
         args["title"], args.get("time_limit", 30)

@@ -98,3 +98,20 @@ The exit code reflects the worst level: `0` for OK/WARN, `1` for FAIL.
 - **[CLI Commands](cli.md)** — full command reference
 - **[Configuration](configuration.md)** — config knobs the doctor checks
 - **[Troubleshooting](troubleshooting.md)** — deeper recovery steps
+
+### Identifier style
+
+Identifiers in a project's product code are ASCII. A name is an interface: traces,
+`grep`, pytest node ids, coverage reports and people without a Cyrillic keyboard
+all read it, and a non-ASCII one breaks quietly — on console encoding, on a regex
+over `\w`, on a backslash in `sh`. Prose is not the subject at all: a docstring or
+comment in any language passes, because the check reads the AST, not the text.
+
+Level `warn`, not `fail`: this is a style debt, not a breakage, and failing a
+health check over it is how a health check stops being read. The message names the
+file, the line and the name itself — a warning with no place to fix is
+indistinguishable from silence.
+
+Tests are excluded: they carry their own declared baseline under
+`ascii_identifiers` in `tausik/gates.json`, with the reason recorded next to the
+number.

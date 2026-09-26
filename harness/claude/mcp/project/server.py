@@ -135,7 +135,12 @@ def main():
     # directly still passes existing enforcement.
     # The list depends on that state, so it carries ttlMs=0 / cacheScope=private
     # (MCP 2026-07-28 CacheableResult): a client must not reuse a stale surface.
+    # Два фильтра, и порядок важен: `expose_tools` решает, КАКИЕ инструменты
+    # видны (ACL области задачи), `apply_tiers` — насколько подробно. Сперва
+    # состав, потом подробность: урезать схему у инструмента, который всё
+    # равно скрыт, значило бы платить указателем за невидимое.
     from mcp_tool_scope import LIST_CACHE_HINT, expose_tools
+    from mcp_tool_tiers import apply_tiers
 
     @server.list_tools()
     async def list_tools():
@@ -145,7 +150,7 @@ def main():
                 description=t["description"],
                 inputSchema=t["inputSchema"],
             )
-            for t in expose_tools(TOOLS, svc)
+            for t in apply_tiers(expose_tools(TOOLS, svc))
         ]
         return ListToolsResult.model_validate({"tools": tools, **LIST_CACHE_HINT})
 

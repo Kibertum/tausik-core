@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 def run_optional_checks(
     project_dir: str,
     svc: Any,
@@ -114,6 +115,18 @@ def run_optional_checks(
         print_warn("Enforcement coverage", f"could not validate: {e}")
         warnings += 1
 
+    # Identifier style — a name is an interface: traces, grep, pytest node ids and
+    # coverage reports all read it, and a non-ASCII one breaks quietly (console
+    # encoding, a regex on \w, a backslash in sh). Prose is not the subject; the
+    # check reads the AST. Session #277: the product tree measured zero here while
+    # 271 such names sat in the tests, which is the house style a consumer copies.
+    try:
+        from ascii_identifiers import doctor_rows
+
+        drain(doctor_rows(project_dir))
+    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
+        print_warn("Identifier style", f"could not validate: {e}")
+        warnings += 1
 
     # Session model — did any source name the model running this session? The
     # pinning chain (RENAR 10.13) is dead without it, and a NULL column looks

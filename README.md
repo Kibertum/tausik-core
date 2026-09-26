@@ -137,7 +137,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 <details>
 <summary>Raw counts</summary>
 
-- **146 MCP tools** — full programmatic access to the project database.
+- **147 MCP tools** — full programmatic access to the project database.
 - **23 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
 - **13 core skills** auto-deployed; 20 official skills opt-in via `bootstrap --include-official` or `tausik skill install <name>`.
@@ -153,16 +153,16 @@ Multi-IDE by design, but we're honest about what's validated end-to-end.
 
 | IDE | MCP tools | Skills | Hooks | Status |
 |---|---|---|---|---|
-| **Claude Code** | 146 | 13 core + opt-in | 23 (full) | First-class |
-| **Qwen Code** | 146 | 13 core + opt-in | 23 (parity with Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 146 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
-| **Cursor** | 146 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
-| VSCode + Claude Extension | 146 | 13 core + opt-in | 23 | Tested E2E |
-| **Codex CLI** | 146 | 13 core + opt-in | 23 (same declaration as Claude; enforce once you trust the project hooks in Codex) | First-class, live-verified in 1.9 |
-| **OpenCode** | 146 | 13 core + opt-in | — (one QG-0 plugin; gates at task start/done) | Supported via MCP |
+| **Claude Code** | 147 | 13 core + opt-in | 23 (full) | First-class |
+| **Qwen Code** | 147 | 13 core + opt-in | 23 (parity with Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 147 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
+| **Cursor** | 147 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
+| VSCode + Claude Extension | 147 | 13 core + opt-in | 23 | Tested E2E |
+| **Codex CLI** | 147 | 13 core + opt-in | 23 (same declaration as Claude; enforce once you trust the project hooks in Codex) | First-class, live-verified in 1.9 |
+| **OpenCode** | 147 | 13 core + opt-in | — (one QG-0 plugin; gates at task start/done) | Supported via MCP |
 | Windsurf | MCP + rules | host-dependent | host-specific | Expected / manual |
 
-Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code, Qwen Code and Codex** (Codex runs a project's hooks only after you trust them; an untrusted profile enforces nothing — see the [Codex enforcement matrix](docs/en/model-providers.md#codex-enforcement-matrix)). Kilo, Cursor, OpenCode, Windsurf and other MCP hosts get the same 146 tools and skills, with quality gates applied at `task start` and `task done`.
+Hooks — the real-time rails (no code without a task, bash firewall, push gate) — run in **Claude Code, Qwen Code and Codex** (Codex runs a project's hooks only after you trust them; an untrusted profile enforces nothing — see the [Codex enforcement matrix](docs/en/model-providers.md#codex-enforcement-matrix)). Kilo, Cursor, OpenCode, Windsurf and other MCP hosts get the same 147 tools and skills, with quality gates applied at `task start` and `task done`.
 
 **Kilo Code + z.ai (GLM):** bootstrap with `--ide kilo` and TAUSIK runs as a first-class MCP host driven by GLM models — model routing recommends within the active model's family (a `glm-*` session gets GLM verdicts), all as data, no code change. See **[Kilo + z.ai →](docs/en/kilo-zai.md)**.
 

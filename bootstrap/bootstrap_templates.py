@@ -53,6 +53,22 @@ HARD_CONSTRAINTS = """## Hard Constraints (non-negotiable)
 - **Context pressure is a signal, not a gate.** Session time and call capacity advise a `/checkpoint` or a handoff; they never refuse a task start (decision #376; basis: `docs/en/session-active-time.md`, SENAR 1.5 §9.4(c)).
 """
 
+# Two rules about the SHAPE of the code an agent writes. They sit in their own
+# section rather than under Hard Constraints, because neither refuses anything:
+# the first is a `doctor` row, the second a line printed at closure. Filing them
+# with the non-negotiables would be a small lie of the kind this project spends
+# its tests preventing.
+#
+# Both are written as descriptions with their reason, not as commands. Neither
+# asks the model to write less or to save tokens: an agent told to conserve grows
+# reluctant to take on ambitious work, which costs far more than the prose saves.
+CODE_STYLE = """## Code Style
+
+- **Identifiers are ASCII; prose is not.** Traces, `grep`, pytest node ids and coverage reports read the name, and a non-ASCII one breaks quietly — console encoding, a regex over `\\w`, a backslash in `sh`. Docstrings, comments and test descriptions take any language. `doctor` reports this as `Identifier style`, counted from your own code.
+- **What happened goes to `memory add`; why the code is that way stays in the docstring.** A session id, decision id or date in a comment is paid for on every read of that file and found only by whoever already opened it. Closing a task names the ones it added and prints the command that files them; the invariant in your docstrings is not the target.
+"""
+
+
 WORKFLOW = """## Workflow
 
 ```
@@ -159,20 +175,16 @@ COMMANDS = build_commands_section()
 
 QUALITY_GATES = """## Quality Gates
 
-Gates run on three triggers:
-
 - **`task-done`** — cheap-only (filesize, tdd_order). Closes a task in milliseconds.
 - **`verify`** — heavy (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint). Run via `.tausik/tausik verify --task <slug>`. Result cached for 10 min; `task done` reads the cache.
 - **`commit`** — local lint (ruff, eslint, phpcs, golangci-lint).
 
-Stack-specific gates auto-enable by detected stack. Filesize gate warns on files >500 lines.
-
-Check status: `.tausik/tausik gates status`. Fix blocking failures before committing. Verify-First Contract opt-out: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` runs the heavy gates inside `task done` instead of as a separate step.
+Stack-specific gates auto-enable by detected stack; the filesize gate warns on files >500 lines. Check status: `.tausik/tausik gates status`. Fix blocking failures before committing. Verify-First Contract opt-out: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` runs the heavy gates inside `task done` instead of as a separate step.
 """
 
 TOOL_ROUTING = """## Tool Routing — when to use which
 
-TAUSIK ships retrieval MCP servers: RAG for code and project knowledge for decisions, memory and the roadmap. On hosts with hooks, every Grep also returns the RAG index's top chunks.
+TAUSIK ships retrieval MCP servers: RAG for code and project knowledge for decisions, memory and the roadmap. On hosts with hooks, every Grep also returns the RAG index's top chunks. Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fresh; if `chunks=0`, run `mcp__codebase-rag__reindex` before any `search_code` call.
 
 | Need | Primary | Fallback |
 |---|---|---|
@@ -181,8 +193,6 @@ TAUSIK ships retrieval MCP servers: RAG for code and project knowledge for decis
 | Cross-project pattern or gotcha | `tausik_memory_search` (the shared store is folded into the results) | — |
 | Web lookup (docs, API, errors) | `WebFetch` | — |
 | Understand the project structure | `tausik_status` + `tausik_roadmap` | `Glob` for raw file listing |
-
-Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fresh. If `chunks=0`, run `mcp__codebase-rag__reindex` before any `search_code` call.
 """
 
 CURSOR_MCP_SETUP = """## Local MCP in Cursor (this workspace)
@@ -413,6 +423,7 @@ def build_full_body(
         enforcement,
         rule_notice,
         HARD_CONSTRAINTS,
+        CODE_STYLE,
         WORKFLOW,
         TOOL_ROUTING,
         MEMORY,

@@ -136,7 +136,7 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 <details>
 <summary>Сырые цифры</summary>
 
-- **146 MCP-инструментов** — полный программный доступ к базе проекта.
+- **147 MCP-инструментов** — полный программный доступ к базе проекта.
 - **23 real-time-хука** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
 - **25 stack-aware verify-наборов** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и прочие, по затронутым файлам.
 - **13 core-скиллов** разворачиваются автоматически; 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
@@ -152,13 +152,13 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 
 | IDE | MCP-инструменты | Скиллы | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 146 | 13 core + по запросу | 23 (полностью) | First-class |
-| **Qwen Code** | 146 | 13 core + по запросу | 23 (паритет с Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 146 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
-| **Cursor** | 146 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
-| VSCode + Claude Extension | 146 | 13 core + по запросу | 23 | Прогнано E2E |
-| **Codex CLI** | 146 | 13 core + по запросу | 23 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
-| **OpenCode** | 146 | 13 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
+| **Claude Code** | 147 | 13 core + по запросу | 23 (полностью) | First-class |
+| **Qwen Code** | 147 | 13 core + по запросу | 23 (паритет с Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 147 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
+| **Cursor** | 147 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
+| VSCode + Claude Extension | 147 | 13 core + по запросу | 23 | Прогнано E2E |
+| **Codex CLI** | 147 | 13 core + по запросу | 23 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
+| **OpenCode** | 147 | 13 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
 | Windsurf | MCP + правила | зависит от хоста | специфично для хоста | Ожидается / вручную |
 
 Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code, Qwen Code и Codex** (Codex исполняет хуки проекта только после того, как вы им доверили; недоверенный профиль не принуждает ничего — см. [матрицу принуждения Codex](docs/ru/model-providers.md#матрица-принуждения-codex)). Kilo, Cursor, OpenCode, Windsurf и другие MCP-хосты получают те же 146 инструментов и скиллы, с quality gates на `task start` и `task done`.
