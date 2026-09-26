@@ -36,16 +36,16 @@ from enforcement_coverage import build_enforcement_notice, profile_dir_for  # no
 from rule_coverage import render_rule_notice  # noqa: E402
 
 
-HARD_CONSTRAINTS = """## Hard Constraints (non-negotiable)
+HARD_CONSTRAINTS = """## Hard Constraints
 
 - **No code without a task.** Run `task start <slug>` before any Write/Edit. No exceptions. (SENAR Rule 9.1)
 - **QG-0 Context Gate.** `task start` requires goal + acceptance_criteria; work that changes behaviour names at least one negative scenario, work that changes only prose does not. Set both before starting.
 - **QG-2 Implementation Gate (Verify-First v1.4).** Heavy gates (pytest, tsc, cargo, phpstan, …) live on a separate `verify` step. Sequence: run `tausik verify --task <slug>` once everything is in place — it caches a green; then `task done --ac-verified` looks the cache up and closes the task in milliseconds. If the cache is missing or stale → `task done` blocks with the explicit remediation command. Opt-out for CI: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` (legacy inline behavior).
 - **No commit without gates, and verification is PROPORTIONATE to the change.** Gates run automatically — fix blocking failures before committing. Run the scoped `verify` for what you touched; the full suite belongs in CI and at the release gate, not after every local step. A test asserts behaviour — never a number in a document, never that a generated file is fresh (whatever moves its source regenerates it). One test that goes red on the defect beats a suite that goes red on bookkeeping.
-- **No direct DB access.** Use MCP tools or CLI. Never raw SQLite.
+- **No direct DB access.** MCP tools and the CLI keep the projections and the audit trail in step; raw SQLite writes go past both.
 - **Don't guess CLI arguments.** Run `.tausik/tausik <cmd> --help` or read the CLI reference.
 - **MCP-first.** Prefer MCP tools (`tausik_*`) over CLI when equivalent.
-- **Git: ask before commit/push.** Always request user confirmation.
+- **Git: ask before commit/push.**
 - **Max 500 lines per file.** Filesize gate warns. Exceptions: tests, generated code.
 - **Continuous logging.** Run `task log <slug> "message"` after every meaningful step. (SENAR Rule 9.4)
 - **Document dead ends.** Run `.tausik/tausik dead-end "approach" "reason"` on failed approaches. (SENAR Rule 9.4)
@@ -92,12 +92,12 @@ MEMORY = """## Memory (choose the destination by what the fact is about, not by 
 
 **Memory-first recall (hard rule).** Before asking the user for — or guessing — an established
 project fact (hosts, environments, where credentials live, paths, service URLs, prior decisions),
-you MUST `memory_search` / `decisions_list` FIRST; asking for something already recorded is a
+the recorded answer is in `memory_search` / `decisions_list`; asking for something already recorded is a
 process violation. Record durable environment facts as `context` so future sessions inherit them.
 
 **Routing litmus (hard).** *Would another agent, in another tool, need this to work on THIS
 project?* → `memory add`. *Is it true beyond this project — of the tool, the platform, the library?*
-→ `memory add --global`. Never your host's own memory (`~/.claude/**/memory/`, `.cursor/rules/`,
+→ `memory add --global`. Not your host's own memory (`~/.claude/**/memory/`, `.cursor/rules/`,
 `.windsurf/rules/`, `.github/copilot-instructions.md`, `.github/instructions/`, `.clinerules`, `.roo/rules/`,
 `.continue/rules/`, `.aider*` — blocked by the `memory_route` gate); a cloud-side memory writes no
 file for any gate to see, so there this line is the only enforcement. Skills that need persistent
@@ -222,7 +222,7 @@ TAUSIK is model-agnostic, but the surface you actually use differs from Claude C
 
 RESPONSE_LANGUAGE = """## Response Language
 
-Always respond in the user's language.
+Responses are in the user's language.
 """
 
 # Output-economy directive, appended only when `output_mode: caveman`. Inspired by the
@@ -296,7 +296,7 @@ def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
     """Header + project metadata. agent_name goes into the opening sentence."""
     stack_str = ", ".join(stacks) if stacks else "not detected"
     return (
-        f"You are {agent_name} working on this project. Follow these instructions strictly.\n\n"
+        f"You are {agent_name} working on this project.\n\n"
         f"## Project: {project_name}\n\n"
         f"Stack: {stack_str}\n"
         f"Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.5](https://senar.tech)\n"

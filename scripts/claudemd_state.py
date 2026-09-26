@@ -90,6 +90,8 @@ def build_dynamic_state(svc: Any, project_dir: str) -> str:
         lines.append(f"Active: {', '.join(t['slug'] for t in active)}")
     if blocked:
         lines.append(f"Blocked: {', '.join(t['slug'] for t in blocked)}")
+    if transcript := _transcript_path(project_dir):
+        lines.append(f"Full history (grep it for what a compaction dropped): {transcript}")
 
     if (be := getattr(svc, "be", None)) is not None:
         try:
@@ -102,6 +104,43 @@ def build_dynamic_state(svc: Any, project_dir: str) -> str:
             pass
 
     return "\n".join(lines)
+
+
+def _transcript_path(project_dir: str) -> str | None:
+    """Путь к транскрипту ЭТОЙ смены, либо ``None``.
+
+    Зачем он в блоке состояния. Сводка компакции умышленно короткая, и всё, что в
+    шесть её пунктов не попало, теряется — а полная история в это время лежит на
+    диске: 36 МБ за одну смену, 37 файлов по проекту. Агент не знает об этом,
+    потому что имя каталога получается искажением пути проекта, и угадать его
+    нельзя — ровно для этого существует `transcript_locator`, находящий файл
+    ДОКАЗАТЕЛЬСТВОМ, а не совпадением имени.
+
+    Строка живёт в переменной половине блока, то есть не удорожает неизменную
+    часть инструкций. Любая ошибка поиска — ``None``: блок состояния не смеет
+    падать из-за подсказки.
+    """
+    try:
+        import os
+        import sys
+
+        hooks = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hooks")
+        if hooks not in sys.path:
+            sys.path.insert(0, hooks)
+        from transcript_locator import latest_project_transcript
+
+        found = latest_project_transcript(project_dir)
+        if not found:
+            return None
+        # ДОМАШНИЙ КАТАЛОГ СВЁРНУТ В `~`, и это не косметика. CLAUDE.md и AGENTS.md
+        # версионируются, а полный путь несёт имя пользователя — гейт границы
+        # публикации поймал именно это на первой же записи. `~` раскрывает и
+        # оболочка, и сам агент, поэтому подсказка не теряет пользы.
+        home = os.path.expanduser("~")
+        text = str(found)
+        return "~" + text[len(home) :] if home and text.startswith(home) else text
+    except Exception:  # noqa: BLE001 — подсказка не смеет уронить запись состояния
+        return None
 
 
 def resolve_project_dir(svc: Any) -> str | None:

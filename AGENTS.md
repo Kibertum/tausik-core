@@ -148,8 +148,9 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 <!-- DYNAMIC:START -->
 ## Current State
 Session: #277 (active) | Branch: v1-10 | TAUSIK: 1.9.0
-Tasks: 1606/1715 done, 3 obsolete, 2 active, 0 blocked
-Active: closure-citations-rot-is-detected-but-never-acted-on, volatile-state-out-of-the-cached-prefix
+Tasks: 1609/1718 done, 3 obsolete, 1 active, 0 blocked
+Active: closure-citations-rot-is-detected-but-never-acted-on
+Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\117ec53f-dbde-45ea-93f1-eb22c72335fd.jsonl
 
 ### Memory tail
 Context (5):
@@ -171,7 +172,7 @@ Conventions (5):
 - #728 Не объявлять CHANGELOG и общие страницы docs в --relevant-files задачи: следующая запись в CHANGELOG
 - #717 GitHub roadmap — как в Harvester: milestone vX.Y.Z, [KIND]-заголовки, kind/area/priority, [EPIC] с s
 Dead ends (3):
+- #749 Крупный ответ инструмента писать в файл и возвращать путь с хвостом
+- #748 Вынести динамический блок из CLAUDE.md в отдельный файл, чтобы инструкции попали в кэшируемый префик
 - #693 Verify review journal with tracked output documents as relevant files
-- #692 Capture Codex PreToolUse JSON through a temporary generated command hook
-- #689 Ограничить parent-tree претензии done-задач условием completed_at >= started_at верифицируемой задач
 <!-- DYNAMIC:END -->

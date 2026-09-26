@@ -9,6 +9,60 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the compaction contract says where everything it dropped still is
+
+The task asked for the session history to be saved to a searchable file. Measuring
+first replaced the plan: it already is. The host writes a transcript — 36 MB for one
+session of this project, 37 files in all — and `transcript_locator` finds the current
+one BY PROOF rather than by guessing a directory name, the name being the project
+path mangled, which is the defect that locator exists to fix.
+
+Nothing needed saving. What was missing is that nobody told the agent. The contract
+listed six things to carry verbatim and said nothing about the seventh question a
+reader has: where is everything else? Current State now carries the transcript's
+path, and the contract's item 7 points at it with "grep it rather than re-derive" —
+re-deriving a dropped measurement costs the run that produced it, which is why item
+3 exists at all.
+
+The path sits in the VOLATILE half of the block, which is rewritten every session
+anyway, so the invariant half of the instructions did not get more expensive; a test
+checks the line did not leak across the marker. A broken locator returns nothing
+rather than raising: a hint must not cost a fresh agent its door into the project.
+
+And the line was paid for, not appended. The generated file stood at 179 of its
+180-line budget, so the contract gained exactly one line and no blank — 180 on the
+nose, following the precedent set when 1.9 added this contract in the first place.
+
+
+### Changed — the shipped instructions describe rather than command
+
+The task was filed claiming the generated instructions were built on caps and
+imperatives. Measuring first corrected that: the body carried seven markers across
+159 lines — one `MUST`, four `Always`/`Never`, one `non-negotiable`, one `strictly`
+— and is English throughout. The caps-and-`ЖЁСТКИЕ` description fits this
+repository's own hand-written CLAUDE.md, which ships to nobody. Cursor's "cut two
+thirds of the system prompt" does not transfer to a body already this dense.
+
+So the work was seven edits, each with its reason recorded, not a rewrite. Two
+deletions: "Follow these instructions strictly" (a capable model follows what it is
+given) and "Always request user confirmation" (it repeated "ask before
+commit/push"). Five rewrites, of which the useful shape is "Never raw SQLite" →
+"MCP tools and the CLI keep the projections and the audit trail in step; raw SQLite
+writes go past both": the imperative became its consequence, and a reader who knows
+why looks for no way round.
+
+"Always respond in the user's language" was kept, as a statement rather than a
+command. Deleting it would have been one line cheaper and wrong — that a model
+defaults to the user's language cannot be shown from here, and the cost of being
+wrong is answers in the wrong language.
+
+15,013 → 14,998 characters at the same 159 lines: quieter and no longer, which was
+the only direction this edit was allowed to move. A test now holds the body at zero
+emphasis markers and scans it for twelve phrasings of "spend less" — that second
+half matters more, because a harness asking for thrift gets an agent reluctant to
+take on ambitious work, and that is paid on exactly the tasks worth doing.
+
+
 ### Changed — search returns 11% less text, and the spill-to-file idea was refuted by measurement
 
 A read tool's response is paid for on every later turn, so its size is a cost
