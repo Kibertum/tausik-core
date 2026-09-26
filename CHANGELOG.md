@@ -9,6 +9,94 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — search returns 11% less text, and the spill-to-file idea was refuted by measurement
+
+A read tool's response is paid for on every later turn, so its size is a cost
+question. With cache_read at 99.5% of all input (~482,000 tokens per call), N extra
+response tokens cost N x turns-remaining, while an extra TURN to fetch a spilled
+file costs one full context re-read. Spilling therefore pays only above roughly
+2,500-10,000 tokens.
+
+Measured on this surface: `tausik_search` 21,189 characters (~5,297 tokens),
+`tausik_roadmap` 16,507, `tausik_task_list` 13,840, `tausik_memory_list` 7,881, and
+everything else under 2,000 tokens. Nothing clears that band with confidence, so no
+spill-to-file was built — it would have added a turn to save less than the turn
+costs. Recorded as dead end #749; the technique is sound for harnesses whose
+responses run to tens of thousands of tokens, not for ours.
+
+The response was made smaller instead. In a live query 27 of 60 snippets were
+byte-identical to the title once the `>>>`/`<<<` markers were stripped: the fattest
+response in the surface printed one line of text twice. The snippet is not dropped —
+when it only repeats the title, the HIGHLIGHTED form takes the title's place, so the
+reader still sees which word matched. 21,189 -> 18,906 characters, nothing lost.
+
+`tausik_search` also gained `limit` in its schema. The handler had honoured it all
+along while the schema omitted it, so no caller could set it; a parameter that
+cannot be passed is not a parameter.
+
+Six read tools now carry declared character ceilings, checked against the live
+project and set within a tenth of the measurement — headroom is how a ratchet stops
+ratcheting.
+
+
+### Measured — the instruction half of CLAUDE.md is already byte-stable; the rest needs the host
+
+With cache_read at 99.5% of all input, which bytes move when project state is
+written is a cost question rather than a tidiness one. The DYNAMIC block is 3320 of
+6377 characters in CLAUDE.md (52%) and 2231 of 14901 in AGENTS.md (14%), and the
+file changes on nearly every commit.
+
+The measurement narrowed the work rather than confirming it: running
+`update-claudemd` after a state change leaves every byte before and after the
+markers identical by sha256, in both files. The separation exists. A test now pins
+it, so a future edit cannot start rewriting whole files and silently turn every
+session into a cold prefix.
+
+What does NOT exist is any way for a project file to tell the host where to place
+the volatile half relative to a cache boundary — Claude Code offers a project
+neither an import directive nor a boundary declaration. Moving the block to a
+sibling file would cost a fresh agent its state and guarantee nothing about the
+cache, since the host decides where a file lands in the request. Recorded as dead
+end #748 rather than attempted.
+
+
+### Added — cost weighted by billing kind, and the measurement that reorders the rest
+
+`tausik metrics tokens` now reports the four billing kinds separately — output,
+uncached input, cache_create, cache_read — and, when rates are configured, the
+price of each, in total and PER TASK with the turn count and cache-hit share.
+
+THE NUMBER THAT MATTERS MOST CAME OUT OF THIS. Over 5964 recorded calls,
+cache_read is 2,876,911,173 tokens against output 4,414,827, input 22,099 and
+cache_create 11,736,217 — **99.5% of all input is the cached prefix being re-sent**,
+about half a million tokens per call. So shrinking the prefix lowers the price of
+every turn and is worth doing, but an EXTRA TURN costs roughly that half million,
+and a change that saves request tokens at the price of one more turn loses by about
+two orders of magnitude. Cost is therefore reported per COMPLETED TASK, not per
+request.
+
+No default rates ship, deliberately: a rate is an external fact with a date and a
+contract behind it — list prices move, agreements differ, the same model costs
+differently through different providers — so a number baked in would be right for
+nobody and would rot without a sound. Rates go in `.tausik/config.json` under
+`token_price`, keyed by a model-name prefix. A model with no entry is reported
+UNPRICED rather than zero, and the count of calls left out is part of the answer: a
+total computed over half the rows looks like a small bill.
+
+Two defects were found by measuring rather than by review. `task_list('done',
+limit=400)` returns the OLDEST done tasks — on this tree those closed in March and
+April, while telemetry starts on 7 September — so per-task attribution produced an
+honest zero for the wrong reason. And the database holds two spellings of UTC,
+`+00:00` and `Z`; comparing them as plain strings is wrong because `+` sorts before
+`Z`, so an older window never contained a newer call. Both are pinned by tests.
+
+One acceptance criterion could not be built as written, and that is recorded rather
+than quietly dropped: cost share BY SOURCE (tool schemas, instructions, skill
+descriptions, tool output, history) needs a transcript-level parser — the session
+hook sees a call's total usage, not the composition of the request. The docstring of
+`service_token_metrics` already said so, citing decision #201.
+
+
 ### Added — the instructions a consumer receives now state both code-style rules
 
 Measured before anything was written: `bootstrap_templates.py` and its tiers

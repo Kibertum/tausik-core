@@ -118,7 +118,7 @@ def run_optional_checks(
     # Identifier style — a name is an interface: traces, grep, pytest node ids and
     # coverage reports all read it, and a non-ASCII one breaks quietly (console
     # encoding, a regex on \w, a backslash in sh). Prose is not the subject; the
-    # check reads the AST. Session #277: the product tree measured zero here while
+    # check reads the AST. The product tree measured zero here while
     # 271 such names sat in the tests, which is the house style a consumer copies.
     try:
         from ascii_identifiers import doctor_rows

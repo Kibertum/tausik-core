@@ -1,7 +1,7 @@
 ---
 slug: volatile-state-out-of-the-cached-prefix
 title: "Динамический блок CLAUDE.md сбивает кэш префикса каждую смену"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: harness-costs-less-per-task
 complexity: medium
@@ -12,11 +12,16 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/claudemd_writer.py"
+  - "tests/test_volatile_state_split.py"
+scope_paths:
+  - "scripts/claudemd_state.py"
+  - "scripts/claudemd_writer.py"
+  - "tests/test_volatile_state_split.py"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-26T17:12:15Z"
 ---
 
 ## Goal
@@ -34,3 +39,11 @@ AC-1 ЗАМЕР: показано, сколько байт CLAUDE.md и AGENTS.m
 Правка в оснастке; откат — git revert. Каждая правка отдельным коммитом, чтобы откатывалась по одной.
 
 ## Journal
+
+- 2026-09-26T17:05:54Z [implementation] — AC-1 ЗАМЕР: динамический блок — 3320 из 6377 символов CLAUDE.md (52%) и 2231 из 14901 AGENTS.md (14%). CLAUDE.md меняется почти каждым коммитом (1-21 строк за коммит по последним восьми).
+- 2026-09-26T17:05:54Z [implementation] — AC-2 ✓ И ОКАЗАЛСЯ УЖЕ ВЫПОЛНЕН: замер до/после update-claudemd при изменённом состоянии показал, что байты ДО и ПОСЛЕ маркеров совпадают по sha256 в обоих файлах, а меняется только блок. apply_dynamic_section режет строго по маркерам. Закреплено tests/test_volatile_state_split.py::TestOnlyTheBlockMoves.
+- 2026-09-26T17:05:55Z [implementation] — AC-3 ✓ переменная часть по-прежнему доходит: блок остаётся на месте, тест test_the_block_itself_does_change доказывает, что он ПЕРЕЗАПИСЫВАЕТСЯ — иначе предыдущий тест был бы зелен потому, что не записано ничего.
+- 2026-09-26T17:05:55Z [implementation] — AC-4 ✓ гейт claudemd_state_drift не тронут: правок в его пути нет, задача добавила только тест. Опустошённый блок он ловит по-прежнему — проверяется его собственным набором тестов.
+- 2026-09-26T17:05:55Z [implementation] — Negative: файл БЕЗ маркеров не трогается вовсе и отказ называет причину (test_nothing_is_written_and_the_skip_is_named) — чужой рукописный CLAUDE.md не наш холст; dry-run не пишет ни байта.
+- 2026-09-26T17:05:55Z [implementation] — ГЛАВНОЕ, ЧТО ЗАМЕР ЗАКРЫЛ: разделение, которого просила задача, УЖЕ существует на уровне файла. Чего НЕ существует — способа сказать хосту, куда положить переменную половину относительно границы кэша: Claude Code не даёт проектному файлу ни директивы импорта, ни объявления границы (проверено: ни в docs, ни в bootstrap, ни в claudemd_* нет ни @import, ни CLAUDE.local). Поэтому вторая половина замысла — находка, а не код.
+- 2026-09-26T17:05:56Z [implementation] — Domain: свойство проверено на СОБСТВЕННЫХ файлах репозитория, а не только на фикстуре — свойство, верное лишь в фикстуре, верно там, где ничего не стоит.

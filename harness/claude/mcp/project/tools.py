@@ -952,6 +952,13 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "query": {"type": "string"},
+                "limit": {
+                    "type": "integer",
+                    "description": (
+                        "Max hits per scope (default 20). The handler always honoured "
+                        "this; it was missing from the schema, so no caller could set it."
+                    ),
+                },
                 "scope": {
                     "type": "string",
                     "enum": ["all", "tasks", "memory", "decisions"],

@@ -848,3 +848,28 @@ serve [--host H] [--port P]    # run the local receipt-verification endpoint
 | Roles | Free text (no enum); registry under `harness/roles/{slug}.md` |
 | SENAR gates | QG-0 (Context Gate on `task start`), QG-2 (Implementation Gate on `task done`) |
 | Session time | A signal with threshold `session_max_minutes` on active time (idle: `session_idle_threshold_minutes`); never refuses |
+
+### Cost in money: `token_price` in `.tausik/config.json`
+
+`tausik metrics tokens` reports FOUR billing kinds — output, input (uncached),
+cache_create, cache_read — and, when rates are set, the price of each. Rates live
+in `.tausik/config.json`:
+
+```json
+{ "token_price": { "claude-opus": { "output": 75.0, "input": 15.0,
+                                    "cache_create": 18.75, "cache_read": 1.5 } } }
+```
+
+The key is a model-name PREFIX (longest match wins) and the values are dollars per
+million tokens. No default rates ship, deliberately: a rate is an external fact
+with a date and a contract behind it, list prices move, agreements differ, and a
+number baked into the code would be right for nobody and would rot without a
+sound. A model with no entry is reported UNPRICED rather than zero — a zero would
+read as free work.
+
+Below it, the same cost PER TASK, with the turn count and the cache-hit share.
+Measured in session #277 over 5964 calls: cache_read is 99.5% of all input, so the
+spend is almost entirely the prefix being re-sent. Hence the rule — measure cost
+per COMPLETED TASK rather than per request: one extra turn costs on the order of
+half a million cache_read tokens, and a change that saves request tokens at the
+price of a turn loses by about two orders of magnitude.

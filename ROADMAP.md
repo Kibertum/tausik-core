@@ -40,7 +40,7 @@
 | `deferred-110-audit-hygiene` | active | 12 |
 | `deferred-110-knowledge-lifecycle` | open | 21 |
 | `deferred-110-outward-loop-and-test-authorship` | active | 12 |
-| `harness-costs-less-per-task` | active | 5 |
+| `harness-costs-less-per-task` | active | 3 |
 
 **Закрытые, составом не названные.** Их работа в дереве релиза, но обещанием релиза она не объявлена; отложенной цены у них нет.
 

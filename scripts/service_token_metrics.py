@@ -304,14 +304,20 @@ def print_cli(last_n: int, as_json: bool, rebuild: bool = False) -> None:
         if not as_json:
             print(_format_receipt(receipt))
             print()
+    from service_token_cost import cost_section, format_cost
+
     agg = aggregate(last_n=last_n)
+    money = cost_section(last_n=last_n)
     if as_json:
         payload = dict(agg)
+        payload["cost"] = money
         if receipt is not None:
             payload["rebuild"] = receipt
         print(_json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(format_table(agg))
+        print()
+        print(format_cost(money))
 
 
 def _rebuild_ledger() -> dict[str, Any]:

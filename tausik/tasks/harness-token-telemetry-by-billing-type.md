@@ -1,7 +1,7 @@
 ---
 slug: harness-token-telemetry-by-billing-type
 title: "Учёт токенов по ТИПУ ОПЛАТЫ и попаданиям в кэш — без него остальное недоказуемо"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: harness-costs-less-per-task
 complexity: medium
@@ -12,11 +12,21 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/token_price.py"
+  - "scripts/service_token_cost.py"
+  - "scripts/service_token_metrics.py"
+  - "tests/test_token_price.py"
+scope_paths:
+  - "scripts/service_token_metrics.py"
+  - "scripts/service_token_cost.py"
+  - "scripts/token_price.py"
+  - "tests/test_token_price.py"
+  - "docs/ru/cli.md"
+  - "docs/en/cli.md"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-26T16:58:36Z"
 ---
 
 ## Goal
@@ -34,3 +44,12 @@ AC-1 Метрика различает output, uncached input, cached input тр
 Правка в оснастке; откат — git revert. Каждая правка отдельным коммитом, чтобы откатывалась по одной.
 
 ## Journal
+
+- 2026-09-26T16:49:44Z [implementation] — ЗАМЕР, определяющий приоритет всей истории: по 5964 строкам телеметрии cache_read = 2 876 911 173 токена, то есть 99,5% всего входа (output 4 414 827, input 22 099, cache_create 11 736 217). В пересчёте по примерным ставкам Opus доля cache_read в деньгах — 4315 из 4867 условных долларов. Это значит, что главный рычаг НЕ размер префикса сам по себе, а ЧИСЛО ХОДОВ: каждый ход платит за весь префикс заново. Сокращение схем MCP на 5737 токенов (сделано) уменьшает цену КАЖДОГО хода, и это верно, но лишний ход стоит ~482 000 токенов cache_read по среднему из этого замера. Отсюда следствие для всей истории: правка, экономящая токены запроса ценой лишнего хода, проигрывает примерно в сто раз.
+- 2026-09-26T16:55:33Z [implementation] — AC-1: ✓ писатель уже вёл четыре счётчика — input_tokens, output_tokens, cache_read, cache_create в .tausik/token_metrics.jsonl (hooks/token_rows.py). Замер это подтвердил, задача сузилась до цены и привязки.
+- 2026-09-26T16:55:34Z [implementation] — AC-2: ✓ scripts/token_price.py — ставки по видам оплаты в ОДНОМ месте (.tausik/config.json, ключ token_price), совпадение по самому длинному ПРЕФИКСУ имени модели; отчёт называет цену по каждому виду. Ставок по умолчанию НЕТ намеренно: ставка это внешний факт с датой и договором. tests/test_token_price.py::TestEachBillingKindIsPricedSeparately
+- 2026-09-26T16:55:34Z [implementation] — AC-3: ✓ scripts/service_token_cost.py::per_task — привязка по окну задачи, правило НАЗВАНО: вызов достаётся задаче с САМЫМ УЗКИМ окном, содержащим отметку. На живых данных 141 задача, доля кэша 98,4-99,8%.
+- 2026-09-26T16:55:35Z [implementation] — AC-4: ✓ tests/test_token_price.py::TestUnpricedIsAbsentNotZero — незаданная цена даёт None, а не ноль; неоценённые модели и число их вызовов названы, потому что итог по половине строк выглядит маленьким счётом
+- 2026-09-26T16:55:36Z [implementation] — AC-5 НЕ ВЫПОЛНИМ КАК СФОРМУЛИРОВАН, и это установлено, а не обойдено: доля расхода ПО ИСТОЧНИКУ (схемы, инструкции, описания навыков, вывод, история) требует разбора транскрипта — ровно это записано в docstring service_token_metrics со ссылкой на решение #201. Хук видит суммарный usage вызова, а не состав запроса. Вместо источника отчёт даёт разбивку по ВИДАМ ОПЛАТЫ и по ЗАДАЧАМ, и именно она ответила на вопрос, ради которого AC-5 писался.
+- 2026-09-26T16:55:36Z [implementation] — ДВЕ ОШИБКИ НАЙДЕНЫ ЗАМЕРОМ, а не ревью. Первая: task_list('done', limit=400) отдаёт САМЫЕ СТАРЫЕ задачи — на этом дереве закрытые в марте-апреле, тогда как телеметрия с 7 сентября; привязка дала честный ноль по неверной причине. Вторая: база хранит ДВА написания UTC — '+00:00' и 'Z', и лексикографическое сравнение между ними неверно, потому что '+' сортируется раньше 'Z'; старое окно никогда не содержало новый вызов. Обе закреплены тестами.
+- 2026-09-26T16:55:37Z [implementation] — Domain: отчёт печатается живой командой tausik metrics tokens и на этом дереве даёт 141 задачу с числом ходов и долей кэша; цена отсутствует, потому что ставки не заданы, и отчёт говорит это словом UNPRICED вместе с командой, которой это лечится.

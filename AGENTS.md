@@ -147,29 +147,29 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #275 (active) | Branch: v1-10 | TAUSIK: 1.9.0
-Tasks: 1601/1711 done, 3 obsolete, 2 active, 0 blocked
-Active: closure-citations-rot-is-detected-but-never-acted-on, mcp-tool-schemas-load-on-demand
+Session: #277 (active) | Branch: v1-10 | TAUSIK: 1.9.0
+Tasks: 1606/1715 done, 3 obsolete, 2 active, 0 blocked
+Active: closure-citations-rot-is-detected-but-never-acted-on, volatile-state-out-of-the-cached-prefix
 
 ### Memory tail
 Context (5):
+- #746 Расход токенов TAUSIK почти целиком в cache_read: 99,5% входа, и главный рычаг — число ходов
 - #726 Дополнение к #725: история I release110-open-defects — эпик #192 с 22 sub-issue (все открытые kind/b
 - #725 GitHub-карта, дополнение смены #266: эпик H #188 (сайт, документация, гигиена; 16 sub-issue, новые #
 - #723 GitHub-карта после перепланирования 1.10 (смена #266): milestone v1.10.0 = 7 эпиков, v1.11.0 кандида
 - #722 Замер сессий #196–#265 (смена #266): ни одна из 70 смен не достигла 180 активных минут; агентов оста
-- #720 RENAR 1.1 (19.09.2026) — дельты для TAUSIK: первая сторона §1.4.4, SPEC-UC, комплект описания
 Decisions (5):
+- #397 1.10 ДОПОЛНЕН ИСТОРИЕЙ generated-code-is-lean-and-ascii. Указание владельца, смена #277: проекты на старых TAUSIK объявл
 - #396 1.10 ДОПОЛНЕН ИСТОРИЕЙ harness-costs-less-per-task. Указание владельца, смена #275: внедрить лучшие практики из разбора 
 - #395 Разделение обязанностей L3 проверяется при ЗАПИСИ: review record --type L3 требует модели ревьюера и автора и отказывает
 - #394 tools/list отдаёт ttlMs=0 и cacheScope=private, скрытие по scope_tools сохраняется (github#91)
 - #393 Пользовательский тир с 1.10 — ~/.config/tausik/config.json. Старый ~/.tausik/config.json читается, только если он единст
-- #392 Выпуск 1.10 — состав дополнен историей J (решение #391, указание владельца смены #272). Состав: release110-sessions-are-
 Conventions (5):
+- #745 Имя латиницей, проза на любом языке; исключение объявляется замером цены, а не вкусом
 - #742 Generated trees are declared once in scripts/derived_trees.py; exporters and checks read it
 - #738 Ответ владельцу: итог первой строкой, дальше только факты списком; без пересказа процесса
 - #728 Не объявлять CHANGELOG и общие страницы docs в --relevant-files задачи: следующая запись в CHANGELOG
 - #717 GitHub roadmap — как в Harvester: milestone vX.Y.Z, [KIND]-заголовки, kind/area/priority, [EPIC] с s
-- #711 Проверка соразмерна правке: полная лента — CI и релизный гейт, тест — на поведение, порождённое поро
 Dead ends (3):
 - #693 Verify review journal with tracked output documents as relevant files
 - #692 Capture Codex PreToolUse JSON through a temporary generated command hook
