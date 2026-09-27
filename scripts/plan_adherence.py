@@ -70,3 +70,37 @@ def plan_advisory(svc: Any, slug: str) -> str:
         "начинать: 82% закрытий одной смены оказались задачами, заведёнными в той же "
         f"смене. Вернуться к плану: `tausik task start {other}`."
     )
+
+
+def plan_next_line(svc: Any) -> list[str]:
+    """One line naming what the plan offers next, or ``[]``.
+
+    Printed at CLOSE, not only at start, and that is the whole point of it. Drift is
+    not born on `task start` -- by then the choice is made. It is born here: `task
+    done` prints findings (closure notes, ratchets that fired, ticket reminders, gate
+    output) and that is the only moment an agent sees a list of things worth doing.
+    The plan is not in that list. So the finding wins by being the only thing on
+    screen, and a signal one command away arrives too late to matter.
+
+    ONE LINE, because this is framework code: it ships to every project on TAUSIK and
+    is paid for on EVERY close. `[]` whenever the backlog offers nothing, so a project
+    working legitimately outside a release composition never sees it.
+
+    Never raises. A close that fails over a hint would be a gate nobody asked for.
+    """
+    try:
+        from service_task_order import task_next_report
+
+        report = task_next_report(svc)
+        if report.get("state") != "ready":
+            return []
+        candidate = report.get("task")
+        if not isinstance(candidate, dict) or not candidate.get("slug"):
+            return []
+        basis = report.get("basis") or "release first, then declared order"
+        return [
+            f"ПЛАН ПРЕДЛАГАЕТ ДАЛЬШЕ: `{candidate['slug']}` ({basis}). "
+            "Находку выше заводить свободно — начинать по плану."
+        ]
+    except Exception:  # noqa: BLE001 — a hint must never cost a close
+        return []

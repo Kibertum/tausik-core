@@ -152,10 +152,19 @@ class TestItReachesTheRealTaskStart:
         s.epic_add("e", "Epic")
         s.story_add("e", "s", "Story")
         for slug in ("first-in-order", "the-one-i-found"):
-            s.task_add("s", slug, slug.replace("-", " "), role="developer", goal="g")
+            s.task_add(
+                "s",
+                slug,
+                slug.replace("-", " "),
+                role="developer",
+                goal="The handler refuses an empty payload and says which field is missing",
+            )
             s.be.task_update(
                 slug,
-                acceptance_criteria="Returns 400 on invalid input.",
+                acceptance_criteria=(
+                    "AC-1 returns 400 on invalid input. "
+                    "AC-2 NEGATIVE: a valid payload is not rejected."
+                ),
                 scope_paths='["scripts/x.py"]',
                 rollback_plan="git revert",
             )
@@ -173,3 +182,104 @@ class TestItReachesTheRealTaskStart:
     def test_starting_the_offered_one_adds_no_line(self, svc):
         offered = svc.task_next()
         assert "Не по плану" not in svc.task_start(offered["slug"])
+
+
+class TestTheCloseNamesThePlanToo:
+    """The start advisory arrives too late; the close is where the choice is made.
+
+    `task done` prints findings — closure notes, ratchets, ticket reminders, gate
+    output — and that list is the only thing on screen at the moment an agent decides
+    what to do next. The plan is not in it. So the line goes THERE, beside the
+    findings, and the juxtaposition is the whole mechanism.
+    """
+
+    def test_a_ready_backlog_yields_exactly_one_line(self, offers):
+        svc = offers(READY)
+        lines = plan_adherence.plan_next_line(svc)
+        assert len(lines) == 1
+        assert READY["task"]["slug"] in lines[0]
+
+    def test_the_line_is_short_because_every_close_pays_for_it(self, offers):
+        """Framework code: this ships to every project and prints on EVERY close.
+
+        The budget is a number rather than a feeling — 200 characters is about two
+        terminal lines, and anything longer starts competing with the findings it is
+        meant to sit beside.
+        """
+        svc = offers(READY)
+        (line,) = plan_adherence.plan_next_line(svc)
+        assert len(line) <= 200, len(line)
+
+    def test_it_says_the_finding_may_still_be_filed(self, offers):
+        """Same wording rule as the start advisory, for the same reason.
+
+        Read as "stop reporting defects" it would bring back the silent errors this
+        project exists against. What it asks for is deferral of the START.
+        """
+        svc = offers(READY)
+        (line,) = plan_adherence.plan_next_line(svc)
+        assert "свободно" in line
+
+    @pytest.mark.parametrize("state", ["empty", "all-blocked", "all-claimed"])
+    def test_an_unofferable_backlog_prints_nothing(self, offers, state):
+        svc = offers({"state": state, "task": None, "basis": "n/a"})
+        assert plan_adherence.plan_next_line(svc) == []
+
+    def test_a_candidate_without_a_slug_prints_nothing(self, offers):
+        """`state: ready` with an unusable task is an upstream bug, not a hint."""
+        svc = offers({"state": "ready", "task": {"title": "no slug"}, "basis": "b"})
+        assert plan_adherence.plan_next_line(svc) == []
+
+    def test_an_internal_fault_prints_nothing(self, monkeypatch):
+        """A close that fails over a hint would be a gate nobody asked for."""
+        import service_task_order
+
+        def boom(_svc):
+            raise RuntimeError("backlog exploded")
+
+        monkeypatch.setattr(service_task_order, "task_next_report", boom)
+        assert plan_adherence.plan_next_line(object()) == []
+
+    def test_a_real_close_carries_the_line(self, tmp_path):
+        """Through the real service, because a hint nobody prints is a docstring."""
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+
+        svc = ProjectService(SQLiteBackend(str(tmp_path / "close.db")))
+        try:
+            svc.session_start()
+            svc.epic_add("e", "Epic")
+            svc.story_add("e", "s", "Story")
+            for slug in ("closes-now", "waits-in-the-plan"):
+                svc.task_add(
+                    "s",
+                    slug,
+                    slug.replace("-", " "),
+                    role="developer",
+                    goal="The handler refuses an empty payload and says which field is missing",
+                )
+                svc.be.task_update(
+                    slug,
+                    acceptance_criteria=(
+                        "AC-1 returns 400 on invalid input. "
+                        "AC-2 NEGATIVE: a valid payload is not rejected."
+                    ),
+                    scope_paths='["scripts/x.py"]',
+                    rollback_plan="git revert",
+                )
+            svc.task_start("closes-now")
+            # Evidence, because a BLOCKED close prints no plan and should not: the
+            # next action there is to clear the block, not to pick another task.
+            svc.task_log("closes-now", "AC-1: ✓ tests/test_x.py::test_returns_400")
+            svc.task_log("closes-now", "AC-2: ✓ tests/test_x.py::test_valid_payload_passes")
+            report = svc._task_done_report(
+                "closes-now",
+                ac_verified=True,
+                no_knowledge=True,
+                relevant_files=None,
+                evidence=None,
+            )
+            assert "ПЛАН ПРЕДЛАГАЕТ ДАЛЬШЕ" in report["message"]
+            assert "waits-in-the-plan" in report["message"]
+        finally:
+            svc.be.close()

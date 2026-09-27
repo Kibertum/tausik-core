@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError, utcnow_iso
 from model_pinning import model_done_updates
+from plan_adherence import plan_next_line
 from service_recording import record_call_actual, record_cost_actual
 from service_task_done_flags import _checklist_hard_enabled, _root_cause_hard_enabled
 from task_done_scope import (
@@ -485,7 +486,7 @@ class TaskDoneReportMixin:
             if cost_warning:
                 msgs.append(cost_warning)
                 report["warnings"].append(cost_warning)
-            msgs.extend(self._cascade_done(slug))  # type: ignore[attr-defined]
+            msgs.extend([*self._cascade_done(slug), *plan_next_line(self)])  # type: ignore[attr-defined]
             # v2-verify-receipt-as-argument: spend the presented handle HERE,
             # inside the transaction that writes status='done'. Redeem-once
             # exists so one green cannot close two tasks; binding the spend to

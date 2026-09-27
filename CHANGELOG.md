@@ -9,6 +9,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a close names what the plan offers next, so the finding and the plan stand side by side
+
+The start-time advisory shipped in the same release arrives too late: by `task start` the
+choice is already made. Drift is born at the CLOSE. `task done` prints findings — closure
+notes, ratchets that fired, ticket reminders, gate output — and that list is the only
+thing on screen when an agent decides what to do next. The plan is not in it, so the
+finding wins by being the only candidate.
+
+So the close now ends by naming the task the composition offers, with the basis of the
+choice. One line, and the budget is a number rather than a feeling: at most 200
+characters, asserted by a test, because this is framework code that ships to every
+project on TAUSIK and is paid for on EVERY close.
+
+Found while checking rather than designed: a BLOCKED close prints no such line, because
+its message is never assembled at all. That is correct — when a close is blocked the next
+action is to clear the block, not to pick another task — and it is now written down in
+the test and in the agent contract instead of being an accident.
+
+Silent when the composition offers nothing, in all three ways (empty, everything blocked,
+everything claimed), and silent on any internal fault: a close that failed over a hint
+would be a gate nobody asked for.
+
+The rule itself went into the Russian agent contract with the measurement that produced
+it — 22 closes in a session, 4 from the plan, 18 filed and closed inside it — and with the
+three-step mechanism, including why step two (filing the finding) stays free: forbidding
+it would bring back the silent errors this project exists against. The English contract
+does not exist; that file is unpaired and tracked by its own task, so the rule is
+recorded in the language that has a contract rather than half-written into one that does
+not.
+
+
 ### Added — starting a task that is not the plan's next one is said out loud
 
 MEASURED on the session that filed this, from git rather than from memory: 22 tasks
