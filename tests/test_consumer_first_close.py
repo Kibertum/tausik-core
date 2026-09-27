@@ -60,6 +60,23 @@ def _run(argv: list[str], cwd: Path, timeout: int = 300) -> subprocess.Completed
     )
 
 
+def _step(argv: list[str], cwd: Path, what: str) -> subprocess.CompletedProcess:
+    """Прогнать шаг пути и упасть НА НЁМ, если он отказал.
+
+    Ради того, чтобы отказ назывался своим именем. Раньше `task update` и
+    `task start` шли без проверки, и когда старт отказывал, тест падал на
+    закрытии с текстом «задача не была начата» — то есть указывал на шаг,
+    который отработал правильно. Читатель искал дефект в закрытии.
+    """
+    proc = _run(argv, cwd)
+    assert proc.returncode == 0, (
+        f"шаг «{what}» отказал, дальше проверялся бы не тот отказ:\n"
+        + (proc.stdout or "")[-900:]
+        + (proc.stderr or "")[-400:]
+    )
+    return proc
+
+
 @pytest.fixture(scope="module")
 def consumer(tmp_path_factory) -> Path:
     """Настоящий чужой проект, поднятый настоящим bootstrap."""
@@ -102,27 +119,28 @@ class TestНовыйПроектЗакрываетПервуюЗадачу:
 
     def test_путь_целиком_проходит(self, consumer):
         wrapper = _wrapper(consumer)
-        assert (
-            _run(
-                [
-                    wrapper,
-                    "task",
-                    "quick",
-                    "add subtract",
-                    "--goal",
-                    "смоук",
-                    "--ac",
-                    "AC-1 функция есть. AC-2 НЕГАТИВ: subtract(2,2) не равно 4.",
-                    "--role",
-                    "developer",
-                    "--stack",
-                    "python",
-                ],
-                consumer,
-            ).returncode
-            == 0
+        _step(
+            [
+                wrapper,
+                "task",
+                "quick",
+                "add subtract",
+                "--goal",
+                # Не «смоук»: QG-0 требует минимум три слова существа, и с одним
+                # словом старт отказывал весь релиз незамеченным — файл под
+                # pytestmark slow, а addopts по умолчанию его отбрасывает.
+                "Функция subtract вычитает и покрыта тестом на отрицательный случай",
+                "--ac",
+                "AC-1 функция есть. AC-2 НЕГАТИВ: subtract(2,2) не равно 4.",
+                "--role",
+                "developer",
+                "--stack",
+                "python",
+            ],
+            consumer,
+            "task quick",
         )
-        _run(
+        _step(
             [
                 wrapper,
                 "task",
@@ -133,8 +151,9 @@ class TestНовыйПроектЗакрываетПервуюЗадачу:
                 "test_calc.py",
             ],
             consumer,
+            "task update --scope-paths",
         )
-        _run([wrapper, "task", "start", "add-subtract"], consumer)
+        _step([wrapper, "task", "start", "add-subtract"], consumer, "task start")
 
         verify = _run(
             [

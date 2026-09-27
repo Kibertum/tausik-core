@@ -270,8 +270,21 @@ class TestMCPNewToolHandlers:
         be.close()
 
     def test_dead_end_handler(self, svc):
+        """A dead end names the task it came from, and the handler passes that through.
+
+        `task_slug: None` used to stand here and the assertion still passed, because
+        nothing had to name a task yet. 1.10 made the slug mandatory -- half of the
+        dead ends recorded before it said nowhere where they came from -- and this
+        test then failed for a whole release without anyone seeing it: the file sits
+        behind `pytestmark = pytest.mark.slow`, and the default `-m 'not slow'`
+        deselects it. So the slug is supplied here AND the refusal is covered below,
+        because a handler that accepted None would be the actual regression.
+        """
         from handlers import handle_tool
 
+        svc.epic_add("e", "Epic")
+        svc.story_add("e", "s", "Story")
+        svc.task_add("s", "crypto-choice", "Pick a hash")
         result = handle_tool(
             svc,
             "tausik_dead_end",
@@ -279,10 +292,26 @@ class TestMCPNewToolHandlers:
                 "approach": "Tried bcrypt",
                 "reason": "Not compatible with Python 3.14",
                 "tags": ["crypto"],
-                "task_slug": None,
+                "task_slug": "crypto-choice",
             },
         )
         assert "dead_end" in result.lower() or "memory" in result.lower() or "#" in result
+
+    def test_dead_end_handler_refuses_without_a_task(self, svc):
+        """NEGATIVE: the rule the test above was silently violating.
+
+        Without this, supplying the slug above would only make the red go away. The
+        refusal is the behaviour worth pinning: a dead end with no task is a note
+        nobody can trace back.
+        """
+        from handlers import handle_tool
+
+        with pytest.raises((ValueError, Exception), match="must name its task"):
+            handle_tool(
+                svc,
+                "tausik_dead_end",
+                {"approach": "Tried bcrypt", "reason": "No", "tags": [], "task_slug": None},
+            )
 
     def test_gates_status_handler(self, svc):
         from handlers import handle_tool

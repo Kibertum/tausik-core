@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — two tests were broken for a release, hidden by a marker, and misreported which step failed
+
+The full suite reported them as parallel-run flakiness. It was neither parallel nor
+flaky. MEASURED by making the test say which step failed: `task start` was refused by
+QG-0 — "the goal has 1 word(s) of substance (need 3)", because the test passed a
+one-word goal — and the `dead_end` handler was refused by the 1.10 rule that a dead end
+must name its task, because the test passed `task_slug: None`. Both deterministic, both
+green in isolation for the worst possible reason: the files sit behind `pytestmark =
+pytest.mark.slow`, and the default `-m 'not slow'` deselects them, so "green in
+isolation" meant "never executed".
+
+THE FIRST FIX WAS THE DIAGNOSIS. Three steps of the consumer path ran without checking
+their return code, so when `task start` failed the test failed later, on the close, with
+"task was never started" — pointing at the step that had worked correctly. A helper now
+runs each step and fails on it with its own output. The very first run after that named
+the real cause.
+
+Fixed by removing the cause, not the red: no marker, no xfail. The consumer path gets a
+real goal; the handler test supplies a real task slug AND gains the negative it was
+silently violating — a handler that accepted `None` would be the actual regression.
+
+Ten consecutive runs of a 42-second reproduction recipe are green, replacing an
+eight-minute suite as the way to check this class.
+
+Filed separately: the lane that would have caught both runs `-m ''` on every branch,
+but nothing surfaces its verdict — the published-lane reader looks at GitHub `main`, and
+during this session it reported a pipeline from two weeks earlier while all the work was
+on the release branch. That is this module's own thesis turned on itself.
+
+
 ### Changed — the duplicate-test ratchet now measures duplication instead of similarity
 
 The detector had grouped tests by AST shape for three releases and the number was
