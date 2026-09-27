@@ -365,7 +365,14 @@ class KnowledgeMixin:
         if not edge:
             raise ServiceError(f"Edge #{edge_id} not found")
         if edge["valid_to"] is not None:
-            raise ServiceError(f"Edge #{edge_id} already invalidated")
+            # IDEMPOTENT, and no longer a refusal. An edge can now be ended by the SYSTEM
+            # when its target is archived or deleted — that is what makes the orphan sweep
+            # converge — so refusing here would blame the caller for a departure somebody
+            # else caused. Marking which of the two ended it was tried and abandoned:
+            # `invalidated_by` is a foreign key to another edge, so a sentinel id violates
+            # it, and a schema change is not worth the distinction. Unlinking something
+            # already unlinked is a no-op in either case, and the answer says when it ended.
+            return f"Edge #{edge_id} was already ended ({edge['valid_to']}) — nothing to unlink."
         rows = self.be.edge_invalidate(edge_id, replacement_id)
         if rows == 0:
             raise ServiceError(f"Edge #{edge_id} could not be invalidated")

@@ -1,7 +1,7 @@
 ---
 slug: orphaned-edges-never-converge-so-every-departure-pays-for-them
 title: "Осиротевшие рёбра не очищаются никогда: каждый уход записи платит за все прошлые, и счёт растёт монотонно"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-site-docs-and-hygiene
 complexity: medium
@@ -12,11 +12,32 @@ call_budget: 50
 defect_of: s154-claims-and-tests-outrun-what-the-code-does
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/backend_graph.py"
+  - "scripts/backend_queries.py"
+  - "scripts/project_backend.py"
+  - "scripts/state_triggers.py"
+  - "scripts/service_knowledge.py"
+  - "tests/test_orphaned_edges_converge.py"
+  - "tests/test_graph_memory.py"
+scope_paths:
+  - "scripts/backend_graph.py"
+  - "scripts/backend_queries.py"
+  - "scripts/project_backend.py"
+  - "scripts/state_triggers.py"
+  - "scripts/service_knowledge.py"
+  - "harness/skills/run/SKILL.md"
+  - "tests/*.py"
+  - "docs/**"
+  - "tausik/gates.json"
+  - README.md
+  - README.ru.md
+  - AGENTS.md
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-27T20:53:33Z"
 resolution: null
 resolution_reason: null
 ---
@@ -53,4 +74,19 @@ CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены: 
 
 ## Rollback
 
+Инвалидация рёбер на сервисном слое; откат — git revert, рёбра снова остаются живыми и обход не сходится. Данные не теряются: valid_to выставляется, строка остаётся.
+
 ## Journal
+
+- 2026-09-27T19:55:25Z [implementation] — AC-1: ✓ tests/test_orphaned_edges_converge.py::test_three_consecutive_sweeps_find_nothing — до: returned 40/0/0 при 40 орфанах каждый раз; после: орфанов 0 с первого ухода, три обхода возвращают 0.
+- 2026-09-27T19:55:25Z [implementation] — AC-2: ✓ инвалидация на слое ЗАПИСИ, в трёх точках ухода: memory_archive_ids, memory_archive_apply (id читаются ДО обновления, иначе archived_at IS NULL их уже не выберет) и _delete_projected_by_id (рёбра гасятся ДО удаления строки). НЕ в триггере проекции: он fail-open и ниже записи по потоку, запись оттуда была бы мутацией из того, чей контракт — никогда не падать. tested via test_every_departure_path_ends_the_edges (три параметра).
+- 2026-09-27T19:55:25Z [implementation] — AC-3: ✓ ОБРАТИМОСТЬ ПРОВЕРЕНА И НАЗВАНА: разархивации в проекте НЕТ — ни memory_unarchive, ни пути, очищающего archived_at (grep по scripts). Значит инвалидация односторонняя, и это безопасно ровно потому, что вернуться нельзя. Записано в докстринге edges_invalidate_to: если путь возврата появится, он обязан решить, что делать с погашенными рёбрами, а не просто снять archived_at.
+- 2026-09-27T19:55:25Z [implementation] — AC-4: ✓ tests/test_orphaned_edges_converge.py::test_invalidation_is_soft_so_the_graph_keeps_its_past — 20 живых становятся 20 погашенными, строк по-прежнему 20. Удаление тоже дало бы сходимость и заставило бы граф лгать о прошлом.
+- 2026-09-27T19:55:26Z [implementation] — AC-5: ✓ tests/test_orphaned_edges_converge.py::test_an_edge_to_a_living_row_stays_live и ::test_only_the_named_kind_is_touched — две формы обмана, которыми «починка» могла бы купить сходимость: погасить всё и погасить по id без вида.
+- 2026-09-27T19:55:26Z [implementation] — AC-6: ✓ докстринг _reproject_orphaned_edge_sources переписан: замер 40/40/40 и абзац про несходимость заменены на «до» и «после» с тем же замером, названы три точки инвалидации и причина, по которой их нет здесь. Обход оставлен как СЕТЬ БЕЗОПАСНОСТИ: ребро, осиротевшее путём, который никто не провёл через инвалидацию, по-прежнему поднимает перепроекцию источника, только множество теперь обычно пусто.
+- 2026-09-27T19:55:26Z [implementation] — СОРАЗМЕРНОСТЬ: первый тест был 199 строк на правку из трёх точек инвалидации — мой брак, и ровно то, что проект запрещает («проверка соразмерна правке»). Урезан до 126: шесть утверждений — сходимость, три пути ухода и два способа обмануть. Ни одно не выброшено ради краткости.
+- 2026-09-27T20:34:05Z [implementation] — МОИ ОШИБКИ В ЭТОМ ЖЕ ЦИКЛЕ, обе про соразмерность: тест на 199 строк к правке в три точки (урезан до 126) и `ruff format scripts/ tests/`, переформатировавший 97 замороженных файлов (откатил 98 лишних). Класс один — беру самое доступное действие вместо точного.
+- 2026-09-27T20:34:05Z [implementation] — ПОЛНАЯ ЛЕНТА: 11740 прошли, 22 пропущены, 0 отказов. Путь 12 → 3 → 0.
+- 2026-09-27T20:34:05Z [implementation] — ЧЕТЫРЕ ДЕФЕКТА, КОТОРЫХ НЕ БЫЛО В ПОСТАНОВКЕ, и три из них нашли чужие проверки, а не мои: (1) гашение ребра без перепроекции источника — файл расходился с БД, поймал property-тест test_state_projection_tracks_db, мои шесть тестов пропустили; (2) погашенное ребро нельзя отвязать — отказ винил вызывающего за уход, который совершил не он; (3) 130-й публичный член SQLiteBackend — храповик поверхности класса, метод сделан внутренним, база не поднималась; (4) счёт основных скиллов 13 → 14 в 27 местах документации — гейт таблиц.
+- 2026-09-27T20:41:28Z [implementation] — ФАЙЛОВЫЙ ГЕЙТ ВСКРЫЛ ДОСТАВШИЙСЯ ДОЛГ: scripts/project_backend.py был 503 строки УЖЕ на HEAD — гейт его не видел, потому что проверяет только файлы объёма задачи, а он в объём раньше не попадал. Мои 5 строк сделали 508. Убрано 8: отображение вида ушло в помощник миксина _end_edges_for_departure (вызов стал одной строкой), и три комментария сжаты без потери смысла. Итог 500 ровно.
+- 2026-09-27T20:47:20Z [implementation] — NO-DEAD-END по остальным двум красным прогонам: оба — ступени диагноза, а не брошенные подходы. Первый вскрыл, что гашение без перепроекции источника расходит файл с БД (поймал property-тест). Второй — что scripts/project_backend.py был 503 строки уже на HEAD. Тупик один и записан отдельно.

@@ -4,9 +4,9 @@
 
 Skill'ы — intent-based инструкции, определяющие поведение агента. Не нужно запоминать имена или синтаксис — пишете, что хотите, и агент подбирает подходящий skill. Slash-префикс (`/plan`, `/ship`) явно вызывает один.
 
-После bootstrap идут **13 core skills** из `harness/skills/`. Дополнительные **official / vendor skills** (20) ставятся по запросу: per-skill через `tausik skill install <name>`, либо вся пачка через `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias `--include-vendor`). **Карта репо-скиллов:** [Экосистема скиллов (one-pager)](skill-ecosystem.md). **Bulk-install по группам:** [Skill Bundles](skill-bundles.md).
+После bootstrap идут **14 core skills** из `harness/skills/`. Дополнительные **official / vendor skills** (20) ставятся по запросу: per-skill через `tausik skill install <name>`, либо вся пачка через `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias `--include-vendor`). **Карта репо-скиллов:** [Экосистема скиллов (one-pager)](skill-ecosystem.md). **Bulk-install по группам:** [Skill Bundles](skill-bundles.md).
 
-> **Изменение default в v1.4.x.** До v1.4.x bootstrap автоматически разворачивал все 38 source+registry скиллов (~1,520 токенов в system-reminder). Теперь default разворачивает 13 core-навыков; перезапусти bootstrap с `--include-official`, если нужен старый полный набор. **В v1.4.0 также удалены 5 избыточных скиллов** (`/go`, `/next`, `/diff`, `/onboard`, `/init`) — vendor count теперь 20. См. **[Skill Bundles Migration](skill-bundles-migration.md)**.
+> **Изменение default в v1.4.x.** До v1.4.x bootstrap автоматически разворачивал все 38 source+registry скиллов (~1,520 токенов в system-reminder). Теперь default разворачивает 14 core-навыков; перезапусти bootstrap с `--include-official`, если нужен старый полный набор. **В v1.4.0 также удалены 5 избыточных скиллов** (`/go`, `/next`, `/diff`, `/onboard`, `/init`) — vendor count теперь 20. См. **[Skill Bundles Migration](skill-bundles-migration.md)**.
 
 **Варианты под разные хосты:** у skill может быть каталог **`variants/<profile>.md`** — см. [Профили skills и variants](skill-profiles.md).
 

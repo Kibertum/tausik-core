@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — an edge whose target left is now invalidated, so the orphan sweep converges
+
+MEASURED BEFORE, on 2000 memory rows with 40 orphaned edges, three consecutive sweeps:
+`returned=40`, then `0`, then `0`, while each one re-serialized 40 files and left 40 orphans
+behind. Forty serializations that changed nothing. The sweep asks which live edges point
+outside the projection and re-serializes their SOURCES, which never touches `memory_edges`
+— so the predicate never cleared and every future departure paid the same bill, growing
+with archived memory.
+
+The edge is now soft-invalidated where the departure happens: `memory_archive_ids`,
+`memory_archive_apply` (whose ids must be read BEFORE the update, since afterwards
+`archived_at IS NULL` no longer selects them) and the shared delete path, which ends the
+edges before removing the row for the same reason it reads the slug first. NOT from the
+projection trigger — that is fail-open and downstream of the write, so a database mutation
+there would come from something whose contract is never to raise.
+
+Soft, not deleted: the row stays with `valid_to` stamped, because a link that existed and
+ended is a different fact from one that never was. Invalidation is one-way, and that is safe
+only because nothing in the project un-archives a memory row — checked, not assumed. If such
+a path is ever added it has to decide what happens to edges stamped here.
+
+MEASURED AFTER, same shape: orphans reach 0 on the first departure and stay there. The sweep
+remains as a safety net for an edge orphaned by a path nobody routed through the
+invalidation; the set it works on is now normally empty.
+
+
 ### Fixed — the budget-guard tests read the live database and failed in CI
 
 Two of the new tests named real closures of this repository — 106 calls against a budget of

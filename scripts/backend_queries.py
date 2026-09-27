@@ -123,13 +123,26 @@ class BackendQueriesMixin(
         from tausik_utils import utcnow_iso
 
         now = utcnow_iso()
+        # The ids are read BEFORE the update, because afterwards `archived_at IS NULL` no
+        # longer selects them and there is nothing left to point the invalidation at.
+        leaving = [
+            int(r["id"])
+            for r in self._q(
+                "SELECT id FROM memory WHERE created_at < ? AND archived_at IS NULL",
+                (before_iso,),
+            )
+        ]
         cur = self._conn.execute(
             "UPDATE memory SET archived_at=?, updated_at=? "
             "WHERE created_at < ? AND archived_at IS NULL",
             (now, now, before_iso),
         )
+        archived = cur.rowcount or 0
+        if leaving:
+            # Same reason as the by-id path: the departure is here, so the edges end here.
+            self._edges_invalidate_to("memory", leaving)
         self._conn.commit()
-        return cur.rowcount or 0
+        return archived
 
     def memory_archive_candidates(self, before_iso: str) -> list[dict[str, Any]]:
         """Memory rows older than ``before_iso`` and not yet archived."""

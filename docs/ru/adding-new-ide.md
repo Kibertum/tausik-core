@@ -90,7 +90,7 @@ if os.environ.get("MYIDE_DIR"):
 
 ```
 harness/
-├── skills/          # 13 core + 20 vendor-скиллов (opt-in), общие для всех IDE
+├── skills/          # 14 core + 20 vendor-скиллов (opt-in), общие для всех IDE
 ├── roles/           # роли (все IDE)
 ├── stacks/          # стеки (все IDE)
 ├── overrides/       # IDE-специфичные override-файлы

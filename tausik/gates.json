@@ -102,7 +102,7 @@
     }
   },
   "ruff_format": {
-    "_comment": "Files that diverged from ruff format when the gate landed (1.10, decision #386). Skipped by scripts/gate_ruff_format.py; every other task file must be formatted. RATCHET, may only shrink: tests/test_gate_ruff_format.py refuses a listed file that is now formatted and an unformatted file that is not listed. СОКРАЩЁН со 110 до 101 (решение #386, смена #277): девять файлов отформатированы и обязаны были уйти из перечня той же правкой. ПОЧЕМУ ЭТО ЗАМЕТИЛ ТОЛЬКО CI: у этих девяти в рабочей копии были СМЕШАННЫЕ переводы строк (CRLF плюс одиночные LF), а смешанные ruff считает расходящимися. Git нормализует при коммите, поэтому на Linux файл однороден и отформатирован, а грязная копия под Windows — нет. Одиночные LF внесены инструментами, писавшими в дерево с newline='' — это порча инструментом, не авторство. Переводы строк выровнены той же правкой, поэтому локальный и выложенный вердикт теперь совпадают. Сокращён до 99: project_cli_graph.py и project_cli_task.py отформатировались попутно при разрезе остаточных модулей CLI, и по решению #386 уходят из перечня той же правкой.",
+    "_comment": "Files that diverged from ruff format when the gate landed (1.10, decision #386). Skipped by scripts/gate_ruff_format.py; every other task file must be formatted. RATCHET, may only shrink: tests/test_gate_ruff_format.py refuses a listed file that is now formatted and an unformatted file that is not listed. СОКРАЩЁН со 110 до 101 (решение #386, смена #277): девять файлов отформатированы и обязаны были уйти из перечня той же правкой. ПОЧЕМУ ЭТО ЗАМЕТИЛ ТОЛЬКО CI: у этих девяти в рабочей копии были СМЕШАННЫЕ переводы строк (CRLF плюс одиночные LF), а смешанные ruff считает расходящимися. Git нормализует при коммите, поэтому на Linux файл однороден и отформатирован, а грязная копия под Windows — нет. Одиночные LF внесены инструментами, писавшими в дерево с newline='' — это порча инструментом, не авторство. Переводы строк выровнены той же правкой, поэтому локальный и выложенный вердикт теперь совпадают. Сокращён до 99: project_cli_graph.py и project_cli_task.py отформатировались попутно при разрезе остаточных модулей CLI, и по решению #386 уходят из перечня той же правкой. Сокращён до 98: tests/test_graph_memory.py отформатирован при правке его же теста об отвязке, и по решению #386 уходит из перечня той же правкой.",
     "legacy_unformatted": [
       "harness/claude/mcp/codebase-rag/rag_web_cache.py",
       "scripts/backend_crud_brain.py",
@@ -155,7 +155,6 @@
       "tests/test_gate_progress_run_start.py",
       "tests/test_gate_test_resolver.py",
       "tests/test_gate_test_resolver_import_edge.py",
-      "tests/test_graph_memory.py",
       "tests/test_hooks_package_import.py",
       "tests/test_iac_bootstrap_detection.py",
       "tests/test_keyword_detector_hook.py",

@@ -172,7 +172,7 @@ own (all of them, today). A per-IDE copy would be a mirror waiting to drift — 
 exist under `harness/cursor/` and was deleted in v1.7.0.
 ```
 harness/
-+-- skills/           # 13 core auto-deployed + 20 in skills-official/ (opt-in via --include-official)
++-- skills/           # 14 core auto-deployed + 20 in skills-official/ (opt-in via --include-official)
 +-- roles/            # 7 roles (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)

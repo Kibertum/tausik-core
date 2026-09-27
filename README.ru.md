@@ -10,7 +10,7 @@ TAUSIK — это discipline-слой для AI-кодинг-агентов. О�
 
 [![v1.9.0](https://img.shields.io/badge/version-v1.9.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![11472 тестов](https://img.shields.io/badge/tests-11472-brightgreen.svg)](#proof-tausik-собран-на-tausik)
+[![11762 тестов](https://img.shields.io/badge/tests-11762-brightgreen.svg)](#proof-tausik-собран-на-tausik)
 [![покрытие 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-собран-на-tausik)
 [![0 зависимостей](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -112,7 +112,7 @@ BLOCKED (QG-2): нет валидного verification-receipt для HEAD a1b2c
 TAUSIK создавался самим TAUSIK — каждая фича, рефакторинг и фикс прошли через гейты, которые поставляются в коробке. Не ради красивой цифры, а как самая жёсткая проверка контракта:
 
 - **Каждая задача закрыта с целью + критериями приёмки.** Ни одна не закрыта без verify-доказательств.
-- **11472 тестов** — ядро дисциплины покрыто тестами плотнее всего.
+- **11762 тестов** — ядро дисциплины покрыто тестами плотнее всего.
 - **0 зависимостей в ядре** — только stdlib Python 3.11+; MCP-зависимости живут в изолированном `.tausik/venv/`.
 - **1 обращение наружу, и только одно** — не чаще раза в сутки анонимный GET к `api.github.com/repos/Kibertum/tausik-core/releases/latest` спрашивает, вышла ли новая версия TAUSIK. В нём нет имени проекта, пути, версии и пользователя; он идёт отсоединённо, и ни одна сессия его не ждёт. Выключается `"updates": {"check": false}` в `.tausik/config.json`. Всё остальное работает и остаётся на вашей машине.
 
@@ -139,7 +139,7 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 - **147 MCP-инструментов** — полный программный доступ к базе проекта.
 - **23 real-time-хука** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit и другие.
 - **25 stack-aware verify-наборов** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и прочие, по затронутым файлам.
-- **13 core-скиллов** разворачиваются автоматически; 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
+- **14 core-скиллов** разворачиваются автоматически; 20 official-скиллов по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
 - **6 автоматических метрик**, **общее локальное хранилище знаний** (`~/.tausik-knowledge`, `--global`), **пакетное выполнение** (`/run plan.md`).
 
 </details>
@@ -152,13 +152,13 @@ TAUSIK создавался самим TAUSIK — каждая фича, реф�
 
 | IDE | MCP-инструменты | Скиллы | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 147 | 13 core + по запросу | 23 (полностью) | First-class |
-| **Qwen Code** | 147 | 13 core + по запросу | 23 (паритет с Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 147 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
-| **Cursor** | 147 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
-| VSCode + Claude Extension | 147 | 13 core + по запросу | 23 | Прогнано E2E |
-| **Codex CLI** | 147 | 13 core + по запросу | 23 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
-| **OpenCode** | 147 | 13 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
+| **Claude Code** | 147 | 14 core + по запросу | 23 (полностью) | First-class |
+| **Qwen Code** | 147 | 14 core + по запросу | 23 (паритет с Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 147 | 14 core + по запросу | — (гейты на task start/done) | First-class через MCP |
+| **Cursor** | 147 | 14 core + по запросу | — (гейты на task start/done) | Через MCP |
+| VSCode + Claude Extension | 147 | 14 core + по запросу | 23 | Прогнано E2E |
+| **Codex CLI** | 147 | 14 core + по запросу | 23 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
+| **OpenCode** | 147 | 14 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
 | Windsurf | MCP + правила | зависит от хоста | специфично для хоста | Ожидается / вручную |
 
 Хуки — это real-time-рельсы (нет кода без задачи, bash-firewall, push gate) — работают в **Claude Code, Qwen Code и Codex** (Codex исполняет хуки проекта только после того, как вы им доверили; недоверенный профиль не принуждает ничего — см. [матрицу принуждения Codex](docs/ru/model-providers.md#матрица-принуждения-codex)). Kilo, Cursor, OpenCode, Windsurf и другие MCP-хосты получают те же 146 инструментов и скиллы, с quality gates на `task start` и `task done`.

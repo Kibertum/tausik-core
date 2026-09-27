@@ -111,11 +111,9 @@ class SQLiteBackend(
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._in_tx = False
-        # Monotonic, never reset: SAVEPOINT names must be unique for as long as
-        # any of them can still be open. See backend_transaction.
+        # Monotonic, never reset: a SAVEPOINT name must stay unique while any is open.
         self._savepoint_seq = 0
-        # (table, slug) pairs written inside the open transaction, projected when
-        # it commits. See _project_write for why a mid-transaction write is wrong.
+        # (table, slug) written in the open transaction, projected on commit.
         self._pending_projection: list[tuple[str, str]] = []
         init_schema(self._conn)
 
@@ -250,8 +248,7 @@ class SQLiteBackend(
                 self._project_write(child_table, child_slug)
         return removed
 
-    # Closed set, not whatever the caller passes — the table name reaches SQL as
-    # text, and "internal callers only" describes today's callers.
+    # Closed set: the table name reaches SQL as text, not as a bound parameter.
     _ID_DELETABLE = ("decisions", "memory")
 
     def _delete_projected_by_id(self, table: str, row_id: int) -> int:
@@ -272,6 +269,7 @@ class SQLiteBackend(
             f"SELECT slug FROM {table} WHERE id=?", (int(row_id),)
         )  # ruff-not-enabled: S608
         slug = (row or {}).get("slug")
+        self._end_edges_for_departure(table, row_id)  # before the row: the id stops selecting
         removed = self._ex(
             f"DELETE FROM {table} WHERE id=?", (int(row_id),)
         )  # ruff-not-enabled: S608
@@ -321,7 +319,6 @@ class SQLiteBackend(
         sets = ", ".join(f"{k}=?" for k in fields)
         vals = tuple(fields.values()) + (slug,)
         changed = self._ex(f"UPDATE {table} SET {sets} WHERE {slug_col}=?", vals)
-        # The projection follows the WRITE; the exporter keys entities by slug.
         if changed and slug_col == "slug":
             self._project_write(table, slug)
         return changed

@@ -17,6 +17,7 @@ class BackendGraphMixin:
         def _ex(self, sql: str, params: tuple[Any, ...] = ()) -> int: ...
         def _q(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]: ...
         def _q1(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None: ...
+        def _project_write(self, table: str, slug: str) -> None: ...
 
     # --- graph memory (memory_edges) ---
 
@@ -66,11 +67,82 @@ class BackendGraphMixin:
             return 0
         now = utcnow_iso()
         placeholders = ",".join("?" for _ in ids)
-        return self._ex(
+        archived = self._ex(
             f"UPDATE memory SET archived_at=?, updated_at=? "
             f"WHERE id IN ({placeholders}) AND archived_at IS NULL",
             (now, now, *ids),
         )
+        # The departure is HERE, so the edges end here. Left alive they make the orphan
+        # sweep re-serialize the same sources on every future departure, forever.
+        if archived:
+            self._edges_invalidate_to("memory", ids)
+        return archived
+
+    def _end_edges_for_departure(self, table: str, row_id: int) -> int:
+        """End the edges pointing at a row that is about to be deleted.
+
+        Takes the TABLE name because the caller is the generic delete path and holds one;
+        the kind mapping lives here so that path stays a single line — it sits at its own
+        500-line ceiling, and a mapping is not worth displacing a rule.
+        """
+        kinds = {"memory": "memory", "decisions": "decision"}
+        return self._edges_invalidate_to(kinds[table], [int(row_id)]) if table in kinds else 0
+
+    def _edges_invalidate_to(self, kind: str, ids: list[int]) -> int:
+        """Soft-invalidate live edges whose TARGET is leaving. Returns rows stamped.
+
+        THE CONVERGENCE FIX. The orphan sweep in `state_triggers` asks the data "which
+        live edges point outside the projection" and re-serializes their SOURCES — which
+        never touches `memory_edges`, so the predicate never clears. MEASURED before this
+        existed, on 2000 memory rows with 40 orphans: three consecutive sweeps returned
+        40, 0, 0 while each re-serialized 40 files and left 40 orphans behind. Forty
+        serializations that changed nothing, on every departure, forever.
+
+        SOFT, not a DELETE: the row stays with `valid_to` stamped. The graph is a record
+        of what was linked, and a link that existed and ended is a different fact from a
+        link that never was — `edge_get` can still answer about it, and the history the
+        `--at` queries read stays whole.
+
+        IRREVERSIBLE BY CONSTRUCTION, and that is safe only because nothing un-archives:
+        the project has no `memory_unarchive` and no path that clears `archived_at`. If
+        one is ever added, it has to decide what happens to edges stamped here — it
+        cannot simply clear `archived_at` and expect the graph to come back.
+
+        Called at every DEPARTURE rather than from the projection trigger: the trigger is
+        fail-open and downstream of the write, so a database mutation there would be a
+        write from something whose contract is to never raise.
+        """
+        if not ids or kind not in ("memory", "decision"):
+            return 0
+        clean = [int(i) for i in ids]
+        placeholders = ",".join("?" for _ in clean)
+        # SOURCES FIRST, because after the stamp the predicate no longer selects them and
+        # there is nothing left to re-project. Their files spell the edge out, so a stamp
+        # without a re-projection leaves the tree claiming a live link the DB has ended —
+        # which is the divergence the projection hook exists to remove, sign flipped. The
+        # orphan sweep used to cover this by accident; it no longer finds these rows.
+        sources = self._q(
+            "SELECT DISTINCT source_type, source_id FROM memory_edges "
+            f"WHERE valid_to IS NULL AND target_type=? AND target_id IN ({placeholders})",
+            (kind, *clean),
+        )
+        stamped = self._ex(
+            "UPDATE memory_edges SET valid_to=? "
+            f"WHERE valid_to IS NULL AND target_type=? AND target_id IN ({placeholders})",
+            (utcnow_iso(), kind, *clean),
+        )
+        for row in sources if stamped else []:
+            table = "memory" if row["source_type"] == "memory" else "decisions"
+            slug = (
+                self._q1(
+                    f"SELECT slug FROM {table} WHERE id=?",  # ruff-not-enabled: S608
+                    (int(row["source_id"]),),
+                )
+                or {}
+            ).get("slug")
+            if slug:
+                self._project_write(table, str(slug))
+        return stamped
 
     def edge_get(self, edge_id: int) -> dict[str, Any] | None:
         return self._q1("SELECT * FROM memory_edges WHERE id=?", (edge_id,))

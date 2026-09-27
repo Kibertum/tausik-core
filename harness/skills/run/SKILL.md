@@ -1,6 +1,6 @@
 ---
 name: run
-description: "Autonomous execution of the release composition. Asks the plan what is next, runs /task → implement → task done, repeats until the composition offers nothing or a stop fires. Hard-stops on the first failure. Triggers: run, autonomous run, work the plan, close the release, продолжай по плану."
+description: "Run the release composition task by task, without stopping."
 effort: deep
 context: inline
 ---

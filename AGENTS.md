@@ -100,7 +100,7 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
 | **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |
 | **MCP tools (146; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
-| **Skills reference (13 core skills, 20 official skills opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
+| **Skills reference (14 core skills, 20 official skills opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
 | **SENAR compliance matrix** | [docs/en/senar-compliance-matrix.md](docs/en/senar-compliance-matrix.md) |
@@ -111,7 +111,7 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 scripts/           Core Python (CLI → Service → Backend)
 docs/              Documentation (en/, ru/, research/)
 harness/           Shared resources for all IDEs (renamed from agents/ in v1.4 to avoid collision with .claude/agents/)
-  skills/          13 core skills auto-deployed + 20 official skills opt-in via --include-official
+  skills/          14 core skills auto-deployed + 20 official skills opt-in via --include-official
   roles/           6 roles (developer, architect, devops, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
