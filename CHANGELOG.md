@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the call budget becomes a ceiling in an unattended run, and stays advice otherwise
+
+Interactively an overrun is information: the author sees the warning at close and
+recalibrates. Unattended it is a hazard — a driver walking a release composition spends a
+whole session on one task and stops by exhaustion rather than by plan, and the owner finds
+out in the morning. In this session alone the budget was passed three times: 106 calls
+against 40, 124 against 70, 139 against 90, each reported only after the close.
+
+THE MULTIPLIER IS MEASURED, not borrowed. Over 651 closures carrying both a budget and an
+actual: median ratio 0.58 — the usual task lands under two thirds of its estimate — p75
+0.93, p90 1.60, p99 5.80, worst 47.5. Past 1.5x sits 11% of closures, past 2x 8%, past 2.5x
+4%, past 3x 3%. So the warning keeps 1.5x and the refusal takes 2x, where an overrun stops
+being calibration noise.
+
+`tausik task budget-check <slug>` answers with an exit code, because a printed warning is
+invisible to `&&` — a driver asks between tasks and stops on non-zero. It is armed by an
+environment flag rather than a config key: the mode belongs to THIS run, not to the
+project, and the same repository is worked both ways.
+
+Unarmed, nothing here can refuse anything at any overrun, and `=0` or `=false` do not arm —
+a flag that armed on the string "false" would be a trap in a shell script. A task with no
+declared budget cannot breach either: absence of a budget is not a budget of zero, and
+treating it as one would refuse every task nobody estimated.
+
+
 ### Added — the journal has a budget, and only the retelling half of it does
 
 MEASURED first, and the split set the numbers: 292 entries across 25 closed tasks, 99,335

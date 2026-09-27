@@ -336,6 +336,13 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="Filter by phase (planning, implementation, review, testing, done)",
     )
 
+    tbudget = task_sub.add_parser(
+        "budget-check",
+        help="Exit non-zero when an ARMED autonomous run is past the call-budget ceiling",
+        epilog="Example: TAUSIK_AUTONOMOUS_BUDGET_BLOCK=1 tausik task budget-check my-task",
+    )
+    tbudget.add_argument("slug", help="Task slug")
+
     treason = task_sub.add_parser(
         "reason-step",
         help="Record a RENAR reasoning step (intent|premise|action|verification)",

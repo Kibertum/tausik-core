@@ -274,8 +274,18 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         print(svc.task_log(args.slug, args.message))
     elif c == "logs":
         print("\n".join(task_logs_lines(svc, args.slug, getattr(args, "phase", None))))
+    elif c == "budget-check":
+        # A driver calls this BETWEEN tasks, so the answer has to be an exit code: a
+        # printed warning is invisible to `&&`. Silent and zero when nothing is wrong,
+        # because a check that speaks on every call gets piped to /dev/null.
+        from call_budget_guard import breach
+
+        refusal = breach(svc.task_show(args.slug))
+        if refusal:
+            print(refusal, file=sys.stderr)
+            raise SystemExit(1)
     else:
-        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, delegate, undelegate, handoff, summary-back, plan, step, quick, next, depends, undepends, move, claim, unclaim, reason-step, replay, log, logs"
+        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, delegate, undelegate, handoff, summary-back, plan, step, quick, next, depends, undepends, move, claim, unclaim, reason-step, replay, log, logs, budget-check"
         if c:
             from difflib import get_close_matches
 
