@@ -3,6 +3,28 @@
 Currently exposes ``db prune`` to clean up auto-created
 ``.tausik/tausik.db.bak.*`` files left behind by migration runs.
 
+DECLARED LIFETIME OF A BACKUP. Two kinds live in `.tausik/`, and they expire
+differently:
+
+* ``tausik.db.bak.v<N>`` — written by the migration path before it raises the
+  schema, and pruned by it to the newest `BACKUP_KEEP` (3). Its purpose is to
+  undo a migration, so it expires after the next few migrations prove the new
+  schema. This kind is MANAGED: a mechanism creates it and the same mechanism
+  removes it.
+* any other ``tausik.db.bak.*`` — made by hand before a one-off operation
+  (`…-before-redact`, `…-pre-redact-263`). Its purpose expires with that
+  operation, and NOTHING has ever removed one. MEASURED when this rule landed:
+  three such files, 254 MiB, the oldest 13 days old, next to three managed ones —
+  half the backup weight sat outside every retention rule, and a copy taken
+  before a secret redaction outlives the redaction it precedes.
+
+So an unversioned backup does not survive a prune. It is not "newer" material
+to be kept in preference to a managed one; it is material whose operation is
+over. This is why `prune_backups` splits by NAME rather than ranking one mtime
+order over all of them: the old ranking kept the three unmanaged files and
+deleted the managed ones, i.e. exactly backwards from what this module's own
+first paragraph promises.
+
 The pure helper ``prune_backups`` is the test surface; ``cmd_db`` is the
 thin argparse dispatcher used by ``scripts/project.py``.
 """
@@ -11,10 +33,14 @@ from __future__ import annotations
 
 import glob
 import os
+import re
 from typing import Any
 
 
 _BACKUP_PATTERN = "tausik.db.bak.*"
+
+#: A MANAGED backup: written and pruned by the migration path in `backend_init`.
+_VERSIONED_RE = re.compile(r"\.bak\.v(\d+)$")
 
 
 def list_backups(tausik_dir: str) -> list[str]:
@@ -26,28 +52,57 @@ def list_backups(tausik_dir: str) -> list[str]:
     return sorted(matches, key=lambda p: os.path.getmtime(p), reverse=True)
 
 
-def prune_backups(tausik_dir: str, keep: int) -> dict[str, list[str]]:
-    """Keep the ``keep`` most recent .bak files; delete the rest.
+def unmanaged_backups(tausik_dir: str) -> list[str]:
+    """Backups no mechanism owns — every ``.bak.*`` that is not ``.bak.v<N>``.
 
-    Returns ``{"kept": [...], "deleted": [...], "errors": [...]}`` with
-    absolute paths in each list. ``keep`` is clamped at zero (negative
-    values are treated as 0). When fewer than ``keep`` backups exist the
-    deleted list is empty (no-op).
+    The ratchet in `tausik/gates.json` (`repo_hygiene.db_backups.unmanaged`)
+    reads this, so the number that is allowed to exist is declared in one place
+    and the detector is the same code the prune uses.
+    """
+    return [p for p in list_backups(tausik_dir) if not _VERSIONED_RE.search(os.path.basename(p))]
+
+
+def prune_backups(tausik_dir: str, keep: int, dry_run: bool = False) -> dict[str, list[str]]:
+    """Keep the ``keep`` newest MANAGED backups; delete every other backup.
+
+    Returns ``{"kept", "deleted", "errors", "unmanaged"}`` with absolute paths in
+    each list. ``keep`` is clamped at zero (negative values are treated as 0).
+    When fewer than ``keep`` managed backups exist, nothing managed is deleted
+    (no-op for that group). With ``dry_run`` the same "deleted" list comes back
+    and nothing is removed — this command is the only one in the CLI that
+    destroys hundreds of megabytes, so it can be asked what it would do.
+
+    "Newest" among managed backups is by VERSION NUMBER, not mtime: `v9` sorts
+    after `v10` lexically, and a restore-from-backup rewrites mtimes, so both
+    string order and file time have already been wrong about which snapshot is
+    the recent one. Unversioned backups are deleted regardless of `keep` — see
+    the module docstring for why their lifetime is the operation, not a count.
     """
     if keep < 0:
         keep = 0
-    backups = list_backups(tausik_dir)
-    kept = backups[:keep]
-    candidates = backups[keep:]
+    managed: list[tuple[int, str]] = []
+    unmanaged: list[str] = []
+    for path in list_backups(tausik_dir):
+        m = _VERSIONED_RE.search(os.path.basename(path))
+        if m:
+            managed.append((int(m.group(1)), path))
+        else:
+            unmanaged.append(path)
+    managed.sort(key=lambda pair: -pair[0])
+    kept = [path for _ver, path in managed[:keep]]
+    candidates = [path for _ver, path in managed[keep:]] + unmanaged
     deleted: list[str] = []
     errors: list[str] = []
     for path in candidates:
+        if dry_run:
+            deleted.append(path)
+            continue
         try:
             os.remove(path)
             deleted.append(path)
         except OSError as e:
             errors.append(f"{path}: {e}")
-    return {"kept": kept, "deleted": deleted, "errors": errors}
+    return {"kept": kept, "deleted": deleted, "errors": errors, "unmanaged": unmanaged}
 
 
 def cmd_db(svc: Any, args: Any) -> None:
@@ -58,7 +113,8 @@ def cmd_db(svc: Any, args: Any) -> None:
         from project_config import find_tausik_dir
 
         tausik_dir = find_tausik_dir()
-        result = prune_backups(tausik_dir, keep)
+        dry = bool(getattr(args, "dry_run", False))
+        result = prune_backups(tausik_dir, keep, dry_run=dry)
         if not result["kept"] and not result["deleted"]:
             print("No tausik.db.bak.* files found.")
             return
@@ -67,9 +123,16 @@ def cmd_db(svc: Any, args: Any) -> None:
             for p in result["kept"]:
                 print(f"  {os.path.basename(p)}")
         if result["deleted"]:
-            print(f"Deleted ({len(result['deleted'])}):")
+            unmanaged = set(result["unmanaged"])
+            verb = "Would delete" if dry else "Deleted"
+            print(f"{verb} ({len(result['deleted'])}):")
             for p in result["deleted"]:
-                print(f"  {os.path.basename(p)}")
+                # The KIND is printed, because "why is my hand-made backup gone"
+                # is the only question this output has to answer in advance.
+                kind = (
+                    "unmanaged, lifetime was its operation" if p in unmanaged else "beyond --keep"
+                )
+                print(f"  {os.path.basename(p)}  ({kind})")
         for err in result["errors"]:
             print(f"  ! {err}")
         return

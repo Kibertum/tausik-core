@@ -7,10 +7,7 @@ tags:
   - quality-sweep
   - senar-9-5
 task: null
-edges:
-  - relation: supersedes
-    target_type: memory
-    target: zamer-196-audit-senar-9-5-mashinoy-44-nerezolvyaschihsya
+edges: []
 ---
 
 СВЕРКА ПРОВЕДЕНА В #199 (просрочка была 3 смены). Что прогонялось живьём, а не читалось: doctor, gates status, memory lint (+--apply), audit vendors, audit research, audit evidence, полная лента, mypy.

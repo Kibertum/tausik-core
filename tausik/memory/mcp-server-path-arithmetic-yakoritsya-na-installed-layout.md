@@ -16,4 +16,4 @@ Bootstrap копирует agents/<ide>/mcp/<name>/ в .claude/mcp/<name>/ од�
 
 Симптом бага при неправильной арифметике: 4·".." прыгает в родителя проекта → scripts/ не найден → ModuleNotFoundError на первом import brain_* в handlers.py → MCP сервер не стартует, клиент видит только "Server failed to start".
 
-Тест-паттерн для регрессии (см. tests/test_brain_mcp_installed_layout.py): subprocess с PYTHONPATH="" + tmp_path/.claude/mcp/<name>/ + tmp_path/.claude/scripts/ со stub-модулями. Без subprocess-изоляции тесты тихо маскируют баг потому что sys.path уже содержит source-tree scripts/.
+Тест-паттерн для регрессии (см. tests/test_brain_mcp_installed_layout.py (удалён в 77703c4a)): subprocess с PYTHONPATH="" + tmp_path/.claude/mcp/<name>/ + tmp_path/.claude/scripts/ со stub-модулями. Без subprocess-изоляции тесты тихо маскируют баг потому что sys.path уже содержит source-tree scripts/.

@@ -188,7 +188,7 @@ class KnowledgeMixin:
 
         return dedupe_memory(self.be, threshold, n)
 
-    def memory_lint(self, apply: bool = False, n: int = 500) -> dict[str, Any]:
+    def memory_lint(self, apply: bool = False, n: int = 0) -> dict[str, Any]:
         """Thin delegator — real logic lives in service_knowledge_hygiene."""
         from service_knowledge_hygiene import lint_memory
 

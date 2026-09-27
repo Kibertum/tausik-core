@@ -122,6 +122,24 @@ _PATH_RE = re.compile(r"(?<![\w./\\])((?:[\w.\-]+/)+[\w.\-]+\.[A-Za-z0-9]{1,6})\
 # positives from URLs/hostnames mentioned in prose).
 _HOSTLIKE_FIRST_SEG = re.compile(r"^[\w-]+\.[\w.-]+$")
 
+# A path cited as HISTORY, not as a live file: the path, then a parenthesised
+# commit sha. Every stale_file finding of the sweep that added this was a record
+# whose CLAIM was true and whose path was gone on purpose -- a test replaced by a
+# gate, a module deleted as dead code, a transport removed. A record that says "X
+# was deleted" cannot stop naming X, so without this notion the register reopens
+# on every correct removal and the reader learns to skim it.
+#
+# The sha is required and its SHAPE is all that is checked -- never `git cat-file`.
+# Asking git would make a broken git turn the detector off silently, which is the
+# failure `service_knowledge_hygiene` was written against. Shape-only means the
+# marker is a deliberate act, not a guess at prose: a bare "(удалён)" does not
+# pass, because a claim about a removal is worth the commit that a reader can open.
+# Prose is allowed on BOTH sides of the sha inside the parens -- "(удалён в
+# a6f614a2 вместе с транспортом)" says more than "(a6f614a2)" and a marker that
+# forbade the words would be obeyed by dropping them. Both sides are bounded and
+# neither may contain a paren, so the match cannot run past the citation.
+_REMOVED_CITATION = re.compile(r"^[`'\"]?\s*\(\s*(?:[^()]{0,24}\s)?[0-9a-f]{7,40}\b[^()]{0,72}\)")
+
 # Placeholder basenames used to live here as a private regex. They now live in
 # `illustrative_paths`, because `audit evidence` needed the same notion and a
 # second copy of the list is how the two detectors drift apart — which is the
@@ -136,7 +154,10 @@ def _extract_paths(content: str) -> list[str]:
     flagging them as ``stale_file`` (the file "does not exist") is noise. So are
     tokens ``illustrative_paths`` calls examples rather than citations — a
     conventional placeholder name (``x.py``, ``tests/test_x.py``) or a path
-    anchored to a working directory (``./probe.sh``, ``a/../b.py``).
+    anchored to a working directory (``./probe.sh``, ``a/../b.py``). So is a path
+    followed by a parenthesised commit sha (``bootstrap/generator.py (a6f614a2)``):
+    that is a citation of HISTORY, and see ``_REMOVED_CITATION`` for why it must
+    carry the sha rather than the word.
     """
     from illustrative_paths import is_illustrative
 
@@ -148,6 +169,8 @@ def _extract_paths(content: str) -> list[str]:
             continue  # domain-like head → a URL/host mention, not a repo path
         if is_illustrative(token):
             continue  # example filename in prose, not a real path
+        if _REMOVED_CITATION.match(content[m.end() : m.end() + 128]):
+            continue  # "path (sha)" -- cited as history, gone on purpose
         seen.setdefault(token, None)
     return list(seen)
 

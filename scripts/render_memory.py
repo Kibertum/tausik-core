@@ -220,9 +220,14 @@ def _provenance_debt(svc: Any) -> list[str]:
 def memory_lint_lines(svc: Any, apply: bool = False) -> list[str]:
     result = svc.memory_lint(apply=apply)
     findings = result["findings"]
+    # The SIZE OF THE SUBJECT is printed with every verdict, clean or not. "No
+    # issues found" over a 500-row window of 744 live memories is what this lint
+    # said while ten stale references sat outside it, and nothing in that sentence
+    # could have told the reader.
+    scope = f" Examined {result['examined']} live memory(ies)." if "examined" in result else ""
     if not findings:
         return [
-            "Memory lint: no contradictions, superseded, or stale-file issues found.",
+            f"Memory lint: no contradictions, superseded, or stale-file issues found.{scope}",
             *_provenance_debt(svc),
         ]
     if result["applied"]:
@@ -233,7 +238,7 @@ def memory_lint_lines(svc: Any, apply: bool = False) -> list[str]:
         )
     else:
         head = (
-            f"Memory lint (dry-run): {result['count']} finding(s). "
+            f"Memory lint (dry-run): {result['count']} finding(s).{scope} "
             f"Re-run with `--apply` to archive superseded entries."
         )
     lines = [head]

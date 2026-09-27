@@ -24,4 +24,4 @@ RULE: every subprocess.run() / Popen() in code that may execute inside the MCP p
 
 DETECTION: grep for `subprocess\.(run|Popen)\(` and look for any without `stdin=`. If the call could be reached from a tausik MCP tool handler, fix it. Hooks are lower priority but should follow the same convention.
 
-RELATED FILES PATCHED: scripts/verify_git_diff.py (git log + git diff), scripts/project_service.py (session_metrics spawn), scripts/project_cli_extra.py (git branch --show-current), scripts/skill_manager.py (git pull/clone, pip install).
+RELATED FILES PATCHED: scripts/verify_git_diff.py (git log + git diff), scripts/project_service.py (session_metrics spawn), scripts/project_cli_extra.py (удалён в 48c82ceb) (git branch --show-current), scripts/skill_manager.py (git pull/clone, pip install).

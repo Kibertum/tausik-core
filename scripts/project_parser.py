@@ -485,10 +485,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Delete oldest .tausik/tausik.db.bak.* files keeping the most recent N",
     )
     db_prune.add_argument(
-        "--keep",
-        type=int,
-        default=3,
-        help="Number of most-recent backups to keep (default: 3, 0 = delete all)",
+        "--keep", type=int, default=3, help="Newest MANAGED .bak.v<N> backups to keep (default 3)"
+    )
+    db_prune.add_argument(
+        "--dry-run", dest="dry_run", action="store_true", help="List deletions, delete nothing"
     )
 
     # --- SENAR ops subparsers (delegated; the list lives beside its parsers) ---

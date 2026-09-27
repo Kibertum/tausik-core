@@ -9,6 +9,46 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — memory and tree hygiene: the window of a check, a citation of history, the lifetime of a backup
+
+MEASURED BEFORE: `memory lint` nine findings, `audit_orphan_files` one, `audit_unused_python`
+one, six DB backups holding 508 MiB. MEASURED AFTER: zero, zero, zero, three backups holding
+254 MiB. THREE of those four axes turned out to be detector blindness rather than a wrong record.
+
+**The window of a check.** `memory lint` defaulted to 500 rows while 744 memories were live.
+Ten stale references sat OUTSIDE that window — including the one the task statement named among
+six findings measured half a year earlier: it had disappeared not because anyone fixed it but
+because the ids moved on. The real count was sixteen, not six. `n` now defaults to the whole
+live set, and the verdict prints the size of what it examined next to the number of findings —
+"clean" without the size of the subset is not a fact but an invitation to believe.
+
+**A citation of history.** A record that says "X was deleted" cannot stop naming X, so every
+correct removal reopened the register. An exact marker was introduced: the path, then the commit
+sha in parentheses. Only the SHAPE of the sha is checked, never `git cat-file` — asking git would
+let a broken git turn the detector off silently. A bare "(removed)" does not pass: a claim about
+a removal is worth the commit a reader can open.
+
+**Dynamic import.** `audit_orphan_files` walked the AST and could not see an import by
+name-as-string, so a live CLI module reached only that way from two places was counted an orphan.
+A name built by an expression stays invisible on purpose: it names no single module, and guessing
+one would trade this false positive for a false negative.
+
+**The lifetime of a backup** is now declared by kind. A managed one (`.bak.v<N>`) is written by
+the migration path and pruned by it to three, so it lives for the next three migrations. A
+hand-made one lives for its operation and does not survive `db prune`. Half the weight sat
+outside every rule, the oldest file was thirteen days old, and two were taken BEFORE a secret
+redaction, outliving the redaction together with what it removed. `db prune` meanwhile ranked all
+backups by mtime and kept the newest, which are the hand-made ones: a command whose docstring
+promises to tidy migration leftovers deleted exactly those. `--dry-run` was added, so the one CLI
+command that destroys hundreds of megabytes can be asked first.
+
+**The ratchet** `repo_hygiene` in `tausik/gates.json`: zero stale refs, zero orphans, zero
+unmanaged backups, three managed. The thresholds were taken AFTER the sweep — on the numbers
+before it the ratchet would have frozen the rubbish. Every measure is derived from git-tracked
+material so the threshold means the same thing on a fresh clone, and every measure is paired with
+a proof that the detector still goes red: a threshold over a blind detector is a zero that means
+nothing.
+
 ### Fixed — an edge whose target left is now invalidated, so the orphan sweep converges
 
 MEASURED BEFORE, on 2000 memory rows with 40 orphaned edges, three consecutive sweeps:

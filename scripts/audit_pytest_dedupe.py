@@ -196,13 +196,6 @@ def classify(groups: list[dict[str, Any]], repo_root: Path) -> list[dict[str, An
     return groups
 
 
-def count_copies(repo_root: Path) -> tuple[int, int]:
-    """(groups that are copies, tests inside them)."""
-    groups = classify(collect_duplicates(repo_root), repo_root)
-    copies = [g for g in groups if g["verdict"] == COPY]
-    return len(copies), sum(len(g["members"]) for g in copies)
-
-
 def render_markdown(groups: list[dict[str, object]]) -> str:
     lines = ["# pytest dedupe audit (`tests/`)\n"]
     if not groups:
