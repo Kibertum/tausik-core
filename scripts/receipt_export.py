@@ -15,6 +15,23 @@ embedded key and compare the fingerprint against an out-of-band channel
 (`tausik key show`, PR description, CI variable). Trust anchoring is
 deliberately out of scope — the artifact proves integrity, the
 fingerprint comparison proves origin.
+
+AND THAT CAVEAT USED TO STOP HERE, in a docstring the person running the command
+never reads. MEASURED: a receipt for a task nobody ran, signed with a key generated
+three lines earlier and embedded in the artifact, came back `VALID ed25519 signature`
+with exit code 0. The paragraph above was right and the verdict did not carry it.
+
+So the verdict now distinguishes the two facts it was conflating:
+
+  * INTEGRITY — the signature matches the key in the file. Real and useful: the
+    payload was not edited after signing. Says nothing about who signed.
+  * ORIGIN — the signature matches a key the VERIFIER chose, passed explicitly or
+    found in a local keystore. Only this answers "is this receipt ours".
+
+`verify_export` returns both, and integrity-only leaves the CLI with a non-zero exit
+so a pipeline using it as a gate fails closed rather than accepting a forgery. A key
+that travels with what it certifies is not a root of trust, and a tool that prints
+otherwise is worse than one that refuses.
 """
 
 from __future__ import annotations
@@ -66,13 +83,21 @@ def verify_export(
     data: Any,
     *,
     public: bytes | None = None,
-) -> tuple[bool, str]:
-    """(valid, detail) for a parsed export artifact — no DB, no keystore.
+) -> tuple[bool, str, bool]:
+    """(valid, detail, trusted_key) for a parsed export artifact — no DB, no keystore.
 
-    Key resolution: explicit `public` overrides the embedded key (use it
-    when the verifier got the key out-of-band and distrusts the file).
-    Structural defects raise ExportError so callers can distinguish
-    "garbage file" (exit 2) from "real artifact, bad signature" (exit 1).
+    `trusted_key` is the third value and the point of this function: True when the key
+    came from the CALLER, False when it came out of the artifact. It describes the
+    key's PROVENANCE, not the outcome — an explicit key with a bad signature is still
+    a decided question, and reporting it as undecided would hide a real refusal.
+
+    With the embedded key the signature still proves the payload was not edited, and
+    proves nothing about who signed it: a forged receipt carrying its own fresh key
+    verifies perfectly.
+
+    Key resolution: explicit `public` overrides the embedded key. Structural defects
+    raise ExportError so callers can distinguish "garbage file" (exit 2) from "real
+    artifact, bad signature" (exit 1).
     """
     if not isinstance(data, dict) or data.get("export") != EXPORT_SCHEMA:
         raise ExportError(f"not a {EXPORT_SCHEMA} artifact")
@@ -80,6 +105,7 @@ def verify_export(
     if not isinstance(envelope, dict):
         raise ExportError("artifact has no envelope")
 
+    trusted_key = public is not None
     if public is None:
         raw_key = data.get("public_key")
         if not isinstance(raw_key, str) or not raw_key.startswith("ed25519:"):
@@ -95,6 +121,23 @@ def verify_export(
     import crypto_sign
 
     fp = crypto_keys.fingerprint(public)
-    if crypto_sign.verify_receipt(envelope, public=public):
-        return True, f"VALID ed25519 signature (key {fp})"
-    return False, f"INVALID signature against key {fp} — payload or signature modified"
+    if not crypto_sign.verify_receipt(envelope, public=public):
+        # `trusted_key` stays whatever it was: it describes where the key CAME FROM,
+        # not whether the signature matched. Collapsing it to False on a bad signature
+        # would say "origin unchecked" about a check the caller explicitly asked for.
+        return (
+            False,
+            f"INVALID signature against key {fp} — payload or signature modified",
+            trusted_key,
+        )
+    if trusted_key:
+        return True, f"VALID ed25519 signature against the key you supplied (key {fp})", True
+    return (
+        True,
+        f"INTEGRITY ONLY — the signature matches the key INSIDE the file (key {fp}). "
+        "That proves the payload was not edited after signing, and nothing about who "
+        f"signed it: anyone can sign a fabricated receipt with their own key. To prove "
+        f"origin, compare {fp} with `tausik key show` on the issuing project, or re-run "
+        "with --pub.",
+        False,
+    )

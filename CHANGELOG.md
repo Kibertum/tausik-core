@@ -9,6 +9,48 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a forged receipt no longer verifies, and the offline path is documented and enforced
+
+README promised a receipt can be verified offline. The path existed and worked. What
+did not exist was any way for a reader to check that claim — `docs/en/no-sdk-verify.md`
+documented only the HTTP service and did not contain the word "offline" — and, far
+worse, the verdict the command printed was wrong about what it had proven.
+
+MEASURED, and it is the finding of this task: a receipt for a task nobody ran, signed
+with a key generated three lines earlier and embedded in the artifact, came back
+`VALID ed25519 signature` with **exit code 0**. `verify_export` fell back to the key
+inside the file. A key that travels with what it certifies is not a root of trust.
+
+THE PROJECT ALREADY KNEW, in three places, none of which reached the person running the
+command: the module docstring ("trust anchoring is deliberately out of scope"), the
+trust-model section of the docs ("never trust a fingerprint embedded in the same
+artifact you are verifying"), and a comment in the test itself ("self-consistent forge:
+valid"). The doctrine was right. The verdict was wrong.
+
+`verify_export` now returns a third value, `trusted_key`, true only when the key came
+from the CALLER. It describes the key's provenance rather than the outcome, so an
+explicit key with a bad signature stays a decided question instead of being reported as
+unchecked. The default verdict reads INTEGRITY ONLY and says what that does and does not
+prove.
+
+**Breaking, deliberately: three exit codes instead of two.** `0` verified against your
+key, `1` bad signature, `3` integrity without origin, `2` not an artifact. Exit `3` is
+the point — `tausik receipt verify r.json && deploy` now fails closed instead of
+deploying on a forgery. A message a human can read is not a gate; the exit code is.
+`POST /receipt/verify` carries the same field in its answer.
+
+Offline is enforced by an import-graph walk rather than asserted: from four entry points
+across every in-repo import, including function-local ones, looking for eighteen
+transports. Five modules in the graph, zero transports — and ed25519 is implemented here
+on `hashlib` alone, so there is no dependency that could reach the network on its behalf.
+Six mutations prove the guard has teeth, including a transport planted two hops away,
+which is why it is a graph and not a grep.
+
+Both READMEs now distinguish integrity from origin, and both no-SDK pages gained an
+offline section ahead of the HTTP one, with the exit-code table and the reason exit `3`
+exists.
+
+
 ### Fixed — the release branch's CI was red for seventeen hours, and none of it was a code defect
 
 MEASURED: nine of the last ten pipelines on the working branch had failed — every push

@@ -64,7 +64,7 @@ This is what makes TAUSIK different from every prompt-based ruleset.
 
 - **`tausik verify` emits an ed25519-signed receipt** (`tausik-signed/v1`) bound to the exact gate signature and the HEAD commit sha.
 - **`task done` validates that receipt before it lets the task close.** A green that wasn't actually produced — or was produced for a different commit — fails the check.
-- **Receipts are portable.** Export one and verify it offline with no SDK, via a stateless HTTP endpoint or the no-SDK example.
+- **Receipts are portable.** Export one and check it offline with no SDK and no network — `tausik receipt verify <file>`, or the no-SDK example, or a stateless HTTP endpoint. Offline gets you INTEGRITY: the payload was not edited after signing. For ORIGIN, pass the issuing project's key (`--pub`, from `tausik key show`) or compare the fingerprint out of band — a key that travels inside the receipt proves nothing about who made it, and the command says so and exits non-zero rather than calling it verified.
 - **Skill and stack releases are signed too** — installs verify the signature before writing anything to disk.
 
 **What this means for you:** when an agent tells you the build is green, you don't have to believe it. You have a signed receipt that proves it — or proves it lied.
@@ -128,7 +128,7 @@ Those are **suggestions** — text the agent reads and is free to ignore the mom
 ## What's inside
 
 - **Lifecycle & gates** — Epic → Story → Task with a state machine; QG-0 at start, QG-2 at close, both fail-closed.
-- **Verifiable trust** — ed25519 signed verification receipts, offline-checkable, with supply-chain signing for skills and stacks.
+- **Verifiable trust** — ed25519 signed verification receipts, checkable offline for integrity and against your own key for origin, with supply-chain signing for skills and stacks.
 - **Project memory** — SQLite + FTS5 store of decisions, patterns, conventions and dead ends, re-injected every session.
 - **A shared knowledge base** — one file per person, not per project. `--global` puts a pattern or a dead end where the NEXT project will find it; search reads both stores. It never leaves this machine, and it has a backup that stays here too. **[How it differs from project memory →](docs/en/knowledge-store.md)**
 - **Real-time discipline rails** — hooks for the no-code-without-a-task gate, a bash firewall, a single-use push ticket, and auto-format.

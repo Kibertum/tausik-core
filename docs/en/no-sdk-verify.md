@@ -7,6 +7,41 @@ stateless HTTP endpoint; anything that can speak JSON over HTTP — a GPT-based
 agent, a Jenkins job, a bash script — can submit gate results and get back a
 **signed, portable receipt** (`tausik-signed/v1`, ed25519).
 
+## Offline verification: no network, no SDK, no service
+
+The HTTP endpoint below is for ISSUING receipts from anything that speaks JSON.
+CHECKING one needs neither a service nor a network:
+
+```bash
+tausik receipt export <task-slug>            # writes .tausik/receipts/<slug>-<sha>.json
+tausik receipt verify .tausik/receipts/x.json          # integrity, offline
+tausik receipt verify x.json --pub ed25519:<64 hex>    # integrity AND origin
+```
+
+The verification path imports no transport — not `socket`, `urllib`, `http`, `ssl`
+or any client library, and nothing two hops away does either. ed25519 is implemented
+in this repository on `hashlib` alone, so there is no dependency that could reach the
+network on its behalf. That is enforced by an import-graph walk in
+`tests/test_receipt_offline_graph.py`, which fails the build if a transport appears
+anywhere in the graph; the same test proves it has teeth by planting one.
+
+### Three exit codes, because there are three answers
+
+| Exit | Meaning |
+|---|---|
+| `0` | VALID against the key YOU supplied — integrity and origin both proven |
+| `1` | INVALID signature — the payload or the signature was modified |
+| `3` | INTEGRITY ONLY — the signature matches the key inside the file |
+| `2` | the file is not a `tausik-receipt-export/v1` artifact at all |
+
+Exit `3` is the one to understand. Without `--pub` the only key available is the one
+travelling inside the receipt, and anyone can sign a fabricated receipt with a key
+they made a second ago. The signature check still means something — the payload was
+not edited after signing — but it says nothing about who signed. So a pipeline
+written as `tausik receipt verify r.json && deploy` fails closed instead of deploying
+on a forgery, and the message names the two ways to get a real verdict: pass `--pub`,
+or compare the printed fingerprint with `tausik key show` on the issuing project.
+
 ## Quickstart
 
 ```bash

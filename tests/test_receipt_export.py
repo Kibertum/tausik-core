@@ -56,16 +56,21 @@ class TestBuildAndWrite:
         assert export["export"] == EXPORT_SCHEMA
         assert export["public_key"] == f"ed25519:{public.hex()}"
         assert export["key_fingerprint"] == env["signature"]["key_fingerprint"]
-        valid, detail = verify_export(export)  # embedded key only — no keystore
-        assert valid is True and "VALID" in detail
+        valid, detail, origin = verify_export(export)  # embedded key only — no keystore
+        assert valid is True
+        # INTEGRITY, not origin. With only the key inside the file this says the
+        # payload was not edited; who signed it is unproven, and the third value is
+        # what carries that distinction out to the caller.
+        assert origin is False
+        assert "INTEGRITY ONLY" in detail
 
     def test_roundtrip_through_file(self, keyed_project, tmp_path):
         env = _envelope(keyed_project)
         export = build_export(env, crypto_keys.load_public(keyed_project))
         path = write_export(export, str(tmp_path / "out" / "r.json"))
         data = json.loads(open(path, encoding="utf-8").read())
-        valid, _ = verify_export(data)
-        assert valid is True
+        valid, _detail, origin = verify_export(data)
+        assert valid is True and origin is False
 
     def test_default_path_shape(self, keyed_project):
         env = _envelope(keyed_project, slug="task/a b", git_sha="f" * 40)
@@ -86,8 +91,9 @@ class TestVerify:
         env = _envelope(keyed_project)
         export = build_export(env, crypto_keys.load_public(keyed_project))
         export["envelope"]["receipt"]["passed"] = False
-        valid, detail = verify_export(export)
+        valid, detail, origin = verify_export(export)
         assert valid is False and "INVALID" in detail
+        assert origin is False, "a bad signature proves no origin either"
 
     def test_swapped_embedded_key_invalid(self, keyed_project, tmp_path_factory):
         # Attacker re-embeds their own key but keeps the original signature
@@ -95,7 +101,7 @@ class TestVerify:
         crypto_keys.init_keys(other)
         env = _envelope(keyed_project)
         export = build_export(env, crypto_keys.load_public(other))
-        valid, _ = verify_export(export)
+        valid, _detail, _origin = verify_export(export)
         assert valid is False
 
     def test_explicit_pub_overrides_embedded(self, keyed_project, tmp_path_factory):
@@ -104,10 +110,20 @@ class TestVerify:
         crypto_keys.init_keys(other)
         env_other = _envelope(other)
         export = build_export(env_other, crypto_keys.load_public(other))
-        valid, _ = verify_export(export)  # self-consistent forge: valid
+        # THE FORGERY IS THE POINT, and it used to end here with `valid is True`.
+        # Taken from the shipped command: a receipt for a task nobody ran, signed
+        # with a key made three lines earlier, printed "VALID ed25519 signature" and
+        # exited 0. The signature check is not wrong -- the WORD was. So the forge
+        # still verifies, and now says out loud that origin is unproven.
+        valid, detail, origin = verify_export(export)
         assert valid is True
-        valid, _ = verify_export(export, public=crypto_keys.load_public(keyed_project))
+        assert origin is False, "a key that travels with the receipt proves no origin"
+        assert "INTEGRITY ONLY" in detail and "anyone can sign" in detail
+        valid, _detail, origin = verify_export(
+            export, public=crypto_keys.load_public(keyed_project)
+        )
         assert valid is False  # but not against OUR out-of-band key
+        assert origin is True, "the caller supplied the key, so origin WAS decided"
 
     @pytest.mark.parametrize(
         "garbage",
