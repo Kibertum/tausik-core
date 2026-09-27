@@ -64,6 +64,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "test",
         "ship",
         "debug",
+        "run",
     ],
     "extension_skills": [],
     "installed_skills": [],

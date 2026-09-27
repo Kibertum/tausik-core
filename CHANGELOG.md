@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `/run`, the driver that makes autonomy a mechanism instead of a request
+
+TAUSIK promised autonomous execution and implemented it as an INSTRUCTION: CLAUDE.md asked
+the agent to keep going. The project's own doctrine says what that is worth — a rule that
+is only asked for gets switched off the same week — and the measurement agrees: 22 tasks
+closed in one session, 4 of them from the plan that existed beforehand, with the owner
+asking four times not to stop.
+
+The mechanism turned out to exist already, in a project built on an older TAUSIK, as a
+skill that walks a plan file and closes tasks in one turn. Three things are done
+differently here. The source of truth is the release composition IN THE DATABASE, not a
+`plan.md` — `task next` already orders by release and declared order, and a file would be a
+second truth. The plan is asked BEFORE EVERY task rather than once, because closing one can
+auto-close a story, unblock a dependant or surface a defect that outranks what looked next.
+And the limit is not five tasks but "while the composition offers one", which is the
+difference between a batch and autonomy.
+
+It arms the call ceiling for the run and reads it after every close through
+`task budget-check`, hard-stops on the first failure without retrying, writes one handoff
+per run, and prints one line between tasks — prose between tasks ends the turn, and ending
+the turn is exactly what it exists to avoid.
+
+Half of its contract is refusals, and they are held by a test rather than by taste: it does
+not choose tasks, does not skip gates, never passes `--force`, is forbidden for work that
+needs the owner's judgement, and does not start the findings it makes — filing one is free,
+starting it is the departure that produced 82% self-filed closures. If that sentence ever
+leaves the text, the build fails.
+
+
 ### Added — the call budget becomes a ceiling in an unattended run, and stays advice otherwise
 
 Interactively an overrun is information: the author sees the warning at close and
