@@ -143,8 +143,14 @@ def test_a_recorded_reason_turns_the_warning_into_a_report(reason, acknowledged)
         td["_auto_verify_reason"] = reason
     out = _run_doctor_capture({"task_done": td}, {})
     line = next(ln for ln in out.splitlines() if "Verify-First profile" in ln)
+    # The marker is read from the module, not spelled out: `doctor` renders "✓"/"!"
+    # where the console takes UTF-8 and "OK"/"WARN" where it does not, so a literal
+    # pins one platform. This test asserted the ASCII pair and therefore passed only
+    # on a console without UTF-8 — red in CI for a release while green on Windows.
+    from project_cli_doctor import GREEN, YELLOW
+
     if acknowledged:
-        assert line.lstrip().startswith("OK") and "chosen: vaflower" in line
+        assert line.lstrip().startswith(GREEN) and "chosen: vaflower" in line
     else:
-        assert line.lstrip().startswith("WARN")
+        assert line.lstrip().startswith(YELLOW)
         assert "task_done._auto_verify_reason" in line

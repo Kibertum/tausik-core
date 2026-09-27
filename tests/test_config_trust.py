@@ -472,11 +472,41 @@ class TestDegradesSafely:
 
 
 class TestPaths:
-    def test_user_path_defaults_under_home(self, monkeypatch):
+    @staticmethod
+    def _home(monkeypatch, tmp_path):
+        """Point `expanduser` at a directory this test owns, on either platform.
+
+        Both variables, because `expanduser` reads HOME on POSIX and USERPROFILE on
+        Windows. Without this the answer depends on what happens to sit in the
+        developer's real home -- which is how the old version of this test passed on
+        a machine with a legacy config and failed in CI on a clean runner, asserting
+        the legacy path while the resolver correctly returned the new one.
+        """
         monkeypatch.delenv("TAUSIK_USER_CONFIG", raising=False)
-        assert ct.user_config_path() == os.path.join(
-            os.path.expanduser("~"), ".tausik", "config.json"
-        )
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        return tmp_path
+
+    def test_the_new_place_is_used_when_neither_file_exists(self, monkeypatch, tmp_path):
+        """A fresh machine gets the new location — the case CI runs on."""
+        home = self._home(monkeypatch, tmp_path)
+        assert ct.user_config_path() == os.path.join(str(home), ".config", "tausik", "config.json")
+
+    def test_the_legacy_file_is_read_only_when_it_is_the_only_one(self, monkeypatch, tmp_path):
+        home = self._home(monkeypatch, tmp_path)
+        legacy = home / ".tausik" / "config.json"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text("{}", encoding="utf-8")
+        assert ct.user_config_path() == str(legacy)
+
+    def test_the_new_place_wins_when_both_exist(self, monkeypatch, tmp_path):
+        """NEGATIVE: the legacy file must not outrank the new one just by existing."""
+        home = self._home(monkeypatch, tmp_path)
+        for rel in ((".tausik", "config.json"), (".config", "tausik", "config.json")):
+            path = home.joinpath(*rel)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}", encoding="utf-8")
+        assert ct.user_config_path() == str(home / ".config" / "tausik" / "config.json")
 
     def test_user_path_env_override_expands_tilde(self, monkeypatch):
         monkeypatch.setenv("TAUSIK_USER_CONFIG", "~/custom.json")

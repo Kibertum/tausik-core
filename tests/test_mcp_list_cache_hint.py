@@ -94,9 +94,17 @@ def test_a_scope_change_mid_session_is_never_served_from_a_cache(scoped_project,
         db.close()
         after = _call(proc, 3, "tools/list")
     finally:
-        proc.stdin.close()
+        # NOT `communicate()` after closing stdin by hand: on Linux that reaches for
+        # the pipe a second time and raises `ValueError: I/O operation on closed
+        # file`, which then REPLACES whatever the test was actually failing on. It
+        # did exactly that in CI, where this test was one of nine keeping the release
+        # branch red while passing on Windows.
+        try:
+            proc.stdin.close()
+        except (OSError, ValueError):
+            pass
         proc.kill()
-        proc.communicate()
+        proc.wait(timeout=10)
 
     for result in (before, after):
         assert result["ttlMs"] == 0

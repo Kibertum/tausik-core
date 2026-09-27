@@ -9,6 +9,45 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the release branch's CI was red for seventeen hours, and none of it was a code defect
+
+MEASURED: nine of the last ten pipelines on the working branch had failed — every push
+of the session — with nine test failures in the `tests` job. Not one of them was a
+defect in the code. Every single one was a test that depended on something CI does not
+have, or has differently.
+
+AND THAT RED HID A WHOLE CLASS. Stages run in order, so `tests-full` — the only job
+that reaches slow-marked tests — sat SKIPPED behind the failing stage on all of them.
+That is how two deterministically broken tests survived a release: deselected locally,
+never reached in CI. One unread failure blocked the lane that would have caught them.
+
+THE SPLIT, and it explains the platform disagreement. Four were platform or encoding:
+the frozen `ruff_format` list, the user-config path, the doctor's markers, and a
+subprocess teardown. Two were machine data — my own response-size tests read the LIVE
+database, which on a fresh clone answers "No results.", so an assertion compared eleven
+characters with eleven. One was an artefact untracked by design.
+
+THE FROZEN LIST EXPLAINED ALL OF IT. Nine files had MIXED line endings in the working
+copy — CRLF plus stray LF — and ruff calls mixed endings unformatted, so locally they
+legitimately sat in the list and the gate was green. Git normalises on commit, so in CI
+the file is uniform and formatted, and the list was nine entries stale. The stray LFs
+came from tooling writing with `newline=""` into a CRLF tree: tool damage, not
+authorship. Endings normalised, list shrunk 110 → 101 as decision #386 requires.
+
+Nothing was disabled to get green. The path test became three tests driving HOME
+themselves, and the old one had passed only because this machine happens to hold a
+legacy config. The marker test now reads `GREEN`/`YELLOW` from the module instead of
+spelling one platform's rendering, since doctor prints "✓"/"!" where the console takes
+UTF-8 and "OK"/"WARN" where it does not. The teardown stopped calling `communicate()`
+after closing stdin by hand, which on Linux raises and REPLACES the real failure. The
+size tests build their own sixty rows, and the headroom check now compares the ceiling
+with the measurement recorded beside it — because headroom is a property of that pair,
+not of whatever database the machine holds. Where no measurement was recorded, its
+absence is declared rather than invented.
+
+Full local suite: 11491 passed, 22 skipped, 0 failed with `-m ''`.
+
+
 ### Added — the lane that actually gates the work is read at the push chokepoint
 
 `push-ok` already reported the PUBLISHED lane, and it was telling the truth about the

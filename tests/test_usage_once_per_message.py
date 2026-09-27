@@ -73,8 +73,28 @@ _B = os.path.join(_ROOT, "docs", "ru", "research", "_internal", "rag-replay", "2
 
 
 def test_the_replay_transcript_of_session_263_meters_the_deduplicated_sum():
-    sha_line = open(os.path.join(_B, "transcript.sha256"), encoding="utf-8").read().split()
-    usage = json.load(open(os.path.join(_B, "usage.json"), encoding="utf-8"))
+    """The recorded replay, when this machine is the one that recorded it.
+
+    The guard used to sit one step too late: it checked for the transcript and opened
+    the MANIFEST that names it without checking anything. `docs/ru/research/_internal`
+    is untracked by design, so in CI the open raised FileNotFoundError instead of
+    skipping, and this failure was one of nine that kept the release branch red — and
+    a red test stage never lets the full-battery stage start, so it also hid every
+    slow-marked test behind it.
+
+    Skipping here is honest rather than convenient: the assertion is about one
+    specific transcript's bytes, which exist on one machine. What is NOT acceptable is
+    an error that reads as a broken suite.
+    """
+    manifest = os.path.join(_B, "transcript.sha256")
+    usage_path = os.path.join(_B, "usage.json")
+    for needed in (manifest, usage_path):
+        if not os.path.isfile(needed):
+            pytest.skip(
+                f"{os.path.basename(needed)} is absent — `_internal` is untracked by design"
+            )
+    sha_line = open(manifest, encoding="utf-8").read().split()
+    usage = json.load(open(usage_path, encoding="utf-8"))
     name = sha_line[1]
     path = None
     base = os.path.expanduser("~/.claude/projects")
