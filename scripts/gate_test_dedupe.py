@@ -38,7 +38,15 @@ from typing import Any
 #: would make every existing duplicate a violation the day the file is lost —
 #: a red gate on a repo nobody changed. `None` is the third state: the baseline
 #: was not read, which is neither "no debt" nor a verdict about the tests.
+#: `copies` was added when the shape count was measured and found not to mean what
+#: the gate said. 284 of 286 groups (99.3%) differ in the very parts the signature
+#: erases, so the shape numbers are a DECLARED REMAINDER about similarity, while
+#: `copies` -- members that are literally the same code -- is the number that
+#: reddens. A baseline predating this key keeps working: a missing `copies` reads
+#: as zero, which is the measured truth here and the safe reading elsewhere,
+#: because growth above zero still reddens.
 _BASELINE_KEYS = ("groups", "tests")
+_COPIES_KEY = "copies"
 
 
 def _repo_root() -> str:
@@ -102,7 +110,10 @@ def load_baseline(repo_root: str | None = None) -> dict[str, int] | None:
         return None
     if not all(isinstance(baseline.get(k), int) for k in _BASELINE_KEYS):
         return None
-    return {k: int(baseline[k]) for k in _BASELINE_KEYS}
+    out = {k: int(baseline[k]) for k in _BASELINE_KEYS}
+    raw = baseline.get(_COPIES_KEY, 0)
+    out[_COPIES_KEY] = int(raw) if isinstance(raw, int) else 0
+    return out
 
 
 def measure(repo_root: str | None = None) -> tuple[int, int, list[dict[str, Any]]]:
@@ -111,7 +122,10 @@ def measure(repo_root: str | None = None) -> tuple[int, int, list[dict[str, Any]
 
     from audit_pytest_dedupe import collect_duplicates
 
-    groups: list[dict[str, Any]] = collect_duplicates(Path(repo_root or _repo_root()))
+    from audit_pytest_dedupe import classify
+
+    root = Path(repo_root or _repo_root())
+    groups: list[dict[str, Any]] = classify(collect_duplicates(root), root)
     members = sum(len(list(g["members"])) for g in groups)
     return len(groups), members, groups
 
@@ -163,9 +177,10 @@ def run_test_dedupe_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
             "existing debt from new, so it refuses rather than guess."
         )
 
+    copies = [g for g in groups if g.get("verdict") == "copy"]
     grew = [
         f"{key}: {value} > baseline {baseline[key]}"
-        for key, value in (("groups", groups_n), ("tests", tests_n))
+        for key, value in (("groups", groups_n), ("tests", tests_n), (_COPIES_KEY, len(copies)))
         if value > baseline[key]
     ]
     if grew:

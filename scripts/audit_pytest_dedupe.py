@@ -1,9 +1,15 @@
 """Static pytest duplicate-scenario audit (v14-pytest-dedupe-audit).
 
 Stdlib-only AST analyzer. Groups test functions whose **structure** is
-identical (modulo names, strings, and numeric literals). Used to surface
-copy-paste tests that don't exercise new behaviour — catching the
-``testing-principles`` antipattern (see docs/{en,ru}/testing-principles.md).
+identical (modulo names, strings, and numeric literals), then gives each group a
+VERDICT: a ``COPY`` is literally the same code, a ``PARALLEL`` differs in the parts
+the signature erased.
+
+The verdict exists because the grouping alone was read as copy-paste debt for three
+releases and MEASURED wrong 99.3% of the time: 284 of 286 groups were one contract
+exercised on different inputs, which is what a suite is supposed to look like. The
+shape count measures SIMILARITY; only ``COPY`` measures duplication, and only that
+number backs the ``test_dedupe`` gate (see docs/{en,ru}/testing-principles.md).
 
 Run::
 
@@ -22,6 +28,7 @@ import ast
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 # Test scenarios that are *expected* to share structure (parametrized
 # variants on the same path) — listed here so review can ignore them.
@@ -129,6 +136,73 @@ def collect_duplicates(repo_root: Path) -> list[dict[str, object]]:
     return groups
 
 
+#: The two verdicts a machine is entitled to reach about a group.
+#:
+#: The shape count never told duplication from similarity: a group whose members
+#: differ in the parts the signature erases -- names, strings, numbers -- is one
+#: contract exercised on different inputs, which is what a suite is supposed to look
+#: like. Only a group whose members are literally the same code is a copy, and that is
+#: the number worth a gate. The numbers behind this are in the module docstring.
+#:
+#: A third category, a template asserting nothing, has no verdict here because there
+#: is nothing for it to report: no test in this suite is unable to fail, and that is
+#: held by tests/test_gate_test_dedupe.py rather than claimed in a comment.
+COPY = "copy"
+PARALLEL = "parallel"
+
+
+def _qualified_bodies(path: Path) -> dict[str, str]:
+    """`Class.method` / `func` -> its source, unparsed so formatting cannot differ."""
+    out: dict[str, str] = {}
+
+    def walk(node: ast.AST, prefix: str = "") -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                walk(child, f"{prefix}{child.name}.")
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                out[f"{prefix}{child.name}"] = ast.unparse(child)
+
+    walk(ast.parse(path.read_text(encoding="utf-8")))
+    return out
+
+
+def classify(groups: list[dict[str, Any]], repo_root: Path) -> list[dict[str, Any]]:
+    """Attach a verdict to every group, in place, and return the groups.
+
+    Unparsed source is compared rather than raw text, so whitespace, comments and
+    line wrapping cannot make two copies look different. The function's own name is
+    blanked first: two tests are not distinguishable merely by being called
+    different things -- a name is a promise, not a check.
+    """
+    cache: dict[str, dict[str, str]] = {}
+    for group in groups:
+        bodies: list[str | None] = []
+        for member in group["members"]:
+            rel = str(member["file"])
+            if rel not in cache:
+                try:
+                    cache[rel] = _qualified_bodies(repo_root / rel)
+                except (OSError, SyntaxError):
+                    cache[rel] = {}
+            text = cache[rel].get(str(member["name"]))
+            short = str(member["name"]).rsplit(".", 1)[-1]
+            bodies.append(text.replace(short, "F", 1) if text else None)
+        readable = [b for b in bodies if b is not None]
+        # A group we could not read is NOT called a copy: an unreadable file must
+        # never turn into a claim about the tests inside it.
+        group["verdict"] = (
+            COPY if len(readable) == len(bodies) and len(set(readable)) == 1 else PARALLEL
+        )
+    return groups
+
+
+def count_copies(repo_root: Path) -> tuple[int, int]:
+    """(groups that are copies, tests inside them)."""
+    groups = classify(collect_duplicates(repo_root), repo_root)
+    copies = [g for g in groups if g["verdict"] == COPY]
+    return len(copies), sum(len(g["members"]) for g in copies)
+
+
 def render_markdown(groups: list[dict[str, object]]) -> str:
     lines = ["# pytest dedupe audit (`tests/`)\n"]
     if not groups:
@@ -139,10 +213,31 @@ def render_markdown(groups: list[dict[str, object]]) -> str:
             f"{len(groups)} group(s) of structurally identical test functions "
             f"(total {total} tests). **Review only — do not auto-delete.**\n"
         )
+        # ABSENCE is reported as absence, never as zero. A caller that skipped
+        # `classify` gets "not computed" instead of "0 copy", because a report
+        # claiming no copies because nobody looked is the failure this verdict was
+        # added to end.
+        if all("verdict" in g for g in groups):
+            copies = sum(1 for g in groups if g["verdict"] == COPY)
+            headline = f"Verdicts: **{copies} copy**, {len(groups) - copies} parallel."
+        else:
+            headline = (
+                "Verdicts: **not computed** — these groups were never passed through "
+                "`classify`, so this report says nothing about copies."
+            )
+        lines.append(
+            headline + " A COPY is "
+            "literally the same code under two names; a PARALLEL differs in the parts "
+            "the signature erases, which is one contract on different inputs. The "
+            "verdict is WRITTEN here rather than left to the reader, because a report "
+            "that only counts groups has been read as duplication debt for three "
+            "releases and was wrong about it 99.3% of the time.\n"
+        )
         for i, g in enumerate(groups, 1):
-            members = g["members"]
-            lines.append(f"## Group {i} (sig `{g['signature']}`, {len(members)} tests)")  # type: ignore[arg-type]
-            for m in members:  # type: ignore[attr-defined]
+            members: list[dict[str, Any]] = g["members"]  # type: ignore[assignment]
+            verdict = str(g.get("verdict", "unclassified")).upper()
+            lines.append(f"## Group {i} — {verdict} (sig `{g['signature']}`, {len(members)} tests)")
+            for m in members:
                 lines.append(f"- `{m['file']}:{m['lineno']}` — `{m['name']}`")
             lines.append("")
     lines.append("## Documented false positives\n")
@@ -159,6 +254,12 @@ def render_markdown(groups: list[dict[str, object]]) -> str:
     lines.append(
         "- Parametrize candidates: groups whose members differ only in a "
         "single literal can usually collapse into one parametrised test."
+    )
+    lines.append(
+        "- A template that asserts nothing would be the dangerous category, and it "
+        "is EMPTY here: of 7829 test functions none is unable to fail (no empty "
+        "body, no assertion on a constant, no test without any call). Measured, not "
+        "assumed -- the check is in `tests/test_gate_test_dedupe.py`."
     )
     if KNOWN_FALSE_POSITIVES:
         lines.append("- Allowlist (annotation only):")
@@ -192,7 +293,10 @@ def main(argv: list[str] | None = None) -> int:
             here,
         )
 
-    groups = collect_duplicates(root)
+    # Classified here, not defaulted in the renderer: a report that prints
+    # "0 copy" because nobody computed a verdict is indistinguishable from one
+    # that checked and found none.
+    groups = classify(collect_duplicates(root), root)
     if args.json:
         print(json.dumps({"groups": groups}, indent=2))
     else:

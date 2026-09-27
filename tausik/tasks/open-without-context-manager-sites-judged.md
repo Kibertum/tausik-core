@@ -34,3 +34,5 @@ Each of the 125 open() calls SIM115 finds is either put under a context manager 
 git revert
 
 ## Journal
+
+- 2026-09-27T10:38:53Z [planning] — ПРЕДВАРИТЕЛЬНЫЙ ЗАМЕР (смена #277, до старта): SIM115 open() без контекстного менеджера — 128, в постановке 125. Расхождение +3 от правок последних смен, а не ошибка постановки.

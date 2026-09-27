@@ -302,11 +302,22 @@ task's Python files. Files that diverged when it landed are frozen in `tausik/ga
 → `ruff_format.legacy_unformatted` and skipped; the list only shrinks — format a listed file
 and remove it from the list in the same change (decision #386).
 
-The `test_dedupe` gate (block, on task-done and commit) reddens on GROWTH in
-structurally indistinguishable tests. The baseline is a ratchet in the committed
-`tausik/gates.json`, so existing debt blocks nobody. The subject is
+The `test_dedupe` gate (block, on task-done and commit) reddens on GROWTH in COPIES
+— tests that are the same code once formatting, comments and the function's own name
+are set aside. The baseline is a ratchet in the committed `tausik/gates.json`
+(`groups`/`tests`/`copies`), so existing debt blocks nobody. The subject is
 DISTINGUISHABILITY, not count: the gate never measures how many tests exist, so
-deleting tests can never satisfy it. Full per-group report:
+deleting tests can never satisfy it.
+
+The `groups`/`tests` numbers are a DECLARED REMAINDER about similarity, not
+copy-paste debt. Measured: of 286 groups, 284 (99.3%) differ in exactly the parts the
+signature erases — names, strings, numbers — which is one contract exercised on
+different inputs. So `copies` is what reddens, not shape. A baseline without the
+`copies` key reads as zero: a project that adopted the ratchet earlier gains the
+check rather than losing one.
+
+The report prints a verdict beside EVERY group (`COPY` or `PARALLEL`) — the verdict
+is written down, not left to the reader. Full per-group report:
 
 ```bash
 python scripts/audit_pytest_dedupe.py            # markdown report by group

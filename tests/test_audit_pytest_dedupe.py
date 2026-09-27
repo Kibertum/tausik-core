@@ -154,3 +154,42 @@ class TestCli:
         r = _run_audit_script(REPO)
         assert r.returncode == 0
         assert "pytest dedupe audit" in r.stdout
+
+
+class TestAnUncomputedVerdictIsNotZero:
+    """A report that says "0 copy" because nobody classified is the bug, not the fix.
+
+    The verdict was added because the shape count had been read as duplication debt
+    for three releases. Letting a missing verdict default to "copy: 0" would rebuild
+    exactly that: a confident number nobody computed. So absence is printed as
+    absence.
+    """
+
+    GROUP = {
+        "signature": "sig-x",
+        "members": [
+            {"name": "test_a", "file": "x.py", "lineno": 1},
+            {"name": "test_b", "file": "y.py", "lineno": 2},
+        ],
+    }
+
+    def test_groups_without_a_verdict_say_not_computed(self):
+        out = render_markdown([dict(self.GROUP)])
+        assert "not computed" in out
+        assert "0 copy" not in out
+        assert "UNCLASSIFIED" in out
+
+    def test_groups_with_a_verdict_report_the_count(self):
+        out = render_markdown([{**self.GROUP, "verdict": "parallel"}])
+        assert "**0 copy**, 1 parallel" in out
+        assert "not computed" not in out
+
+    def test_one_group_missing_a_verdict_withholds_the_whole_count(self):
+        """Partial knowledge is not a count. Mixing them would understate copies.
+
+        A run where one group could not be classified cannot honestly report a total,
+        because the missing one might have been the copy.
+        """
+        out = render_markdown([{**self.GROUP, "verdict": "copy"}, dict(self.GROUP)])
+        assert "not computed" in out
+        assert "1 copy" not in out

@@ -9,6 +9,50 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the duplicate-test ratchet now measures duplication instead of similarity
+
+The detector had grouped tests by AST shape for three releases and the number was
+read as copy-paste debt. MEASURED, and the premise does not hold: of 286 groups, 284
+(99.3%) differ in exactly the parts the signature erases — names, strings, numbers.
+That is one contract exercised on different inputs, which is what a test suite is
+supposed to look like. Two groups held literally the same code.
+
+So the threshold moved rather than the test suite, which is the outcome this task's
+own AC-7 asked for at anything above 80% parallels. `tausik/gates.json` gained a
+`copies` key — members that are the same code once formatting, comments and the
+function's own name are set aside — and that is the number that reddens. The shape
+counts stay as a declared remainder about similarity, no longer dressed as
+duplication. A baseline predating the key reads `copies` as zero, so an older project
+gains the check instead of losing one.
+
+THE DANGEROUS CATEGORY WAS MEASURED AND IS EMPTY. Of 7829 test functions, none is
+unable to fail: no empty body, no assertion on a constant, no test without any call.
+That zero is now held by a gate rather than written in a report, and the scanner that
+produces it has a positive half — four shapes of hollow test it must recognise —
+because a scanner returning "none found" while recognising nothing is the same bug one
+level up.
+
+THE TWO LITERAL COPIES TURNED OUT TO BE ONE DEFECT, and not the one the task
+expected: in both, the test's NAME promised a property its body never checked.
+`test_unreadable_transcript_yields_unknown` passed a path that did not exist, making
+it byte-identical to the missing-path test in another file — so "present but
+unreadable" was never covered at all. `test_fallback_skipped_when_no_verify_row`
+could not differ from the enforcement test it duplicated, because with no verify row
+"no row" and "fallback skipped" are indistinguishable by construction.
+
+Both were fixed by ADDING coverage rather than deleting a test: the first now passes a
+directory, the portable way to make an existing path unreadable; the second was renamed
+and now records a green verify row belonging to ANOTHER task, so the fallback is
+entered and its rejection is asserted. Zero tests removed, so the coverage proof AC-5
+demands is arithmetic rather than a run.
+
+Badge: 10146 → 11472, the number pytest actually collects, repaired by
+`gen_doc_constants.py --write` across README.md, README.ru.md and AGENTS.md. The drift
+scan had been honestly green — `test_count` is a lower bound by decision #182 and only
+an overclaim is drift — so the badge was not a lie, merely 1326 behind and useless as a
+measure of scale.
+
+
 ### Fixed — a standard's name can no longer launder a project date
 
 Found by an adversarial review of the commit that added the spec-date rule, and it

@@ -1,7 +1,7 @@
 ---
 slug: release110-verification-is-cheap
 title: "1.10 A. Проверка соразмерна правке: ад тестов лечится механизмом — стоимость ленты, дубли, немые отказы, ноты закрытия"
-status: active
+status: done
 epic: release-110-deferred-from-19
 ---
 

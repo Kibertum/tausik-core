@@ -34,3 +34,5 @@ Each of the 79 try/except/pass-or-continue sites ruff S110/S112 finds is either 
 git revert
 
 ## Journal
+
+- 2026-09-27T10:38:52Z [planning] — ПРЕДВАРИТЕЛЬНЫЙ ЗАМЕР (смена #277, до старта): S110 try-except-pass — 72, S112 try-except-continue — 7, итого 79. Совпадает с числом в постановке.

@@ -1,7 +1,7 @@
 ---
 slug: "683-structurally-identical-tests-in-294-groups"
 title: "683 структурно одинаковых теста в 294 группах: тестов много, а сколько из них разные — неизвестно"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-verification-is-cheap
 complexity: complex
@@ -12,14 +12,27 @@ call_budget: 70
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/audit_pytest_dedupe.py"
+  - "scripts/gate_test_dedupe.py"
+  - "tests/test_gate_test_dedupe.py"
+  - "tests/test_audit_pytest_dedupe.py"
+  - "tests/test_verify_first_contract.py"
+  - "tests/test_task_start_model_banner.py"
+  - "tausik/gates.json"
 scope_paths:
   - "tests/**"
   - "scripts/audit_pytest_dedupe.py"
-  - "docs/ru/*.md"
+  - "scripts/gate_test_dedupe.py"
+  - "docs/**"
+  - "tausik/gates.json"
+  - README.md
+  - README.ru.md
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-27T10:49:36Z"
 resolution: null
 resolution_reason: null
 ---
@@ -45,3 +58,26 @@ resolution_reason: null
 git revert коммита; удалённые тесты восстанавливаются из истории по одному
 
 ## Journal
+
+- 2026-09-27T10:27:00Z [implementation] — AC-1 ЗАМЕР ЗАФИКСИРОВАН ДО РАБОТЫ: 286 групп, 677 тестов. В постановке стояло 294/683 — расхождение от правок прошлых смен, а не ошибка. Тестовых функций в дереве 7829, то есть в группах 8,6%, а не 9,6%. Число 7115 из постановки устарело сильнее всего.
+- 2026-09-27T10:27:00Z [implementation] — AC-2 ВЕРДИКТ ПО КАЖДОЙ ГРУППЕ ЗАПИСАН МАШИНОЙ, а не подразумевается. scripts/audit_pytest_dedupe.py::classify сравнивает ast.unparse тел (формат, комментарии и переносы влиять не могут) с обнулённым именем функции — имя есть обещание, а не проверка. Вердикт печатается в заголовке каждой группы отчёта и лежит в --json.
+- 2026-09-27T10:27:00Z [implementation] — AC-3 НОЛЬ ЗАКРЕПЛЁН ГЕЙТОМ, А НЕ ЧИСЛОМ В ДОКУМЕНТЕ: tests/test_gate_test_dedupe.py::TestNoTestInThisSuiteIsUnableToFail. Плюс положительная половина (4 формы пустого теста детектор ОБЯЗАН узнать) и отрицательная (обычный assert не пустой): сканер, отвечающий «не найдено» потому что не узнаёт ничего, — это тот же баг на уровень выше.
+- 2026-09-27T10:27:00Z [implementation] — AC-3 РАЗОБРАНО ПЕРВЫМ И ОКАЗАЛОСЬ ПУСТЫМ: тестов, которые НЕ МОГУТ УПАСТЬ, — 0 из 7829. Проверено по AST четырьмя признаками: пустое тело, только докстринг, все assert на истинной константе, отсутствие и assert, и вызова. Это единственная из трёх категорий, решаемая машиной без чтения замысла, и самая опасная — поэтому она и шла первой.
+- 2026-09-27T10:27:01Z [implementation] — AC-2 РЕЗУЛЬТАТ: из 286 групп 284 (99,3%) различаются РОВНО в тех частях, которые подпись стирает — именах, строках, числах. Это законная параллель: один контракт на разных входах, как набору тестов и положено. Дословно совпадающих тел — 2 (0,7%).
+- 2026-09-27T10:27:01Z [implementation] — AC-5 ВЫПОЛНЕН БЕЗ УДАЛЕНИЙ, и это сильнее удаления: оба теста ДОБАВИЛИ покрытие вместо того, чтобы исчезнуть. Первый теперь подаёт каталог вместо файла (переносимый способ сделать существующий путь нечитаемым) — покрыта ветка, которой не было. Второй переименован в test_fallback_ignores_a_row_belonging_to_another_task и записывает зелёную строку verify ДРУГОЙ задачи, то есть откат входит и отвергает — ветка, из которой была покрыта только security-sensitive. Прогон coverage не требуется: удалено ноль тестов, покрытие строго выросло.
+- 2026-09-27T10:27:01Z [implementation] — AC-7 СРАБОТАЛ: доля законных параллелей 99,3% много выше порога 80%, поэтому правится ПОРОГ ДЕТЕКТОРА, а не набор тестов. В tausik/gates.json добавлен ключ copies; groups/tests остаются ОБЪЯВЛЕННЫМ ОСТАТКОМ о похожести, краснеет теперь copies. База: 284/673/0. Старая база без ключа copies читается как ноль — проект, принявший храповик раньше, ПРИОБРЕТАЕТ проверку, а не теряет.
+- 2026-09-27T10:27:01Z [implementation] — ДВЕ ГРУППЫ С ДОСЛОВНЫМ СОВПАДЕНИЕМ ОКАЗАЛИСЬ ОДНИМ ДЕФЕКТОМ, а не дублями к схлопыванию: в обеих имя обещало свойство, которого тело не проверяло. (1) test_task_start_model_banner.py::test_unreadable_transcript_yields_unknown проверял ОТСУТСТВУЮЩИЙ путь (tmp_path/absent.jsonl) — байт в байт как тест отсутствия в test_phase_surfaces.py, — так что случай «существует, но не читается» не был покрыт ВОВСЕ. (2) test_verify_first_contract.py::test_fallback_skipped_when_no_verify_row не отличался от TestVerifyFirstEnforcement::test_no_verify_run_blocks: без строки verify «нет строки» и «откат не сработал» неразличимы ПО ПОСТРОЕНИЮ.
+- 2026-09-27T10:27:02Z [implementation] — AC-4 БЕЙДЖ: было 10146, стало 11472 — фактическое число собираемых pytest. Правка сделана порождателем `python scripts/gen_doc_constants.py --write`, а не руками: он поправил README.md, README.ru.md и AGENTS.md за один проход. Проверено, что bootstrap --ide all число не откатывает.
+- 2026-09-27T10:27:02Z [implementation] — AC-4 ПОЧЕМУ ДРЕЙФ НЕ КРАСНЕЛ, и это не дефект: по решению #182 test_count — НИЖНЯЯ ГРАНИЦА, сканер ловит только ЗАВЫШЕНИЕ. 10146 ≤ 11205 завышением не было, поэтому `doc constants --check` был честно зелен. Бейдж отставал на 1326 и был не ложью, а бесполезной оценкой масштаба.
+- 2026-09-27T10:29:58Z [implementation] — AC-6 ОЖИДАНИЕ ЗАФИКСИРОВАНО ДО ПРОГОНА, чтобы сравнивать с числом, а не с впечатлением: удалено тестов 0 (обе находки исправлены ДОПОЛНЕНИЕМ тела, одна переименована), добавлено новых — класс TestTheVerdictIsWhatReddens (3), TestNoTestInThisSuiteIsUnableToFail (1 + 4 параметра + 1 негатив), test_a_baseline_without_copies_reads_as_zero (1). Значит число прошедших обязано ВЫРАСТИ, а не упасть; падение любого размера означало бы, что сломано что-то ещё. Полный прогон запущен с -m '' — addopts по умолчанию скрывает медленную полосу (память #205).
+- 2026-09-27T10:48:01Z [implementation] — AC-6 ПЕРВЫЙ ПРОГОН ДАЛ 15 ОТКАЗОВ, и 12 из них — МОЯ ПРОЦЕССНАЯ ОШИБКА, а не дефекты: я правил scripts/audit_pytest_dedupe.py, docs/{ru,en}/cli.md, оба CHANGELOG и гонял bootstrap --ide all ВО ВРЕМЯ восьмиминутного прогона. Красным стало ровно то, что читает состояние дерева: bootstrap_drift (3), ruff_format.legacy, mypy_clean, comment_history_refs, repo_coherence, gates_record_non_execution, mypy_gate_scope. В изоляции те же 64 теста зелёные. Повтор на тихом дереве: 15 → 3.
+- 2026-09-27T10:48:01Z [implementation] — AC-6 ПОЛНЫЙ ПРОГОН: 11453 passed, 22 skipped, 3 failed, 478 с, флаг -m '' (иначе addopts прячет медленную полосу). Прошедших СТАЛО БОЛЬШЕ, а не меньше, — как и записано в ожидании до прогона: удалено 0 тестов, добавлено 10.
+- 2026-09-27T10:48:02Z [implementation] — AC-6 ДВА ОСТАВШИХСЯ ОТКАЗА — ДОСТАВШИЕСЯ, и это ДОКАЗАНО, а не предположено: `git stash` всех правок смены и повторный прогон дают ТЕ ЖЕ два отказа (81 passed, 2 failed). test_mcp_integration::test_dead_end_handler и test_consumer_first_close::test_путь_целиком_проходит зелены в изоляции и красны под -n auto. Заведены отдельной задачей two-tests-fail-only-under-parallel-and-hide-which-step-broke вместе с рецептом на 42 секунды вместо восьмиминутной ленты.
+- 2026-09-27T10:48:02Z [implementation] — AC-6 ИЗ ТРЁХ ОСТАВШИХСЯ ОДИН БЫЛ МОЙ И ИСПРАВЛЕН: tests/test_audit_pytest_dedupe.py::TestRenderMarkdown::test_empty_groups_omits_per_test_rows дал KeyError: 'verdict' — я потребовал ключ, чтобы «0 copy» не мог напечататься без вычисления, но сломал вызов без classify. Исправлено НЕ дефолтом в ноль: ОТСУТСТВИЕ печатается как «not computed», группа помечается UNCLASSIFIED. Дефолт в ноль восстановил бы ровно ту ошибку, против которой вердикт и заведён — уверенное число, которого никто не считал.
+- 2026-09-27T10:48:02Z [implementation] — AC-6 НОВЫЙ ПУТЬ ЗАКРЕПЛЁН ТЕСТАМИ, а не оставлен на веру: tests/test_audit_pytest_dedupe.py::TestAnUncomputedVerdictIsNotZero — три случая, включая тот, где вердикт есть у ОДНОЙ группы из двух: частичное знание не есть счёт, потому что пропущенная группа могла быть как раз копией.
+- 2026-09-27T10:48:02Z [implementation] — AC-6 ПОПУТНАЯ НАХОДКА, важнее самой флаки: потребительский тест СКРЫВАЕТ, какой шаг сломался. Он падает на `assert done.returncode == 0` с текстом «Task was never started» — то есть сломался РАНЬШЕ, на task start, а код возврата start не проверяется. Тест предупреждает об этой ловушке в соседнем утверждении и к самому start её не применяет.
+- 2026-09-27T10:48:03Z [implementation] — ВЫВОД ДЛЯ ПРОЦЕССА, а не для кода: полную ленту нельзя совмещать с правкой дерева — восемь минут прогона дали 15 «дефектов», из которых 12 были моими же правками на лету. Полный прогон — последнее действие перед закрытием, и ничего не трогать до его конца.
+- 2026-09-27T10:49:58Z [done] — AC-3: ✓ tested via tests/test_gate_test_dedupe.py::TestNoTestInThisSuiteIsUnableToFail — test_the_suite_holds_no_test_that_cannot_fail (0 из 7829, плюс защита «counted > 5000», чтобы сломанный обход не выдал ноль), test_the_detector_recognises_a_hollow_test (4 формы, которые сканер ОБЯЗАН узнать), test_a_real_test_is_not_called_hollow. Пересечение с qg0-accepts-a-placeholder-as-an-acceptance-criterion названо в докстринге класса: там заглушка в критериях, здесь — в тестах, и обе опасны тем, что создают видимость.
+- 2026-09-27T10:49:58Z [done] — AC-4: ✓ бейдж 10146 → 11472 порождателем gen_doc_constants.py --write в README.md, README.ru.md и AGENTS.md; `tausik doc constants --check` зелен; bootstrap --ide all число не откатывает (проверено отдельным прогоном).
+- 2026-09-27T10:49:59Z [done] — AC-5: ✓ ВЫПОЛНЕН БЕЗ ПРОГОНА COVERAGE, потому что удалено НОЛЬ тестов — доказательство стало арифметикой вместо замера. Обе находки исправлены ДОПОЛНЕНИЕМ тела до обещанного именем: test_unreadable_transcript_yields_unknown теперь подаёт каталог (покрыта ветка «существует, но не читается»), test_fallback_ignores_a_row_belonging_to_another_task записывает зелёную строку verify чужой задачи (покрыта ветка «откат вошёл и отверг»). Схлопывание «на глаз» не применялось ни разу.
+- 2026-09-27T10:49:59Z [done] — AC-7: ✓ СРАБОТАЛ И ИСПОЛНЕН. Доля законных параллелей 99,3% (284 из 286) много выше порога 80%, поэтому правлен ПОРОГ ДЕТЕКТОРА, а не набор тестов: ключ copies в tausik/gates.json краснеет, groups/tests объявлены остатком о похожести. tested via tests/test_gate_test_dedupe.py::TestTheVerdictIsWhatReddens — дословная копия красна, та же форма на другом входе зелена, нечитаемый файл копией НЕ называется. Плюс test_a_baseline_without_copies_reads_as_zero: старая база приобретает проверку, а не теряет.
