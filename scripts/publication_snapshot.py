@@ -54,6 +54,11 @@ EXCLUDED_FROM_PUBLIC_SNAPSHOT: tuple[str, ...] = (
     "TODO.md",
     "TAUSIK-plan-1.9.md",
     ".gitlab-ci.yml",
+    # The reader for that pipeline, and its test. Tooling for a host the public
+    # repository has no relationship with; `cli_push_ok` imports it optionally so
+    # the published tree works with the file absent.
+    "scripts/ci_lane_dev.py",
+    "tests/test_ci_lane_dev.py",
 )
 
 

@@ -89,6 +89,7 @@ GitLab хранит всю историю; в GitHub уезжает **тольк
 | `tausik/tasks/`, `tausik/stories/`, `tausik/epics/`, `tausik/decisions/`, `tausik/memory/`, `tausik/graph-snapshots/` | проекция состояния для переноса между машинами по ветке; потребителю фреймворка не нужна |
 | `TODO.md`, `TAUSIK-plan-1.9.md` | внутренние рабочие документы |
 | `.gitlab-ci.yml` | пайплайн линии разработки |
+| `scripts/ci_lane_dev.py`, `tests/test_ci_lane_dev.py` | чтение того пайплайна: инструмент для хоста, с которым у публичного репозитория нет отношений. `cli_push_ok` импортирует модуль НЕОБЯЗАТЕЛЬНО, поэтому опубликованное дерево работает без него и молчит, а не жалуется |
 
 Храповики `tausik/*.json` (`gates`, `policy`, `published_tags`,
 `spec_coverage`) **едут**: их читают гейты и тесты. Замер на дереве 1.9:

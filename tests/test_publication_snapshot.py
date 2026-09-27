@@ -109,7 +109,16 @@ class TestTheExclusionListIsOneDeclaration:
 
     def test_the_rules_are_the_ones_decision_368_named(self):
         """The list is read by the release procedure and quoted in publishing.md;
-        a silent widening or narrowing must show up as a test edit."""
+        a silent widening or narrowing must show up as a test edit.
+
+        Widened once since: the reader for the development pipeline and its test.
+        That reader exists because the published-lane reader answered "GREEN" ten
+        times about a thirteen-day-old run while the working branch was red, and it
+        is development-line tooling for a host the public repository has no
+        relationship with. `cli_push_ok` imports it optionally, so the published tree
+        works with both files absent -- which `tests/test_ci_lane_dev.py` asserts on
+        the OUTPUT, not merely on not raising.
+        """
         assert snap.EXCLUDED_FROM_PUBLIC_SNAPSHOT == (
             "tausik/tasks/",
             "tausik/stories/",
@@ -120,6 +129,8 @@ class TestTheExclusionListIsOneDeclaration:
             "TODO.md",
             "TAUSIK-plan-1.9.md",
             ".gitlab-ci.yml",
+            "scripts/ci_lane_dev.py",
+            "tests/test_ci_lane_dev.py",
         )
 
     def test_a_directory_rule_is_a_prefix_and_a_file_rule_is_exact(self):

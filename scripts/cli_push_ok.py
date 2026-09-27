@@ -176,3 +176,35 @@ def _report_published_lane() -> None:
     print(prefix + message)
     if state == "fail":
         print("      pushing over a red lane is your call — it is no longer an unread one")
+    _report_dev_lane(prefix)
+
+
+def _report_dev_lane(prefix_of_published: str) -> None:
+    """The lane on the BRANCH, when the development line ships a reader for it.
+
+    Imported optionally on purpose: `ci_lane_dev` is excluded from the public
+    snapshot, so in a published tree this is silently one fewer line. A missing
+    module is the normal state there, not a fault worth a message.
+
+    It is reported BESIDE the published lane rather than instead of it, because the
+    two answer different questions and the published one answered "GREEN" ten times
+    in a row about a pipeline thirteen days old while the branch was red.
+    """
+    try:
+        import ci_lane_dev  # noqa: PLC0415 — optional, network-touching, only here
+    except ImportError:
+        return
+    try:
+        branch = _git(["rev-parse", "--abbrev-ref", "HEAD"]) or ""
+        state, message = ci_lane_dev.report(branch.strip(), _git(["remote", "-v"]) or "")
+    except Exception as exc:  # noqa: BLE001 — reporting must not break the ticket
+        print(f"  CI: dev lane not checked ({type(exc).__name__}) — read it yourself")
+        return
+    if state == "skip":
+        return
+    print(
+        {"pass": "  CI: ", "fail": "  CI: !! ", "running": "  CI: .. "}.get(state, "  CI: ?  ")
+        + message
+    )
+    if state == "fail":
+        print("      the branch you are pushing to is red — that is now a read failure")

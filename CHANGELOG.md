@@ -9,6 +9,44 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the lane that actually gates the work is read at the push chokepoint
+
+`push-ok` already reported the PUBLISHED lane, and it was telling the truth about the
+wrong thing. MEASURED over session #277: it answered "published lane Tests is GREEN"
+ten times in a row while naming a pipeline thirteen days old, because the published
+lane had not moved. Over the same hours, nine of the last ten pipelines on the working
+branch were RED — every push of the session — and no checkpoint said so.
+
+WHAT THE SILENCE COST, exactly. Stages run in order, so a red test stage never lets
+the full-battery stage start: the job carrying `-m ''` was SKIPPED on all of them. Two
+deterministically broken tests therefore survived a whole release — deselected by the
+local default lane, never reached by the only lane that runs them. One unread failure
+hid an entire class, and the release branch is where that class lives.
+
+So the branch's own lane is now reported BESIDE the published one, never instead of
+it: they answer different questions, and conflating them is how this happened. The
+message names the failing job and, when the full battery did not run, says so — that
+caveat is the most valuable part, because a colour that never ran the tests must not
+be read as a colour about them.
+
+THE CAVEAT NEARLY SHIPPED AS DEAD CODE. The first version read job statuses out of the
+pipeline listing, and the listing carries no jobs field at all — measured against the
+live client rather than assumed. The warning would have been permanently silent. It
+now costs a second call, taken only when the pipeline is not green, and a test refuses
+that call on the green path so the common case cannot quietly grow a round trip.
+
+Four distinct reasons for "not checked" — no client, the client's own error, an answer
+that did not parse, no pipeline at all — plus an unrecognised status reported as
+unread, plus a timeout as an answer rather than an exception. Every route is walked by
+a test that requires a non-empty message: one silent route would turn this reader back
+into the thing it replaced. It reports and never blocks; publishing over a red lane
+stays the owner's call, now an informed one.
+
+The reader and its test stay on the development line — tooling for a host the public
+repository has no relationship with. The caller imports it optionally, and a test
+asserts the published tree prints nothing at all when the module is absent.
+
+
 ### Fixed — two tests were broken for a release, hidden by a marker, and misreported which step failed
 
 The full suite reported them as parallel-run flakiness. It was neither parallel nor
