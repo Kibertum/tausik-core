@@ -69,7 +69,7 @@ def _harness_drift_names(project_dir: str) -> list[str]:
         return []
     if boot not in sys.path:
         sys.path.insert(0, boot)
-    from bootstrap_check import check_deployed_trees  # noqa: PLC0415
+    from bootstrap_check import check_deployed_trees  # ruff-not-enabled: PLC0415
 
     return cast("list[str]", check_deployed_trees(lib_dir, project_dir))
 
@@ -94,8 +94,8 @@ def run_bootstrap_drift_gate() -> gate_outcome.GateOutcome:
     exact redeploy command on failure; a bare count is not actionable.
     """
     try:
-        from project_config import find_tausik_dir  # noqa: PLC0415
-        from service_doctor_drift import scripts_drift_names  # noqa: PLC0415
+        from project_config import find_tausik_dir  # ruff-not-enabled: PLC0415
+        from service_doctor_drift import scripts_drift_names  # ruff-not-enabled: PLC0415
 
         # The project root is the parent of the resolved `.tausik/` dir, so the
         # gate checks the SAME project task-done is closing rather than the cwd.

@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from audit_translation_drift import (  # noqa: E402
+from audit_translation_drift import (
     audit_pairs,
     count_metrics,
     has_skip_marker,

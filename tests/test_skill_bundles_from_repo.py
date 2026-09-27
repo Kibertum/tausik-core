@@ -24,7 +24,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import skill_bundles  # noqa: E402
+import skill_bundles
 
 CROSSCUTTING_SCOPE = ["scripts/"]
 

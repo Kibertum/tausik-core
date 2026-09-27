@@ -20,13 +20,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from memory_cleanup import (  # noqa: E402
+from memory_cleanup import (
     find_dedupe_candidates,
     parse_duration_to_days,
 )
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from tausik_utils import ServiceError
 
 
 # ---------------------------------------------------------------------------

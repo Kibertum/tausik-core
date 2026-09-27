@@ -44,7 +44,7 @@ from repo_coherence_collectors import (
     _translation_drift,
     _unused_python,
 )
-from repo_coherence_shape import (  # noqa: F401 — re-exported surface
+from repo_coherence_shape import (
     MAX_FINDINGS,
     NOT_EXAMINED,
     SEVERITY_ORDER,

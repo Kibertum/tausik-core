@@ -15,8 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_ac_check import checklist_missing  # noqa: E402
-from service_ac_evidence import parse_ac_text  # noqa: E402
+from gate_ac_check import checklist_missing
+from service_ac_evidence import parse_ac_text
 
 AC = "AC-1 Связь хранится как данные. AC-2 Ссылка проверяется на трекер. AC-3 Голый номер отвергается."
 REF = "tests/test_tracker_ref.py::TestГолыйНомерОтвергнут::test_номер_без_трекера_отказ"

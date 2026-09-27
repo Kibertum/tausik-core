@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
-import bootstrap_generate  # noqa: E402
+import bootstrap_generate
 
 
 def _touch(path: str, content: str = "# stub\n") -> None:

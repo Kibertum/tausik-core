@@ -15,12 +15,12 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from backend_migrations import run_migrations  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from service_specs import SPEC_RELATIONS, SPEC_TYPES  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from backend_migrations import run_migrations
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from service_specs import SPEC_RELATIONS, SPEC_TYPES
+from tausik_utils import ServiceError
 
 
 def _make_service(db_path: str) -> ProjectService:

@@ -18,7 +18,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from audit_orphan_files import (  # noqa: E402
+from audit_orphan_files import (
     DEFAULT_EXCLUDES,
     _is_excluded,
     collect_orphans,
@@ -73,7 +73,7 @@ class TestExclusion:
         the ide registry (7 IDEs), not the 3 that were hardcoded. On the other
         IDEs the deployed engine was walked or reported as an orphan.
         """
-        from ide_utils import all_profile_dirs  # noqa: E402
+        from ide_utils import all_profile_dirs
 
         profiles = all_profile_dirs()
         assert len(profiles) >= 4, "registry regressed below the known IDE count"

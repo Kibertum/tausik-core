@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from cmdline_fidelity import describe_mismatch  # noqa: E402
+from cmdline_fidelity import describe_mismatch
 
 _PREFIX = "C:\\Windows\\system32\\cmd.exe /c D:\\p\\.tausik\\tausik.cmd"
 

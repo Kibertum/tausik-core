@@ -30,14 +30,14 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from doc_closed_lists import CLOSED_LISTS, closed_lists_flat  # noqa: E402
-from doc_drift_scanners import (  # noqa: E402
+from doc_closed_lists import CLOSED_LISTS, closed_lists_flat
+from doc_drift_scanners import (
     CROSS_FILE_SCAN_TARGETS,
     scan_closed_list_enums,
     scan_table_count_columns,
 )
-from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES  # noqa: E402
-from service_specs import SPEC_TYPES  # noqa: E402
+from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES
+from service_specs import SPEC_TYPES
 
 _PAYLOAD = {**closed_lists_flat(), "mcp_main_tools": 128}
 

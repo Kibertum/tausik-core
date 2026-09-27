@@ -22,11 +22,11 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import redact_scope  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from redact_engine import RedactionRequest, apply_redaction, plan_redaction  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+import redact_scope
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from redact_engine import RedactionRequest, apply_redaction, plan_redaction
+from tausik_utils import ServiceError
 
 # Opt-out, not an omission: the `os.walk` below traverses a projection this test
 # just exported under `tmp_path`, never the repository's own sources. The scoped

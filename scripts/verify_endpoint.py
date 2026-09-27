@@ -174,7 +174,7 @@ def make_handler(project_dir: str) -> type[BaseHTTPRequestHandler]:
                 raise RequestError("JSON object required")
             return data
 
-        def do_GET(self) -> None:  # noqa: N802 — http.server contract
+        def do_GET(self) -> None:  # ruff-not-enabled: N802 — http.server contract
             if self.path == "/healthz":
                 self._send(200, {"ok": True, "service": "tausik-verify"})
                 return
@@ -188,7 +188,7 @@ def make_handler(project_dir: str) -> type[BaseHTTPRequestHandler]:
                 return
             self._send(404, {"error": f"unknown path {self.path}"})
 
-        def do_POST(self) -> None:  # noqa: N802 — http.server contract
+        def do_POST(self) -> None:  # ruff-not-enabled: N802 — http.server contract
             import crypto_keys
 
             routes = {"/verify": handle_verify, "/receipt/verify": handle_receipt_verify}

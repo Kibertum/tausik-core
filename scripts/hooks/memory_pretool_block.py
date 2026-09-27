@@ -105,8 +105,8 @@ def _policy(project_dir: str) -> tuple[tuple[SinkRule, ...], tuple[str, ...]]:
     where the gate gives a readable error at close time instead.
     """
     try:
-        from memory_sinks import sinks_from_config  # noqa: PLC0415
-        from project_config import load_config  # noqa: PLC0415
+        from memory_sinks import sinks_from_config  # ruff-not-enabled: PLC0415
+        from project_config import load_config  # ruff-not-enabled: PLC0415
 
         sinks, allow, _err = sinks_from_config(load_config(os.path.join(project_dir, ".tausik")))
         return sinks, allow
@@ -143,12 +143,12 @@ def _targets(event: dict, project_dir: str) -> list[str]:
     # `!= "Bash"` that stood here covered exactly one of the two shell tools the
     # agent is handed on win32, so `Set-Content ~/.claude/.../memory/x.md` — the
     # very write this hook exists to stop — went straight through.
-    import shell_channel  # noqa: PLC0415
+    import shell_channel  # ruff-not-enabled: PLC0415
 
     command = shell_channel.command_of(event)
     if command is None:
         return []
-    from write_confidence import CONFIDENCE_REGEX_FALLBACK  # noqa: PLC0415
+    from write_confidence import CONFIDENCE_REGEX_FALLBACK  # ruff-not-enabled: PLC0415
 
     # The base directory is needed BEFORE the parse, not after it. The parser
     # opens a script the command names, and that name is relative to the SHELL's
@@ -164,7 +164,7 @@ def _targets(event: dict, project_dir: str) -> list[str]:
     )
     if confidence == CONFIDENCE_REGEX_FALLBACK:
         if raw_targets:
-            from _common import emit_supervision_degradation  # noqa: PLC0415
+            from _common import emit_supervision_degradation  # ruff-not-enabled: PLC0415
 
             # The reason names the CHANNEL that failed to parse. `bash` is
             # preserved verbatim for the Bash tool because it is the string the
@@ -201,7 +201,7 @@ def _bypass_present(transcript_path: str) -> bool:
 
 
 def main() -> int:
-    from _common import force_utf8_io  # noqa: PLC0415
+    from _common import force_utf8_io  # ruff-not-enabled: PLC0415
 
     force_utf8_io()
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
@@ -213,7 +213,7 @@ def main() -> int:
     # (Decision #159). emit_supervision_bypass is best-effort: it never raises,
     # so a DB error cannot turn a skip into a block.
     if os.environ.get("TAUSIK_SKIP_HOOKS") or os.environ.get("TAUSIK_SKIP_MEMORY_HOOK"):
-        from _common import emit_supervision_bypass  # noqa: PLC0415
+        from _common import emit_supervision_bypass  # ruff-not-enabled: PLC0415
 
         vector = "skip_hooks" if os.environ.get("TAUSIK_SKIP_HOOKS") else "skip_memory_hook"
         emit_supervision_bypass(project_dir, vector, "memory_pretool_block")
@@ -225,7 +225,7 @@ def main() -> int:
         return 0
 
     event = _read_stdin_json()
-    import shell_channel  # noqa: PLC0415
+    import shell_channel  # ruff-not-enabled: PLC0415
 
     if event.get("tool_name") not in (*_PATH_TOOLS, *shell_channel.SHELL_TOOLS):
         return 0
@@ -242,7 +242,7 @@ def main() -> int:
     if _bypass_present(event.get("transcript_path") or ""):
         return 0
 
-    from _common import cli_invocation  # noqa: PLC0415
+    from _common import cli_invocation  # ruff-not-enabled: PLC0415
 
     print(
         "BLOCKED: this write routes project knowledge into another agent's memory.\n"

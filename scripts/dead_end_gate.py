@@ -33,7 +33,7 @@ _MARKER_RE = re.compile(r"NO-DEAD-END:\s*(.+)", re.IGNORECASE)
 
 
 def _count(be: Any, sql: str, slug: str) -> int:
-    row = be._q1(sql, (slug,))  # noqa: SLF001 — read-only, the backend's own helper
+    row = be._q1(sql, (slug,))  # ruff-not-enabled: SLF001 — read-only, the backend's own helper
     return int((row or {}).get("n") or 0)
 
 
@@ -88,7 +88,9 @@ def bind_task(be: Any, task_slug: str | None) -> str:
         if not be.task_get(task_slug):
             raise ValueError(f"task {task_slug!r} does not exist; a dead end must name a real task")
         return task_slug
-    rows = be._q("SELECT slug FROM tasks WHERE status='active' ORDER BY slug")  # noqa: SLF001
+    rows = be._q(
+        "SELECT slug FROM tasks WHERE status='active' ORDER BY slug"
+    )  # ruff-not-enabled: SLF001
     active = [str(r["slug"]) for r in rows]
     if len(active) == 1:
         return active[0]

@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_test_resolver import resolve_test_files_for_relevant  # noqa: E402
+from gate_test_resolver import resolve_test_files_for_relevant
 
 
 def _tree(tmp_path, *rel_paths):

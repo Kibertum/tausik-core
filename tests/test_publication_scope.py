@@ -29,7 +29,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from publication_scope import (  # noqa: E402
+from publication_scope import (
     PublicationError,
     base_is_reachable,
     build_publication_commit,

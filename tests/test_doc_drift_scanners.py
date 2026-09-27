@@ -17,11 +17,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from doc_drift_common import (  # noqa: E402
+from doc_drift_common import (
     CODE_COUNT_EXTRA_TARGETS,
     VERSION_SCAN_TARGETS,
 )
-from doc_drift_scanners import (  # noqa: E402
+from doc_drift_scanners import (
     CROSS_FILE_SCAN_TARGETS,
     scan_code_counts,
     scan_version_refs,

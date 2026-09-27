@@ -49,7 +49,7 @@ from renar_conformance_yaml import (  # noqa: F401
     render_yaml,
 )
 from renar_clause_closed_lists import assess_closed_lists, assess_spec_types
-from renar_mandatory_clauses import (  # noqa: F401 — eval_mandatory_clauses is re-exported
+from renar_mandatory_clauses import (
     QUALITY_GATES_DECLARED,
     basis_section,
     eval_mandatory_clauses,

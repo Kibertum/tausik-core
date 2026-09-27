@@ -42,8 +42,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import state_triggers  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
+import state_triggers
+from project_backend import SQLiteBackend
 
 # Declared rather than opted out. This walks a tree — `tmp_path`, not a source
 # tree — so the detector flags it either way, but the scoped-pytest gate maps

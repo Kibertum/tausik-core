@@ -41,15 +41,15 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import gate_registry as reg  # noqa: E402
-import gate_runner  # noqa: E402
-from backend_schema_gate_runs import GATE_RUNS_SQL  # noqa: E402
-from gate_post_scope import run_post_scope_gates  # noqa: E402
+import gate_registry as reg
+import gate_runner
+from backend_schema_gate_runs import GATE_RUNS_SQL
+from gate_post_scope import run_post_scope_gates
 
 # Bound at import, before conftest's autouse `_mock_run_gates` replaces the
 # module attribute with a stub — the same escape `tests/test_gates.py` uses.
 # Calling `gate_runner.run_gates` here would test the mock.
-from gate_runner import gate_verdict, run_gates  # noqa: E402
+from gate_runner import gate_verdict, run_gates
 
 
 # --- AC1: the derived metadata equals the literal it replaced ---------------

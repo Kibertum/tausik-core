@@ -32,10 +32,10 @@ from typing import Any
 
 # The on-disk artifacts (QG-0 plugin, command stubs) live in their own module: they are
 # copied files, this one owns opencode.json. Re-exported so callers keep one import.
-from bootstrap_opencode_assets import (  # noqa: F401 — re-exported for callers/tests
+from bootstrap_opencode_assets import (
     PLUGIN_FILE as _PLUGIN_FILE,
 )
-from bootstrap_opencode_assets import (  # noqa: F401
+from bootstrap_opencode_assets import (
     PLUGINS_SUBDIR as _PLUGINS_SUBDIR,
 )
 from bootstrap_opencode_assets import (  # noqa: F401

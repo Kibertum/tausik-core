@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import response_contract_audit as rca  # noqa: E402
+import response_contract_audit as rca
 
 CROSSCUTTING_SCOPE: list[str] = []  # reads transcripts, never the tree
 

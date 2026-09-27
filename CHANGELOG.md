@@ -9,6 +9,54 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — starting a task that is not the plan's next one is said out loud
+
+MEASURED on the session that filed this, from git rather than from memory: 22 tasks
+closed, 4 of them from the plan that existed beforehand, 18 filed AND closed inside the
+same session. Nine of the eighteen were the owner's own instructions. The other nine
+were findings chased because the context was warm — four of which the owner then named
+as work he did not want before a release.
+
+THE MECHANISM IS IN THE CYCLE, not in anyone's discipline. `task done` prints a finding;
+the first principle says file it, and that step is right; then the agent STARTS it,
+because starting is cheap right now. Step three is the defect: "cheap right now" is not
+"next in the plan", and repeating it walks a defect tree depth-first and never returns.
+`task next` already chooses correctly — release first, then declared order — and was
+called zero times across the session.
+
+So this moves knowledge rather than adding it. `task start` now compares the task being
+started against what the backlog would have offered, and when they differ it prints one
+line naming the displaced task, the basis of the choice, and the command that goes back.
+A reproach without an address is not an action.
+
+A signal, never a gate. Filing a finding stays free — forbidding it would bring back the
+silent errors this project exists against — and the wording says so in as many words,
+which a test asserts: what the line asks for is DEFERRAL. It is silent when the started
+task is the offered one, silent when the backlog offers nothing (all three ways: empty,
+every task blocked, every task claimed), and silent on any internal fault, because an
+advisory that can break `task start` is a gate with extra steps.
+
+### Removed — 483 noqa comments that suppressed nothing, and RUF100 joined the rule set
+
+MEASURED, and the split decided the scope: 557 `RUF100` findings, of which 483 name a
+rule that IS enforced and does not fire — stale, safe to drop — and 74 name a rule this
+project does not select. Deleting those 74 would have pre-empted a decision `pyproject`
+explicitly defers: whether to adopt ruff's newer defaults, a task that reads its 1539
+findings and rules on each. So they became plain `# ruff-not-enabled:` comments across
+35 files, keeping the rule name and the rationale where grep finds them.
+
+RUF100 then joined `select`, which is only safe in that order — as `noqa` those 74 would
+have kept it permanently red. Proved by mutation in both directions: a fresh useless
+`noqa` reddens, a needed one still suppresses. A measurement trap worth recording:
+`ruff check --select RUF100` reports 1617 instead of 557, because with one rule enabled
+every suppression for the others looks unused. `--extend-select` is the one that keeps
+the project's own rule set.
+
+Removing the suppressions shifted six lines enough that they diverged from the
+formatter; per decision #386 new divergence is FORMATTED rather than added to the frozen
+list, so the list stayed at 101 and shrank by nothing it had not earned.
+
+
 ### Fixed — a forged receipt no longer verifies, and the offline path is documented and enforced
 
 README promised a receipt can be verified offline. The path existed and worked. What

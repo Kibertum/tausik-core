@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import config_trust as ct  # noqa: E402
+import config_trust as ct
 
 
 def _write(path, data, raw: str | None = None):

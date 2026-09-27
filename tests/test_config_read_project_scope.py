@@ -28,9 +28,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_config import load_config, load_gates  # noqa: E402
-from project_service import ProjectService  # noqa: E402
+from project_backend import SQLiteBackend
+from project_config import load_config, load_gates
+from project_service import ProjectService
 
 # An unguarded, arbitrary project-tier value: config_trust never rewrites
 # bootstrap.stacks, so it is a clean witness for "which config was read".

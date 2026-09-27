@@ -85,7 +85,9 @@ def close_obsolete(svc: Any, slug: str, reason: str | None) -> str:
             f"Task '{slug}' closed as OBSOLETE — kept on record, left out of delivery "
             "metrics (FPSR, DER, cycle/lead time, calibration)."
         ]
-        msgs.extend(svc._cascade_done(slug))  # noqa: SLF001 — the same cascade as task done
+        msgs.extend(
+            svc._cascade_done(slug)
+        )  # ruff-not-enabled: SLF001 — the same cascade as task done
     from task_baseline import release
 
     release(svc.tausik_dir(), slug)

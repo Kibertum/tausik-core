@@ -10,10 +10,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import dead_end_gate as g  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+import dead_end_gate as g
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from tausik_utils import ServiceError
 
 
 @pytest.fixture

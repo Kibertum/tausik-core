@@ -10,10 +10,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from service_knowledge_aggregates import build_memory_block  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from service_knowledge_aggregates import build_memory_block
+from tausik_utils import ServiceError
 
 
 @pytest.fixture

@@ -43,7 +43,7 @@ def count_mcp_tool_totals(repo_root: Path) -> tuple[int, int]:
     proj = str(repo_root / "harness" / "claude" / "mcp" / "project")
 
     sys.path.insert(0, proj)
-    import tools as project_tools  # type: ignore[import-not-found]  # noqa: E402
+    import tools as project_tools  # type: ignore[import-not-found]
 
     n_p = len(project_tools.TOOLS)
     sys.path.remove(proj)
@@ -67,7 +67,7 @@ def mcp_descriptions_digest(repo_root: Path) -> str:
         path = str(repo_root / "harness" / "claude" / "mcp" / sub)
         sys.path.insert(0, path)
         try:
-            import tools as mod  # type: ignore[import-not-found]  # noqa: PLC0415
+            import tools as mod  # type: ignore[import-not-found]  # ruff-not-enabled: PLC0415
 
             for tool in mod.TOOLS:
                 name = str(getattr(tool, "name", ""))

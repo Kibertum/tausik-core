@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from service_doctor_kilo import check_kilo_config, is_kilo_project  # noqa: E402
+from service_doctor_kilo import check_kilo_config, is_kilo_project
 
 
 def _server_py(tmp_path):

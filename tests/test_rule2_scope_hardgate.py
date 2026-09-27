@@ -15,9 +15,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import gate_qg0_check  # noqa: E402
-from gate_qg0_check import check_qg0_start  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+import gate_qg0_check
+from gate_qg0_check import check_qg0_start
+from tausik_utils import ServiceError
 
 
 def _task(complexity="medium", scope=None, scope_paths=None):

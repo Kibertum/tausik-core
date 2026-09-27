@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from audit_stale_docs import (  # noqa: E402
+from audit_stale_docs import (
     DEFAULT_EXCLUDES,
     ROOT_DOCS,
     _is_excluded,

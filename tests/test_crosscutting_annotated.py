@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_test_resolver import read_crosscutting_scope  # noqa: E402
+from gate_test_resolver import read_crosscutting_scope
 
 CROSSCUTTING_SCOPE: list[str] = []  # this file itself uses the annotated form
 

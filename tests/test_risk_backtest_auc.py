@@ -17,7 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from backend_defect_escape import _auc, defect_escape_metrics  # noqa: E402
+from backend_defect_escape import _auc, defect_escape_metrics
 
 
 def test_auc_reports_perfect_separation():

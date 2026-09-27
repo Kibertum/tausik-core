@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-import gen_doc_constants  # noqa: E402
+import gen_doc_constants
 
 PAYLOAD = {
     "schema_version": 1,

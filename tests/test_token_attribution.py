@@ -33,14 +33,14 @@ from conftest import canonical_ddl
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from service_token_metrics import aggregate, format_table  # noqa: E402
-from session_windows import (  # noqa: E402
+from service_token_metrics import aggregate, format_table
+from session_windows import (
     load_session_windows,
     make_session_resolver,
     parse_ts,
     session_for_ts,
 )
-from token_rows import extract_token_rows, rebuild_ledger  # noqa: E402
+from token_rows import extract_token_rows, rebuild_ledger
 
 # Three sessions, back to back, with a deliberate 10-minute gap before the third.
 SESSIONS = [

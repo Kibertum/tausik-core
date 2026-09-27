@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 import pytest
 
-from gate_qg0_check import check_qg0_start  # noqa: E402
-from gate_qg0_renar import renar_qg0_advisory  # noqa: E402
+from gate_qg0_check import check_qg0_start
+from gate_qg0_renar import renar_qg0_advisory
 
 
 class _Be:

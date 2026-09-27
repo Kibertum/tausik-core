@@ -20,8 +20,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import renar_normative_inapplicability as ni  # noqa: E402
-from renar_clause_reactive_adapt import SPEC_PROVENANCE_FIELDS  # noqa: E402
+import renar_normative_inapplicability as ni
+from renar_clause_reactive_adapt import SPEC_PROVENANCE_FIELDS
 
 
 def _specs_db(tmp_path, *, slugs=(), provenance_columns=(), tz_values=None):

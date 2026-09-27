@@ -22,9 +22,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import crypto_keys  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
+import crypto_keys
+from project_backend import SQLiteBackend
+from project_service import ProjectService
 
 _SCOPE = ["scripts/verify_handle.py"]
 

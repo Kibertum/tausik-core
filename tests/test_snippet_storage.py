@@ -15,11 +15,11 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from backend_migrations_v37 import MIGRATION_V37  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from snippet_storage import (  # noqa: E402
+from backend_migrations_v37 import MIGRATION_V37
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from snippet_storage import (
     add_snippet,
     count_snippets,
     delete_snippet,

@@ -59,7 +59,7 @@ def _load_default_stacks() -> frozenset[str]:
         if not names:
             return _FALLBACK_STACKS
         return frozenset(names)
-    except Exception:  # noqa: BLE001 — module import must not crash
+    except Exception:
         import logging
 
         logging.getLogger("tausik.project_types").warning(

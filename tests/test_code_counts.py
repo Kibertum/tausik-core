@@ -29,7 +29,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from code_counts import (  # noqa: E402
+from code_counts import (
     code_counts_flat,
     count_core_skills,
     count_official_skills,

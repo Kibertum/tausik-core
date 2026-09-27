@@ -412,7 +412,7 @@ def _record_verification(
                 handle_out=handle_out,
                 allow_handle=allow_handle,
             )
-        except Exception as exc:  # noqa: BLE001 — re-raised below, never swallowed
+        except Exception as exc:
             # `record_run` inserts, writes the gate rows, then commits. A
             # failure anywhere in that sequence can leave the connection
             # mid-transaction; retrying on a dirty connection would fail for a

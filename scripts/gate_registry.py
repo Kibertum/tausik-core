@@ -49,7 +49,7 @@ __all__ = ["GateSpec", "PHASE_POST_SCOPE", "PHASE_SCOPED"]
 # The scoped half of the data lives in `gate_registry_scoped` — it is the half
 # that grows with every new gate, and it is what pushed this module past the
 # line cap once each gate had to declare the effect it prevents.
-from gate_registry_scoped import _SCOPED  # noqa: E402
+from gate_registry_scoped import _SCOPED
 
 # --- Post-scope gates: QG-2 report gates, previously hardcoded --------------
 # `phase` is carried inside default_config too, so it survives the trip through

@@ -23,10 +23,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import knowledge_db  # noqa: E402
-import knowledge_migrations as km  # noqa: E402
-import knowledge_tags as kt  # noqa: E402
-import knowledge_write  # noqa: E402
+import knowledge_db
+import knowledge_migrations as km
+import knowledge_tags as kt
+import knowledge_write
 
 CROSSCUTTING_SCOPE = ["scripts/knowledge_tags.py", "scripts/knowledge_write.py"]
 

@@ -18,9 +18,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import renar_br_premise as br  # noqa: E402
-import renar_normative_inapplicability as ni  # noqa: E402
-from conftest import canonical_schema_db  # noqa: E402
+import renar_br_premise as br
+import renar_normative_inapplicability as ni
+from conftest import canonical_schema_db
 
 CROSSCUTTING_SCOPE: list[str] = []  # reads a schema, never the tree
 

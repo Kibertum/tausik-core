@@ -17,7 +17,7 @@ _bootstrap_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _bootstrap_dir)
 sys.path.insert(0, os.path.join(os.path.dirname(_bootstrap_dir), "scripts"))
 
-from tausik_utils import tausik_config_path  # noqa: E402
+from tausik_utils import tausik_config_path  # ruff-not-enabled: E402
 
 from bootstrap_config import (
     ALL_EXTENSION_SKILLS,

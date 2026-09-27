@@ -13,7 +13,7 @@ import sys
 # Tier-specific bodies live in bootstrap_templates_tiers (filesize cap). Imported
 # rather than re-declared, and re-exported so existing `from bootstrap_templates
 # import MINIMAL_MEMORY` call sites keep working.
-from bootstrap_templates_tiers import (  # noqa: F401 — re-exported
+from bootstrap_templates_tiers import (
     FULL_TIER_NOTE,
     COMPACTION_CONTRACT,
     MINIMAL_COMMANDS,

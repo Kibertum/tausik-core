@@ -251,7 +251,7 @@ def _override_provenance(phase: str, tier: str) -> str:
     no false file. Rationale text only — never the pick.
     """
     try:
-        from config_trust import raw_layers  # noqa: PLC0415
+        from config_trust import raw_layers  # ruff-not-enabled: PLC0415
 
         user, managed = raw_layers()
     except Exception:  # noqa: BLE001 — best-effort: rationale text only, never the decision

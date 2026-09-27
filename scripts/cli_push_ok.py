@@ -160,7 +160,7 @@ def _report_published_lane() -> None:
     rather than costing a push ticket that lives sixty seconds.
     """
     try:
-        import ci_lane_status  # noqa: PLC0415 — a network-touching import, only on this path
+        import ci_lane_status  # ruff-not-enabled: PLC0415 — a network-touching import, only on this path
 
         remotes = _git(["remote", "-v"]) or ""
         state, message = ci_lane_status.report(remotes)
@@ -191,7 +191,7 @@ def _report_dev_lane(prefix_of_published: str) -> None:
     in a row about a pipeline thirteen days old while the branch was red.
     """
     try:
-        import ci_lane_dev  # noqa: PLC0415 — optional, network-touching, only here
+        import ci_lane_dev  # ruff-not-enabled: PLC0415 — optional, network-touching, only here
     except ImportError:
         return
     try:

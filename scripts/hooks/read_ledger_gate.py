@@ -26,8 +26,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from _common import force_utf8_io  # noqa: E402
-from read_ledger import (  # noqa: E402
+from _common import force_utf8_io
+from read_ledger import (
     decide,
     fingerprint,
     is_enabled,

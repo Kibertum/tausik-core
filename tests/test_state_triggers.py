@@ -16,9 +16,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from state_export import build_tree, export_one  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from state_export import build_tree, export_one
 
 
 @pytest.fixture

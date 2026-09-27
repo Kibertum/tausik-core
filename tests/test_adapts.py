@@ -17,19 +17,19 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from backend_migrations import run_migrations  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from closed_list_counts import ADAPT_FINDING_CATEGORY_LIST, scan_tree  # noqa: E402
-from closed_list_counts import written_counts as _written_counts  # noqa: E402
-from service_adapts import (  # noqa: E402
+from backend_migrations import run_migrations
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from closed_list_counts import ADAPT_FINDING_CATEGORY_LIST, scan_tree
+from closed_list_counts import written_counts as _written_counts
+from service_adapts import (
     FINDING_CATEGORIES,
     HISTORICAL_SIGNATURE_ROLES,
     LINK_TARGETS,
     SIGNATURE_ROLES,
 )
-from tausik_utils import ServiceError  # noqa: E402
+from tausik_utils import ServiceError
 
 
 @pytest.fixture

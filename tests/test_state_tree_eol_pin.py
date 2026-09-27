@@ -25,9 +25,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_cli_state import _resolve_out_dir  # noqa: E402
-from project_config import find_tausik_dir  # noqa: E402
-from state_serialize import ENTITY_DIRS  # noqa: E402
+from project_cli_state import _resolve_out_dir
+from project_config import find_tausik_dir
+from state_serialize import ENTITY_DIRS
 
 _TIMEOUT = 60
 

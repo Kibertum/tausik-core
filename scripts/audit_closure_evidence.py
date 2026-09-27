@@ -214,7 +214,7 @@ def missing_in_chain(tree: ast.Module, segments: list[str]) -> list[str]:
 
 def _git(repo_root: str, argv: list[str]) -> str | None:
     try:
-        proc = subprocess.run(  # noqa: S603 - fixed argv, shell=False
+        proc = subprocess.run(  # ruff-not-enabled: S603 - fixed argv, shell=False
             ["git", *argv],
             cwd=repo_root,
             capture_output=True,

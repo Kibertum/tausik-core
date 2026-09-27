@@ -10,13 +10,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from ow_handoff import (  # noqa: E402
+from ow_handoff import (
     WORKER_SKILLS,
     build_handoff_contract,
     serialize_contract,
 )
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService, ServiceError  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService, ServiceError
 
 
 _TASK = {

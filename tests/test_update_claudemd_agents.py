@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
-from claudemd_writer import apply_dynamic_section, resolve_sibling_targets  # noqa: E402
+from claudemd_writer import apply_dynamic_section, resolve_sibling_targets
 
 _REPO = Path(__file__).resolve().parents[1]
 _MARKERS = ("<!-- DYNAMIC:START -->", "<!-- DYNAMIC:END -->")

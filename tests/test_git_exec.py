@@ -16,7 +16,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import git_exec  # noqa: E402
+import git_exec
 
 
 class _Captured:

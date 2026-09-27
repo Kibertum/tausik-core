@@ -242,7 +242,7 @@ def _sed_files(args: list[str]) -> list[str]:
 
 # The "what command is this really" layer lives in bash_cmd_norm (filesize cap).
 # Re-exported so a future reader of this module still finds the names it uses.
-from bash_cmd_norm import (  # noqa: E402,F401 — re-exported
+from bash_cmd_norm import (  # noqa: E402 — re-exported
     _MAX_WRAPPER_DEPTH,
     _shell_payloads,
     _strip_prefixes,
@@ -352,7 +352,7 @@ def _writers_in(sub: list[str], base_dir: str | None = None) -> list[str]:
 # dialect parsers report in these terms, so a consumer can weigh a PowerShell
 # answer exactly as it weighs a Bash one. Re-exported: callers have always
 # imported these two names from this module.
-from write_confidence import (  # noqa: E402,F401 — re-exported
+from write_confidence import (  # noqa: E402 — re-exported
     CONFIDENCE_PARSED,
     CONFIDENCE_REGEX_FALLBACK,
 )

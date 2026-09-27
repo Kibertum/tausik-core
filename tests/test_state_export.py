@@ -20,10 +20,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from state_export import ENTITY_DIRS, ExportError, build_tree  # noqa: E402
-from state_serialize import (  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from state_export import ENTITY_DIRS, ExportError, build_tree
+from state_serialize import (
     check_tree,
     normalize_ts,
     render_file,

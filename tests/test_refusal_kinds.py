@@ -10,9 +10,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import verify_refusal_kind as k  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from verify_handle_rules import _no  # noqa: E402
+import verify_refusal_kind as k
+from project_backend import SQLiteBackend
+from verify_handle_rules import _no
 
 
 @pytest.mark.parametrize(

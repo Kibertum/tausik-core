@@ -77,7 +77,7 @@ class SelfCorrectingParser(argparse.ArgumentParser):
     root parser covers the whole command tree.
     """
 
-    def error(self, message: str):  # noqa: ANN201 - argparse signature
+    def error(self, message: str):  # ruff-not-enabled: ANN201 - argparse signature
         parts = [f"{self.prog}: error: {message}", self.format_usage().rstrip()]
         examples = find_examples()
         if examples:

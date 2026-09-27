@@ -22,7 +22,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from token_accounting import (  # noqa: E402
+from token_accounting import (
     NEW_ERA,
     NEW_TOKENIZER_INFLATION,
     OLD_ERA,

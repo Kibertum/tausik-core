@@ -35,10 +35,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import state_triggers  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from state_import import ENTITY_DIRS  # noqa: E402
+import state_triggers
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from state_import import ENTITY_DIRS
 
 _AC = "1. Делает своё дело.\n2. Ошибка при пустом поле."
 

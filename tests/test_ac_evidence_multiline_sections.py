@@ -27,8 +27,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_ac_check import checklist_hard_block, checklist_missing  # noqa: E402
-from service_ac_evidence import build_report  # noqa: E402
+from gate_ac_check import checklist_hard_block, checklist_missing
+from service_ac_evidence import build_report
 
 CROSSCUTTING_SCOPE = ["scripts/service_ac_evidence.py", "scripts/gate_ac_check.py"]
 

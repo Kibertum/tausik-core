@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
-from bootstrap_config import detect_extension_skills  # noqa: E402
+from bootstrap_config import detect_extension_skills
 
 _REPO = os.path.join(os.path.dirname(__file__), "..")
 

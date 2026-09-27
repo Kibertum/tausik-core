@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT  # noqa: E402
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT
 
 
 # The CI lane definitions this file reads. Declared so the scoped-pytest gate

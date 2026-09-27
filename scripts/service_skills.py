@@ -136,7 +136,7 @@ class SkillsMixin:
                 from skill_repos import get_repo_pinned_pubkey
 
                 pinned = get_repo_pinned_pubkey(config_path, repo_name)
-            except Exception as e:  # noqa: BLE001 — see fail-closed note below
+            except Exception as e:
                 # A trust anchor we cannot read is not the same as one that says
                 # "unpinned": the first is unknown, the second is a decision.
                 raise ServiceError(

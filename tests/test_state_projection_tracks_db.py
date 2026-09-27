@@ -47,13 +47,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import project_config  # noqa: E402
-import state_triggers  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from state_export import build_tree  # noqa: E402
-from state_import import ENTITY_DIRS  # noqa: E402
-from tausik_utils import ServiceError, utcnow_iso  # noqa: E402
+import project_config
+import state_triggers
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from state_export import build_tree
+from state_import import ENTITY_DIRS
+from tausik_utils import ServiceError, utcnow_iso
 
 
 def _mem_id(message: str) -> int:

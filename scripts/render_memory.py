@@ -201,7 +201,7 @@ def memory_dedupe_lines(svc: Any, threshold: float = 0.85, limit: int = 200) -> 
 def _provenance_debt(svc: Any) -> list[str]:
     """Inferred memories nobody has confirmed are debt, and lint says how much (v65)."""
     try:
-        rows = svc.be._q(  # noqa: SLF001 — read-only aggregate
+        rows = svc.be._q(  # ruff-not-enabled: SLF001 — read-only aggregate
             "SELECT provenance, COUNT(*) AS n FROM memory WHERE archived_at IS NULL GROUP BY 1"
         )
     except Exception:  # noqa: BLE001 — a lint line must not break lint

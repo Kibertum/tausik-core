@@ -66,7 +66,7 @@ def labelled(reason: str) -> str:
 def last_run_kind(be: Any, slug: str) -> tuple[str, str]:
     """Why a close without a handle found no fresh green run: (kind, detail)."""
     try:
-        row = be._q1(  # noqa: SLF001 — read-only
+        row = be._q1(  # ruff-not-enabled: SLF001 — read-only
             "SELECT id, exit_code, ran_at FROM verification_runs WHERE task_slug=? "
             "ORDER BY id DESC LIMIT 1",
             (slug,),

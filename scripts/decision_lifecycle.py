@@ -81,7 +81,7 @@ def _superseder_map(be: Any) -> dict[int, int]:
     up to 10,000 for `--task`). Same rule as memory_supersedes: a valid edge,
     and a superseder that still exists.
     """
-    edges = be._q(  # noqa: SLF001 — read-only, the backend's own helper
+    edges = be._q(  # ruff-not-enabled: SLF001 — read-only, the backend's own helper
         "SELECT e.source_id AS s, e.target_id AS t FROM memory_edges e "
         "JOIN decisions d ON d.id = e.source_id WHERE e.relation='supersedes' "
         "AND e.source_type='decision' AND e.target_type='decision' AND e.valid_to IS NULL "

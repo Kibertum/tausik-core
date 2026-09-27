@@ -19,8 +19,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_command_runner import run_command_gate  # noqa: E402
-from gate_registry import GATE_REGISTRY  # noqa: E402
+from gate_command_runner import run_command_gate
+from gate_registry import GATE_REGISTRY
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 

@@ -21,9 +21,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import renar_standard_drift as std  # noqa: E402
-from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES  # noqa: E402
-from service_specs import SPEC_TYPES  # noqa: E402
+import renar_standard_drift as std
+from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES
+from service_specs import SPEC_TYPES
 
 OUR_VERSION = "1.0"
 

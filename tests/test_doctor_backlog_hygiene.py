@@ -27,7 +27,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from service_doctor_backlog import (  # noqa: E402
+from service_doctor_backlog import (
     check_backlog_hygiene,
     find_unreachable_open_tasks,
 )

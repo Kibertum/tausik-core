@@ -24,7 +24,7 @@ from tausik_utils import ServiceError, utcnow_iso, validate_length, validate_slu
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
-from actz_closed_lists import (  # noqa: E402,F401
+from actz_closed_lists import (
     ACTZ_BODY_SCHEMA,
     ACTZ_STATUSES,
     LINK_TARGETS,

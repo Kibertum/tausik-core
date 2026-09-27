@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from memory_markers import Match, PATTERNS, detect_markers  # noqa: E402
+from memory_markers import Match, PATTERNS, detect_markers
 
 
 class TestPositive:

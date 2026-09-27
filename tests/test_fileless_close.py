@@ -32,12 +32,12 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import verify_git_diff as vgd  # noqa: E402
-from gate_verify_first import enforce_verify_first  # noqa: E402
-from state_serialize import ENTITY_DIRS  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+import verify_git_diff as vgd
+from gate_verify_first import enforce_verify_first
+from state_serialize import ENTITY_DIRS
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from tausik_utils import ServiceError
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -45,7 +45,7 @@ REPO = Path(__file__).resolve().parents[1]
 def _porcelain_runner(stdout: str, *, returncode: int = 0):
     """A subprocess.run stand-in returning canned `git status --porcelain`."""
 
-    def run(cmd, **kwargs):  # noqa: ANN001
+    def run(cmd, **kwargs):  # ruff-not-enabled: ANN001
         return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr="")
 
     return run
@@ -78,7 +78,7 @@ class TestUncommittedChanges:
     def test_pathspec_forwarded_to_git(self, tmp_path):
         captured = {}
 
-        def run(cmd, **kwargs):  # noqa: ANN001
+        def run(cmd, **kwargs):  # ruff-not-enabled: ANN001
             captured["cmd"] = cmd
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
@@ -89,7 +89,7 @@ class TestUncommittedChanges:
     def test_no_pathspec_scans_whole_tree(self, tmp_path):
         captured = {}
 
-        def run(cmd, **kwargs):  # noqa: ANN001
+        def run(cmd, **kwargs):  # ruff-not-enabled: ANN001
             captured["cmd"] = cmd
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
@@ -108,7 +108,7 @@ class TestUncommittedChanges:
         assert got is None
 
     def test_git_raises_is_none(self, tmp_path):
-        def boom(cmd, **kwargs):  # noqa: ANN001
+        def boom(cmd, **kwargs):  # ruff-not-enabled: ANN001
             raise OSError("git exploded")
 
         assert vgd.uncommitted_changes(root=str(self._repo(tmp_path)), runner=boom) is None

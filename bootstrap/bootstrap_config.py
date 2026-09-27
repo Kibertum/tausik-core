@@ -184,7 +184,7 @@ def _load_stack_signatures() -> dict[str, list[tuple[str, str]]]:
         if out:
             return out
         return _FALLBACK_STACK_SIGNATURES
-    except Exception:  # noqa: BLE001 — bootstrap must boot even on broken registry
+    except Exception:
         import logging
 
         logging.getLogger("tausik.bootstrap").warning(

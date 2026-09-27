@@ -16,7 +16,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts"))
 
-from service_doctor_opencode import check_opencode_config  # noqa: E402
+from service_doctor_opencode import check_opencode_config
 
 VALID_SERVER = {"type": "local", "command": ["python", None, "--project", "/proj"], "enabled": True}
 

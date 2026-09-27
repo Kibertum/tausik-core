@@ -14,10 +14,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import external_reviewer as er  # noqa: E402
-import review_separation as rs  # noqa: E402
-from project_cli_review import cmd_review  # noqa: E402
-from project_parser import build_parser  # noqa: E402
+import external_reviewer as er
+import review_separation as rs
+from project_cli_review import cmd_review
+from project_parser import build_parser
 
 
 class _Be:

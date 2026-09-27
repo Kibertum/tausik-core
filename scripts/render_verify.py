@@ -86,7 +86,7 @@ def cache_hit_lines(svc: Any, task_slug: str, hit: dict[str, Any]) -> list[str]:
             "verify_cache_hit",
             f"verify_run_id={hit['id']} scope={hit['scope']}",
         )
-    except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks the report
+    except Exception:
         import logging
 
         logging.getLogger("tausik.verify").warning(

@@ -29,9 +29,9 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
 )
 
-from backend_defect_escape import _done_rows  # noqa: E402
-from backend_init import init_schema  # noqa: E402
-from backend_migrations_v62 import MIGRATION_V62  # noqa: E402
+from backend_defect_escape import _done_rows
+from backend_init import init_schema
+from backend_migrations_v62 import MIGRATION_V62
 
 _INDEX = "idx_tasks_defect_of"
 

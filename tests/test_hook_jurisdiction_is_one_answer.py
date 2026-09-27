@@ -29,9 +29,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from hook_policy import classify_target  # noqa: E402
-from scope_write_gate import _relative_to_project  # noqa: E402
-from task_gate import target_is_outside_project  # noqa: E402
+from hook_policy import classify_target
+from scope_write_gate import _relative_to_project
+from task_gate import target_is_outside_project
 
 _OTHER_DRIVE_ONLY = pytest.mark.skipif(
     os.name != "nt", reason="drive letters are a Windows concept"

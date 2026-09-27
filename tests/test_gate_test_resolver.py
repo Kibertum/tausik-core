@@ -17,7 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_test_resolver import (  # noqa: E402
+from gate_test_resolver import (
     build_tests_index,
     count_test_files,
     resolve_test_files_for_relevant,
@@ -25,7 +25,7 @@ from gate_test_resolver import (  # noqa: E402
 # Импортируется под другим именем НАРОЧНО: `test_roots` начинается с `test_`,
 # и pytest собрал бы саму функцию как тест — он и собрал, отчитавшись ошибкой
 # «fixture 'base' not found» вместо честного прогона.
-from gate_test_resolver import test_roots as roots_of  # noqa: E402
+from gate_test_resolver import test_roots as roots_of
 
 
 def _tree(tmp_path, *rel_paths):

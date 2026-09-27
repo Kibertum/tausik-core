@@ -18,8 +18,8 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
 )
 
-from gate_qg0_check import check_qg0_start  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from gate_qg0_check import check_qg0_start
+from tausik_utils import ServiceError
 
 _AC_WITHOUT_NEGATIVE = (
     "AC-1: the page shows the new logo. AC-2: the assets README names both files."

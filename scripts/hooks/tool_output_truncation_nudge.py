@@ -55,8 +55,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from _common import force_utf8_io  # noqa: E402
-from tausik_utils import load_effective_config  # noqa: E402
+from _common import force_utf8_io
+from tausik_utils import load_effective_config
 
 DEFAULT_THRESHOLD = 250
 

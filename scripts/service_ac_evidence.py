@@ -33,7 +33,7 @@ _MIN_CLAIM_WORDS = 4
 # module hit the 400-line gate, and the split is what gives the language-parity
 # registry a home. This module owns HOW lines are segmented and matched to AC
 # items. Re-exported: callers and tests import these names from here.
-from ac_evidence_detectors import (  # noqa: E402,F401 — re-export for callers
+from ac_evidence_detectors import (  # noqa: E402 — re-export for callers
     AC_HEADER_PREFIX_RE,
     AC_ITEM_BOUNDARY_RE,
     AC_NUMBER_PREFIX_RE,

@@ -13,12 +13,12 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from brain_universality import format_universality_hint  # noqa: E402
-from knowledge_promote import preview, promote  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_cli_extra import cmd_knowledge  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from brain_universality import format_universality_hint
+from knowledge_promote import preview, promote
+from project_backend import SQLiteBackend
+from project_cli_extra import cmd_knowledge
+from project_service import ProjectService
+from tausik_utils import ServiceError
 
 
 @pytest.fixture

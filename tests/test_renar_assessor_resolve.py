@@ -14,8 +14,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import project_cli_renar as renar  # noqa: E402
-from project_cli_renar import FALLBACK_ASSESSOR, resolve_assessor  # noqa: E402
+import project_cli_renar as renar
+from project_cli_renar import FALLBACK_ASSESSOR, resolve_assessor
 
 
 def test_explicit_assessor_wins(monkeypatch):

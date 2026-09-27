@@ -17,18 +17,18 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from actz_closed_lists import (  # noqa: E402
+from actz_closed_lists import (
     ACTZ_STATUSES,
     LINK_TARGETS,
     REQUIRED_SIGNATURE_ROLES,
     SIGNATURE_ROLES,
 )
-from backend_migrations import run_migrations  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from service_actz import FORBIDDEN_WORD_RE, display_name  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from backend_migrations import run_migrations
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from service_actz import FORBIDDEN_WORD_RE, display_name
+from tausik_utils import ServiceError
 
 
 @pytest.fixture

@@ -87,7 +87,7 @@ def git_ignore_probe(repo_root: str) -> Callable[[str], bool]:
     def probe(path: str) -> bool:
         if path not in cache:
             try:
-                proc = subprocess.run(  # noqa: S603 - fixed argv, shell=False
+                proc = subprocess.run(  # ruff-not-enabled: S603 - fixed argv, shell=False
                     ["git", "check-ignore", "-q", "--", path],
                     cwd=repo_root,
                     capture_output=True,

@@ -19,9 +19,9 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
 )
 
-import handlers  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
+import handlers
+from project_backend import SQLiteBackend
+from project_service import ProjectService
 
 
 @pytest.fixture

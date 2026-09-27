@@ -15,9 +15,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import memory_relevance as mr  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
+import memory_relevance as mr
+from project_backend import SQLiteBackend
+from project_service import ProjectService
 
 CROSSCUTTING_SCOPE = []  # a fixture store, not the tree
 

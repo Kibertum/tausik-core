@@ -130,7 +130,7 @@ def plan_redaction(svc: Any, req: RedactionRequest) -> list[Hit]:
     for table, columns in _tables(svc).items():
         for column in columns:
             rows = svc.be._conn.execute(
-                f"SELECT id, {column} FROM {table} WHERE {column} IS NOT NULL"  # noqa: S608
+                f"SELECT id, {column} FROM {table} WHERE {column} IS NOT NULL"  # ruff-not-enabled: S608
             ).fetchall()
             for row_id, value in rows:
                 n = len(rx.findall(value or ""))
@@ -167,11 +167,11 @@ def apply_redaction(svc: Any, req: RedactionRequest) -> RedactionResult:
     with conn:
         for hit in hits:
             current = conn.execute(
-                f"SELECT {hit.field} FROM {hit.entity_type} WHERE id = ?",  # noqa: S608
+                f"SELECT {hit.field} FROM {hit.entity_type} WHERE id = ?",  # ruff-not-enabled: S608
                 (hit.entity_id,),
             ).fetchone()[0]
             conn.execute(
-                f"UPDATE {hit.entity_type} SET {hit.field} = ? WHERE id = ?",  # noqa: S608
+                f"UPDATE {hit.entity_type} SET {hit.field} = ? WHERE id = ?",  # ruff-not-enabled: S608
                 (rx.sub(replacement, current or ""), hit.entity_id),
             )
             conn.execute(

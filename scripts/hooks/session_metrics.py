@@ -24,8 +24,8 @@ from glob import glob
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cost_pricing import calculate_cost_usd  # noqa: E402
-from token_accounting import sum_usage_tokens  # noqa: E402
+from cost_pricing import calculate_cost_usd
+from token_accounting import sum_usage_tokens
 
 
 def parse_transcript(

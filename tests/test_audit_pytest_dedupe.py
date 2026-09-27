@@ -15,13 +15,13 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from audit_pytest_dedupe import (  # noqa: E402
+from audit_pytest_dedupe import (
     _normalize_function,
     _signature,
     collect_duplicates,
     render_markdown,
 )
-import ast  # noqa: E402
+import ast
 
 REPO = Path(__file__).resolve().parents[1]
 

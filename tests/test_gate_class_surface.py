@@ -19,8 +19,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import gate_class_surface as gcs  # noqa: E402
-import gate_filesize  # noqa: E402
+import gate_class_surface as gcs
+import gate_filesize
 
 CROSSCUTTING_SCOPE = ["scripts/", "harness/", "bootstrap/"]
 

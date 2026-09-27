@@ -21,7 +21,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import knowledge_db  # noqa: E402
+import knowledge_db
 
 # The basename heuristic already maps knowledge_db.py here, but the shared store
 # is also reachable from home/project path resolution, which shares no basename

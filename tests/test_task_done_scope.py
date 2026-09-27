@@ -19,7 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from task_done_scope import (  # noqa: E402
+from task_done_scope import (
     persist_declared_scope,
     scope_from_recent_verify,
     scope_from_task_row,

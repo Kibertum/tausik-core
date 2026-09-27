@@ -9,9 +9,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from graph_mermaid import _label, _node_id, render_memory_graph  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
+from graph_mermaid import _label, _node_id, render_memory_graph
+from project_backend import SQLiteBackend
+from project_service import ProjectService
 
 
 @pytest.fixture

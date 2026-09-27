@@ -17,10 +17,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import gate_claudemd_state  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+import gate_claudemd_state
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from tausik_utils import ServiceError
 
 
 def _older_db(tmp_path) -> str:

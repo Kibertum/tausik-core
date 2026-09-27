@@ -20,8 +20,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import audit_stale_docs  # noqa: E402
-import audit_tracked_files  # noqa: E402
+import audit_stale_docs
+import audit_tracked_files
 
 REPO = Path(__file__).resolve().parents[1]
 

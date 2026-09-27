@@ -39,7 +39,7 @@ def main() -> int:
     # MultiEdit carries `file_path` too and was off this hook's matcher (PR #5);
     # the field is read through the one helper so every editor's spelling counts.
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from write_tools import edited_path  # noqa: PLC0415
+    from write_tools import edited_path  # ruff-not-enabled: PLC0415
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
     file_path = edited_path(data.get("tool_input")) or ""

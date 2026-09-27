@@ -25,8 +25,8 @@ from typing import Iterator
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import knowledge_db  # noqa: E402
-import project_parser  # noqa: E402
+import knowledge_db
+import project_parser
 
 CROSSCUTTING_SCOPE = ["scripts/knowledge_db.py", "scripts/project_parser.py"]
 

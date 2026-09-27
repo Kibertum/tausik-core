@@ -32,8 +32,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from _common import current_active_task_slug  # noqa: E402
-from cost_pricing import calculate_cost_usd  # noqa: E402
+from _common import current_active_task_slug
+from cost_pricing import calculate_cost_usd
 
 _RETRY_ATTEMPTS = 3
 _RETRY_BACKOFF_SEC = 0.05

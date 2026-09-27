@@ -15,15 +15,15 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from renar_clause_closed_lists import (  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from renar_clause_closed_lists import (
     assess_closed_lists,
     assess_spec_types,
     check_domain,
 )
-from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES  # noqa: E402
-from service_specs import SPEC_TYPES  # noqa: E402
+from service_adapts import ADAPT_STATUSES, FINDING_CATEGORIES
+from service_specs import SPEC_TYPES
 
 
 @pytest.fixture

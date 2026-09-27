@@ -26,8 +26,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import status_view  # noqa: E402
-from service_session_metrics import (  # noqa: E402
+import status_view
+from service_session_metrics import (
     effective_session_limit,
     session_overrun_warning,
 )

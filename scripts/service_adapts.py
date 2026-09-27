@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 # standard governs, kept apart from the behaviour here. Re-exported so every
 # existing `from service_adapts import FINDING_CATEGORIES` keeps working: a
 # constant moving house is nobody else's business.
-from adapt_closed_lists import (  # noqa: E402,F401
+from adapt_closed_lists import (  # noqa: F401
     ADAPT_BODY_SCHEMA,
     ADAPT_STATUSES,
     FINDING_CATEGORIES,

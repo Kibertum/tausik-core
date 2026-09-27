@@ -20,7 +20,7 @@ from model_pinning import model_start_updates
 from service_reasoning import ReasoningMixin
 from service_replay import ReplayMixin
 from service_recording import FORCE_RETIRED as _FORCE_RETIRED, start_advisories
-from service_task_done import TaskDoneReportMixin, _format_task_done_failures  # noqa: F401
+from service_task_done import TaskDoneReportMixin, _format_task_done_failures
 
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
@@ -33,7 +33,7 @@ _MISSING = object()
 
 
 from service_validation import load_stacks as _load_stacks  # noqa: E402,F401
-from service_validation import update_enums as _update_enums  # noqa: E402,F401
+from service_validation import update_enums as _update_enums  # noqa: E402
 
 
 class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, ReplayMixin):
@@ -161,7 +161,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if not _internal_force:
             qg0_warnings = self._check_qg0_start(slug, task)
             # Signals, not gates (decision #376): printed with the start, never refusals.
-            advisories = start_advisories(self.be, slug, task)
+            advisories = start_advisories(self, slug, task)
         updates: dict[str, Any] = {
             "status": "active",
             "attempts": task.get("attempts", 0) + 1,
@@ -263,7 +263,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if force:
             raise ServiceError(_FORCE_RETIRED)
         # An unblock re-activates, so it gets the same advisories a start gets.
-        advice = start_advisories(self.be, slug, task)
+        advice = start_advisories(self, slug, task)
         # An unblock is a re-activation, an attempt like `task start` (1239 closes
         # showed `attempts: 1` while it was not; attempts-counter-never-increments).
         attempts = task.get("attempts", 0) + 1

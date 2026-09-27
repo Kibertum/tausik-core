@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import model_profiles as mp  # noqa: E402
+import model_profiles as mp
 
 
 def test_defaults_present():

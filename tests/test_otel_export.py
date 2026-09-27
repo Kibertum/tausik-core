@@ -16,9 +16,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import otel_semconv  # noqa: E402
-from otel_export import build_otlp_trace, child_span_id, export_enabled  # noqa: E402
-from otel_semconv import genai_attributes  # noqa: E402
+import otel_semconv
+from otel_export import build_otlp_trace, child_span_id, export_enabled
+from otel_semconv import genai_attributes
 
 # The AC2 lint below walks all of scripts/ to prove no gen_ai.* literal escaped
 # the single mapper module (convention #330), so ANY change under scripts/ can

@@ -20,8 +20,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import knowledge_read  # noqa: E402
-import service_knowledge_aggregates as agg  # noqa: E402
+import knowledge_read
+import service_knowledge_aggregates as agg
 
 CROSSCUTTING_SCOPE = ["scripts/knowledge_read.py", "scripts/service_knowledge_aggregates.py"]
 

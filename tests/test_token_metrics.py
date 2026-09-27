@@ -26,8 +26,8 @@ from conftest import canonical_ddl
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from service_token_metrics import _percentile, aggregate, format_table  # noqa: E402
-from session_metrics import (  # noqa: E402
+from service_token_metrics import _percentile, aggregate, format_table
+from session_metrics import (
     replace_session_token_rows,
     extract_token_rows,
 )

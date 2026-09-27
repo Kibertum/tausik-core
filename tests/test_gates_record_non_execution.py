@@ -30,10 +30,10 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-import gate_bootstrap_drift  # noqa: E402,F401 — импорт даёт ребро выборки
+import gate_bootstrap_drift  # noqa: E402 — импорт даёт ребро выборки
 import gate_outcome  # noqa: E402
-import gate_renar_drift  # noqa: E402,F401
-import gate_state_roundtrip  # noqa: E402,F401
+import gate_renar_drift  # noqa: E402
+import gate_state_roundtrip  # noqa: E402
 import project_config  # noqa: E402
 from backend_schema_gate_runs import GATE_RUNS_SQL  # noqa: E402
 from gate_run_record import record_gate_runs  # noqa: E402

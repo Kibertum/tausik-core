@@ -228,7 +228,7 @@ class SQLiteBackend(
             parent, pslug = frontier.pop()
             for child, fk_col, parent_col in self._dependent_tables(parent):
                 rows = self._q(
-                    f"SELECT slug FROM {child} WHERE {fk_col} IN "  # noqa: S608 — names from ENTITY_DIRS/PRAGMA
+                    f"SELECT slug FROM {child} WHERE {fk_col} IN "  # ruff-not-enabled: S608 — names from ENTITY_DIRS/PRAGMA
                     f"(SELECT {parent_col} FROM {parent} WHERE slug=?)",
                     (pslug,),
                 )
@@ -268,9 +268,13 @@ class SQLiteBackend(
         """
         if table not in self._ID_DELETABLE:
             raise ValueError(f"_delete_projected_by_id: {table!r} is not a slug-bearing kind")
-        row = self._q1(f"SELECT slug FROM {table} WHERE id=?", (int(row_id),))  # noqa: S608
+        row = self._q1(
+            f"SELECT slug FROM {table} WHERE id=?", (int(row_id),)
+        )  # ruff-not-enabled: S608
         slug = (row or {}).get("slug")
-        removed = self._ex(f"DELETE FROM {table} WHERE id=?", (int(row_id),))  # noqa: S608
+        removed = self._ex(
+            f"DELETE FROM {table} WHERE id=?", (int(row_id),)
+        )  # ruff-not-enabled: S608
         if removed and slug:
             self._project_write(table, str(slug))
         return removed

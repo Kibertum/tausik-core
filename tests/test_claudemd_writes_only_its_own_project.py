@@ -37,11 +37,11 @@ sys.path.insert(
     os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
 )
 
-from claudemd_state import resolve_project_dir  # noqa: E402
-from handlers_skill import handle_update_claudemd  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_cli_extra import cmd_update_claudemd  # noqa: E402
-from project_service import ProjectService  # noqa: E402
+from claudemd_state import resolve_project_dir
+from handlers_skill import handle_update_claudemd
+from project_backend import SQLiteBackend
+from project_cli_extra import cmd_update_claudemd
+from project_service import ProjectService
 
 _DOC = (
     "# Инструкции\n\nСтатический текст.\n\n"

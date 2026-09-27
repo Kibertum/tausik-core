@@ -25,7 +25,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_command_runner import (  # noqa: E402
+from gate_command_runner import (
     _SCOPE_LABEL_MAX_NAMED,
     _scope_label,
     run_command_gate,

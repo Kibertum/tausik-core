@@ -49,10 +49,10 @@ def run_renar_drift_gate(name: str) -> gate_outcome.GateOutcome:
             remedy="Fix the gate name in the registry, or map a detector to it.",
         )
     try:
-        import sqlite3  # noqa: PLC0415
+        import sqlite3  # ruff-not-enabled: PLC0415
 
-        from project_config import get_db_path  # noqa: PLC0415
-        from renar_drift import format_findings, run_detector  # noqa: PLC0415
+        from project_config import get_db_path  # ruff-not-enabled: PLC0415
+        from renar_drift import format_findings, run_detector  # ruff-not-enabled: PLC0415
 
         db_path = get_db_path()
         if not os.path.isfile(db_path):

@@ -14,8 +14,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from skill_manager import SkillManagerError  # noqa: E402
-from skill_repos import (  # noqa: E402
+from skill_manager import SkillManagerError
+from skill_repos import (
     get_repo_pinned_pubkey,
     load_config,
     repo_remove,

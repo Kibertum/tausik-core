@@ -305,7 +305,25 @@ line-length = 100
 # source, written as escapes now), PLR0124 (x != x), B017 (a test asserting a
 # blind Exception passes on the wrong error), PYI036 (__exit__ annotation).
 # Everything else ruff 0.16 turns on by default is rejected or split out there.
-select = ["E4", "E7", "E9", "F", "BLE001", "PLE2515", "PLE2502", "PLR0124", "B017", "PYI036"]
+# RUF100 joined after 483 stale suppressions were removed: a `noqa` that suppresses
+# nothing is a claim the reader trusts and the linter ignores, and they accumulate
+# silently. It is safe to enforce now BECAUSE the 74 suppressions naming rules this
+# project does not select were first turned into plain `# ruff-not-enabled:` comments
+# — deleting them would have pre-empted the decision this file defers above, and
+# leaving them as `noqa` would have made RUF100 permanently red.
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "BLE001",
+    "PLE2515",
+    "PLE2502",
+    "PLR0124",
+    "B017",
+    "PYI036",
+    "RUF100",
+]
 
 [tool.ruff.lint.per-file-ignores]
 # Files that need sys.path manipulation before importing project modules.

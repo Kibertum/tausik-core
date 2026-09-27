@@ -68,7 +68,7 @@ def session_capacity_advisory(be: "SQLiteBackend", slug: str, task: dict[str, An
     return ""
 
 
-def start_advisories(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> list[str]:
+def start_advisories(svc: Any, slug: str, task: dict[str, Any]) -> list[str]:
     """Every advisory a task start prints, already prefixed, in a stable order.
 
     One function rather than a growing list of assignments at the call site: each
@@ -76,12 +76,21 @@ def start_advisories(be: "SQLiteBackend", slug: str, task: dict[str, Any]) -> li
     -- and service_task.py sits at its 500-line ceiling, so a third one added there
     would have to displace something.
 
+    Takes the SERVICE and not the backend, because the plan advisory has to ask the
+    backlog what it would have offered, and that question is a service-level one.
+
     An empty list is the common case: capacity is quiet until a budget is exceeded,
-    and the necessity question is quiet on simple tasks by measurement.
+    the necessity question is quiet on simple tasks by measurement, and the plan
+    advisory is quiet whenever the task being started IS the plan's next one.
     """
     from code_necessity import code_necessity_prompt
+    from plan_adherence import plan_advisory
 
-    out = [session_capacity_advisory(be, slug, task), code_necessity_prompt({**task, "slug": slug})]
+    out = [
+        session_capacity_advisory(svc.be, slug, task),
+        code_necessity_prompt({**task, "slug": slug}),
+        plan_advisory(svc, slug),
+    ]
     return [f"ℹ {line}" for line in out if line]
 
 

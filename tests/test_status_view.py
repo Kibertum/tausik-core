@@ -15,14 +15,14 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from status_view import (  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from status_view import (
     build_status_view,
     render_status_cli,
     render_status_mcp,
 )
-from tausik_utils import format_status_compact_json  # noqa: E402
+from tausik_utils import format_status_compact_json
 
 
 @pytest.fixture

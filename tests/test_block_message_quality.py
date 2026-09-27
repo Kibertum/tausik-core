@@ -37,7 +37,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from tausik_utils import cli_invocation  # noqa: E402
+from tausik_utils import cli_invocation
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _HOOKS = _REPO_ROOT / "scripts" / "hooks"

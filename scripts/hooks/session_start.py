@@ -15,8 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from _common import profile_dir as _common_profile_dir  # noqa: E402
-from _common import tausik_path as _tausik_path  # noqa: E402
+from _common import profile_dir as _common_profile_dir
+from _common import tausik_path as _tausik_path
 
 
 def _run_tausik(cmd: str, args: list[str], project_dir: str, timeout: int = 4) -> str:

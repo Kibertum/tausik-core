@@ -31,7 +31,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ide_utils import all_profile_dirs  # noqa: E402
+from ide_utils import all_profile_dirs
 
 #: How far into a transcript to look for the `cwd` field before giving up. It
 #: appears on the first user entry in practice; the cap keeps a mis-shaped or

@@ -16,8 +16,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import closure_amendments as ca  # noqa: E402
-from audit_closure_evidence import (  # noqa: E402
+import closure_amendments as ca
+from audit_closure_evidence import (
     NEVER_EXISTED,
     RECONCILED,
     RETIRED,

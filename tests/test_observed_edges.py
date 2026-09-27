@@ -78,7 +78,7 @@ class TestTheObserverRecordsWhatWasActuallyReached:
             observer = oc.Observer(str(tmp_path))
             observer.start()
             try:
-                import reached  # noqa: PLC0415
+                import reached  # ruff-not-enabled: PLC0415
 
                 reached.touched()
             finally:

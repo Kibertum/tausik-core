@@ -9,11 +9,11 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_qg0_renar import renar_qg0_advisory  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_cli_aidd_autogen import render_vision  # noqa: E402
-from project_cli_aidd_validate import cmd_aidd_validate  # noqa: E402
-from project_service import ProjectService  # noqa: E402
+from gate_qg0_renar import renar_qg0_advisory
+from project_backend import SQLiteBackend
+from project_cli_aidd_autogen import render_vision
+from project_cli_aidd_validate import cmd_aidd_validate
+from project_service import ProjectService
 
 
 @pytest.fixture

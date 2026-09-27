@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "bootstrap"))
 
-from bootstrap_opencode import (  # noqa: E402
+from bootstrap_opencode import (
     generate_opencode_commands,
     generate_opencode_config,
     generate_opencode_plugin,

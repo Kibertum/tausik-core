@@ -14,7 +14,7 @@ from __future__ import annotations
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
 from backend_schema import SCHEMA_VERSION
 from backend_migrations_postseed import run_post_migrations
-from backend_migrations_guard import _column_already_there, _stamp  # noqa: F401 — re-exported for tests
+from backend_migrations_guard import _column_already_there, _stamp
 from backend_migrations_v35 import MIGRATION_V35
 from backend_migrations_v36 import MIGRATION_V36
 from backend_migrations_v37 import MIGRATION_V37

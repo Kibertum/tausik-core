@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from supply_eol import (  # noqa: E402
+from supply_eol import (
     WorktreeDriftError,
     assert_worktree_matches_repo,
     drifted_files,
