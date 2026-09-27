@@ -9,6 +9,56 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the journal has a budget, and only the retelling half of it does
+
+MEASURED first, and the split set the numbers: 292 entries across 25 closed tasks, 99,335
+characters (~24,800 tokens). Evidence of closure — an AC with a tick, a structured root
+cause, a domain or negative line — is 158 entries and 48,400 characters. The other 134
+entries and 50,935 characters, **51% of the journal**, retell the work. Median entry 319,
+p90 520, longest 1,355.
+
+A journal entry is written once and READ many times: by `task show`, by the compaction
+carry-over, by the session-start memory tail, by every fresh agent opening the task. A
+release whose subject is token economy cannot have its own record be the largest producer
+of tokens in it.
+
+So `task log` names the number when a RETELLING entry passes 520 characters — the measured
+p90, above every ordinary entry and below the handful that narrate a session — and a close
+reports the per-task total against a ratchet of 2,037, the measured mean. Evidence is
+exempt at ANY length: squeezing proof would trade the expensive thing for the cheap one,
+and a refusal would teach agents to close in silence, which is the failure this project
+was built against.
+
+**The CHANGELOG got no limit, and the measurement is why.** Its `[Unreleased]` section is
+105,067 characters over 103 entries, and its twelve-word overlap with the task journals is
+12 shingles out of 16,700 — **0%**. It is not duplication but independent prose for a
+different reader, read once per release rather than on every task read. A cap there would
+cut content, so none was added.
+
+### Changed — the CLI family has no residue drawer
+
+`project_cli_ops.py` said it itself: "NOT a domain. This module is the residue of repeated
+bleeding to satisfy the filesize gate." It and `project_cli_extra.py` were the only two of
+33 modules named after what would not fit; three others carried the same confession in
+their headers.
+
+Their 13 commands now live in seven homes named after their subject — session, search,
+knowledge, explore, doc, run, gates — and the family is 38 modules with zero residue
+names. Function bodies were copied by source span rather than re-emitted, so the split
+cannot change behaviour, and all 13 commands were checked by RUNNING them: an import that
+resolves is not a command that works.
+
+Three joins are worth naming: a dead end went to memory because a dead end IS a memory of
+a particular type; `update-claudemd` went to `doc` because both produce a tracked document
+from the live database; `fts` went to `search` because they are two commands over one
+store. `cmd_skill` and `cmd_stack`, which the residue only re-exported, now come from their
+real modules — a passthrough through a drawer is the same defect, better hidden.
+
+A test holds the shape so the drawer cannot come back: every module in the family is
+checked against a vocabulary of leftover names and against a docstring that lists instead
+of naming, with mutations proving both halves bite.
+
+
 ### Added — a close names what the plan offers next, so the finding and the plan stand side by side
 
 The start-time advisory shipped in the same release arrives too late: by `task start` the

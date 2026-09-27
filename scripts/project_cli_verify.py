@@ -1,7 +1,8 @@
 """SENAR Rule 5 verify CLI handler.
 
-Lives in its own file so project_cli_extra.py stays under the 400-line
-filesize gate. The dispatch in project.py imports `cmd_verify` from here.
+Named after its command. It used to say it lived apart so a residue module could
+stay under the filesize gate; that module is gone, and a home needs no such
+excuse. The dispatch in project.py imports `cmd_verify` from here.
 
 cli-verify-bypasses-cache-guards: this module used to run its own gate cycle
 — `run_gates` + `record_run` called directly — and so carried none of

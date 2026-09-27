@@ -185,7 +185,7 @@ class TestOneRendererForBothSources:
     """AC4: the improvement the divergence was waiting to break."""
 
     def test_a_shared_row_and_a_project_row_render_identically(self):
-        from project_cli_extra import _render_tags
+        from render_memory import render_tags as _render_tags
 
         project_row = json.dumps(["альфа", "бета"], ensure_ascii=False)
         shared_row_legacy = "альфа,бета"
@@ -193,7 +193,7 @@ class TestOneRendererForBothSources:
         assert _render_tags(project_row) == " альфа, бета"
 
     def test_no_tags_renders_as_nothing_rather_than_an_empty_bracket(self):
-        from project_cli_extra import _render_tags
+        from render_memory import render_tags as _render_tags
 
         assert _render_tags(None) == ""
         assert _render_tags("") == ""

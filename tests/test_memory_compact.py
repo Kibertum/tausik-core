@@ -99,7 +99,7 @@ class TestMcpAndCli:
     def test_cli_handler(self, tmp_path, monkeypatch):
         svc = _fresh_service(tmp_path, monkeypatch)
         _seed_task_and_logs(svc)
-        from project_cli_extra import cmd_memory
+        from project_cli_knowledge import cmd_memory
 
         class Args:
             memory_cmd = "compact"
@@ -115,7 +115,7 @@ class TestMcpAndCli:
 
     def test_cli_empty_prints_placeholder(self, tmp_path, monkeypatch):
         svc = _fresh_service(tmp_path, monkeypatch)
-        from project_cli_extra import cmd_memory
+        from project_cli_knowledge import cmd_memory
 
         class Args:
             memory_cmd = "compact"

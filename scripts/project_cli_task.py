@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from project_service import ProjectService
 
 
-
 def _apply_tickets(svc: ProjectService, slug: str, tickets: list[str] | None) -> None:
     """Привязка к тикету, записанная СРАЗУ при заведении задачи.
 
@@ -37,6 +36,7 @@ def _apply_tickets(svc: ProjectService, slug: str, tickets: list[str] | None) ->
     import tracker_ref
 
     svc.task_update(slug, tracker_refs=tracker_ref.dumps(tracker_ref.normalise_all(tickets)))
+
 
 def cmd_task(svc: ProjectService, args: Any) -> None:
     from project_cli import _print_table

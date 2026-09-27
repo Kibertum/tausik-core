@@ -465,7 +465,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             phase = status_to_phase.get(task["status"])
         self.be.task_log_add(slug, message, phase=phase, diff_stats=diff_stats)
         self._project_task(slug)  # the journal is part of the task doc
-        return f"Logged to '{slug}'."
+        return f"Logged to '{slug}'." + str(__import__("journal_budget").log_suffix(message))
 
     def task_logs(self, slug: str, phase: str | None = None) -> list[dict]:
         """Return structured logs for a task."""

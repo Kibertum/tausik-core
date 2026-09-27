@@ -215,7 +215,7 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
     elif c == "extend":
         print(svc.session_extend(args.minutes))
     elif c == "recompute":
-        from project_cli_ops import cmd_session_recompute
+        from project_cli_session import cmd_session_recompute
 
         cmd_session_recompute(svc, args)
     else:
@@ -258,7 +258,7 @@ def cmd_roadmap(svc: ProjectService, args: Any) -> None:
 
 
 # cmd_metrics, cmd_search, cmd_events, cmd_dead_end, cmd_explore, cmd_audit, cmd_run
-# -> moved to project_cli_extra.py
+# -> moved to project_cli_knowledge.py
 
 
 # _print_with_warnings, _auto_slug, _print_task_detail

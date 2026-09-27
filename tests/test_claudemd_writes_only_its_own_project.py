@@ -40,7 +40,7 @@ sys.path.insert(
 from claudemd_state import resolve_project_dir
 from handlers_skill import handle_update_claudemd
 from project_backend import SQLiteBackend
-from project_cli_extra import cmd_update_claudemd
+from project_cli_doc import cmd_update_claudemd
 from project_service import ProjectService
 
 _DOC = (

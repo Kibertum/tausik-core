@@ -76,7 +76,7 @@ def test_the_label_is_one_constant_and_the_format_has_one_producer():
     """Both callers import build_dynamic_state; neither spells the stamp itself."""
     assert cs.STAMP_LABEL == "TAUSIK"
     callers = [
-        os.path.join(_ROOT, "scripts", "project_cli_extra.py"),
+        os.path.join(_ROOT, "scripts", "project_cli_doc.py"),
         os.path.join(_ROOT, "harness", "claude", "mcp", "project", "handlers_skill.py"),
     ]
     for path in callers:

@@ -113,7 +113,7 @@ def test_dry_run_exits_nonzero_when_drift(temp_project, monkeypatch):
         import sys, os
         sys.path.insert(0, r'{scripts}')
         sys.path.insert(0, r'{bootstrap}')
-        from project_cli_extra import cmd_update_claudemd
+        from project_cli_doc import cmd_update_claudemd
         from types import SimpleNamespace
 
         class _Svc:

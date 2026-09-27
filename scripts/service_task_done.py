@@ -1,11 +1,9 @@
 """TAUSIK task_done report generation — extracted from service_task.py.
 
-Holds the heavy `_task_done_report` body and the `_format_task_done_failures`
-helper. Mixed into TaskMixin via TaskDoneReportMixin so existing call-sites
-(svc._task_done_report, harness/*/mcp/project/handlers.py) keep working
-unchanged. Pure re-org for the 400-line filesize gate
-(filesize-debt-paydown-2). No semantic changes.
-"""
+Holds the heavy `_task_done_report` body and `_format_task_done_failures`, mixed into
+TaskMixin so existing call-sites keep working. It began as a pure re-org for the
+filesize gate and is no longer one: the close now also names what the plan offers next
+and what its own journal cost."""
 
 from __future__ import annotations
 
@@ -14,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError, utcnow_iso
 from model_pinning import model_done_updates
+from journal_budget import close_lines_for as journal_close_lines
 from plan_adherence import plan_next_line
 from service_recording import record_call_actual, record_cost_actual
 from service_task_done_flags import _checklist_hard_enabled, _root_cause_hard_enabled
@@ -486,7 +485,8 @@ class TaskDoneReportMixin:
             if cost_warning:
                 msgs.append(cost_warning)
                 report["warnings"].append(cost_warning)
-            msgs.extend([*self._cascade_done(slug), *plan_next_line(self)])  # type: ignore[attr-defined]
+            cascade = self._cascade_done(slug)  # type: ignore[attr-defined]
+            msgs.extend([*cascade, *journal_close_lines(self, slug), *plan_next_line(self)])
             # v2-verify-receipt-as-argument: spend the presented handle HERE,
             # inside the transaction that writes status='done'. Redeem-once
             # exists so one green cannot close two tasks; binding the spend to

@@ -111,7 +111,7 @@ class TestMemoryBlockCli:
         svc.memory_add("convention", "test-convention", "body")
 
         # The CLI uses a different import path; easier to test the handler directly
-        from project_cli_extra import cmd_memory
+        from project_cli_knowledge import cmd_memory
 
         class Args:
             memory_cmd = "block"

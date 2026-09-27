@@ -40,15 +40,11 @@ def main() -> None:
         cmd_task,
         cmd_team,
     )
-    from project_cli_extra import (
-        cmd_fts,
-        cmd_gates,
-        cmd_knowledge,
-        cmd_memory,
-        cmd_skill,
-        cmd_stack,
-        cmd_update_claudemd,
-    )
+    from project_cli_gates import cmd_gates
+    from project_cli_knowledge import cmd_knowledge, cmd_memory
+    from project_cli_search import cmd_fts, cmd_search
+    from project_cli_skill import cmd_skill
+    from project_cli_stack import cmd_stack
     from project_cli_config import cmd_config
     from project_cli_doctor import cmd_doctor
     from update_check import cmd_update_check
@@ -61,15 +57,11 @@ def main() -> None:
     from project_cli_verify import cmd_verify
     from project_cli_audit import cmd_audit
     from project_cli_metrics import cmd_metrics
-    from project_cli_ops import (
-        cmd_dead_end,
-        cmd_doc,
-        cmd_explore,
-        cmd_hud,
-        cmd_run,
-        cmd_search,
-        cmd_suggest_model,
-    )
+    from project_cli_doc import cmd_doc, cmd_update_claudemd
+    from project_cli_explore import cmd_explore
+    from project_cli_knowledge import cmd_dead_end
+    from project_cli_run import cmd_run
+    from project_cli_session import cmd_hud, cmd_suggest_model
     from project_cli_events import cmd_events
     from project_cli_publish import cmd_publish
     from project_cli_specs import cmd_spec

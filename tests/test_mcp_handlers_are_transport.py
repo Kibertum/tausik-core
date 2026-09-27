@@ -144,7 +144,7 @@ class TestBothSurfacesSayTheSameThing:
 
     def test_memory_show_carries_the_same_fields_on_both(self, tmp_path, capsys):
         from handlers import handle_tool
-        from project_cli_extra import cmd_memory
+        from project_cli_knowledge import cmd_memory
 
         svc = self._svc(tmp_path)
         svc.memory_add("gotcha", "A title", "The body", ["alpha", "beta"], None)

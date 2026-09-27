@@ -1,21 +1,14 @@
-"""TAUSIK CLI handlers with no module of their own yet — hud, suggest-model,
-search, dead-end, explore, doc, run, session-recompute.
+"""The current session: what it is, what it advises, and its recomputed numbers.
 
-NOT a domain. This module is the residue of repeated bleeding to satisfy the
-filesize gate — brain_cli_ops.py, project_cli_events.py and
-project_cli_metrics.py each say so in their own docstrings. The two commands
-whose domain module already existed (metrics, audit) have been moved back to
-it; the rest await a per-command split tracked as
-cli-ops-residue-split-by-command. Do not add new commands here — create
-project_cli_<command>.py, which is what 24 of this family's 26 modules do.
+Carved out of `project_cli_ops.py`, whose own docstring said "NOT a domain ... the
+residue of repeated bleeding to satisfy the filesize gate". The family has 33
+modules and 31 were already named after a command or a domain; these three
+handlers share one subject, so the subject gets the name.
 """
 
 from __future__ import annotations
 
-import os
-import sys
 from typing import Any
-
 from project_service import ProjectService
 
 
@@ -95,108 +88,6 @@ def cmd_suggest_model(svc: ProjectService, args: Any) -> None:
     from model_routing import format_suggestion
 
     print(format_suggestion(getattr(args, "complexity", None)))
-
-
-def cmd_search(svc: ProjectService, args: Any) -> None:
-    from render_status import SEARCH_LIMIT, search_lines
-
-    limit = getattr(args, "limit", SEARCH_LIMIT)
-    print("\n".join(search_lines(svc, args.query, args.scope, limit)))
-
-
-def cmd_dead_end(svc: ProjectService, args: Any) -> None:
-    print(svc.dead_end(args.approach, args.reason, args.tags, args.task))
-
-
-def cmd_explore(svc: ProjectService, args: Any) -> None:
-    c = args.explore_cmd
-    if c == "start":
-        print(svc.exploration_start(args.title, args.time_limit))
-    elif c == "end":
-        print(svc.exploration_end(args.summary, args.create_task))
-    elif c == "current":
-        exp = svc.exploration_current()
-        if exp:
-            elapsed = exp.get("elapsed_min", "?")
-            limit = exp.get("time_limit_min", 30)
-            over = " [OVER LIMIT]" if exp.get("over_limit") else ""
-            print(f"Exploration #{exp['id']}: {exp['title']}")
-            print(f"  Elapsed: {elapsed} min / {limit} min{over}")
-        else:
-            print("No active exploration.")
-    else:
-        print("Usage: tausik explore [start|end|current]")
-
-
-def cmd_doc(svc: ProjectService, args: Any) -> None:
-    """`tausik doc <subcommand>` — extract via markitdown; constants JSON generator."""
-    sub = getattr(args, "doc_cmd", None)
-    if sub == "constants":
-        import gen_doc_constants
-
-        code = gen_doc_constants.run_main(
-            gen_doc_constants.find_repo_root(),
-            check=bool(getattr(args, "doc_constants_check", False)),
-        )
-        raise SystemExit(code)
-    if sub == "roadmap":
-        import release_roadmap
-        from project_config import find_tausik_dir
-
-        raise SystemExit(
-            release_roadmap.run_main(
-                svc.be._conn,
-                os.path.dirname(find_tausik_dir()),
-                check=bool(getattr(args, "doc_roadmap_check", False)),
-            )
-        )
-    if sub == "extract":
-        import doc_extract
-
-        md = doc_extract.extract_to_markdown(
-            args.path, format_hint=getattr(args, "format_hint", None)
-        )
-        if md is None:
-            sys.exit(1)
-        print(md)
-        return
-    print(
-        "Usage: tausik doc extract <file> [--format=X] | "
-        "tausik doc constants [--check] | tausik doc roadmap [--check]",
-        file=sys.stderr,
-    )
-    sys.exit(2)
-
-
-def cmd_run(svc: ProjectService, args: Any) -> None:
-    """Parse and display a batch-run plan summary."""
-    from plan_parser import parse_plan
-
-    plan_file = args.plan_file
-    if not os.path.isfile(plan_file):
-        print(f"Error: Plan file not found: {plan_file}", file=sys.stderr)
-        sys.exit(1)
-
-    with open(plan_file, encoding="utf-8") as f:
-        text = f.read()
-
-    plan = parse_plan(text)
-
-    print(f"Plan: {plan.title}")
-    if plan.context:
-        print(f"Context: {plan.context[:200]}")
-    if plan.validation_commands:
-        print(f"Validation: {', '.join(plan.validation_commands)}")
-    print(f"Tasks: {len(plan.tasks)}")
-    for task in plan.tasks:
-        done = sum(task.completed)
-        total = len(task.steps)
-        status = f" ({done}/{total} done)" if total else ""
-        print(f"  {task.number}. {task.title}{status}")
-        print(f"     Goal: {task.goal}")
-        if task.files:
-            print(f"     Files: {', '.join(task.files)}")
-    print("\nTo execute this plan, use /run in an interactive session.")
 
 
 def cmd_session_recompute(svc: ProjectService, args: Any) -> None:

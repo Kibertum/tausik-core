@@ -20,7 +20,7 @@ def _fresh_svc(tmp_path, monkeypatch):
 
 
 def _run_hud(svc):
-    from project_cli_ops import cmd_hud
+    from project_cli_session import cmd_hud
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
