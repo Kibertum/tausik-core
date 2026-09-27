@@ -9,6 +9,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the budget-guard tests read the live database and failed in CI
+
+Two of the new tests named real closures of this repository — 106 calls against a budget of
+40, and 124 against 70 — and read them from the live database. Green here, red in CI, where
+the database is a different one.
+
+THE SAME DEFECT WAS FIXED EARLIER THE SAME DAY in the response-size tests, which read the
+live service and compared "No results." with itself on a fresh clone. The lesson was written
+down and then repeated a few hours later in a new file, which says something worth recording:
+writing the lesson does not prevent the repeat. What prevents it is asking, before the test is
+written, where the test gets its data — and building it when the answer is "from whatever is
+already in the project".
+
+The fixture now builds its own project in a temporary directory with the same two measured
+shapes, so the numbers stay real and the data belongs to the test. Proved still able to catch
+a breach rather than merely green: armed and over the ceiling exits 1, unarmed exits 0, armed
+and inside the ceiling exits 0.
+
+
 ### Added — `/run`, the driver that makes autonomy a mechanism instead of a request
 
 TAUSIK promised autonomous execution and implemented it as an INSTRUCTION: CLAUDE.md asked

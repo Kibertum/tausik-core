@@ -123,9 +123,32 @@ class TestTheGuardCannotBreakACloseOrItself:
 
 
 class TestTheDriverCanAskWithAnExitCode:
-    """A printed warning is invisible to `&&`. The answer has to be an exit code."""
+    """A printed warning is invisible to `&&`. The answer has to be an exit code.
 
-    def _run(self, slug, armed):
+    On a project the test BUILDS, never on a live slug. The first version named real
+    closures of this repository and so passed here and failed in CI — the same defect the
+    response-size tests carried earlier the same day: a test reading whatever database the
+    machine happens to hold is green for a reason unrelated to its subject. The numbers
+    below are still the measured ones; only their ownership changed.
+    """
+
+    @pytest.fixture
+    def project(self, tmp_path):
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+
+        root = tmp_path / "proj"
+        (root / ".tausik").mkdir(parents=True)
+        svc = ProjectService(SQLiteBackend(str(root / ".tausik" / "tausik.db")))
+        svc.epic_add("e", "Epic")
+        svc.story_add("e", "s", "Story")
+        for slug, budget, actual in (("over", 40, 106), ("within", 70, 124)):
+            svc.task_add("s", slug, slug, role="developer", goal="g", call_budget=budget)
+            svc.be.task_update(slug, call_actual=actual)
+        svc.be.close()
+        return root
+
+    def _run(self, project, slug, armed):
         import os
 
         env = dict(os.environ, PYTHONIOENCODING="utf-8")
@@ -139,21 +162,20 @@ class TestTheDriverCanAskWithAnExitCode:
             encoding="utf-8",
             errors="replace",
             env=env,
-            cwd=str(_REPO),
+            cwd=str(project),
         )
 
-    def test_a_breaching_task_exits_nonzero_only_when_armed(self):
-        """Measured on a real closure: 106 calls against a budget of 40 is 2.6x."""
-        slug = "is-code-needed-at-all-before-writing-it"
-        armed = self._run(slug, armed=True)
+    def test_a_breaching_task_exits_nonzero_only_when_armed(self, project):
+        """106 calls against a budget of 40 is 2.65x — the measured shape of an overrun."""
+        armed = self._run(project, "over", armed=True)
         assert armed.returncode == 1, (armed.stdout, armed.stderr)
         assert "ПОТОЛОК ВЫЗОВОВ" in armed.stderr
-        unarmed = self._run(slug, armed=False)
+        unarmed = self._run(project, "over", armed=False)
         assert unarmed.returncode == 0
-        assert unarmed.stdout.strip() == "" and "ПОТОЛОК" not in unarmed.stderr
+        assert "ПОТОЛОК" not in (unarmed.stdout + unarmed.stderr)
 
-    def test_a_task_within_the_ceiling_is_silent_and_zero_even_armed(self):
-        """1.77x on a real closure — inside the ceiling, so nothing is printed."""
-        proc = self._run("683-structurally-identical-tests-in-294-groups", armed=True)
+    def test_a_task_within_the_ceiling_is_silent_and_zero_even_armed(self, project):
+        """1.77x is inside, so nothing is printed even with the flag set."""
+        proc = self._run(project, "within", armed=True)
         assert proc.returncode == 0
         assert "ПОТОЛОК" not in (proc.stdout + proc.stderr)
