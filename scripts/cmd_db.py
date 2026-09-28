@@ -173,4 +173,26 @@ def cmd_db(svc: Any, args: Any) -> None:
         for err in result["errors"]:
             print(f"  ! {err}")
         return
-    raise SystemExit(f"Unknown subcommand 'db {sub}'. Available: prune")
+    if sub == "telemetry":
+        from project_config import find_tausik_dir
+        from telemetry_retention import POLICIES, doctor_line, truncate
+
+        tausik_dir = find_tausik_dir()
+        applied = bool(getattr(args, "apply", False))
+        trimmed = truncate(tausik_dir, dry_run=not applied)
+        level, detail = doctor_line(tausik_dir)
+        print(detail)
+        if not trimmed:
+            print("Nothing past its window.")
+        for name, (before, after) in sorted(trimmed.items()):
+            verb = "trimmed" if applied else "would trim"
+            print(f"  {name}: {verb} {before} -> {after} lines (tail kept)")
+        # The declared lifetimes are printed with the action, because a retention nobody can
+        # read is a retention nobody trusts — and one file is deliberately NOT trimmed.
+        for policy in POLICIES:
+            window = (
+                "not trimmed by age" if policy.keep_lines is None else f"{policy.keep_lines} lines"
+            )
+            print(f"  · {policy.name}: {window} — {policy.reason}")
+        return
+    raise SystemExit(f"Unknown subcommand 'db {sub}'. Available: prune, telemetry")

@@ -23,3 +23,10 @@ def add_db(sub: Any) -> None:
     db_prune.add_argument(
         "--dry-run", dest="dry_run", action="store_true", help="List deletions, delete nothing"
     )
+    db_tel = db_sub.add_parser(
+        "telemetry",
+        help="Trim append-only sidecars in .tausik to their declared window (dry-run by default)",
+    )
+    db_tel.add_argument(
+        "--apply", action="store_true", help="Actually trim; without it nothing is written"
+    )
