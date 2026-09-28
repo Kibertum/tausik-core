@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a citation without its directory is no longer charged with fabrication
+
+The evidence audit resolved paths LITERALLY, so a citation written as a bare filename matched
+nothing in git history and earned the verdict `never_existed` — an accusation that a past
+closure INVENTED its evidence. Measured: of 39 such findings, 27 named files git had.
+
+ERRING IN THAT DIRECTION COSTS MORE THAN MISSING ONE. An undeserved charge devalues the whole
+register, and a reader wrong-footed once starts skimming all of it — the very mechanism that
+forced this release to declare a remainder instead of carrying a standing HIGH.
+
+THE MEASUREMENT DECIDED WHERE THE FIX GOES, which the task required: 718 bare occurrences across
+276 tasks against 6682 with a directory. At that spread the RESOLVER is what is wrong, not the
+citations; and the journal is append-only, so rewriting them was never available.
+
+The resolver now asks which directories git ever held a file of that name in. Exactly one → the
+verdict is `rotted`. None → `never_existed` stands, and that is the main negative check: a
+widening that resolved everything would read as a clean register while checking nothing. More
+than one → a new verdict `ambiguous_name`, because picking a directory means printing a confirmed
+citation the reader cannot check. `conftest.py` has lived in SIX directories in this repository.
+
+A path written out in full is never widened: checking it literally is a decision, and resolving
+`tests/nope.py` by its basename would erase the difference between a wrong directory and a
+missing file.
+
 ### Changed — SIM115 reached zero and joined select: an unclosed handle will not survive a commit
 
 MEASURED BEFORE: 129 sites, not the 125 the task statement named. Only two are in the PRODUCT,

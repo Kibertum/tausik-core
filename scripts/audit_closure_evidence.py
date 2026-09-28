@@ -72,6 +72,12 @@ RESOLVED: Final[str] = "resolved"
 ROTTED: Final[str] = "rotted"
 NEVER_EXISTED: Final[str] = "never_existed"
 UNKNOWN_HISTORY: Final[str] = "unknown_history"
+# A citation written as a BARE FILENAME whose name history held in more than one
+# directory. Its own verdict, because the alternative is guessing: "something
+# similar was found" instead of "this matched" turns evidence checking into
+# divination, and a wrong pick reads as a confirmed citation. One basename in this
+# repository has lived in six directories at once, so the case is not theoretical.
+AMBIGUOUS_NAME: Final[str] = "ambiguous_name"
 # A citation that is an EXAMPLE being quoted, not a file being cited — see
 # `illustrative_paths`. Its own bucket rather than a silent drop: measured, 13
 # of the 25 refs in NEVER_EXISTED were examples belonging to tasks whose very
@@ -247,6 +253,40 @@ def git_ever_had_file(repo_root: str, rel: str) -> bool | None:
     return bool(out.strip())
 
 
+def git_dirs_that_ever_held(repo_root: str, basename: str) -> list[str] | None:
+    """Directories git ever held a file of this BASENAME in. None when git cannot answer.
+
+    A citation resolved LITERALLY turns a missing directory into NEVER_EXISTED, which accuses a
+    past closure of FABRICATING its evidence. Most bare citations in the journal name files git
+    has had, and the journal is append-only, so the resolver is what had to widen.
+
+    Erring towards the accusation is the expensive direction: an undeserved charge devalues the
+    whole register and teaches the reader to skim it. Missing a real invention costs less.
+    """
+    out = _git(
+        repo_root,
+        [
+            "log",
+            "--all",
+            "--diff-filter=A",
+            "--format=",
+            "--name-only",
+            "--",
+            f"*/{basename}",
+            basename,
+        ],
+    )
+    if out is None:
+        return None
+    dirs = set()
+    for line in out.splitlines():
+        line = line.strip()
+        if not line or os.path.basename(line) != basename:
+            continue
+        dirs.add(os.path.dirname(line))
+    return sorted(dirs)
+
+
 def git_ever_had_name(repo_root: str, rel: str, name: str) -> bool | None:
     """Did this identifier ever appear in this file? None when git cannot answer."""
     out = _git(repo_root, ["log", "--all", "--oneline", f"-S{name}", "--", rel])
@@ -270,12 +310,29 @@ def _history_verdict(probe: GitProbe | None, repo_root: str, rel: str, member: s
     ever = probe(repo_root, rel, member)
     if ever is None:
         return UNKNOWN_HISTORY
-    return ROTTED if ever else NEVER_EXISTED
+    if ever:
+        return ROTTED
+    # Before calling a citation invented, ask whether it was merely written without its
+    # directory. The literal path found nothing; the NAME may still be one git has had.
+    if "/" not in rel.replace(os.sep, "/"):
+        dirs = git_dirs_that_ever_held(repo_root, os.path.basename(rel))
+        if dirs is None:
+            return UNKNOWN_HISTORY
+        if len(dirs) == 1:
+            return ROTTED
+        if len(dirs) > 1:
+            return AMBIGUOUS_NAME
+    return NEVER_EXISTED
 
 
 # Worse first: a name history never held is a citation that was wrong when
 # written; a name history once held has merely rotted since.
-_VERDICT_RANK: Final[dict[str, int]] = {NEVER_EXISTED: 2, ROTTED: 1, UNKNOWN_HISTORY: 0}
+_VERDICT_RANK: Final[dict[str, int]] = {
+    NEVER_EXISTED: 3,
+    AMBIGUOUS_NAME: 2,
+    ROTTED: 1,
+    UNKNOWN_HISTORY: 0,
+}
 
 
 def _classify(
