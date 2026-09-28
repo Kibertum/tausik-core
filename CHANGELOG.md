@@ -9,6 +9,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the run watches its capacity and hands off cleanly instead of dying mid-task
+
+THE MEASUREMENT CAME FIRST and its answer was NO: not one stored signal predicts the end of
+context. Tokens per call run from 562 to 10,958 with a median near 2,200 — a twentyfold spread, so
+a call count converts to context only to within an order of magnitude. Tokens were recorded for 183
+of 231 sessions. Time is ruled out by decision #376, and the sweep of sessions #196-#265 found none
+of seventy that reached the 180-minute advisory.
+
+THE LESSON IS WIDER THAN THE TASK: the instrument was being built to derive a figure the host
+states outright. An agent is told what remains of its context, so the check takes that number as an
+argument and spends the project's own measurements on the THRESHOLD (what a task costs) and on the
+caveat (how often the data is missing).
+
+`scripts/run_capacity.py` answers one question: is there room to finish another task AND hand off.
+The threshold is derived rather than chosen — about 2,200 tokens per call and about sixty calls per
+closed task, plus a third of a task for the tail: the journal, the AC evidence, verify, the close
+and the handoff.
+
+BOTH DIRECTIONS ARE FAILURES AND THE SECOND ONE HIDES. Hitting the wall mid-task leaves edits
+nobody can account for. Stopping early abandons half the composition while the context was fine — a
+polite refusal of autonomy, and precisely the behaviour this skill was written against. So the
+capacity step became a COMMAND with an exit code: silent while there is room, speaking only when it
+changes what happens next.
+
+AN ABSENT READING IS NOT A MEASUREMENT OF THE LIMIT: 48 sessions carry no telemetry at all, and a
+mechanism that stopped on missing data would stop hardest exactly where it knows least.
+
 ### Fixed — the tree dropped 23 of 46 columns, and the round-trip gate could not see it
 
 WHY THE GATE WAS BLIND BY CONSTRUCTION: it re-serialises the database and compares the result with

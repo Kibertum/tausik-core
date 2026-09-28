@@ -97,12 +97,32 @@ plan no longer offers them.
 hides a flake, and a driver that steps over a failure produces a release nobody can
 account for.
 
-### 6. Watch your own capacity
+### 6. Watch your own capacity — between tasks, never inside one
 
-Before starting each task, judge whether there is room to FINISH it. Stopping between
-tasks is clean; stopping halfway through one leaves edits nobody can account for, which is
-worse than not having started. If room is short: close what is open, write the handoff,
-name the next task from the plan, and stop.
+Before starting each task, ask whether there is room to FINISH it:
+
+```bash
+python scripts/run_capacity.py --remaining <tokens-your-runtime-reports>
+```
+
+Exit 0 means go. Exit 1 means: close what is open, write the handoff, name the next task
+from the plan, and stop. Nothing prints while there is room — a capacity notice earns a
+line only when it changes what happens next.
+
+**Take the number the runtime gives you, do not infer one.** Measured across this
+project's own sessions: tokens per call run from 562 to 10,958 with a median near 2,200,
+so a call count converts to context only to within an order of magnitude; and 48 of 231
+sessions with call data recorded no token figure at all. The framework had been trying to
+derive from its telemetry a figure the host states outright.
+
+**An absent reading means GO.** The absence of a measurement is not a measurement of the
+limit, and a driver that stopped on missing data would stop hardest exactly where it knows
+least.
+
+**Both directions are failures, and the second one hides.** Running into the wall mid-task
+leaves edits nobody can account for. Stopping early leaves the composition half-done while
+the context was fine — a polite refusal of autonomy, which is the behaviour this skill
+exists to end. Do not stop out of caution; stop on the number.
 
 ### 7. One handoff at the end
 
