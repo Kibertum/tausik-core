@@ -45,6 +45,16 @@ depends_on:
 completed_at: "2026-09-23T18:20:52Z"
 resolution: null
 resolution_reason: null
+tracker_refs:
+  - "github#174"
+started_model_id: claude-fable-5-1
+started_model_version: null
+done_model_id: claude-fable-5-1
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
 ---
 
 ## Goal

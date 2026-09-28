@@ -131,6 +131,40 @@ def _story_doc(story: dict[str, Any], epic_slug: str | None) -> str:
     return render_file(pairs, story.get("description"))
 
 
+#: EVERY column of `tasks` is either carried by the tree or declared NOT PORTABLE here with
+#: the reason. The union has to cover the table, and `tests/test_task_columns_are_declared.py`
+#: refuses anything missing from both lists.
+#:
+#: WHY A DECLARATION AND NOT A LONGER SELECT. The round-trip gate re-serialises the database
+#: and compares the result with the tree byte for byte — but BOTH sides come from this same
+#: exporter, so a column it never selects cannot appear on either side. The gate is green for
+#: any number of forgotten fields and always will be. Only a list that must cover the table
+#: makes the next new column a decision instead of a silent omission.
+NOT_PORTABLE: dict[str, str] = {
+    "id": "a row id, local to one database; the tree keys on the slug",
+    "story_id": "a foreign key; the tree carries the story SLUG, which survives a re-import",
+    "created_at": "bookkeeping of THIS database, not of the work",
+    "updated_at": "same, and it changes on every write, so carrying it would make the tree "
+    "differ from itself between two exports",
+    "archived_at": "the projection contains live rows only — an archived task's file is "
+    "removed, so the column has nothing to say in a file that exists",
+    "started_at": "telemetry of one machine's clock. `status` says the task is active, which "
+    "is the fact; the instant it started is not intent",
+    "blocked_at": "same shape: `status: blocked` is the fact, the timestamp is telemetry",
+    "claimed_by": "which agent holds the task right now — a runtime lease, meaningless on "
+    "another machine",
+    "attempts": "how many times THIS database saw a close attempt",
+    "score": "computed from the row on read; carrying it would freeze a derived number",
+    "risk_score": "same — derived, and descriptive rather than predictive by decision #212",
+    "risk_json": "the arithmetic behind the risk score — a derivation, and it changes shape whenever the scorer does",
+    "call_actual": "measured on the machine that did the work, not intended by anyone",
+    "tokens_actual": "measured on the machine that did the work; the BUDGET travels instead",
+    "cost_actual_usd": "measured on the machine that did the work; the BUDGET travels instead",
+    "notes": "the free-text scratch field of a close; the JOURNAL is the durable record and "
+    "it travels in the body of the file",
+}
+
+
 def _task_doc(task: dict[str, Any], story_slug: str | None, epic_slug: str | None) -> str:
     pairs: list[tuple[str, Any]] = [
         ("slug", task["slug"]),
@@ -158,6 +192,24 @@ def _task_doc(task: dict[str, Any], story_slug: str | None, epic_slug: str | Non
         # They travel because the reason is the whole content of a refusal.
         ("resolution", task.get("resolution")),
         ("resolution_reason", task.get("resolution_reason")),
+        # A ticket link is the one address an outside reader has; losing it on a clone
+        # makes the work unreachable from where it was asked for.
+        ("tracker_refs", _dedup_preserve(_json_list(task.get("tracker_refs")))),
+        # EVIDENCE of separation of duties (SENAR Rule 4): which model opened the task,
+        # which closed it, and whether they differed. Telemetry would be the count of
+        # calls; THIS is the proof a reviewer needs, so it travels.
+        ("started_model_id", task.get("started_model_id")),
+        ("started_model_version", task.get("started_model_version")),
+        ("done_model_id", task.get("done_model_id")),
+        ("done_model_version", task.get("done_model_version")),
+        ("model_mismatch", task.get("model_mismatch")),
+        # A close that legitimately touched no files is a DECLARATION, and the contract
+        # says it is countable. A declaration that evaporates on clone is not.
+        ("no_file_changes_declared", task.get("no_file_changes_declared")),
+        # `call_budget` already travelled while these two did not, and the asymmetry was
+        # the tell: all three are the same kind of statement about intended cost.
+        ("token_budget", task.get("token_budget")),
+        ("cost_budget_usd", task.get("cost_budget_usd")),
     ]
     body = join_sections(
         section("Goal", task.get("goal")),
@@ -241,7 +293,9 @@ def build_tree(svc: ProjectService) -> tuple[dict[str, str], list[str]]:
         "SELECT id, slug, title, status, stack, complexity, role, tier, goal, plan, "
         "acceptance_criteria, scope, scope_exclude, rollback_plan, scope_paths, "
         "scope_tools, relevant_files, defect_of, call_budget, completed_at, story_id, "
-        "resolution, resolution_reason "
+        "resolution, resolution_reason, tracker_refs, started_model_id, "
+        "started_model_version, done_model_id, done_model_version, model_mismatch, "
+        "no_file_changes_declared, token_budget, cost_budget_usd "
         "FROM tasks"
     )
     task_logs = q("SELECT task_slug, message, phase, created_at, id FROM task_logs")
@@ -338,7 +392,9 @@ def export_one(svc: ProjectService, kind: str, slug: str) -> tuple[str, str] | N
             "SELECT id, slug, title, status, stack, complexity, role, tier, goal, plan, "
             "acceptance_criteria, scope, scope_exclude, rollback_plan, scope_paths, "
             "scope_tools, relevant_files, defect_of, call_budget, completed_at, story_id, "
-            "resolution, resolution_reason "
+            "resolution, resolution_reason, tracker_refs, started_model_id, "
+            "started_model_version, done_model_id, done_model_version, model_mismatch, "
+            "no_file_changes_declared, token_budget, cost_budget_usd "
             "FROM tasks WHERE slug=?",
             (slug,),
         )

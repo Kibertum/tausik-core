@@ -132,6 +132,23 @@ def test_fixed_frontmatter_key_order_for_task(svc):
         # this pair went two releases unnoticed.
         "resolution",
         "resolution_reason",
+        # Added when the projection's coverage of `tasks` was made a DECLARED partition:
+        # 23 of 46 columns never reached the tree, and the round-trip gate could not see it
+        # because both sides of its comparison come from this same exporter. These carry
+        # INTENT rather than telemetry — the ticket link an outside reader needs, the models
+        # that opened and closed the task (evidence of separation of duties), a close that
+        # declared it touched no files, and the two budgets that were being dropped while
+        # `call_budget` travelled. The rest of the table is declared non-portable with a
+        # reason in `state_export.NOT_PORTABLE`, and the union must cover the table.
+        "tracker_refs",
+        "started_model_id",
+        "started_model_version",
+        "done_model_id",
+        "done_model_version",
+        "model_mismatch",
+        "no_file_changes_declared",
+        "token_budget",
+        "cost_budget_usd",
     ]
 
 

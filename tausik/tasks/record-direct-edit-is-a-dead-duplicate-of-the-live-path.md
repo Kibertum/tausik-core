@@ -22,6 +22,16 @@ depends_on: []
 completed_at: "2026-09-24T05:57:45Z"
 resolution: obsolete
 resolution_reason: "record_direct_edit was deleted by task dead-and-unreferenced-code-must-not-ship-in-a-rele and committed in 077e0957; tests/test_direct_edit_bypass_record.py pins the removal and the live path"
+tracker_refs:
+  - "github#159"
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
 ---
 
 ## Goal

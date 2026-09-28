@@ -38,6 +38,16 @@ depends_on: []
 completed_at: "2026-09-23T19:54:05Z"
 resolution: null
 resolution_reason: null
+tracker_refs:
+  - "github#30"
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
 ---
 
 ## Goal

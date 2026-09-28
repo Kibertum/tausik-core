@@ -29,6 +29,16 @@ depends_on: []
 completed_at: "2026-09-09T16:32:11Z"
 resolution: null
 resolution_reason: null
+tracker_refs:
+  - "gitlab#17"
+started_model_id: claude-opus-5
+started_model_version: null
+done_model_id: claude-opus-5
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
 ---
 
 ## Goal

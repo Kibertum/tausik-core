@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the tree dropped 23 of 46 columns, and the round-trip gate could not see it
+
+WHY THE GATE WAS BLIND BY CONSTRUCTION: it re-serialises the database and compares the result with
+the tree byte for byte, but BOTH sides of that comparison come from the same exporter. A column it
+never selects cannot appear on either side — the gate is green for any number of forgotten fields
+and always will be. It is not a weak check; it is one that structurally cannot see this class of
+defect.
+
+THE MEASUREMENT CAME OUT THREE TIMES WORSE THAN THE ESTIMATE: `tasks` has 46 columns, not 34, and
+23 of them never reached the tree rather than "at least tracker_refs". A clone lost the ticket
+link, the models that opened and closed the task together with the mismatch flag (SENAR evidence
+of separation of duties), the declaration that a close touched no files, and two of the three
+budgets while the third travelled.
+
+THE CURE IS NOT "ADD THE FIELDS" BUT A DECLARED PARTITION. Every column is either carried by the
+tree or declared non-portable WITH ITS REASON, and a test requires the union to cover the table:
+46 = 32 + 16, with nothing uncovered. The next new column fails that test until its side is
+decided, instead of being forgotten as quietly as these were.
+
+THE DEFINITION MATTERED MORE THAN THE LIST, and the test itself found that: "carried by the tree"
+means "written into the DOCUMENT", not "named in the SELECT". The first attempt conflated them, and
+`id` and `story_id` landed on both sides of the partition — they are fetched as machinery and never
+reach the frontmatter.
+
+Round trip after the widening: zero added, zero updated.
+
 ### Fixed — four FTS searches accept a query written the way this project writes names
 
 `spec search`, `at search`, `adapt search` and `actz search` passed the query to FTS5 MATCH raw, so
