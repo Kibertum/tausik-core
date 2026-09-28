@@ -258,7 +258,7 @@ IS_PUBLIC_SNAPSHOT = not os.path.isdir(
 )
 DORMANT_ON_PUBLIC_SNAPSHOT = (
     "this checkout is the PUBLIC SNAPSHOT (decision #368): the state projection, "
-    "TODO.md, TAUSIK-plan-1.9.md and .gitlab-ci.yml stay on the development line, "
+    "TAUSIK-plan-1.9.md and .gitlab-ci.yml stay on the development line, "
     "so this control — whose subject is one of them — is DORMANT here, not passing."
 )
 

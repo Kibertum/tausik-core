@@ -91,7 +91,7 @@ The exclusions are now ONE declared constant,
 | Stays on the development line | Why |
 |---|---|
 | `tausik/tasks/`, `tausik/stories/`, `tausik/epics/`, `tausik/decisions/`, `tausik/memory/`, `tausik/graph-snapshots/` | the state projection that carries state between machines on a branch; of no use to a consumer of the framework |
-| `TODO.md`, `TAUSIK-plan-1.9.md` | internal working documents |
+| `TAUSIK-plan-1.9.md` | an internal working document (the release charter) |
 | `.gitlab-ci.yml` | the development line's pipeline |
 | `scripts/ci_lane_dev.py`, `tests/test_ci_lane_dev.py` | the reader for that pipeline: tooling for a host the public repository has no relationship with. `cli_push_ok` imports it OPTIONALLY, so the published tree works without it and stays silent rather than complaining |
 

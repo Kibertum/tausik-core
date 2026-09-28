@@ -75,7 +75,6 @@ def repo(tmp_path):
     _write(root, "tausik/tasks/some-task.md", "task\n")
     _write(root, "tausik/decisions/d1.md", "decision\n")
     _write(root, "tausik/memory/m1.md", "memory\n")
-    _write(root, "TODO.md", "todo\n")
     _write(root, "TAUSIK-plan-1.9.md", "plan\n")
     _write(root, ".gitlab-ci.yml", "stages: []\n")
     public_head = _commit(root, "public head")
@@ -98,7 +97,6 @@ class TestTheExclusionListIsOneDeclaration:
             "tausik/tasks/other-task.md",
             "tausik/decisions/d1.md",
             "tausik/memory/m1.md",
-            "TODO.md",
             "TAUSIK-plan-1.9.md",
             ".gitlab-ci.yml",
         }
@@ -113,7 +111,10 @@ class TestTheExclusionListIsOneDeclaration:
         """The list is read by the release procedure and quoted in publishing.md;
         a silent widening or narrowing must show up as a test edit.
 
-        Widened once since: the reader for the development pipeline and its test.
+        Narrowed once: `TODO.md` was retired (decision #401) and a rule naming a file
+        that no longer exists is the same rot the file died of.
+
+        Widened once: the reader for the development pipeline and its test.
         That reader exists because the published-lane reader answered "GREEN" ten
         times about a thirteen-day-old run while the working branch was red, and it
         is development-line tooling for a host the public repository has no
@@ -128,7 +129,6 @@ class TestTheExclusionListIsOneDeclaration:
             "tausik/decisions/",
             "tausik/memory/",
             "tausik/graph-snapshots/",
-            "TODO.md",
             "TAUSIK-plan-1.9.md",
             ".gitlab-ci.yml",
             "scripts/ci_lane_dev.py",
@@ -139,9 +139,9 @@ class TestTheExclusionListIsOneDeclaration:
         assert snap.is_excluded("tausik/tasks/x.md")
         assert snap.is_excluded("tausik\\tasks\\x.md")
         assert not snap.is_excluded("tausik/gates.json")
-        assert snap.is_excluded("TODO.md")
-        assert not snap.is_excluded("docs/TODO.md")
-        assert not snap.is_excluded("TODO.md.bak")
+        assert snap.is_excluded("TAUSIK-plan-1.9.md")
+        assert not snap.is_excluded("docs/TAUSIK-plan-1.9.md")
+        assert not snap.is_excluded("TAUSIK-plan-1.9.md.bak")
 
 
 class TestTheSnapshotIsBuiltFromObjects:
@@ -219,7 +219,7 @@ class TestIdenticalIsATreeComparison:
         ).stdout.strip()
         ok, why = snap.snapshot_matches(str(root), whole, "HEAD")
         assert not ok
-        assert "tausik/tasks/some-task.md" in why and "TODO.md" in why
+        assert "tausik/tasks/some-task.md" in why and "TAUSIK-plan-1.9.md" in why
 
 
 class TestRefusalsAreLoud:
@@ -248,7 +248,7 @@ class TestTheLiveTree:
         )
         assert not any(p.startswith("tausik/tasks/") for p in kept)
         assert any(p.startswith("tausik/tasks/") for p in left)
-        assert "TAUSIK-plan-1.9.md" in left and ".gitlab-ci.yml" in left and "TODO.md" in left
+        assert "TAUSIK-plan-1.9.md" in left and ".gitlab-ci.yml" in left
 
     def test_no_leak_class_survives_on_the_snapshot(self):
         """Over the WORKING tree restricted to the snapshot set, so the ratchet

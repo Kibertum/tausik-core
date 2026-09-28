@@ -9,6 +9,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed -- TODO.md, a hand-written direction map that had drifted two releases behind
+
+The file called itself the map of the project's direction and said "v1.7.0 released, v1.8 in
+flight" while 1.9.0 was out and 1.10 was in composition. Nobody had read it in two releases, and
+nothing broke -- which is the finding: its work is done by the GENERATED `ROADMAP.md`, built from
+the task database, so the hand-written copy was a second source of truth that could only ever be
+wrong about the same subject.
+
+**NOTHING WAS LOST.** Its 2.0 content -- global-MCP, request-time DB routing, the standalone
+package -- lives in the decision that established it and in the two active epics that carry the
+work. Retiring the file removed a stale restatement, not a plan.
+
+**THE RULE WENT WITH THE FILE.** `TODO.md` appeared in the public-snapshot exclusion list, in both
+publishing guides, and in four tests. A rule that excludes a path which no longer exists is the
+same rot moved from a document into a check, so every reference was removed in the same change and
+the exclusion-list test now pins the NARROWED tuple: a silent return of the rule fails a test.
+
 ### Added — directories git cannot see became a finding instead of an inventory surprise
 
 Git tracks FILES. An empty directory has none, so `git status` is silent, `.gitignore` has nothing

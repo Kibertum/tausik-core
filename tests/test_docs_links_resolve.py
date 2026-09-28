@@ -14,7 +14,9 @@ What is NOT checked, and why:
   green would be the wrong fix.
 * `docs/**/research/` — dated notes; internal links inside them are fixed
   where found but the sink is not held to the standard of the live pages.
-* `TODO.md` — not documentation and not part of the public snapshot (#368).
+* the release charter — an internal working document, not documentation and not part of the
+  public snapshot (#368). `TODO.md` stood here too until decision #401 retired it: a
+  hand-written map beside the GENERATED roadmap drifted two releases behind unread.
 """
 
 from __future__ import annotations

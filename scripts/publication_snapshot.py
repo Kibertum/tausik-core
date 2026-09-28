@@ -49,9 +49,11 @@ EXCLUDED_FROM_PUBLIC_SNAPSHOT: tuple[str, ...] = (
     "tausik/decisions/",
     "tausik/memory/",
     "tausik/graph-snapshots/",
-    # Internal working documents: the scratch list, the release charter that
-    # names decisions by number, and the GitLab pipeline of the development line.
-    "TODO.md",
+    # Internal working documents: the release charter that names decisions by number, and the
+    # GitLab pipeline of the development line. A hand-written direction map stood here too
+    # until it was retired -- beside a GENERATED roadmap it is a second source of truth, and
+    # it drifted two releases behind before anyone read it. The rule went with the file:
+    # excluding a path that does not exist is the same rot, kept in the check instead.
     "TAUSIK-plan-1.9.md",
     ".gitlab-ci.yml",
     # The reader for that pipeline, and its test. Tooling for a host the public
