@@ -2,6 +2,8 @@
 
 # Стратегия локализации
 
+<!-- doc-map: reader=maintainer; zone=reference -->
+
 ## Подход
 
 TAUSIK использует **директории для локализации**: `docs/en/` (English) + `docs/ru/` (Russian).

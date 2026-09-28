@@ -2,6 +2,8 @@
 
 # Configuration trust tiers
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 Implementation: [`scripts/config_trust.py`](../../scripts/config_trust.py).
 SPEC: `sec-config-trust-tiers` (SEC, v1). Task: `l26-config-trust-tiers`.
 

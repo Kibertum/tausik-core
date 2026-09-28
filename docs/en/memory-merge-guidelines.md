@@ -2,6 +2,8 @@
 
 # Memory: merge vs new entry
 
+<!-- doc-map: reader=agent; zone=memory-and-store -->
+
 How to keep **local** project memory (`.tausik/tausik.db`) and the **shared local store** (`~/.tausik-knowledge`) free of noise. This guide is about *editorial* choice. It **complements**, not replaces:
 
 - **`publication_boundary`** — the one place shared-store content passes on its way off the machine (`knowledge export --redacted`): absolute paths, e-mails, private URLs and project names become typed placeholders regardless of your merge decision (see *The boundary wins* below).

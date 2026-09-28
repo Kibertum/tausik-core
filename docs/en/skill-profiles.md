@@ -2,6 +2,8 @@
 
 # Skill profiles and `variants/` (v1.4 polish — B8-pre)
 
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
 TAUSIK skills ship a single **`SKILL.md`** plus optional **two-axis overlays**: per-IDE behaviour and per-model style. The two axes compose independently — a `cursor-gpt-5` session reuses the same `model/gpt-5.md` overlay as a `claude-gpt-5` session (DRY).
 
 ## Layout (current)

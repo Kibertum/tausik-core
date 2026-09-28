@@ -2,6 +2,8 @@
 
 # Состояние TAUSIK в git — контракт (team-state-in-git)
 
+<!-- doc-map: reader=user; zone=memory-and-store -->
+
 > Спека формата git-native проекции состояния проекта. На неё опираются
 > задачи `state-git-stable-ids`, `state-git-export`, `state-git-import`,
 > `state-git-triggers`, `state-git-roundtrip-gate`. Решение — `#172`.

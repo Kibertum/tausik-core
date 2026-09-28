@@ -2,6 +2,8 @@
 
 # Testing principles
 
+<!-- doc-map: reader=user; zone=quality -->
+
 Guidance for contributors and agents working on TAUSIK core (`scripts/`, MCP handlers, gates, hooks). For command-level verification flow, see [Verify / QG glossary](verify-glossary.md) and [`verify`](cli.md) in the CLI reference.
 
 ## When to add or extend a test

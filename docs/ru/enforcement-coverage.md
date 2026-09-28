@@ -1,5 +1,7 @@
 # Граница принуждения хуков: что покрыто и что нет
 
+<!-- doc-map: reader=agent; zone=quality -->
+
 > Вынесено из [`agent-contract.md`](agent-contract.md) при закрытии
 > `powershell-tool-bypasses-bash-firewall` — тема самостоятельная и вместе с
 > матрицей покрытия каналов перестала помещаться в контракт (filesize-гейт).

@@ -2,6 +2,8 @@
 
 # Troubleshooting Reference
 
+<!-- doc-map: reader=user; zone=reference -->
+
 Machine-readable guide: error → diagnosis → fix.
 
 ## Prompt caching not active

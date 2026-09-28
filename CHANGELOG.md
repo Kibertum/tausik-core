@@ -9,6 +9,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a documentation map: every page names its reader, its zone and the test that holds it
+
+MEASURED BEFORE: 64 English pages and 63 Russian ones, about 21 thousand lines; 17 English and 23
+Russian of them belonged to no navigation section at all, and NOT ONE said who it was for. A user
+of the framework, an agent executing it and someone maintaining the core were handed the same
+undifferentiated list, while the reading order lived only in the hub.
+
+**The record is declared IN THE PAGE ITSELF** — `<!-- doc-map: reader=…; zone=… -->` with closed
+lists of readers (user, agent, maintainer) and zones — and `docs/_generated/doc-map.md` is
+generated from those declarations. A separate registry has twice carried a false reason in this
+project, so the record lives where the next person to open the file will read it. 127 pages are
+marked, with zero undeclared and zero conflicts between halves.
+
+A page with no declaration is a FINDING, not a default: guessing a reader would produce a map that
+looks complete and answers the wrong question. The generated file is checked for freshness, or an
+added page gets discovered by a reader instead of a check. The axis is asserted non-empty in all
+three values: if every page turned out to be `user`, the axis would be decoration.
+
+**Three entry pages**, one per reader, in both languages, with the hub leading to them in the
+first line of its opening section. Each names the reading order AND what to skip — the second half
+matters more, because a list without "do not read this" becomes undifferentiated again.
+
+**Cross-cutting claims** are declared as a list in the map, each naming the test that holds it,
+and a claim whose checker does not exist is refused. The premise about 13 pages mentioning Notion
+was REFUTED: every mention was already historical or an example of an external store, and one was
+the English word "notion" — which the first draft of the check duly flagged.
+
 ### Added — the agent contract in English: a reader of the English branch is no longer without one
 
 `CLAUDE.md` calls `agent-contract.md` the agent's FULL contract, and the document existed in

@@ -2,6 +2,8 @@
 
 # Контракт агента TAUSIK — расширенная справка
 
+<!-- doc-map: reader=agent; zone=core-surface -->
+
 Этот документ — продолжение `CLAUDE.md`. CLAUDE.md грузится в контекст агента
 **на каждом ходе**, поэтому он держит только enforceable rules и quick reference.
 Сюда вынесено всё, что нужно реже: estimation table, SENAR Compliance matrix,

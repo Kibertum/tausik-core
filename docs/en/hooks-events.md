@@ -2,6 +2,8 @@
 
 # Hook events and the coverage of file writes
 
+<!-- doc-map: reader=maintainer; zone=quality -->
+
 A review of the TAUSIK hook contract (task `l26-hook-contract-review`, Decision #162). It
 answers the question of AC1: which events intercept file writes, and whether a write through
 Bash/NotebookEdit is covered natively.

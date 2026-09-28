@@ -2,6 +2,8 @@
 
 # Bundles навыков
 
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
 Bundle навыков — это логическая группировка vendor скиллов из `tausik-skills` (официальный `Kibertum/tausik-skills` repo, в dev зеркало в `skills-official/`). Один CLI вызов ставит все скиллы bundle — удобно подобрать набор под домен проекта (интеграции, извлечение данных, deep quality), не запоминая имена.
 
 > **Откуда берутся бандлы (изменено в v1.8):** состав бандла принадлежит

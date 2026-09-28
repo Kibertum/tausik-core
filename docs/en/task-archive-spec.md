@@ -2,6 +2,8 @@
 
 # Soft-archive of old **done** tasks (hygiene)
 
+<!-- doc-map: reader=user; zone=sessions -->
+
 Hide stale completed tasks from `task list` without losing them. Active work is never affected.
 
 ## Goal

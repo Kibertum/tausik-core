@@ -2,6 +2,8 @@
 
 # TAUSIK agent contract — extended reference
 
+<!-- doc-map: reader=agent; zone=core-surface -->
+
 This document continues `CLAUDE.md`. CLAUDE.md is loaded into the agent's context **on
 every turn**, so it holds only enforceable rules and a quick reference. Everything needed
 less often was moved here: the estimation table, the SENAR compliance matrix, the QG-2

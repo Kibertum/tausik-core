@@ -4,6 +4,8 @@
 
 # Как написать эффективный CLAUDE.md
 
+<!-- doc-map: reader=maintainer; zone=ide-and-skills -->
+
 > Полный гайд на английском в [claude-md-guide.md](../en/claude-md-guide.md). Здесь приводится сокращённая версия.
 
 ## Золотые правила

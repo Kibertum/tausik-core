@@ -2,6 +2,8 @@
 
 # Verify / QG terminology — glossary
 
+<!-- doc-map: reader=user; zone=quality -->
+
 Single source of truth for words that recur in CLI, MCP, hooks, and tests. Use these terms consistently in docs and agent instructions.
 
 ## Core terms

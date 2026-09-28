@@ -2,6 +2,8 @@
 
 # TAUSIK CLI — Справочник команд (v1.5)
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
 Все команды запускаются через обёртку: `.tausik/tausik <команда> [подкоманда] [аргументы]`.
 На Windows обёртка — `.tausik/tausik.cmd`. Тот же surface также доступен через MCP (`tausik_*` инструменты); см. `mcp.md`.
 

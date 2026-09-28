@@ -2,6 +2,8 @@
 
 # What changed in 1.9
 
+<!-- doc-map: reader=user; zone=release-notes -->
+
 A page for whoever is upgrading. Before reading what breaks, it is worth knowing
 what it was for.
 

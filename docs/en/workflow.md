@@ -2,6 +2,8 @@
 
 # Workflow
 
+<!-- doc-map: reader=user; zone=getting-started -->
+
 TAUSIK is designed for pair work: the engineer writes in free form, the AI agent
 interprets and executes. No special commands to memorize —
 just describe what you want to do.

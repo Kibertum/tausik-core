@@ -2,6 +2,8 @@
 
 # TAUSIK Architecture Reference
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
 ## Architecture: CLI -> Service -> Backend
 
 Three layers with clear boundaries. The Service layer contains business logic,

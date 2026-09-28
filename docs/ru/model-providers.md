@@ -2,6 +2,8 @@
 
 # Провайдеры моделей
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 TAUSIK не привязан к конкретной модели. Skills работают с любой LLM, поддерживающей tool use.
 
 ## Поддерживаемые платформы

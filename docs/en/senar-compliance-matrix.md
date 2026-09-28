@@ -2,6 +2,8 @@
 
 # SENAR v1.5 Core — Compliance Matrix
 
+<!-- doc-map: reader=maintainer; zone=reference -->
+
 **Claimed edition: SENAR v1.5 Core**, self-declared (owner's decision #376, 2026-09-23). SENAR v1.5 was released on 2026-09-07; until its public mirror carries it, the release procedure refuses a TAUSIK tag (task `senar-claim-names-the-published-edition`).
 
 **Assessed:** 2026-09-23, TAUSIK 1.10 development line, against the corpus TAUSIK reads through `senar_standard_corpus` (`tausik drift --detector senar`).

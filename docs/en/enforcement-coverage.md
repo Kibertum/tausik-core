@@ -1,5 +1,7 @@
 # Enforcement boundary: what is covered and what is not
 
+<!-- doc-map: reader=agent; zone=quality -->
+
 > Split out of [`../ru/agent-contract.md`](../ru/agent-contract.md) while closing
 > `powershell-tool-bypasses-bash-firewall` — the topic stands on its own, and
 > together with the channel-coverage matrix it no longer fit inside the contract

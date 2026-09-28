@@ -2,6 +2,8 @@
 
 # Security Rules
 
+<!-- doc-map: reader=user; zone=security -->
+
 See also: [security-checklist.md](security-checklist.md) — OWASP Top 10 checklist.
 
 ## Core principles

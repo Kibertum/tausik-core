@@ -1,5 +1,7 @@
 # Two lines: where development happens, and what a consumer sees
 
+<!-- doc-map: reader=maintainer; zone=reference -->
+
 Decision #267 (29.08): **GitLab is the development line, GitHub is the release
 mirror.** It replaced the 25.08 wording ("GitHub becomes the primary place of
 development"), which went unexecuted for five sessions straight — branches lived

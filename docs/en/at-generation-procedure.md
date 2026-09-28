@@ -1,5 +1,7 @@
 # AT Generation Procedure (RENAR §8A)
 
+<!-- doc-map: reader=agent; zone=internal-spec -->
+
 <!-- audit-translation-drift: unpaired: permanent. Agent-facing specification, not user-facing documentation; registered in docs/README.md under 'Internal agent specs (EN only)' with the reason for that whole group. -->
 
 *Agent-facing specification — consumed by AI assistants, not end users. No RU

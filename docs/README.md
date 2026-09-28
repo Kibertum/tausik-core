@@ -10,6 +10,8 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 
 ### Getting started
 
+**Three entry pages, one per reader** — start with the one that describes you: [you use TAUSIK](en/start-here-user.md) · [you are an agent working through it](en/start-here-agent.md) · [you are changing TAUSIK itself](en/start-here-maintainer.md). The full register of pages, with the reader and the zone each one declares, is the [documentation map](_generated/doc-map.md).
+
 | Document | Audience |
 |----------|----------|
 | **[Quick Start](en/quickstart.md)** | First setup — 10-15 minutes |
@@ -112,6 +114,8 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 **Начните здесь:** [Быстрый старт](ru/quickstart.md) -> [Что такое SENAR?](ru/senar.md) -> [Рабочий процесс](ru/workflow.md) -> [Навыки](ru/skills.md) -> далее по необходимости.
 
 ### Начало работы
+
+**Три страницы входа, по одной на читателя** — начните с той, что описывает вас: [вы пользуетесь TAUSIK](ru/start-here-user.md) · [вы агент, работающий через него](ru/start-here-agent.md) · [вы меняете сам TAUSIK](ru/start-here-maintainer.md). Полный реестр страниц с читателем и зоной у каждой — [карта документации](_generated/doc-map.md).
 
 | Документ | Для кого |
 |----------|----------|

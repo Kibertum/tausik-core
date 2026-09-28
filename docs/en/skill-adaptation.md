@@ -2,6 +2,8 @@
 
 # Adapting Skills for TAUSIK
 
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
 This guide explains how to make any skill repository compatible with TAUSIK. Whether you're adapting a Claude-native plugin, a Cursor skill, or building from scratch — follow these steps to create a TAUSIK-compatible skill repo.
 
 ## Why Adapt?

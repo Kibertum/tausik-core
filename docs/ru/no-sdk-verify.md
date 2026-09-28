@@ -2,6 +2,8 @@
 
 # Верификация без SDK: HTTP-endpoint для любого агента и CI
 
+<!-- doc-map: reader=maintainer; zone=quality -->
+
 Аттестация TAUSIK без MCP, хуков и SDK. `tausik serve` поднимает stateless
 HTTP-endpoint; всё, что умеет JSON по HTTP — GPT-агент, Jenkins, bash-скрипт —
 может отправить результаты гейтов и получить **подписанный переносимый

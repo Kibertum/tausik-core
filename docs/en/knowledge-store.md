@@ -2,6 +2,8 @@
 
 # The shared knowledge store — what it is, and how it differs from project memory
 
+<!-- doc-map: reader=user; zone=memory-and-store -->
+
 New in 1.8. A local file, `~/.tausik-knowledge/knowledge.db`, one per person
 rather than one per project.
 

@@ -2,6 +2,8 @@
 
 # Environment Variables and Shell Rules
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 > Two scopes in this doc:
 > 1. **TAUSIK environment variables** — every `TAUSIK_*` / `CLAUDE_*` / `CURSOR_*` / `WINDSURF_*` / `CODEX_*` / `QWEN_*` / `ANTHROPIC_*` / `OPENAI_*` knob that the code actually reads. Use them to override behaviour without editing config.
 > 2. **Shell rules** — shells / virtual envs / Docker on Windows / POSIX, kept from the original `environment.md`.

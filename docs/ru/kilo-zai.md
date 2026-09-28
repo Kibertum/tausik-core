@@ -2,6 +2,8 @@
 
 # z.ai GLM в TAUSIK (Claude Code и Kilo)
 
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
 TAUSIK работает на моделях **z.ai GLM** под любым Anthropic-совместимым хостом.
 GLM — это **семейство моделей** (ось-2, Decision #119): чистые данные в
 `model_profiles`, не код — поэтому оно **не зависит от того, в каком хосте вы

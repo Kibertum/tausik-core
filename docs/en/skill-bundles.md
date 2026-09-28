@@ -2,6 +2,8 @@
 
 # Skill Bundles
 
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
 Skill bundles are a logical grouping of vendor skills from `tausik-skills` (the official `Kibertum/tausik-skills` repo, mirrored under `skills-official/` in dev). One CLI call installs every skill in a bundle — useful for matching a project's domain (integrations, data extraction, deep quality) without remembering individual skill names.
 
 > **Where bundles come from (changed in v1.8):** a bundle's composition belongs

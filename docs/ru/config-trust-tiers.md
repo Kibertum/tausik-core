@@ -2,6 +2,8 @@
 
 # Трастовые тиры конфигурации
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 Реализация: [`scripts/config_trust.py`](../../scripts/config_trust.py).
 SPEC: `sec-config-trust-tiers` (SEC, v1). Задача: `l26-config-trust-tiers`.
 

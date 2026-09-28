@@ -2,6 +2,8 @@
 
 # Custom Skills
 
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
 **Start here for the full install map (diagram + CLI list):** [Skill ecosystem (one page)](skill-ecosystem.md).
 
 TAUSIK supports external skill packages from GitHub repos. Skills are cloned once, cached in `.tausik/vendor/`, and installed on demand with automatic dependency management.

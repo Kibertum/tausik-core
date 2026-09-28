@@ -2,6 +2,8 @@
 
 # Agent quickstart: connect TAUSIK, then work under it
 
+<!-- doc-map: reader=agent; zone=getting-started -->
+
 You are an AI agent. This page is written for you, in the order you will need
 it: how to connect the framework to a project on the host you are running in,
 how to check that it is actually there, and how to do work once it is — as

@@ -2,6 +2,8 @@
 
 # Model Providers
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 TAUSIK is model-agnostic. Skills work with any LLM that supports tool use.
 
 ## Supported Platforms

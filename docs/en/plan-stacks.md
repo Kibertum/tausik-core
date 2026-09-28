@@ -2,6 +2,8 @@
 
 # Stack Detection Tables
 
+<!-- doc-map: reader=agent; zone=internal-spec -->
+
 Used by /plan skill to auto-detect project stacks. Each row maps a detection
 hint to a stack profile under `stacks/<name>/` (which ships `stack.json`
 plus `guide.md`). Roles (`security`, `sre`, `lead`, `ux`, `game-designer`,

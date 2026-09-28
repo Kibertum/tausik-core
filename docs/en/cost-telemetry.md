@@ -2,6 +2,8 @@
 
 # Cost Telemetry — Per-Task Token Attribution
 
+<!-- doc-map: reader=user; zone=quality -->
+
 TAUSIK records LLM usage in two places that work together:
 
 | Table | Source | Granularity | When |

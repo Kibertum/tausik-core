@@ -2,6 +2,8 @@
 
 # Skill ecosystem — one-page map
 
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
 Single entry point for **vendor / repo skills** (not the 14 core slash skills in `harness/skills/` — those ship with TAUSIK and are documented in **[Skills](skills.md)**).
 
 ## Flow (install path)

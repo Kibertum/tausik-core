@@ -2,6 +2,8 @@
 
 # How to Write an Effective CLAUDE.md
 
+<!-- doc-map: reader=maintainer; zone=ide-and-skills -->
+
 ## Golden Rules
 
 ### 1. Keep it under 50 lines

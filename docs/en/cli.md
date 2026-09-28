@@ -2,6 +2,8 @@
 
 # TAUSIK CLI — Command Reference (v1.5)
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
 All commands are invoked via the wrapper: `.tausik/tausik <command> [subcommand] [arguments]`.
 On Windows the wrapper is `.tausik/tausik.cmd`. The same surface is also available via MCP (`tausik_*` tools); see `mcp.md`.
 

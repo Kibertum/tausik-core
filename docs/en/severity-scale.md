@@ -2,6 +2,8 @@
 
 # Severity scale of review findings
 
+<!-- doc-map: reader=user; zone=reference -->
+
 SENAR 1.5 §10.15(f) requires this page. Without it, two things cannot be decided: a CRITICAL finding blocks a commit under §10.15(d), and CRITICAL findings are the numerator of the Adversarial Detection Rate in §9.2. `tausik review metrics` prints that rate.
 
 ## Which scale this is

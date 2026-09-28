@@ -2,6 +2,8 @@
 
 # Session Active Time (v1.4)
 
+<!-- doc-map: reader=user; zone=sessions -->
+
 SENAR Foundation (10.2) requires a documented maximum session duration with a basis; SENAR Core, the edition TAUSIK claims, does not govern sessions at all. In TAUSIK the **180-minute** threshold is, since 1.10, **advice, not a gate** (decision #376): above it `task start`, `status` and the Stop hook print a warning and refuse nothing. The threshold is measured on **active time**, not wall-clock — long pauses are clipped to the idle threshold instead of being dropped entirely. This page explains the algorithm, the semantics choice (clip vs exclude), the basis of the threshold, and how to tune it.
 
 ## Why Active Time

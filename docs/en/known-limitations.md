@@ -2,6 +2,8 @@
 
 # Deliberate gaps, open defects, and what is out of scope
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
 Three different things that looked identical before this page: "we decided not to do
 this", "we have not finished this", and "this is broken". A guard whose blind spot is
 undocumented reads as total — so the gaps are declared here rather than inferred by the

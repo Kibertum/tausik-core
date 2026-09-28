@@ -2,6 +2,8 @@
 
 # Навыки (v1.4)
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
 Skill'ы — intent-based инструкции, определяющие поведение агента. Не нужно запоминать имена или синтаксис — пишете, что хотите, и агент подбирает подходящий skill. Slash-префикс (`/plan`, `/ship`) явно вызывает один.
 
 После bootstrap идут **14 core skills** из `harness/skills/`. Дополнительные **official / vendor skills** (20) ставятся по запросу: per-skill через `tausik skill install <name>`, либо вся пачка через `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias `--include-vendor`). **Карта репо-скиллов:** [Экосистема скиллов (one-pager)](skill-ecosystem.md). **Bulk-install по группам:** [Skill Bundles](skill-bundles.md).

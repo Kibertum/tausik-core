@@ -2,6 +2,8 @@
 
 # Customization Guide
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 > **Contract:** TAUSIK never touches your `.tausik/` directory. Anything you put under `.tausik/stacks/<name>/` survives every framework upgrade.
 
 ## What you can customize

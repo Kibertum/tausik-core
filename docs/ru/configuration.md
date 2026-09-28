@@ -2,6 +2,8 @@
 
 # Справочник конфигурации TAUSIK
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 Все настройки в `.tausik/config.json` в корне проекта. Что не указано — берёт документированный дефолт. Override — добавь ключ в top-level объект (НЕ под `bootstrap` — там bootstrap управляет).
 
 См. также: [environment.md](environment.md) — env-переменные, [permissions.md](../en/permissions.md) — режимы permissions.

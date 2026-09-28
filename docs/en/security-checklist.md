@@ -2,6 +2,8 @@
 
 # OWASP Top 10 — Detailed Checks
 
+<!-- doc-map: reader=user; zone=security -->
+
 ## A01: Broken Access Control
 - [ ] Authorization check on EVERY endpoint
 - [ ] Resource ownership verified

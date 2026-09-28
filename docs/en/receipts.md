@@ -2,6 +2,8 @@
 
 # Signed verification receipts
 
+<!-- doc-map: reader=user; zone=quality -->
+
 When `tausik verify` finishes, it writes a small, **ed25519-signed** record of
 what was checked — a *receipt*. The one-line value:
 

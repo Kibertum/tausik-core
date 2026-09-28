@@ -2,6 +2,8 @@
 
 # Что такое SENAR?
 
+<!-- doc-map: reader=user; zone=getting-started -->
+
 SENAR (Software Engineering Norms for AI-Assisted Research) — открытый инженерный стандарт, определяющий как AI-агенты должны работать над программными проектами. Думайте о нём как о строительном кодексе для AI-разработки — набор правил, которые делают работу агента предсказуемой, проверяемой и безопасной.
 
 **Полная спецификация:** [senar.tech](https://senar.tech) | [GitHub](https://github.com/Kibertum/SENAR)

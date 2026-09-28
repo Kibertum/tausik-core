@@ -2,6 +2,8 @@
 
 # Добавление новой IDE в TAUSIK
 
+<!-- doc-map: reader=maintainer; zone=ide-and-skills -->
+
 TAUSIK поддерживает несколько IDE через абстракцию в `scripts/ide_utils.py`.
 
 ## Шаги для добавления нового IDE

@@ -1,5 +1,7 @@
 # Skill store supply-chain threat model
 
+<!-- doc-map: reader=maintainer; zone=security -->
+
 > Task `l26-skill-supply-chain-threat`. Russian mirror:
 > [`skill-supply-chain-threat-model.ru.md`](../ru/skill-supply-chain-threat-model.md).
 > Companion to [`security.md`](security.md).

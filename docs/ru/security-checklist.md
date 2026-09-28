@@ -2,6 +2,8 @@
 
 # OWASP Top 10 — детальные проверки
 
+<!-- doc-map: reader=user; zone=security -->
+
 ## A01: Broken Access Control
 - [ ] Проверка авторизации на КАЖДОМ endpoint
 - [ ] Проверяется ownership ресурсов

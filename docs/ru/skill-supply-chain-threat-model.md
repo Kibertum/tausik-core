@@ -1,5 +1,7 @@
 # Threat-model цепочки поставок магазина скиллов
 
+<!-- doc-map: reader=maintainer; zone=security -->
+
 > Задача `l26-skill-supply-chain-threat`. Английское зеркало:
 > [`skill-supply-chain-threat-model.md`](../en/skill-supply-chain-threat-model.md).
 > Спутник к [`security.md`](security.md).

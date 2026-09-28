@@ -2,6 +2,8 @@
 
 # Doctor — Health Check
 
+<!-- doc-map: reader=user; zone=quality -->
+
 `doctor` is a single command that checks the moving parts of a TAUSIK install — venv, DB, MCP servers, skills, deployment drift, config, gates, session, and backlog hygiene. It does **not** auto-fix: it tells you what is wrong and how to fix it.
 
 Some checks only run when the thing they check is installed (the Kilo and OpenCode config checks), so the number of lines you see depends on your setup. The table below lists every check that can appear.

@@ -2,6 +2,8 @@
 
 # Roles
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
 Roles describe **who** is doing the work. They drive task routing, skill recommendations, and the agent profile that gets injected when you start a task.
 
 In TAUSIK roles are **free text** on tasks (`task add ... --role developer`), backed by an optional **registry** that pairs SQLite metadata with a markdown profile.

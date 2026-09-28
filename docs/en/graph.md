@@ -1,5 +1,7 @@
 # `tausik graph` — what changes with what, and on what evidence
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
 The artifact graph answers the question an agent asks itself before every edit:
 **what else will I have to touch**. It answers with two kinds of evidence, never
 with a guess, and it always says which kind it is standing on.

@@ -2,6 +2,8 @@
 
 # No-SDK verification: HTTP endpoint for any agent or CI
 
+<!-- doc-map: reader=maintainer; zone=quality -->
+
 TAUSIK attestation without MCP, hooks, or any SDK. `tausik serve` starts a
 stateless HTTP endpoint; anything that can speak JSON over HTTP — a GPT-based
 agent, a Jenkins job, a bash script — can submit gate results and get back a

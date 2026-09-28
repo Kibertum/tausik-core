@@ -2,6 +2,8 @@
 
 # Migrating to Skill Bundles (v1.4)
 
+<!-- doc-map: reader=maintainer; zone=ide-and-skills -->
+
 Short read for users who installed any of the 5 vendor skills now removed from `tausik-skills`. If you've never run `tausik skill install go|next|diff|onboard|init`, **nothing changes for you** — bundles are purely additive.
 
 ## What changed in v1.4

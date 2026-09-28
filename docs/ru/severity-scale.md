@@ -2,6 +2,8 @@
 
 # Шкала серьёзности находок ревью
 
+<!-- doc-map: reader=user; zone=reference -->
+
 Эту страницу требует SENAR 1.5 §10.15(f). Без неё две вещи неразрешимы: находка CRITICAL блокирует коммит по §10.15(d), а находки CRITICAL — числитель Adversarial Detection Rate из §9.2. Эту долю печатает `tausik review metrics`.
 
 ## Какая это шкала

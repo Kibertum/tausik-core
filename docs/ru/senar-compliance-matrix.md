@@ -2,6 +2,8 @@
 
 # SENAR v1.5 Core — Матрица соответствия
 
+<!-- doc-map: reader=maintainer; zone=reference -->
+
 **Заявляемая редакция: SENAR v1.5 Core**, самодекларация (решение владельца #376, 23.09.2026). SENAR v1.5 выпущен 07.09.2026; пока публичное зеркало его не несёт, процедура выпуска отказывает тегу TAUSIK (задача `senar-claim-names-the-published-edition`).
 
 **Дата оценки:** 23.09.2026, линия разработки TAUSIK 1.10, против корпуса, который TAUSIK читает через `senar_standard_corpus` (`tausik drift --detector senar`).

@@ -2,6 +2,8 @@
 
 # TAUSIK Configuration Reference
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 All knobs live in `.tausik/config.json` at project root. Anything not set falls back to the documented default. To override, add the key under the top-level object (NOT under `bootstrap` — that section is bootstrap-managed).
 
 See also: [environment.md](environment.md) — env vars, [permissions.md](permissions.md) — permission modes.

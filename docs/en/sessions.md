@@ -2,6 +2,8 @@
 
 # A "session" is TWO things
 
+<!-- doc-map: reader=user; zone=sessions -->
+
 Decision #223. The word "session" in TAUSIK fuses two concepts with different
 fates, and the fusion is precisely what made it impossible to answer which of
 them could be dropped.

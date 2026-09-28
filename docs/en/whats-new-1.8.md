@@ -2,6 +2,8 @@
 
 # What changed in 1.8
 
+<!-- doc-map: reader=user; zone=release-notes -->
+
 For anyone upgrading. But before reading what breaks, it is worth knowing what
 for.
 

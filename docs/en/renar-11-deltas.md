@@ -2,6 +2,8 @@
 
 # RENAR 1.1: what TAUSIK did with each change
 
+<!-- doc-map: reader=maintainer; zone=reference -->
+
 RENAR 1.1 (19 September 2026) lists its changes in one table, `guide/12-migration-v11.md` of the standard. A minor release triggers re-assessment of a conformance claim at once (§13.7.3). A change nobody mentions reads the same as one that was adopted, so every row below has exactly one status.
 
 | Status | Meaning |

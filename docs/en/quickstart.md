@@ -2,6 +2,8 @@
 
 # Quick Start
 
+<!-- doc-map: reader=user; zone=getting-started -->
+
 TAUSIK — **T**ask **A**gent **U**nified **S**upervision, **I**nspection & **K**nowledge.
 
 Step-by-step guide: from zero to your first task with an AI agent.
