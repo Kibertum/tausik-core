@@ -104,6 +104,7 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 | **[Skill patterns](en/skill-patterns.md)** | Cross-skill helper patterns |
 | **[Plan review](en/plan-review.md)** | `/plan` review heuristics |
 | **[Plan stacks](en/plan-stacks.md)** | Stack-detection logic for `/plan` |
+| **[AT generation procedure](en/at-generation-procedure.md)** | RENAR §8A: how an acceptance test is produced |
 
 ## Русский
 

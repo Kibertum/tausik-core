@@ -39,6 +39,10 @@ _HEADING_RE = re.compile(r"^#{1,6}\s", re.MULTILINE)
 _CODE_FENCE_RE = re.compile(r"^\s*```", re.MULTILINE)
 _TABLE_SEP_RE = re.compile(r"^\s*\|[\s\-:|]+\|\s*$", re.MULTILINE)
 _SKIP_MARKER_RE = re.compile(r"<!--\s*audit-translation-drift:\s*skip\s*-->")
+#: `<!-- audit-translation-drift: unpaired: <reason or task slug> -->` on a doc that
+#: exists in one language only. The text after the colon is the declaration; see
+#: `unpaired_reason` for why it is the text and not the marker that counts.
+_UNPAIRED_MARKER_RE = re.compile(r"<!--\s*audit-translation-drift:\s*unpaired:([^>]*?)-->", re.S)
 _FENCED_BLOCK_RE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 
 
@@ -109,6 +113,26 @@ def has_skip_marker(text: str) -> bool:
     return bool(_SKIP_MARKER_RE.search(text))
 
 
+def unpaired_reason(text: str) -> str | None:
+    """The declared reason a doc exists in ONE language, or None if undeclared.
+
+    The unpaired list used to be printed as information, and information with no
+    owner is rediscovered rather than resolved: three files sat in it across
+    successive reviews, each review spending its time learning the same three
+    names. So an unpaired file now has to say WHY — either a permanent reason (an
+    agent-facing spec with no user-facing mirror) or the task that will close it.
+
+    THE REASON IS REQUIRED, NOT THE MARKER. A bare marker would let the list be
+    emptied silently, which is the same failure with a tidier report, so a marker
+    with nothing after the colon reads as undeclared.
+    """
+    m = _UNPAIRED_MARKER_RE.search(text)
+    if not m:
+        return None
+    reason = m.group(1).strip().strip("-").strip()
+    return reason or None
+
+
 def _list_basenames(dir_path: Path) -> set[str]:
     if not dir_path.is_dir():
         return set()
@@ -151,11 +175,32 @@ def audit_pairs(
     return drifts, en_only, ru_only, abbreviated
 
 
+def classify_unpaired(
+    repo_root: Path, en_only: list[str], ru_only: list[str]
+) -> tuple[dict[str, str], list[str]]:
+    """Split one-language docs into DECLARED (basename -> reason) and undeclared.
+
+    An undeclared one is a finding rather than information — see `unpaired_reason`.
+    """
+    declared: dict[str, str] = {}
+    undeclared: list[str] = []
+    for names, sub in ((en_only, EN_DIR), (ru_only, RU_DIR)):
+        for name in names:
+            reason = unpaired_reason((repo_root / sub / name).read_text(encoding="utf-8"))
+            if reason:
+                declared[name] = reason
+            else:
+                undeclared.append(name)
+    return declared, sorted(undeclared)
+
+
 def render_markdown(
     drifts: list[Drift],
     en_only: list[str],
     ru_only: list[str],
     abbreviated: list[str] | None = None,
+    declared: dict[str, str] | None = None,
+    undeclared: list[str] | None = None,
 ) -> str:
     abbreviated = abbreviated or []
     lines = ["# Translation-drift audit (`docs/en` ↔ `docs/ru`)\n"]
@@ -189,12 +234,27 @@ def render_markdown(
         lines.append(", ".join("`" + n + "`" for n in abbreviated))
         lines.append("")
     if en_only or ru_only:
-        lines.append("## Unpaired files (informational, not drift)\n")
+        lines.append("## Unpaired files\n")
         if en_only:
             lines.append(f"EN-only ({len(en_only)}): {', '.join('`' + n + '`' for n in en_only)}")
         if ru_only:
             lines.append(f"RU-only ({len(ru_only)}): {', '.join('`' + n + '`' for n in ru_only)}")
         lines.append("")
+        # The REASON is printed, not just the count. A list of names is what made the
+        # same three files a rediscovery at every review; a list of reasons is a state
+        # someone can act on or close.
+        if declared:
+            lines.append("Declared, with the reason each carries:\n")
+            for name, reason in sorted(declared.items()):
+                lines.append(f"- `{name}` — {reason}")
+            lines.append("")
+        if undeclared:
+            lines.append(
+                f"**UNDECLARED ({len(undeclared)}) — this is a finding:** "
+                + ", ".join("`" + n + "`" for n in undeclared)
+                + ". Each needs `<!-- audit-translation-drift: unpaired: <reason or task "
+                "slug> -->`, or a mirror.\n"
+            )
     lines.append("## Methodology\n")
     lines.append(
         "- Compares ATX heading count, fenced-code-block count, and markdown-table-separator count."
@@ -209,7 +269,13 @@ def render_markdown(
         "- Structural only: no word-by-word translation check, no NLP, no semantic comparison."
     )
     lines.append(
-        "- Default mode is advisory (always exit 0). `--check` exits 1 only when paired drift exists."
+        "- A one-language doc must DECLARE why with "
+        "`<!-- audit-translation-drift: unpaired: <reason or task slug> -->`; the text after the "
+        "colon is the declaration, so a bare marker still reads as undeclared."
+    )
+    lines.append(
+        "- Default mode is advisory (always exit 0). `--check` exits 1 on paired drift or on an "
+        "UNDECLARED one-language doc."
     )
     return "\n".join(lines) + "\n"
 
@@ -219,6 +285,8 @@ def render_json(
     en_only: list[str],
     ru_only: list[str],
     abbreviated: list[str] | None = None,
+    declared: dict[str, str] | None = None,
+    undeclared: list[str] | None = None,
 ) -> str:
     payload = {
         "drifts": [
@@ -233,6 +301,8 @@ def render_json(
         "en_only": en_only,
         "ru_only": ru_only,
         "abbreviated": abbreviated or [],
+        "unpaired_declared": declared or {},
+        "unpaired_undeclared": undeclared or [],
     }
     return json.dumps(payload, indent=2, ensure_ascii=False)
 
@@ -269,13 +339,14 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     drifts, en_only, ru_only, abbreviated = audit_pairs(root)
+    declared, undeclared = classify_unpaired(root, en_only, ru_only)
     print(
-        render_json(drifts, en_only, ru_only, abbreviated)
+        render_json(drifts, en_only, ru_only, abbreviated, declared, undeclared)
         if args.json
-        else render_markdown(drifts, en_only, ru_only, abbreviated)
+        else render_markdown(drifts, en_only, ru_only, abbreviated, declared, undeclared)
     )
 
-    if args.check and drifts:
+    if args.check and (drifts or undeclared):
         return 1
     return 0
 

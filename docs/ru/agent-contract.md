@@ -2,6 +2,8 @@
 
 # Контракт агента TAUSIK — расширенная справка
 
+<!-- audit-translation-drift: unpaired: перевод ожидается, задача kontrakt-agenta-suschestvuet-tolko-po-russki-a. CLAUDE.md ссылается на этот документ как на ПОЛНЫЙ контракт агента, поэтому читатель английской ветки контракта не имеет вовсе — это дефект продукта, а не намеренный пробел. -->
+
 Этот документ — продолжение `CLAUDE.md`. CLAUDE.md грузится в контекст агента
 **на каждом ходе**, поэтому он держит только enforceable rules и quick reference.
 Сюда вынесено всё, что нужно реже: estimation table, SENAR Compliance matrix,

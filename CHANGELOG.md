@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a one-language doc must name its reason, or it is a finding
+
+The task statement named five drifted document pairs; the measurement found ZERO structural
+drift on paired mirrors — the pairs had converged earlier, and `brain-db-schema.md` from the
+statement no longer exists at all. What remained was what the report printed as information:
+three documents in one language. Information with no owner gets rediscovered rather than
+resolved — those three sat in the list across successive reviews, each review spending its
+time relearning the same three names.
+
+A one-language doc must now declare its REASON through a machine-readable
+`<!-- audit-translation-drift: unpaired: <reason or task slug> -->`, and an undeclared one
+reddens `--check`. What is checked is the TEXT after the colon, not the presence of the
+marker: a bare marker would let the list be emptied silently — the same failure with a
+tidier report.
+
+Three decisions are named. `at-generation-procedure.md` is permanently EN-only as an
+agent-facing spec, and is now listed in the `docs/README.md` registry it already pointed at.
+`agent-contract.md` is not a deliberate gap but a product defect: CLAUDE.md calls it the
+agent's FULL contract, so a reader of the English branch has no contract at all; its 527
+lines are filed as their own task. `hooks-events.md` waits on that same translation — its
+residual-boundary section defers to an anchor INSIDE `agent-contract.md`, so an English half
+would point into a Russian document, trading one gap for another.
+
+The localization policy stopped contradicting itself: a bullet claimed FULL localization
+while the diagram two paragraphs below admitted a RU-only file.
+
 ### Added — a register of deliberate gaps: what is NOT guaranteed, with a reason on every line
 
 Before this page three different things looked identical, which is to say invisible: "we
