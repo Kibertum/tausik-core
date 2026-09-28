@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the autonomy promise became a number: closures per owner message
+
+"The agent works autonomously through your plan" is words, and a user learns their price on their
+own project. The checkable form is two figures computed from the transcript on disk: CLOSURES PER
+OWNER MESSAGE and STOPS PER CLOSURE.
+
+A STOP IS DEFINED NARROWLY, and that is the whole design: a message from the owner whose only
+content is a request to carry on — the owner paying a message to restart an agent that froze. A
+message carrying a NEW instruction is not counted however it is worded: otherwise the metric would
+punish conversation, and the first real discussion about plans would ruin it. The owner is allowed
+to talk; the agent is not allowed to freeze.
+
+SEPARATING THE OWNER'S WORDS FROM THE MACHINERY is not a detail: in the session #277 transcript, 68
+real messages sit among 5644 tool results and 43 harness notifications. A count that skipped the
+separation would be wrong by two orders of magnitude.
+
+MEASURED ON SESSION #277: 68 owner messages of which three were bare nudges, 44 closures — 0.65
+closures per message and 0.07 stops per closure, against 0.32 before the driver existed. Both
+figures are DESCRIPTIVE, like risk and calibration in this project: they say what happened and
+promise nothing about the next run, and the command's own output says so.
+
+No autonomy promise turned out to exist in either README — it lives in the `/run` skill
+description, so the number went where the promise is. Adding a claim to the README in order to
+measure it would have been inventing a promise to fit the metric.
+
 ### Added — the run watches its capacity and hands off cleanly instead of dying mid-task
 
 THE MEASUREMENT CAME FIRST and its answer was NO: not one stored signal predicts the end of

@@ -16,6 +16,25 @@ and the project's own doctrine says so: a rule that is only asked for gets switc
 same week. A turn that ends with prose returns control to the user and the agent cannot
 resume itself. So continuing has to be a loop inside ONE turn, which is what this is.
 
+## What it is worth, as a number
+
+The claim "runs the composition without stopping" is words until it is measured, so it is:
+
+```bash
+python scripts/autonomy_metric.py <transcript.jsonl> --closures <tasks closed>
+```
+
+It reports CLOSURES PER OWNER MESSAGE and STOPS PER CLOSURE, where a stop is a message from the
+owner whose only content is a request to carry on — the owner paying a message to restart an
+agent that froze. A message carrying a NEW instruction is deliberately not counted: otherwise the
+number would punish conversation instead of freezing, and the first real discussion about plans
+would ruin it.
+
+Measured on this project's own session #277: 68 owner messages of which 3 were bare nudges, 44
+closures — 0.65 closures per message and 0.07 stops per closure, against the 0.32 recorded before
+this skill existed. DESCRIPTIVE, not predictive, like risk and calibration here: it says what
+happened over a transcript that exists, and promises nothing about the next run.
+
 ## When to use
 
 - The composition is planned and the owner said to work it.
