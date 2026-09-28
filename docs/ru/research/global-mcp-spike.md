@@ -7,6 +7,8 @@ Windows 11, `claude.exe` под `Code.exe`.
 первичный предмет спайка — три НЕ-депрекированных механизма резолва проекта, а roots остаются
 переходным путём. Депрекация annotation-only с гарантией не менее 12 месяцев.
 
+> **Пути машины в логах ниже заменены** на `<PROJECT>` и `<OTHER-PROJECT>`: абсолютный путь разработчика — класс утечки, который гейт публичного снапшота ловит по делу (память #710). Заменены только ПРЕФИКСЫ; доказательство несёт форма, а не буква диска — в логе по-прежнему видно, что `cwd` равен корню проекта, что `--project` у одного сервера относительный, а у другого абсолютный и указывает на ДРУГОЙ проект, и что `CLAUDE_PROJECT_DIR` пуст.
+
 ## Итог одной таблицей
 
 | Механизм | Поддержан? | Чем доказано |
@@ -35,9 +37,9 @@ server capabilities: experimental=None logging=None prompts=None resources=None 
 
 == tools/call whoami {project: <absolute>} ==
 {
-  "tool_parameter_received": "D:/Work/Kibertum/clients/kibertum/tausik/core",
+  "tool_parameter_received": "<PROJECT>",
   "argv_project": ".",
-  "cwd": "D:\\Work\\Kibertum\\clients\\kibertum\\tausik\\core",
+  "cwd": "<PROJECT>"   <- РАВЕН корню проекта,
   "CLAUDE_PROJECT_DIR": null,
   "WORKSPACE_FOLDER_PATHS": null
 }
@@ -49,7 +51,7 @@ server capabilities: experimental=None logging=None prompts=None resources=None 
 {
   "tool_parameter_received": null,
   "argv_project": ".",
-  "cwd": "D:\\Work\\Kibertum\\clients\\kibertum\\tausik\\core",
+  "cwd": "<PROJECT>"   <- РАВЕН корню проекта,
   "CLAUDE_PROJECT_DIR": null,
   "WORKSPACE_FOLDER_PATHS": null
 }
@@ -119,9 +121,9 @@ parents are claude.exe: claude,claude,claude,claude,claude,claude
 ```
 PID=30780 PPID=32228 ./.tausik/venv/Scripts/python.exe ./.claude/mcp/project/server.py --project .
 PID=20792 PPID=28760 ./.tausik/venv/Scripts/python.exe ./.claude/mcp/project/server.py --project .
-PID=26784 PPID=47372 D:/Work/Freelance/le4ebnik.ru/.tausik/venv/Scripts/python.exe
-                     D:/Work/Freelance/le4ebnik.ru/.mcp-custom/jira/server.py
-                     --project D:/Work/Freelance/le4ebnik.ru
+PID=26784 PPID=47372 <OTHER-PROJECT>/.tausik/venv/Scripts/python.exe
+                     <OTHER-PROJECT>/.mcp-custom/jira/server.py
+                     --project <OTHER-PROJECT>
 ```
 
 Последняя строка — отдельный факт: ОДИН хост держит серверы, привязанные к РАЗНЫМ проектам,

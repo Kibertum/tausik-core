@@ -9,6 +9,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed -- the spike document carried absolute developer paths and reddened the publication gate
+
+Found by a check nobody aimed at it: the public-snapshot leak scan named
+`docs/ru/research/global-mcp-spike.md` under "dev-machine path". A raw log is evidence, and an
+absolute path from the machine that produced it is a leak class regardless.
+
+Only the PREFIXES were replaced, with `<PROJECT>` and `<OTHER-PROJECT>`, and the document says
+so in a box above its own summary rather than leaving the reason in a commit message. Every
+conclusion the logs support still stands in them: `cwd` equals the project root (now marked in
+the log itself), one server's `--project` is relative while another's is absolute and names a
+DIFFERENT project, and `CLAUDE_PROJECT_DIR` is empty.
+
 ### Added -- `resolve_project()`: one chain, three links, and the first one is a parameter
 
 The chain used to begin at MCP roots. The spec of 2026-07-28 deprecates them (SEP-2577), so
