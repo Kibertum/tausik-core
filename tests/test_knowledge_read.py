@@ -12,6 +12,8 @@ does.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sqlite3
 import sys
@@ -367,7 +369,7 @@ class TestRankingUsesFtsAndRecencyOnly:
         words. It is cheap and it fails loudly at the likely point of entry;
         that is the whole claim.
         """
-        src = open(knowledge_read.__file__, encoding="utf-8").read().lower()
+        src = Path(knowledge_read.__file__).read_text(encoding="utf-8").lower()
         code = "\n".join(ln for ln in src.splitlines() if not ln.strip().startswith("#"))
         for banned in ("sentence_transformers", "faiss", "numpy", "import embedding"):
             assert banned not in code, f"{banned} appeared on the read path"

@@ -7,6 +7,8 @@ embedded fingerprint consistency.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import sys
@@ -68,7 +70,7 @@ class TestBuildAndWrite:
         env = _envelope(keyed_project)
         export = build_export(env, crypto_keys.load_public(keyed_project))
         path = write_export(export, str(tmp_path / "out" / "r.json"))
-        data = json.loads(open(path, encoding="utf-8").read())
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
         valid, _detail, origin = verify_export(data)
         assert valid is True and origin is False
 

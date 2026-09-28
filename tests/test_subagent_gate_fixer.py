@@ -11,6 +11,8 @@ Covers:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 
@@ -53,7 +55,7 @@ def _parse_frontmatter(text: str) -> dict[str, str]:
 
 
 def test_gate_fixer_frontmatter_contract():
-    text = open(SUBAGENT_PATH, encoding="utf-8").read()
+    text = Path(SUBAGENT_PATH).read_text(encoding="utf-8")
     fm = _parse_frontmatter(text)
     assert fm.get("name") == "tausik-gate-fixer"
     assert fm.get("model") == "sonnet"
@@ -67,14 +69,14 @@ def test_gate_fixer_frontmatter_contract():
 
 
 def test_gate_fixer_cites_runtime_docs_not_embeds():
-    text = open(SUBAGENT_PATH, encoding="utf-8").read()
+    text = Path(SUBAGENT_PATH).read_text(encoding="utf-8")
     for path in EXPECTED_DOC_REFS:
         assert path in text, f"Sub-agent must cite '{path}' (read-at-runtime, no embed)."
 
 
 def test_gate_fixer_emits_plan_with_action_vocabulary():
     """AC #3: returns 1-3 step fix plan with structured `action` field."""
-    text = open(SUBAGENT_PATH, encoding="utf-8").read()
+    text = Path(SUBAGENT_PATH).read_text(encoding="utf-8")
     # The action vocabulary must be present in the system prompt so the agent
     # picks one of the recognized verbs (avoids open-ended free-text actions).
     for action in ("edit", "extract_module", "add_test", "re_run_gate"):
@@ -89,7 +91,7 @@ def test_gate_fixer_emits_plan_with_action_vocabulary():
 
 def test_gate_fixer_returns_json_only():
     """Sub-agent must emit JSON, no prose — pin via prompt review."""
-    text = open(SUBAGENT_PATH, encoding="utf-8").read()
+    text = Path(SUBAGENT_PATH).read_text(encoding="utf-8")
     assert "JSON" in text or "json" in text
     # Must explicitly forbid prose around the JSON to keep main-context output clean.
     assert "no prose" in text.lower() or "nothing else" in text.lower(), (
@@ -99,7 +101,7 @@ def test_gate_fixer_returns_json_only():
 
 def test_debug_skill_mentions_gate_fixer_invocation():
     """AC #6: /debug skill SKILL.md updated to mention auto-helper."""
-    text = open(DEBUG_SKILL_PATH, encoding="utf-8").read()
+    text = Path(DEBUG_SKILL_PATH).read_text(encoding="utf-8")
     assert "tausik-gate-fixer" in text, (
         "/debug SKILL.md must mention the tausik-gate-fixer auto-helper"
     )

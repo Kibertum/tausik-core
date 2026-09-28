@@ -7,6 +7,8 @@ corrupt signature file, no-key error.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import sys
@@ -103,9 +105,9 @@ class TestSignAndVerify:
     def test_tampered_signature_payload_detected(self, keyed_project, skill_dir):
         sign_artifact(keyed_project, skill_dir)
         sig_path = os.path.join(skill_dir, SIGNATURE_FILENAME)
-        env = json.loads(open(sig_path, encoding="utf-8").read())
+        env = json.loads(Path(sig_path).read_text(encoding="utf-8"))
         env["receipt"]["files"][0]["sha256"] = "0" * 64
-        open(sig_path, "w", encoding="utf-8").write(json.dumps(env))
+        Path(sig_path).write_text(json.dumps(env))
         valid, detail = verify_signed_dir(skill_dir, crypto_keys.load_public(keyed_project))
         assert valid is False and "INVALID" in detail
 
@@ -114,7 +116,7 @@ class TestSignAndVerify:
         assert valid is False and "unsigned" in detail
 
     def test_corrupt_signature_file_no_crash(self, keyed_project, skill_dir):
-        open(os.path.join(skill_dir, SIGNATURE_FILENAME), "w", encoding="utf-8").write("{nope")
+        Path(os.path.join(skill_dir, SIGNATURE_FILENAME)).write_text("{nope")
         valid, detail = verify_signed_dir(skill_dir, crypto_keys.load_public(keyed_project))
         assert valid is False and "corrupt" in detail
 

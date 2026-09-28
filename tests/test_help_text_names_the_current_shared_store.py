@@ -18,7 +18,6 @@ this file red rather than green.
 from __future__ import annotations
 
 import argparse
-import io
 import os
 import sys
 from typing import Iterator
@@ -27,6 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 import knowledge_db
 import project_parser
+from pathlib import Path
 
 CROSSCUTTING_SCOPE = ["scripts/knowledge_db.py", "scripts/project_parser.py"]
 
@@ -165,7 +165,7 @@ class TestHistoryKeepsTheOldPath:
     """The negative scenario. Red iff a blind sweep 'fixed' the explanation."""
 
     def test_the_incident_comment_still_names_the_address_that_caused_it(self):
-        src = io.open(knowledge_db.__file__, encoding="utf-8").read()
+        src = Path(knowledge_db.__file__).read_text(encoding="utf-8")
         assert "Creating `~/.tausik/knowledge.db` did it" in src, (
             "the comment explaining WHY the store moved was rewritten to the new "
             "path — it now says the current address caused the incident, which is "

@@ -25,6 +25,8 @@ Run: pytest tests/test_docs_no_fake_npm_packages.py -v
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import glob
 import os
 import re
@@ -113,7 +115,7 @@ def test_no_fake_npm_package_anywhere_in_docs():
     """No doc may name an npm package that does not exist."""
     offenders = []
     for path in glob.glob(os.path.join(_ROOT, "docs", "**", "*.md"), recursive=True):
-        for fake in _find_fake_packages(open(path, encoding="utf-8").read()):
+        for fake in _find_fake_packages(Path(path).read_text(encoding="utf-8")):
             rel = os.path.relpath(path, _ROOT)
             offenders.append(f"{rel}: {fake!r} does not exist — use {FAKE_NPM_PACKAGES[fake]!r}")
     assert not offenders, "docs advertise nonexistent npm packages:\n  " + "\n  ".join(offenders)
@@ -139,7 +141,7 @@ def test_platform_table_matches_scaffold_ides():
     """The Scaffolded column must agree with SCAFFOLD_IDES in every language."""
     mismatches = []
     for path in _MODEL_PROVIDER_DOCS:
-        table = _parse_scaffolded_column(open(path, encoding="utf-8").read())
+        table = _parse_scaffolded_column(Path(path).read_text(encoding="utf-8"))
         rel = os.path.relpath(path, _ROOT)
         assert table, f"{rel}: platform table not found or unparseable"
         for ide_key, claimed in table.items():
@@ -194,7 +196,7 @@ def test_tools_key_boolean_only_warning_is_documented():
     """
     missing = []
     for path in _MODEL_PROVIDER_DOCS:
-        text = open(path, encoding="utf-8").read()
+        text = Path(path).read_text(encoding="utf-8")
         if "tools.qg0" not in text or "ConfigInvalidError" not in text:
             missing.append(os.path.relpath(path, _ROOT))
     assert not missing, "the tools-accepts-booleans-only warning was dropped from: " + ", ".join(

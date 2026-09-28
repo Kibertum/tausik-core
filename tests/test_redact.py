@@ -15,6 +15,8 @@ So the contract has two halves, and both are tested here:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
@@ -220,7 +222,7 @@ class TestProjectionIsRebuiltFromTheRedactedDatabase:
             for name in files:
                 if not name.endswith(".md"):
                     continue
-                text = open(os.path.join(root, name), encoding="utf-8", errors="replace").read()
+                text = Path(os.path.join(root, name)).read_text(encoding="utf-8", errors="replace")
                 assert SECRET not in text
                 if redact_scope.marker("internal-host") in text:
                     found = True

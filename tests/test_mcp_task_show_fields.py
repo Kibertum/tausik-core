@@ -9,6 +9,8 @@ had never been shown. The list now lives once, in scripts/task_detail_fields.py.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
@@ -58,10 +60,10 @@ def test_cli_and_mcp_read_one_list():
     import project_cli_task
     import task_detail_fields
 
-    src_cli = open(project_cli_task.__file__, encoding="utf-8").read()
-    src_mcp = open(
-        handlers.__file__.replace("handlers.py", "handlers_task.py"), encoding="utf-8"
-    ).read()
+    src_cli = Path(project_cli_task.__file__).read_text(encoding="utf-8")
+    src_mcp = Path(handlers.__file__.replace("handlers.py", "handlers_task.py")).read_text(
+        encoding="utf-8"
+    )
     assert "detail_lines" in src_cli and "detail_lines" in src_mcp
     assert '"rollback_plan",' not in src_mcp  # no second copy of the list
     assert {"scope_paths", "rollback_plan"} <= set(task_detail_fields.TASK_DETAIL_FIELDS)

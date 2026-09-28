@@ -29,6 +29,7 @@ from pwsh_cmd_parse import Statement, split_statements, tokenize  # noqa: E402
 from pwsh_write_parse import wiped_root, write_targets  # noqa: E402
 from rm_wipe_detect import _WIPE_ROOTS, is_wipe_root, normalise_operand  # noqa: E402
 from write_confidence import CONFIDENCE_PARSED, CONFIDENCE_REGEX_FALLBACK  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 # A single backslash, spelled so the test source stays readable. A raw string
 # cannot end in one, which is itself a reminder of why the POSIX lexer — where
@@ -282,7 +283,7 @@ class TestOneDialectTableNotTwo:
         """The dispatch briefly WAS `== "PowerShell"` in the hook — a second
         copy of the list whose staleness caused the bug. Found by reviewing the
         fix, not the code it replaced (convention #276)."""
-        src = open(os.path.join(_HOOKS, "bash_firewall.py"), encoding="utf-8").read()
+        src = Path(os.path.join(_HOOKS, "bash_firewall.py")).read_text(encoding="utf-8")
         code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("#"))
         assert '"PowerShell"' not in code
         assert "shell_channel" in code
@@ -495,7 +496,7 @@ class TestPushGateFollowsTheToolsDialect:
         assert r.returncode == 0, r.stderr
 
     def test_the_gate_does_not_choose_a_dialect_by_hand(self):
-        src = open(os.path.join(_HOOKS, "git_push_gate.py"), encoding="utf-8").read()
+        src = Path(os.path.join(_HOOKS, "git_push_gate.py")).read_text(encoding="utf-8")
         code = "\n".join(ln for ln in src.splitlines() if not ln.lstrip().startswith("#"))
         assert "from pwsh_cmd_parse import" not in code
         assert "shell_channel" in code

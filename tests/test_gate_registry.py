@@ -31,6 +31,8 @@ What these tests defend, per AC:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import sqlite3
@@ -493,17 +495,15 @@ class TestBuiltinIsDeclared:
 class TestNoDispatchChainLeftBehind:
     def test_gate_runner_holds_no_gate_name_branches(self):
         """The chain this task deleted must not grow back one `elif` at a time."""
-        src = open(
-            os.path.join(os.path.dirname(__file__), "..", "scripts", "gate_runner.py"),
-            encoding="utf-8",
-        ).read()
+        src = Path(os.path.dirname(__file__), "..", "scripts", "gate_runner.py").read_text(
+            encoding="utf-8"
+        )
         for name in ("filesize", "tdd_order", "bootstrap_drift"):
             assert f'name == "{name}"' not in src
 
     def test_service_gates_holds_no_hardcoded_post_scope_calls(self):
-        src = open(
-            os.path.join(os.path.dirname(__file__), "..", "scripts", "service_gates.py"),
-            encoding="utf-8",
-        ).read()
+        src = Path(os.path.dirname(__file__), "..", "scripts", "service_gates.py").read_text(
+            encoding="utf-8"
+        )
         assert "self._enforce_verify_first(" not in src
         assert "self._enforce_changelog(" not in src

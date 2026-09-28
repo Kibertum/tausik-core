@@ -16,6 +16,8 @@ alone, which is the path the old tests exercised and the reason they were green.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sqlite3
 import sys
@@ -34,7 +36,7 @@ FIXTURE = os.path.join(_ROOT, "tests", "fixtures", "schema_v44_tausik_1_8_0.sql"
 
 def _v44(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
-    conn.executescript(open(FIXTURE, encoding="utf-8").read())
+    conn.executescript(Path(FIXTURE).read_text(encoding="utf-8"))
     conn.commit()
     return conn
 
@@ -55,7 +57,7 @@ def _version(conn: sqlite3.Connection) -> int:
 
 def test_the_fixture_is_a_1_8_database():
     conn = sqlite3.connect(":memory:")
-    conn.executescript(open(FIXTURE, encoding="utf-8").read())
+    conn.executescript(Path(FIXTURE).read_text(encoding="utf-8"))
     assert _version(conn) == 44
     names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "actz_points" not in names  # v52 creates it; 1.8 never had it

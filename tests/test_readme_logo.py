@@ -8,6 +8,8 @@ picture at the top of README with nothing going red — this does.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 
@@ -20,7 +22,7 @@ _IMG = re.compile(r"<img\s[^>]*src=\"([^\"]+)\"")
 
 
 def _images(rel: str) -> list[str]:
-    text = open(os.path.join(_ROOT, rel), encoding="utf-8").read()
+    text = Path(os.path.join(_ROOT, rel)).read_text(encoding="utf-8")
     return _IMG.findall(text)
 
 

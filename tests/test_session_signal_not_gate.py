@@ -23,6 +23,7 @@ from gate_qg0_check import check_qg0_start  # noqa: E402
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
 from tausik_utils import ServiceError  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 
 @pytest.fixture
@@ -107,7 +108,7 @@ class TestTheRuleIsStatedInBothPlaces:
     a test holds them together so the two cannot drift apart again."""
 
     def test_core_claude_md_states_the_signal_rule(self):
-        text = open(os.path.join(_ROOT, "CLAUDE.md"), encoding="utf-8").read()
+        text = Path(os.path.join(_ROOT, "CLAUDE.md")).read_text(encoding="utf-8")
         assert "сигнал, не ворота" in text
         assert "180 мин ACTIVE" not in text
 

@@ -8,6 +8,8 @@ the host had none.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
@@ -114,8 +116,6 @@ def test_a_failing_generator_does_not_keep_the_session_open(svc, monkeypatch):
 def test_the_skills_call_the_generator_instead_of_a_json_template():
     """The skills stop teaching the agent to re-type what the records hold."""
     for name in ("checkpoint", "end"):
-        text = open(
-            os.path.join(_ROOT, "harness", "skills", name, "SKILL.md"), encoding="utf-8"
-        ).read()
+        text = Path(_ROOT, "harness", "skills", name, "SKILL.md").read_text(encoding="utf-8")
         assert "generated from the journal" in text, name
         assert '"completed": ["task-slug-1' not in text, name

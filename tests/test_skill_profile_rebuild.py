@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
@@ -53,7 +55,7 @@ def test_rebuild_force_always_rewrites(skills_root):
 def test_rebuild_missing_model_overlay_only_ide(skills_root):
     result = spr.rebuild_skills(skills_root, ide="claude", model="haiku")
     assert "alpha" in result["rebuilt"]
-    merged = (open(os.path.join(skills_root, "alpha", "SKILL.md"), encoding="utf-8")).read()
+    merged = Path(skills_root, "alpha", "SKILL.md").read_text(encoding="utf-8")
     assert "ide-claude" in merged
     assert "model-opus" not in merged
     assert "model-haiku" not in merged
@@ -62,7 +64,7 @@ def test_rebuild_missing_model_overlay_only_ide(skills_root):
 def test_rebuild_missing_ide_overlay_only_model(skills_root):
     result = spr.rebuild_skills(skills_root, ide="cursor", model="opus")
     assert "alpha" in result["rebuilt"]
-    merged = (open(os.path.join(skills_root, "alpha", "SKILL.md"), encoding="utf-8")).read()
+    merged = Path(skills_root, "alpha", "SKILL.md").read_text(encoding="utf-8")
     assert "model-opus" in merged
     assert "ide-claude" not in merged
     assert "ide-cursor" not in merged

@@ -454,15 +454,15 @@ def test_the_source_carries_no_invisible_characters_of_its_own():
     development remote. A file-level property this cheap to test does not need
     to wait that long.
     """
-    import io as _io
     import os as _os
+    from pathlib import Path
 
     path = _os.path.join(
         _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
         "scripts",
         "brain_scrubbing.py",
     )
-    src = _io.open(path, encoding="utf-8").read()
+    src = Path(path).read_text(encoding="utf-8")
     offenders = sorted({hex(ord(c)) for c in src if brain_scrubbing._ZERO_WIDTH_RE.fullmatch(c)})
     assert not offenders, (
         f"scripts/brain_scrubbing.py contains invisible characters {offenders} — "

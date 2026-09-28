@@ -8,6 +8,8 @@ hook is written for a host that has no such event (1.10, story E).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 import sys
@@ -24,7 +26,7 @@ _ROW = re.compile(r"^\| (\w+) \| (hook|plugin|cli) \| (hook|plugin|cli) \|", re.
 
 
 def _table(lang: str) -> dict[str, tuple[str, str]]:
-    text = open(os.path.join(REPO, "docs", lang, "hooks.md"), encoding="utf-8").read()
+    text = Path(os.path.join(REPO, "docs", lang, "hooks.md")).read_text(encoding="utf-8")
     block = text.split("<!-- host-session-table -->")[1].split("<!-- /host-session-table -->")[0]
     return {m.group(1): (m.group(2), m.group(3)) for m in _ROW.finditer(block)}
 

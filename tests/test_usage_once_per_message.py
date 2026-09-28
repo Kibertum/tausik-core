@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import hashlib
 import json
 import os
@@ -93,8 +95,8 @@ def test_the_replay_transcript_of_session_263_meters_the_deduplicated_sum():
             pytest.skip(
                 f"{os.path.basename(needed)} is absent — `_internal` is untracked by design"
             )
-    sha_line = open(manifest, encoding="utf-8").read().split()
-    usage = json.load(open(usage_path, encoding="utf-8"))
+    sha_line = Path(manifest).read_text(encoding="utf-8").split()
+    usage = json.loads(Path(usage_path).read_text(encoding="utf-8"))
     name = sha_line[1]
     path = None
     base = os.path.expanduser("~/.claude/projects")
@@ -106,7 +108,7 @@ def test_the_replay_transcript_of_session_263_meters_the_deduplicated_sum():
                 break
     if path is None:
         pytest.skip(f"replay transcript {name} is not on this machine")
-    assert hashlib.sha256(open(path, "rb").read()).hexdigest() == sha_line[0]
+    assert hashlib.sha256(Path(path).read_bytes()).hexdigest() == sha_line[0]
     lo, hi = usage["window"]
     m = parse_transcript(
         path, session_resolver=lambda ts: 263 if ts and lo <= ts <= hi else None, session_id=263

@@ -11,6 +11,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 import service_stack_ops as _ops
+from pathlib import Path
 
 
 @pytest.fixture
@@ -92,14 +93,14 @@ class TestStackScaffold:
         out = _ops.stack_scaffold("ruby")
         assert os.path.isfile(out["created"][0])
         assert os.path.isfile(out["created"][1])
-        decl = json.loads(open(out["created"][0]).read())
+        decl = json.loads(Path(out["created"][0]).read_text(encoding="utf-8"))
         assert decl["name"] == "ruby"
         assert decl["version"] == "0.1.0"
         assert "extends" not in decl
 
     def test_extends_builtin_sets_field(self, chdir_tmp):
         out = _ops.stack_scaffold("myfast", extends_builtin="fastapi")
-        decl = json.loads(open(out["created"][0]).read())
+        decl = json.loads(Path(out["created"][0]).read_text(encoding="utf-8"))
         assert decl["extends"] == "builtin:fastapi"
 
     def test_refuses_overwrite_without_force(self, chdir_tmp):
@@ -114,5 +115,5 @@ class TestStackScaffold:
 
     def test_guide_md_contains_stack_name(self, chdir_tmp):
         out = _ops.stack_scaffold("named")
-        guide = open(out["created"][1]).read()
+        guide = Path(out["created"][1]).read_text(encoding="utf-8")
         assert "named" in guide

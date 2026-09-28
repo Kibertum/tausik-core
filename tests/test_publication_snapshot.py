@@ -13,6 +13,8 @@ drop, a parent that is not a commit.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import subprocess
 import sys
@@ -156,9 +158,8 @@ class TestTheSnapshotIsBuiltFromObjects:
         commit = snap.build_snapshot_commit(str(root), public_head, "snapshot")
         assert _git(root, "rev-parse", "HEAD").stdout.strip() == before_head
         assert _git(root, "status", "--porcelain").stdout.strip() == "M scripts/tool.py"
-        assert (
-            "print('uncommitted edit')"
-            in open(root / "scripts" / "tool.py", encoding="utf-8").read()
+        assert "print('uncommitted edit')" in Path(root / "scripts" / "tool.py").read_text(
+            encoding="utf-8"
         )
         assert commit and len(commit) == 40
 
@@ -267,7 +268,7 @@ class TestTheLiveTree:
             if rel in snap.MAY_DESCRIBE_LEAKS:
                 continue
             try:
-                text = open(os.path.join(_ROOT, rel), encoding="utf-8").read()
+                text = Path(os.path.join(_ROOT, rel)).read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
             for name, rx in classes.items():

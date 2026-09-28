@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import glob
 import os
+from pathlib import Path
 
 
 _SKILLS_DIR = os.path.join(os.path.dirname(__file__), "..", "harness", "skills")
@@ -25,7 +26,7 @@ def test_skills_directory_has_files():
 def test_every_skill_has_gotchas_section():
     missing = []
     for path in _all_skill_files():
-        content = open(path, encoding="utf-8").read()
+        content = Path(path).read_text(encoding="utf-8")
         if "\n## Gotchas" not in content and not content.startswith("## Gotchas"):
             missing.append(os.path.relpath(path, _SKILLS_DIR))
     assert not missing, f"SKILL.md files missing '## Gotchas' section: {missing}"
@@ -35,16 +36,14 @@ def test_gotchas_sections_are_not_empty():
     """A Gotchas section with no bullets is a smell — enforce real content."""
     empty = []
     for path in _all_skill_files():
-        content = open(path, encoding="utf-8").read()
+        content = Path(path).read_text(encoding="utf-8")
         idx = content.find("\n## Gotchas")
         if idx < 0:
             continue
         after = content[idx + len("\n## Gotchas") :].strip()
         # Must have at least one bullet or paragraph of content before next ## or EOF
         next_section = after.find("\n## ")
-        section_body = after[
-            : next_section if next_section >= 0 else len(after)
-        ].strip()
+        section_body = after[: next_section if next_section >= 0 else len(after)].strip()
         if len(section_body) < 30:
             empty.append(os.path.relpath(path, _SKILLS_DIR))
     assert not empty, f"SKILL.md files with too-thin '## Gotchas' (<30 chars): {empty}"

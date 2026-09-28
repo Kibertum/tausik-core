@@ -14,6 +14,8 @@ Every guard here defends a token-economy or agent-first invariant:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import sys
@@ -131,7 +133,7 @@ class TestModeDoesNotLeakIntoVerificationRecords:
 
         paths = [os.path.join(_ROOT, "scripts", "project_cli_task.py")]
         paths += glob.glob(os.path.join(_ROOT, "harness", "*", "mcp", "project", "handlers*.py"))
-        found = {p: open(p, encoding="utf-8").read() for p in paths if os.path.isfile(p)}
+        found = {p: Path(p).read_text(encoding="utf-8") for p in paths if os.path.isfile(p)}
         assert found, "no verification-record writer modules found — test would be vacuous"
         return found
 

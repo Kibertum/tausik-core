@@ -10,6 +10,8 @@ Run: pytest tests/test_bootstrap_skills_coverage.py -v
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import subprocess
 import sys
@@ -54,7 +56,7 @@ def _run_bootstrap(
 class TestBootstrapSkillsCoverage:
     def test_i_have_adhd_skill_keeps_evidence_outside_presentation_rule(self):
         skill = os.path.join(_builtin_skills_dir, "i-have-adhd", "SKILL.md")
-        text = open(skill, encoding="utf-8").read()
+        text = Path(skill).read_text(encoding="utf-8")
 
         assert "https://github.com/ayghri/i-have-adhd" in text
         assert "not a verbatim copy" in text

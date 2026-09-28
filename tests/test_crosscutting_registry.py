@@ -41,6 +41,8 @@ opt out visibly, or be in the frozen list, which may only shrink.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 import subprocess
@@ -239,7 +241,7 @@ def _flagged_undeclared() -> set[str]:
             continue
         path = os.path.join(_TESTS, fn)
         try:
-            text = open(path, encoding="utf-8").read()
+            text = Path(path).read_text(encoding="utf-8")
         except OSError:
             continue
         if _iterates_source_tree(text) and read_crosscutting_scope(path) is None:
@@ -369,7 +371,7 @@ def _ratchets_deselected_by_default() -> set[str]:
         if fn in _SELF or fn in _SLOW_RATCHET_EXCEPTIONS:
             continue
         try:
-            text = open(os.path.join(_TESTS, fn), encoding="utf-8").read()
+            text = Path(os.path.join(_TESTS, fn)).read_text(encoding="utf-8")
         except OSError:
             continue
         if _RATCHET_READ.search(text) and _SLOW_MARK.search(text):

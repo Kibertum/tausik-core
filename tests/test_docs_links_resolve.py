@@ -19,6 +19,8 @@ What is NOT checked, and why:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 
@@ -93,7 +95,7 @@ def _broken(rel_page: str, text: str) -> list[str]:
 
 @pytest.mark.parametrize("page", _pages())
 def test_every_relative_link_resolves(page):
-    text = open(os.path.join(_ROOT, page), encoding="utf-8").read()
+    text = Path(os.path.join(_ROOT, page)).read_text(encoding="utf-8")
     broken = _broken(page, text)
     assert not broken, f"{page}: {broken}"
 
@@ -117,8 +119,8 @@ def test_every_page_has_its_pair_or_is_a_declared_singleton():
 
 @pytest.mark.parametrize("en_name,ru_name", _pairs())
 def test_the_switcher_points_at_the_pair(en_name, ru_name):
-    en_text = open(os.path.join(_ROOT, "docs", "en", en_name), encoding="utf-8").read()
-    ru_text = open(os.path.join(_ROOT, "docs", "ru", ru_name), encoding="utf-8").read()
+    en_text = Path(os.path.join(_ROOT, "docs", "en", en_name)).read_text(encoding="utf-8")
+    ru_text = Path(os.path.join(_ROOT, "docs", "ru", ru_name)).read_text(encoding="utf-8")
     assert f"../ru/{ru_name}" in en_text, f"docs/en/{en_name} has no switcher to its RU pair"
     assert f"../en/{en_name}" in ru_text, f"docs/ru/{ru_name} has no switcher to its EN pair"
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
@@ -29,5 +31,5 @@ def test_a_consistent_scope_gets_no_explanation():
 
 def test_the_old_name_is_gone():
     assert SCOPE_NARROWER == "scope-narrower-than-diff"
-    src = open(os.path.join(_ROOT, "scripts", "verify_cached_run.py"), encoding="utf-8").read()
+    src = Path(os.path.join(_ROOT, "scripts", "verify_cached_run.py")).read_text(encoding="utf-8")
     assert 'cache_status = "git-mismatch"' not in src

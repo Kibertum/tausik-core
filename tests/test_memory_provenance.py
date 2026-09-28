@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import hashlib
 import os
 import sqlite3
@@ -82,7 +84,7 @@ def test_lint_counts_inferred_records_as_debt(svc):
 
 def test_the_migration_keeps_every_row_and_marks_it_inferred(tmp_path):
     conn = sqlite3.connect(str(tmp_path / "old.db"))
-    conn.executescript(open(FIXTURE, encoding="utf-8").read())
+    conn.executescript(Path(FIXTURE).read_text(encoding="utf-8"))
     for i in range(25):
         conn.execute(
             "INSERT INTO memory(type,title,content,created_at,updated_at) VALUES(?,?,?,?,?)",

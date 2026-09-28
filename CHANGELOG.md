@@ -9,6 +9,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — SIM115 reached zero and joined select: an unclosed handle will not survive a commit
+
+MEASURED BEFORE: 129 sites, not the 125 the task statement named. Only two are in the PRODUCT,
+both of the shape `ast.parse(open(...).read())` where the handle is lost immediately; the other
+127 are in tests — 84 one-line reads and writes, 34 assigned handles and one `json.load(open(...))`.
+
+The product sites were rewritten to `Path.read_text` rather than annotated: an unclosed handle in
+the product lives as long as the process, and on Windows it keeps the file undeletable. The
+one-liners in tests went the same way — the form is SHORTER than the original and it closes the
+file, which makes it an improvement rather than a suppression. Fifteen multi-line sites were done
+one at a time. The single assigned handle left with a suppression is a FALSE POSITIVE with its
+reason declared: it is closed by a `with` two lines below, and the `open` sits in its own `try` so
+an unreadable transcript continues the loop; a context manager around the `open` cannot express
+that, because the failure has to be caught BEFORE the block.
+
+THE BULK EDIT PRODUCED A REAL DEFECT, named here because the suite caught it by accident:
+`open(path, "rb").read()` became `read_text()`, so a binary read turned into a decoded string and
+`sha256` would have hashed text instead of bytes. Every rewrite was then audited for a dropped
+positional argument: four, of which three `"w"` cases are faithful and the fourth was this one. The
+same nature struck twice: the regex edited a `read_text()` inside a fixture's string LITERAL and
+broke its quoting. The lesson for the next bulk edit is to work on the AST, or to check every
+dropped argument against the diff; a green suite is not obliged to find this.
+
 ### Changed — S110 and S112 joined ruff's select: a seventy-third swallow cannot arrive silently
 
 THE MEASUREMENT BEFORE refuted the premise twice. The count is not 79 but 72 in the product plus

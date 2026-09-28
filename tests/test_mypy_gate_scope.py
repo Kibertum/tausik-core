@@ -14,6 +14,8 @@ pyproject.toml задаёт СВОЙ набор источников. Два и�
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
@@ -154,6 +156,6 @@ def test_conftest_itself_was_not_edited() -> None:
     Иначе задача отчиталась бы о починке способа вызова, а на деле замаскировала
     бы симптом правкой предмета замера.
     """
-    body = open(os.path.join(REPO_ROOT, "tests", "conftest.py"), encoding="utf-8").read()
+    body = Path(os.path.join(REPO_ROOT, "tests", "conftest.py")).read_text(encoding="utf-8")
     assert "import service_gates" in body or "service_gates" in body
     assert "backend_schema" in body

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
@@ -175,7 +176,7 @@ class TestSessionStartIntegration:
         hook_path = os.path.join(
             os.path.dirname(__file__), "..", "scripts", "hooks", "session_start.py"
         )
-        source = open(hook_path, encoding="utf-8").read()
+        source = Path(hook_path).read_text(encoding="utf-8")
         assert '["memory", "block"]' in source
 
 
@@ -184,7 +185,7 @@ class TestSkillsDocumentation:
         path = os.path.join(
             os.path.dirname(__file__), "..", "harness", "skills", "start", "SKILL.md"
         )
-        content = open(path, encoding="utf-8").read()
+        content = Path(path).read_text(encoding="utf-8")
         assert "tausik_memory_block" in content
 
     def test_checkpoint_skill_does_not_call_memory_block(self):
@@ -200,7 +201,7 @@ class TestSkillsDocumentation:
             "checkpoint",
             "SKILL.md",
         )
-        content = open(path, encoding="utf-8").read()
+        content = Path(path).read_text(encoding="utf-8")
         # The skill may still mention memory_block in an explanatory note
         # ("intentionally NOT re-injected"). What we forbid is using it as
         # a runtime tool call in the algorithm. Pin the contract via

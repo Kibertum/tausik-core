@@ -23,6 +23,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 import service_knowledge_aggregates as agg
+from pathlib import Path
 
 CROSSCUTTING_SCOPE = ["scripts/service_knowledge_aggregates.py"]
 
@@ -129,7 +130,7 @@ class TestBothAggregatesShareOneImplementation:
 
     def test_neither_aggregate_flattens_inline(self):
         """No leftover private sanitising — the helper must be the only one."""
-        src = open(agg.__file__, encoding="utf-8").read()
+        src = Path(agg.__file__).read_text(encoding="utf-8")
         body = src.split("def flatten_for_injection", 1)[1].split('"""', 2)[2]
         assert '.replace("\\n"' not in body, (
             "an aggregate still strips newlines on its own; that is how the two "

@@ -34,6 +34,8 @@ Run: pytest tests/test_mcp_answers_prompts_list.py -v
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import ast
 import glob
 import os
@@ -57,7 +59,7 @@ def _registered_decorators(path: str) -> set[str]:
     Parsed from the AST rather than grepped: a mention inside a comment or a docstring
     must not count as registration.
     """
-    tree = ast.parse(open(path, encoding="utf-8").read())
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
     found: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):

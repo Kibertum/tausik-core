@@ -22,6 +22,8 @@ fallback that runs when the env override is absent.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import subprocess
@@ -151,7 +153,7 @@ def test_a_fresh_copy_with_no_local_config_is_still_strict(sealed_home, tmp_path
     fresh = tmp_path / "clone"
     (fresh / "tausik").mkdir(parents=True)
     (fresh / "tausik" / "policy.json").write_text(
-        open(POLICY_FILE, encoding="utf-8").read(), encoding="utf-8"
+        Path(POLICY_FILE).read_text(encoding="utf-8"), encoding="utf-8"
     )
     cfg = _effective(str(fresh / ".tausik"))
     assert not os.path.isdir(fresh / ".tausik")

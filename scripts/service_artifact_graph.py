@@ -35,6 +35,8 @@ being trusted for something it cannot do.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import subprocess
 from typing import TYPE_CHECKING, Any
@@ -294,7 +296,7 @@ class ArtifactGraphMixin:
                 continue
             rel = f"tests/{name}"
             try:
-                tree = ast.parse(open(os.path.join(root, rel), encoding="utf-8").read())
+                tree = ast.parse(Path(root, rel).read_text(encoding="utf-8"))
             except (OSError, SyntaxError):
                 continue
             for node in tree.body:

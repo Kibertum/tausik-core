@@ -556,7 +556,9 @@ class TestTranscriptLocatorMatchesOnEvidence:
         mine = tmp_path / "proj"
         mine.mkdir()
         self._project_transcript(root, "d--fake-mangled-name", str(mine))
-        assert transcript_locator.project_transcript_dirs(str(mine)) == [str(root / "d--fake-mangled-name")]
+        assert transcript_locator.project_transcript_dirs(str(mine)) == [
+            str(root / "d--fake-mangled-name")
+        ]
 
     def test_another_projects_transcript_is_never_returned(self, tmp_path, monkeypatch):
         """THE defect: a foreign, more recently touched transcript used to win."""
@@ -594,7 +596,9 @@ class TestTranscriptLocatorMatchesOnEvidence:
         mine.mkdir()
         d = root / "unknown"
         d.mkdir()
-        (d / "a.jsonl").write_text(json.dumps(_turn("2026-09-06T16:30:00Z", ["Read"])) + "\n", encoding="utf-8")
+        (d / "a.jsonl").write_text(
+            json.dumps(_turn("2026-09-06T16:30:00Z", ["Read"])) + "\n", encoding="utf-8"
+        )
         assert transcript_locator.project_transcript_dirs(str(mine)) == []
 
     def test_separator_and_case_differences_do_not_break_the_match(self, tmp_path, monkeypatch):

@@ -23,6 +23,8 @@ Three properties are pinned here beyond the commands working:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import ast
 import os
 import sys
@@ -127,7 +129,7 @@ class TestUpdate:
 
 def _attr_calls(path: str, func: str | None = None) -> set[str]:
     """`<name>.<attr>(...)` call targets in module `path` (inside `func` if given)."""
-    tree = ast.parse(open(path, encoding="utf-8").read())
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
     scope: list[ast.AST] = [tree]
     if func is not None:
         scope = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == func]

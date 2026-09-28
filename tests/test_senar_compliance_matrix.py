@@ -9,6 +9,8 @@ drift detector names otherwise; the citations themselves are resolved by
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 import sys
@@ -39,9 +41,7 @@ _SECTIONS = {
 
 
 def _rows(lang: str, heading: str) -> int:
-    text = open(
-        os.path.join(_ROOT, "docs", lang, "senar-compliance-matrix.md"), encoding="utf-8"
-    ).read()
+    text = Path(_ROOT, "docs", lang, "senar-compliance-matrix.md").read_text(encoding="utf-8")
     block = text.split(heading, 1)[1].split("\n## ", 1)[0]
     lines = [ln for ln in block.splitlines() if ln.startswith("|")]
     return max(0, len(lines) - 2)  # header + separator
@@ -66,8 +66,6 @@ def test_each_core_section_has_the_corpus_row_count(lang):
 @pytest.mark.parametrize("lang", ["en", "ru"])
 def test_no_standard_rule_is_listed_under_core(lang):
     """NEGATIVE: the old defect — Standard 9.x rows inside the Core sections."""
-    text = open(
-        os.path.join(_ROOT, "docs", lang, "senar-compliance-matrix.md"), encoding="utf-8"
-    ).read()
+    text = Path(_ROOT, "docs", lang, "senar-compliance-matrix.md").read_text(encoding="utf-8")
     core = text.split(_SECTIONS[lang][0], 1)[1].split(_SECTIONS[lang][3], 1)[0]
     assert not re.search(r"^\| 9\.\d", core, re.M)

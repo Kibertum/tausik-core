@@ -14,6 +14,8 @@ Run: pytest tests/test_scaffold_dispatch_backed.py -v
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import ast
 import os
 import sys
@@ -58,7 +60,7 @@ def _dispatched_ides(source: str, func: str = "bootstrap_ide") -> set[str]:
 
 
 def test_every_scaffold_ide_has_a_dispatch_branch():
-    source = open(_BOOTSTRAP_PY, encoding="utf-8").read()
+    source = Path(_BOOTSTRAP_PY).read_text(encoding="utf-8")
     dispatched = _dispatched_ides(source)
     missing = [ide for ide in SCAFFOLD_IDES if ide not in dispatched]
     assert not missing, (
@@ -71,7 +73,7 @@ def test_every_scaffold_ide_has_a_dispatch_branch():
 def test_no_dispatch_branch_for_an_unscaffolded_ide():
     """The converse: a generator branch that exists but is unreachable via --ide is
     dead code pretending to be support."""
-    source = open(_BOOTSTRAP_PY, encoding="utf-8").read()
+    source = Path(_BOOTSTRAP_PY).read_text(encoding="utf-8")
     orphans = [
         ide for ide in _dispatched_ides(source) if ide in IDE_DIRS and ide not in SCAFFOLD_IDES
     ]
@@ -85,7 +87,7 @@ def test_opencode_is_fully_backed():
     """OpenCode specifically: the cautionary tale must stay honest."""
     assert "opencode" in IDE_DIRS
     assert "opencode" in SCAFFOLD_IDES
-    assert "opencode" in _dispatched_ides(open(_BOOTSTRAP_PY, encoding="utf-8").read())
+    assert "opencode" in _dispatched_ides(Path(_BOOTSTRAP_PY).read_text(encoding="utf-8"))
     assert os.path.isfile(os.path.join(_ROOT, "harness", "opencode", "plugins", "tausik-qg0.js")), (
         "OpenCode is declared scaffolded, but the QG-0 plugin that enforces it is gone"
     )

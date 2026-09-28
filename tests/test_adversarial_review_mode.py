@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 _BASE = os.path.join(os.path.dirname(__file__), "..")
 _CRITIC_PATH = os.path.join(_BASE, "harness", "skills", "review", "agents", "critic.md")
@@ -14,16 +15,16 @@ class TestCriticAgentFile:
         assert os.path.exists(_CRITIC_PATH), "critic.md must exist"
 
     def test_critic_mentions_three_weaknesses(self):
-        content = open(_CRITIC_PATH, encoding="utf-8").read().lower()
+        content = Path(_CRITIC_PATH).read_text(encoding="utf-8").lower()
         assert "3 weaknesses" in content or "3 weakness" in content or "three weaknesses" in content
 
     def test_critic_describes_output_format(self):
-        content = open(_CRITIC_PATH, encoding="utf-8").read()
+        content = Path(_CRITIC_PATH).read_text(encoding="utf-8")
         assert "## Critic findings" in content
         assert "[C1]" in content and "[C2]" in content and "[C3]" in content
 
     def test_critic_says_no_fabrication(self):
-        content = open(_CRITIC_PATH, encoding="utf-8").read().lower()
+        content = Path(_CRITIC_PATH).read_text(encoding="utf-8").lower()
         assert (
             "do not fabricate" in content
             or "not fabricate" in content
@@ -31,23 +32,23 @@ class TestCriticAgentFile:
         )
 
     def test_critic_has_stop_condition(self):
-        content = open(_CRITIC_PATH, encoding="utf-8").read().lower()
+        content = Path(_CRITIC_PATH).read_text(encoding="utf-8").lower()
         assert "stop condition" in content
 
 
 class TestSkillRegistration:
     def test_skill_mentions_critic(self):
-        content = open(_SKILL_PATH, encoding="utf-8").read()
+        content = Path(_SKILL_PATH).read_text(encoding="utf-8")
         assert "critic" in content.lower()
         assert "critic.md" in content
 
     def test_skill_says_six_agents(self):
-        content = open(_SKILL_PATH, encoding="utf-8").read()
+        content = Path(_SKILL_PATH).read_text(encoding="utf-8")
         assert "6 specialized review agents" in content
         assert "6 agents in a **single message**" in content
 
     def test_skill_agent_table_includes_critic_row(self):
-        content = open(_SKILL_PATH, encoding="utf-8").read()
+        content = Path(_SKILL_PATH).read_text(encoding="utf-8")
         # All 6 agents must appear in the parallel-launch table
         for agent in (
             "quality",
@@ -61,6 +62,6 @@ class TestSkillRegistration:
 
     def test_adversarial_mode_still_documented(self):
         """The opt-in deep mode should still be explained, now as extra pass."""
-        content = open(_SKILL_PATH, encoding="utf-8").read()
+        content = Path(_SKILL_PATH).read_text(encoding="utf-8")
         assert "Adversarial Mode" in content
         assert "adversarial" in content.lower()
