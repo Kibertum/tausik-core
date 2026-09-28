@@ -247,6 +247,10 @@ def build_parser() -> argparse.ArgumentParser:
     mshow.add_argument("id", type=int)
     mdel = mem_sub.add_parser("delete")
     mdel.add_argument("id", type=int)
+    medit = mem_sub.add_parser("edit", help="Rewrite a memory, keeping its id, slug and date")
+    medit.add_argument("id", type=int)
+    medit.add_argument("--title", default=None, help="New title; omit to keep it")
+    medit.add_argument("--content", default=None, help="New body; omit to keep it")
     march = mem_sub.add_parser(
         "archive",
         help="Soft-archive memory rows older than --before. Dry-run unless --confirm.",
@@ -477,22 +481,12 @@ def build_parser() -> argparse.ArgumentParser:
     ev_emit.add_argument("--remediation", default=None, help="how it gets undone")
     ev_emit.add_argument("--approved-by", dest="approved_by", default=None, help="who agreed to it")
 
-    # --- db (v14b-junk-audit-pass: backup hygiene) ---
-    db_p = sub.add_parser("db", help="Database hygiene helpers")
-    db_sub = db_p.add_subparsers(dest="db_cmd")
-    db_prune = db_sub.add_parser(
-        "prune",
-        help="Delete oldest .tausik/tausik.db.bak.* files keeping the most recent N",
-    )
-    db_prune.add_argument(
-        "--keep", type=int, default=3, help="Newest MANAGED .bak.v<N> backups to keep (default 3)"
-    )
-    db_prune.add_argument(
-        "--dry-run", dest="dry_run", action="store_true", help="List deletions, delete nothing"
-    )
-
+    # --- db (extracted to project_parser_db to keep the filesize gate) ---
     # --- SENAR ops subparsers (delegated; the list lives beside its parsers) ---
+    from project_parser_db import add_db
     from project_parser_ops import add_ops
+
+    add_db(sub)
 
     add_ops(sub)
 

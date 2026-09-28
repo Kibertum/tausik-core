@@ -468,6 +468,7 @@ memory list [--type TYPE] [--limit N]
 memory search <query>           # FTS5 full-text search
 memory show <id>
 memory delete <id>
+memory edit <id> [--title T] [--content C]  # rewrite a record, keeping its id, slug and created_at
 
 # Graph memory (Graphiti-inspired)
 memory link <source_type> <source_id> <target_type> <target_id> <relation>

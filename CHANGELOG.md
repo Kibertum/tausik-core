@@ -9,6 +9,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `memory edit`: a record is rewritten by a command, not around it through the projection
+
+The project's doctrine says to REWRITE a record whose reference rotted but whose claim is still
+true, while the CLI offered only `delete` and `supersede`. So sixteen corrections in one sweep went
+through editing the git projection and `state import`. That path is declared and it works, but a
+workaround standing in for a command is what the next person copies.
+
+THE RECORD KEEPS ITS IDENTITY: id, slug and `created_at` do not move. It is the SAME record with a
+corrected claim; a supersede chain would assert the old text was a different fact, when in truth one
+sentence in it was wrong.
+
+WHAT IT REFUSES: an empty title or body (a rewrite that empties the record is a delete under another
+name, and `delete` already exists) and an archived record (editing one would quietly undo a decision
+already taken). A rewrite identical to the current text writes nothing: a projection that churns on
+a no-op makes every reader wonder what changed.
+
+A module function rather than a class method: both god classes are capped by the class-surface
+ratchet, which may only shrink, and a single caller is not an argument for a public member.
+
 ### Added — an owner's instruction is read at the point of action, not filed without a reader
 
 THE MEASUREMENT: the owner said CI was not wanted until the release approached. Twenty-three

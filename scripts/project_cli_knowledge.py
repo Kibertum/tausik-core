@@ -141,6 +141,13 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
         print("\n".join(memory_show_lines(svc, args.id)))
     elif c == "delete":
         print(svc.memory_delete(args.id))
+    elif c == "edit":
+        # A module function rather than a service method: both god classes are capped by the
+        # class-surface ratchet, which may only shrink, and one caller is not an argument for
+        # a public member.
+        from memory_edit import edit_memory
+
+        print(edit_memory(svc, args.id, args.title, args.content))
     elif c == "link":
         print(
             svc.memory_link(
