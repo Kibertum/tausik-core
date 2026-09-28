@@ -361,6 +361,16 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_warn("Update check", f"could not read: {e}")
         warnings += 1
 
+    try:
+        from cmd_db import backup_doctor_line
+
+        level, detail = backup_doctor_line(svc.tausik_dir())
+        (_print_ok if level == "ok" else _print_warn)("DB backups", detail)
+        warnings += level != "ok"
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        _print_warn("DB backups", f"could not read: {e}")
+        warnings += 1
+
     print("=" * 40)
     if failures:
         print(f"{RED} {failures} FAIL, {warnings} WARN — fix above before running tasks.")

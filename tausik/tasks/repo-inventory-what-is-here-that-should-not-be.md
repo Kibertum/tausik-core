@@ -1,7 +1,7 @@
 ---
 slug: repo-inventory-what-is-here-that-should-not-be
 title: "Инвентаризация репозитория: что здесь лишнего и почему оно осталось"
-status: active
+status: done
 epic: release-110-deferred-from-19
 story: release110-site-docs-and-hygiene
 complexity: medium
@@ -19,7 +19,7 @@ scope_paths:
   - ".gitignore"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-28T10:31:30Z"
 resolution: null
 resolution_reason: null
 ---

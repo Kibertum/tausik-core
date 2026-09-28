@@ -62,6 +62,43 @@ def unmanaged_backups(tausik_dir: str) -> list[str]:
     return [p for p in list_backups(tausik_dir) if not _VERSIONED_RE.search(os.path.basename(p))]
 
 
+def backup_doctor_line(tausik_dir: str, keep: int | None = None) -> tuple[str, str]:
+    """``(level, detail)`` for `tausik doctor` — the SIGNAL half of the retention.
+
+    A retention rule with a command and no signal is a rule nobody applies: the
+    prune existed for releases while half a gigabyte accumulated, because nothing
+    ever said the word "backup" to the person who could run it. The ratchet in
+    `tausik/gates.json` catches this at a close; this line catches it for someone
+    who is only looking at the project, and both read the code above.
+
+    Reports SIZE with the count, because three snapshots of a 90 MB database are
+    a different fact from three of a 2 MB one and the number of files alone hides
+    which one the reader has.
+    """
+    from backend_init import BACKUP_KEEP
+
+    limit = BACKUP_KEEP if keep is None else keep
+    backups = list_backups(tausik_dir)
+    if not backups:
+        return "ok", "no DB backups"
+    unmanaged = unmanaged_backups(tausik_dir)
+    mib = sum(os.path.getsize(p) for p in backups) / (1024 * 1024)
+    managed = len(backups) - len(unmanaged)
+    if unmanaged:
+        names = ", ".join(sorted(os.path.basename(p) for p in unmanaged)[:2])
+        return "warn", (
+            f"{len(backups)} backup(s), {mib:.0f} MiB — {len(unmanaged)} made by hand and owned "
+            f"by no mechanism ({names}). Their lifetime was the operation that made them: "
+            f"`tausik db prune --keep {limit} --dry-run`"
+        )
+    if managed > limit:
+        return "warn", (
+            f"{managed} managed backup(s) over the keep of {limit}, {mib:.0f} MiB — "
+            f"`tausik db prune --keep {limit}`"
+        )
+    return "ok", f"{managed} managed backup(s), {mib:.0f} MiB, none unmanaged"
+
+
 def prune_backups(tausik_dir: str, keep: int, dry_run: bool = False) -> dict[str, list[str]]:
     """Keep the ``keep`` newest MANAGED backups; delete every other backup.
 

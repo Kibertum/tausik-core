@@ -624,6 +624,9 @@ hygiene archive                 # Dry-run: список done-задач стар
                                 # НЕ включаются ни при каких настройках.
 hygiene archive --confirm       # Write: проставляет archived_at (UTC ISO8601) на каждого кандидата.
                                 # НЕ обходит task_archive.enabled=false.
+                                # НЕОБРАТИМО: команды, снимающей archived_at, нет.
+                                # НЕ уменьшает дерево: экспортёр выбирает FROM tasks
+                                # без фильтра archived_at, файл проекции остаётся.
 ```
 
 Спека: `docs/ru/task-archive-spec.md`. Правила исключений и audit-скрипты

@@ -617,6 +617,9 @@ hygiene archive                 # Dry-run: list done tasks older than task_archi
                                 # NEVER included regardless of config.
 hygiene archive --confirm       # Write: stamps archived_at (UTC ISO8601) on each candidate.
                                 # Does NOT bypass task_archive.enabled=false.
+                                # IRREVERSIBLE: no command clears archived_at.
+                                # Does NOT shrink the tree: the exporter selects
+                                # FROM tasks with no archived_at filter.
 ```
 
 Spec: `docs/en/task-archive-spec.md`. Exclusion rules and developer-side

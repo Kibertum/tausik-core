@@ -21,7 +21,7 @@
       "harness/claude/mcp/project/tools.py"
     ],
     "_exempt_files_reasons": {
-      "harness/claude/mcp/project/tools.py": "PERMANENT. 988 lines of which 968 (97%) are one module-level literal: the MCP tool schema table. Zero functions. The line cap asks 'is this too long to read as logic' and a declarative schema table is not logic — splitting it would only scatter one table across files. The class_surface gate covers the real risk here (it declares no classes)."
+      "harness/claude/mcp/project/tools.py": "PERMANENT, and the SHARE is the reason rather than the count: the file grows with every MCP tool, so a number in this sentence goes stale while the argument does not. Measured by AST, not by eye: 1052 of 1076 lines (97%) are two module-level literals, TOOLS and _STACKS_ENUM, and the file declares zero functions and zero classes. The line cap asks 'is this too long to read as logic' and a declarative schema table is not logic — splitting it would only scatter one table across files. The class_surface gate covers the real risk here (it declares no classes)."
     }
   },
   "class_surface": {

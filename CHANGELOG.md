@@ -9,6 +9,46 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a ratchet in the lane nobody runs, and a signal instead of silence about backups
+
+**A check deselected by default is a check switched off.** `addopts` in pyproject carries
+`-m 'not slow'`, and the dead-symbol ratchet sat under that mark. So "the full suite is
+green" has meant, all release, the suite WITHOUT 157 tests in 17 files — among them that
+ratchet, all of bootstrap, the MCP integration and the CLI. What makes the mark
+meaningful was measured: 128s for one stress test and 290s for skills coverage against
+6.5s for the whole ratchet file. The mark is gone from it; the slow lane was run
+separately and is green.
+
+**The lifetime of a backup now has a signal.** The previous change gave the rule and the
+command, but someone who never runs `db prune` still never heard the word "backup":
+`doctor` said nothing. A `DB backups` line now names the count, the total size and how
+many copies are UNMANAGED, and goes yellow on an unmanaged one or a surplus managed one.
+It reads the same code the prune does — a second source of truth here would give two
+different answers.
+
+**The filesize exemption argues by SHARE, not by count.** The reason for
+`harness/claude/mcp/project/tools.py` cited 988 lines while the file reached 1076: a
+number inside a justification goes stale while the argument stays true. Recounted by AST:
+1052 of 1076 lines (97%) are two module-level literals, with zero functions and zero
+classes.
+
+**A rule instead of the agent's memory.** The deselected-ratchet finding now has a
+guard: a test that reads THIS repository's `tausik/gates.json` may not carry the `slow`
+mark. A ratchet is identified by WHAT it reads rather than by its name — fifteen test
+files read that baseline. The single exception is declared with its reason: the
+consumer-first-close scenario writes its own `gates.json` into a temporary project and
+reads no baseline of ours. A planted file that both carries the mark and reads the
+baseline must be found; without that, the rule would outlive a break in its own regex —
+which is exactly how the original mark survived.
+
+**On archiving tasks, the story's premise was wrong** and 877 rows were left alone.
+`state_export` selects `FROM tasks` with no `archived_at` filter (memory has one), so
+archiving removes no file from the tree — it hides a task from `task list`, and the
+projection stays the same 69% of the tree. Second: nothing can clear `archived_at` — no
+command exists anywhere, while the Rollback promised reversibility. An irreversible
+change to 877 rows is not applied on a false premise about undo; both findings were filed
+as tasks, and the second was declared a precondition of the first.
+
 ### Fixed — memory and tree hygiene: the window of a check, a citation of history, the lifetime of a backup
 
 MEASURED BEFORE: `memory lint` nine findings, `audit_orphan_files` one, `audit_unused_python`
