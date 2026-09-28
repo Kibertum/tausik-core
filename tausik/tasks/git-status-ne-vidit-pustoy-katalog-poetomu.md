@@ -1,7 +1,7 @@
 ---
 slug: git-status-ne-vidit-pustoy-katalog-poetomu
 title: "git status не видит пустой каталог, поэтому артефакт оболочки живёт в дереве месяцами"
-status: planning
+status: done
 epic: release-110-deferred-from-19
 story: release110-site-docs-and-hygiene
 complexity: simple
@@ -12,17 +12,28 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/invisible_dirs.py"
+  - "tests/test_invisible_dirs.py"
+  - "tests/test_skill_manager.py"
+  - "tausik/gates.json"
+scope_paths:
+  - "scripts/*.py"
+  - "tests/*.py"
+  - "tausik/gates.json"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-28T15:25:48Z"
 resolution: null
 resolution_reason: null
 tracker_refs: []
-started_model_id: null
+started_model_id: claude-opus-5
 started_model_version: null
-done_model_id: null
+done_model_id: claude-opus-5
 done_model_version: null
 model_mismatch: 0
 no_file_changes_declared: 0
@@ -42,4 +53,12 @@ cost_budget_usd: null
 
 ## Rollback
 
+git revert: проверка исчезает, каталоги остаются — она только читает дерево и называет находки.
+
 ## Journal
+
+- 2026-09-28T15:06:53Z [implementation] — Детектор прошёл три редакции, и числа объясняют, почему нельзя было остановиться на первой: 543 находки при рукописном списке исключений из двух строк (развёрнутые профили игнорируются целиком, поэтому каждый каталог внутри них считался невидимым — верно и бесполезно); 197 при чтении двух реестров порождаемых деревьев (и всё равно течь: реестров ЧЕТЫРЕ, и .agents не было ни в одном из прочитанных); 5 когда вопрос задан ГИТУ — игнорируется ли сам КАТАЛОГ. Последнее не требует реестра вовсе: всякое машинное дерево здесь игнорируется как каталог, а три артефакта — нет.
+- 2026-09-28T15:16:49Z [implementation] — ПРОВЕРКА НАШЛА НАСТОЯЩУЮ ПРИЧИНУ, и моя инвентаризация угадала неверно. Каталоги false и lf — не остаток оболочки: их СОЗДАЁТ заглушка в test_skill_manager, подменяющая subprocess.run целиком и делающая makedirs(cmd[-1]) на КАЖДЫЙ перехваченный вызов. После клона clone_repo пиннит core.autocrlf false и core.eol lf — и заглушка создаёт по каталогу на значение, в КОРНЕ репозитория, на каждом прогоне. Удаление артефактов их не лечило: они возвращались через минуту. Заглушка исправлена — каталог создаётся только для clone. Это и есть довод за детектор вместо уборки.
+- 2026-09-28T15:21:03Z [implementation] — AC verified: 1 ✓ замер ДО в журнале: три артефакта возрастом 24–46 дней, ни один не виден git status. 2 ✓ проверка находит каталог, которого git не видит, и отделяет машинную территорию вопросом К ГИТУ, а не реестром — три редакции с числами 543, 197, 5 записаны. 3 ✓ имена с метасимволами называются отдельным видом от просто пустых. 4 ✓ негатив: намеренный пустой каталог не попадает в находки — и оба прежних исключения оказались ИЗБЫТОЧНЫМИ, потому что git их игнорирует, так что список пуст и это записано как находка. Плюс сверх AC: найдена НАСТОЯЩАЯ причина — заглушка subprocess.run в test_skill_manager создавала false и lf на каждом прогоне; удаление не лечило. Root cause (logic-error): подмена по имени функции перехватывает все вызовы, включая git config после клона. Prevention: заглушка реагирует на конкретную команду. Domain: рабочее дерево. Negative: AC-4 закреплён, плюс проверка падает закрыто на сломанном git. NO-DEAD-END.
+- 2026-09-28T15:24:20Z [implementation] — EVIDENCE: default 12053 passed / 30 skipped / 0 failed; mypy чистый; проверка на живом дереве даёт 0 находок; список legacy-формата сократился на файл, который правка отформатировала.
+- 2026-09-28T15:25:44Z [implementation] — NO-DEAD-END: единственный красный прогон — bootstrap_drift на шести развёрнутых файлах; порядок операций, не отвергнутый подход. Пятый раз за смену, и это уже замер о себе: ловушка устойчивее записи о ней, потому что редеплой не входит в мой рефлекс закрытия.

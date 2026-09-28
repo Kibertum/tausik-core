@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — directories git cannot see became a finding instead of an inventory surprise
+
+Git tracks FILES. An empty directory has none, so `git status` is silent, `.gitignore` has nothing
+to say about it, and every gate looks straight through it. That is how three artefacts lived in the
+tree for 24 to 46 days: a directory named after an unexpanded shell variable and two named after
+fragments of a `git config` command that became redirect targets.
+
+THE DETECTOR TOOK THREE DRAFTS, and the numbers say why the first was not good enough:
+
+* **543 findings** with a hand-written exception list of two entries. The deployed profile trees are
+  gitignored wholesale, so every directory inside them counted — true, and useless.
+* **197** after reading the project's registries of generated trees. Still leaking: there are FOUR
+  registries of deployed layouts and `.agents` was in neither of the two consulted.
+* **5** once the question was put to GIT: is the DIRECTORY ITSELF ignored? That needs no registry at
+  all — every machine-written tree here is ignored as a directory, and the three artefacts are not.
+
+A detector printing 543 lines teaches the reader to skim them, which is the same death the artefacts
+already survived once; the second draft would have been that death again.
+
+**THE CHECK FOUND THE REAL CAUSE, and the inventory had guessed wrong.** `false` and `lf` are not
+shell residue. They are CREATED by a stub in `test_skill_manager`: it replaces `subprocess.run`
+wholesale and calls `makedirs(cmd[-1])` for EVERY intercepted call. After the clone, `clone_repo`
+pins `core.autocrlf false` and `core.eol lf` — so the stub made a directory per value, IN THE
+REPOSITORY ROOT, on every run. Deleting the artefacts did not fix them: they were back within a
+minute. The stub now creates a directory only for the clone. This is the argument for a detector
+rather than a cleanup: the cleanup removes a symptom that returns every run.
+
+THE CHECK FAILS CLOSED: if git cannot answer, the directory is NOT treated as machine territory, so
+a broken git widens the report rather than switching the check off. The artefacts were removed —
+zero files inside, so provably nobody's — and the ratchet threshold was taken AFTER the cleanup:
+zero findings.
+
 ### Added — append-only telemetry has a lifetime, and the window follows the READER
 
 MEASURED BEFORE: `.tausik` holds THREE sidecars totalling 19 MiB, not the two the task estimated:
