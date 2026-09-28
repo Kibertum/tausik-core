@@ -84,6 +84,7 @@ generated from those declarations.
 |---|---|---|
 | `knowledge-store.md` | user | en, ru |
 | `memory-merge-guidelines.md` | agent | en, ru |
+| `semantic-rerank.md` | maintainer | en, ru |
 | `team-state-in-git.md` | user | en, ru |
 
 ## sessions
@@ -144,4 +145,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-68 page(s), 67 carried by both languages.
+69 page(s), 68 carried by both languages.

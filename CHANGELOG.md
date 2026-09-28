@@ -9,6 +9,46 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added -- semantic re-rank over FTS5, gated by the evidence and off until it pays
+
+The plan for this was pure local embeddings. The published record turned it around, and the
+numbers are the argument: Cursor's online A/B (2025-11-06) got +12.5% on offline retrieval
+accuracy and **+0.3%** on the metric that pays -- code actually kept -- rising to +2.6% only
+past a thousand files; Sourcegraph REMOVED embeddings in favour of BM25F over a code graph;
+short keyword queries, the dominant shape an agent sends, take semantic retrieval to nDCG@10
+near zero; CORE-Bench (June 2026) says the hybrid wins and no method dominates.
+
+So the keyword path stays the spine -- `bm25(fts_memory, 10.0, 1.0, 3.0)` already weights
+title over tags over content, which was the cheapest win and was already taken -- and the new
+layer only REORDERS candidates FTS5 already returned. It cannot introduce a row FTS5 missed,
+and it cannot remove one it found.
+
+**THREE GATES, EACH FROM ONE OF THOSE MEASUREMENTS.** `no-provider` (default off is the
+zero-dependency promise), `small-corpus` (under 1000 live rows the effect does not exist),
+`keyword-query` (under four words or no glue word). A closed gate keeps the candidate window
+at the page size, never contacts a provider, and returns a result identical to a checkout
+without the module -- which is what the negative tests pin.
+
+**A PROVIDER THAT IS DOWN, SLOW, OR ANSWERING NONSENSE IS THE SAME AS NO PROVIDER.** Wrong
+shape, wrong count, non-numeric vectors and an unreachable endpoint all degrade to the keyword
+order rather than being guessed at, because guessing what the numbers meant would reorder a
+search by noise. Over the configured timeout, the keyword order comes back too.
+
+Orders are combined with Reciprocal Rank Fusion rather than a weighted sum: BM25 and cosine
+are not on the same scale, and calibrating them needs labelled data this project does not
+have. Ties resolve to the keyword order.
+
+**MEASURED ON OUR OWN TRAFFIC, because the vendor benchmarks are not trustworthy here**
+(LoCoMo was discredited when a no-memory baseline beat Mem0 73:68). The shared store holds 45
+live rows against a threshold of 1000 -- 4.5% of it -- and no provider is configured, so both
+query shapes meet a closed gate and the activation rate is zero. That is the finding rather
+than a gap. Keyword-path latency over 20 live searches: median 6.3 ms, p95 46.2 ms against a
+2 s budget. `--probe` and `--report` answer both questions from the machine you are on.
+
+**THE QUERY TEXT IS NEVER RECORDED.** A search string can carry a secret; the sidecar holds
+the gate, corpus size, candidate count, whether the top page changed, and elapsed
+milliseconds. Its lifetime is declared with the other sidecars.
+
 ### Changed -- CLAUDE.md's cap became a budget again, and the admission rule is written down
 
 **MEASURED: 13 bytes free of 4096.** The static portion stood at 4083, then 4088 -- less than

@@ -14,6 +14,8 @@ Two questions, both answered here and nowhere else:
 
 * `assert_local_destination` — may bytes go THERE? Refused by shape (URL
   scheme, UNC path), because a remote that is down today is still a remote.
+* `assert_loopback_service` — may a configured SERVICE be handed store text?
+  Only on loopback, because an embeddings provider receives whole rows verbatim.
 * `redact` — what may the bytes SAY? Built on the four detectors of
   `brain_scrubbing` (absolute paths, e-mails, private URLs, project names), but
   it REPLACES a match with a typed placeholder instead of refusing: a scrubber
@@ -117,6 +119,45 @@ def assert_local_destination(dest: str) -> str:
             "Give a local directory."
         )
     return os.path.abspath(os.path.expanduser(raw))
+
+
+#: Hosts whose traffic never reaches a network this machine does not solely control. IPv6
+#: loopback arrives bracketed in a URL, so both spellings are listed.
+_LOOPBACK_HOSTS: frozenset[str] = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
+
+
+def assert_loopback_service(url: str) -> str:
+    """Return the URL, or refuse a service endpoint that would take store content off-machine.
+
+    THE SECOND KIND OF DESTINATION. `assert_local_destination` answers for a FILE somebody
+    asked to write. This answers for a SERVICE somebody configured — an embeddings provider is
+    handed the raw text of every candidate row, which is exactly the unredacted free text the
+    other refusal exists to keep at home. A hosted endpoint would reinstate the leak class
+    decision #358 closed, one search at a time and with nobody watching.
+
+    Loopback is the whole permission: the bytes reach a process on this machine and no
+    network. Refusal is by SHAPE like its sibling — a remote that is down today is still a
+    remote — and a hostname that merely RESOLVES to loopback is refused too, because the
+    resolution can change without the configuration changing.
+    """
+    raw = (url or "").strip()
+    if not raw:
+        raise ServiceError("Service endpoint is empty. Give a loopback URL or leave it unset.")
+    parsed = urlparse(raw)
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise ServiceError(
+            f"Refusing the service endpoint {raw!r}: expected an http(s) URL on loopback."
+        )
+    host = (parsed.hostname or "").lower()
+    bracketed = f"[{host}]" if ":" in host else host
+    if host not in _LOOPBACK_HOSTS and bracketed not in _LOOPBACK_HOSTS:
+        raise ServiceError(
+            f"Refusing the service endpoint {raw!r}: {host!r} is not loopback. This service is "
+            "handed the raw text of shared-store rows — memories, decisions and code snippets "
+            "that can name a client outright — so it has to run on this machine. Use "
+            "127.0.0.1 or ::1, or leave the feature switched off."
+        )
+    return raw
 
 
 def _replace_all(text: str, pattern: re.Pattern[str], placeholder: str) -> tuple[str, int]:

@@ -1,7 +1,7 @@
 ---
 slug: deferred-110-knowledge-lifecycle
 title: "1.11 кандидат A. Знание живёт дольше смены: отмена, происхождение, качество и долговечность локального знания"
-status: open
+status: active
 epic: release-110-deferred-from-19
 ---
 

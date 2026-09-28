@@ -125,8 +125,29 @@ def _open() -> tuple[sqlite3.Connection | None, str | None]:
     return conn, None
 
 
+def _live_rows(conn: sqlite3.Connection) -> int:
+    """Live rows in the shared store — the corpus gate's input.
+
+    Counted rather than estimated because the gate is a threshold: an estimate that reads
+    high would switch a provider round-trip on for a corpus too small to benefit, which is
+    the exact cost the published numbers say not to pay.
+    """
+    try:
+        return int(
+            conn.execute("SELECT COUNT(*) FROM memory WHERE archived_at IS NULL").fetchone()[0]
+        )
+    except sqlite3.Error:
+        return 0
+
+
 def search_shared_memory(query: str, limit: int = 5) -> tuple[list[dict[str, Any]], str | None]:
-    """Shared memory hits for `query`, ranked by FTS relevance then recency."""
+    """Shared memory hits for `query`, ranked by FTS relevance then recency.
+
+    The keyword path is the whole answer unless every gate in `semantic_rerank` is open, and
+    even then the layer only REORDERS what this query already matched. It asks FTS5 for a
+    wider window when a re-rank is possible at all, because reordering a page of five can
+    only shuffle five rows that were already going to be shown.
+    """
     conn, warning = _open()
     if conn is None:
         return [], _remember(warning)
@@ -134,13 +155,17 @@ def search_shared_memory(query: str, limit: int = 5) -> tuple[list[dict[str, Any
         q = _sanitize_fts5(query)
         if not q:
             return [], _remember(None)
+        window, prov, corpus = _rerank_window(conn, query, limit)
         rows = conn.execute(
             "SELECT m.* FROM fts_memory f JOIN memory m ON m.id = f.rowid "
             "WHERE fts_memory MATCH ? AND m.archived_at IS NULL "
             "ORDER BY bm25(fts_memory, 10.0, 1.0, 3.0), m.created_at DESC LIMIT ?",
-            (q, limit),
+            (q, window),
         ).fetchall()
-        return [_row(r) for r in rows], _remember(None)
+        hits = [_row(r) for r in rows]
+        if window != limit:
+            hits = _apply_rerank(query, hits, prov, corpus, limit)
+        return hits[:limit], _remember(None)
     except sqlite3.Error as e:
         return [], _remember(
             f"Shared knowledge at {knowledge_db_path()} could not be searched ({e}); "
@@ -148,6 +173,48 @@ def search_shared_memory(query: str, limit: int = 5) -> tuple[list[dict[str, Any
         )
     finally:
         conn.close()
+
+
+def _rerank_window(conn: sqlite3.Connection, query: str, limit: int) -> tuple[int, Any, int]:
+    """``(window, provider, corpus_rows)`` — how many candidates to ask FTS5 for.
+
+    The window widens ONLY when the layer could actually run. Asking for four times the page
+    on every search would make the default path pay for a feature that is switched off, and a
+    cost with no benefit is how an optional layer stops being optional.
+    """
+    try:
+        from project_config import load_config
+        from semantic_rerank import CANDIDATE_MULTIPLIER, gate, provider_from_config
+
+        prov = provider_from_config(load_config())
+        if prov is None:
+            return limit, None, 0
+        corpus = _live_rows(conn)
+        if gate(query, corpus, prov) is not None:
+            return limit, prov, corpus
+        return limit * CANDIDATE_MULTIPLIER, prov, corpus
+    except Exception:  # noqa: BLE001 - a broken optional layer must not break the search
+        return limit, None, 0
+
+
+def _apply_rerank(
+    query: str, hits: list[dict[str, Any]], prov: Any, corpus: int, limit: int
+) -> list[dict[str, Any]]:
+    """Reorder the candidate window, or hand it back untouched.
+
+    Wrapped whole: this is the optional half of a search, and the keyword answer is already in
+    hand. Any failure here — an import, a provider, arithmetic — costs the reordering and
+    nothing else.
+    """
+    try:
+        from knowledge_db import knowledge_home
+        from semantic_rerank import log_decision, rerank
+
+        ordered, decision = rerank(query, hits, prov, corpus, limit)
+        log_decision(knowledge_home(), decision)
+        return ordered
+    except Exception:  # noqa: BLE001 - see docstring
+        return hits[:limit]
 
 
 def _by_type(conn: sqlite3.Connection, mem_type: str, limit: int) -> list[sqlite3.Row]:

@@ -57,6 +57,13 @@ POLICIES: Final[tuple[Policy, ...]] = (
         "months-long average, so an unbounded file makes the measurement worse",
     ),
     Policy(
+        "semantic_rerank.jsonl",
+        WINDOW_LINES,
+        "one line per search, and the question it answers is whether the layer earns its keep "
+        "on RECENT traffic; a lifetime rate would average a switched-off month into a "
+        "switched-on week and say nothing about either",
+    ),
+    Policy(
         "observed_coverage.jsonl",
         None,
         "the whole file IS the measurement (which test touched which file), so it is not "
