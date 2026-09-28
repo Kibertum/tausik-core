@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added -- `resolve_project()`: one chain, three links, and the first one is a parameter
+
+The chain used to begin at MCP roots. The spec of 2026-07-28 deprecates them (SEP-2577), so
+the first link is now whatever mechanism the host actually supports -- supplied by the caller
+rather than decided inside the module. A roots value still flows through the same parameter as
+a `file://` URI, which is what makes the transitional path free: if it is ever needed, the
+module does not change. A test feeds it exactly that shape.
+
+Order: host signal, then the machine's active pointer, then a walk up from the given `cwd`.
+Every link is checked for being a REAL project directory before it is accepted, because a dead
+`project_dir` is worse than None -- the caller would take it for a working project and fail
+somewhere the pointer is never mentioned.
+
+**THE POINTER FAILS IN FOUR DISTINGUISHABLE WAYS**, each with its own reason and its own test:
+an empty file, invalid JSON, valid JSON that is not an object, and valid JSON with no entry for
+this session, pid or default. None of them raises; a pointer that cannot be read is a link
+skipped, with a note saying so, because "no project here" and "your pointer is broken" must not
+be the same answer.
+
+**ONE ANSWER TO "WHERE IS THE PROJECT".** The walk-up is not written a second time:
+`find_tausik_dir()` was split into a pure `tausik_dir_from(cwd, env)` and a thin wrapper, and
+the resolver calls the pure one. Two implementations would disagree silently, and the
+disagreement would surface far from where it was introduced.
+
+The pointer lives at `~/.config/tausik/active-project.json`, in the 1.10 user tier -- not in
+`~/.tausik`, the place 1.10 moved away from because a directory of that name makes the home
+folder look like a project to the very walk-up that ends this chain.
+
 ### Documented -- how an MCP server actually learns which project it serves
 
 A spike, no production code: `docs/ru/research/global-mcp-spike.md` with the raw logs. The

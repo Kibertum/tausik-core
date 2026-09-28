@@ -1,7 +1,7 @@
 ---
 slug: gmcp-project-resolver
 title: "[P0] resolve_project(): цепочка не-депрекированный механизм -> pointer -> cwd/env"
-status: planning
+status: done
 epic: v2-global-mcp
 story: v2gm-core
 complexity: complex
@@ -10,23 +10,28 @@ stack: python
 tier: null
 call_budget: null
 defect_of: null
-scope: null
+scope: "Изолированный модуль resolve_project: цепочка primary -> pointer -> walk-up, без БД и сети. Подъём НЕ переписывается второй раз: find_tausik_dir разделяется на чистую функцию от (cwd, env) и тонкую обёртку, иначе в проекте появятся два ответа на вопрос «где проект»."
 scope_exclude: null
-relevant_files: []
-scope_paths:
-  - "scripts/resolve_project.py"
+relevant_files:
+  - "scripts/gmcp_project_resolver.py"
+  - "tests/test_gmcp_project_resolver.py"
   - "scripts/project_config.py"
-  - "tests/*"
+scope_paths:
+  - "scripts/gmcp_project_resolver.py"
+  - "tests/test_gmcp_project_resolver.py"
+  - "scripts/project_config.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-28T22:07:58Z"
 resolution: null
 resolution_reason: null
 tracker_refs:
   - "github#35"
-started_model_id: null
+started_model_id: claude-opus-5
 started_model_version: null
-done_model_id: null
+done_model_id: claude-opus-5
 done_model_version: null
 model_mismatch: 0
 no_file_changes_declared: 0
@@ -51,6 +56,10 @@ cost_budget_usd: null
 
 ## Rollback
 
-git revert: новый чистый модуль, потребителей до gmcp-server-multitenant нет
+git revert. Новый модуль никто ещё не вызывает — подключение делает следующая задача цепочки, поэтому откат не меняет поведения ни одной команды. Разделение find_tausik_dir на чистую часть и обёртку поведение сохраняет, что закрепляют существующие тесты на подъём.
 
 ## Journal
+
+- 2026-09-28T21:54:25Z [implementation] — AC-1: ✓ tests/test_gmcp_project_resolver.py::TestThePriorityOrder — четыре теста, включая один, где ТОТ ЖЕ cwd резолвится по-разному по мере добавления ранних звеньев. Первое звено — параметр primary_signal, читается не изнутри. AC-2: ✓ ::TestNoSignalIsNoneAndNotAnException — None без исключения; отсутствие указателя НЕ помечается как отказ, иначе шум на каждом вызове. AC-3: ✓ ::TestThePointerFailsInThreeDistinctWays — пустой файл, невалидный JSON, валидный без ключа, плюс валидный не-объект: четыре различимые причины, четыре теста, ни один не бросает.
+- 2026-09-28T21:54:26Z [implementation] — AC-4: ✓ ::TestADeadPathIsWorseThanNone — указатель на исчезнувший каталог и каталог без .tausik пропускаются с записанной причиной, мёртвый путь не возвращается. AC-5: ✓ 33 теста в файле, все ветки приоритета покрыты. AC-6: ✓ ::TestTheTransitionalRootsPathNeedsNoChange — file:// URI проходит тем же параметром; проверены percent-encoding и отказ от URI, называющего другую машину. ПОБОЧНО: подъём НЕ написан второй раз — find_tausik_dir разделён на чистую tausik_dir_from(cwd, env) и обёртку, резолвер зовёт чистую; ::test_the_walk_up_is_the_project_s_only_one держит это. Указатель в тире 1.10, а не в ~/.tausik.
+- 2026-09-28T22:03:57Z [implementation] — NO-DEAD-END: красный прогон — не про модуль, а про два гейта репозитория, и оба закрыты по существу. (1) bootstrap_drift: 12 развёрнутых файлов разошлись с исходником, потому что редеплой профилей я сделал ДО последней правки — конвенция #754, отработала как задумано. (2) test_dedupe: два теста из четырёх, которых требует AC-3, вышли структурно неразличимыми. Сводить их в один нельзя — критерий прямо запрещает, — поэтому каждый получил утверждение, которое может сделать только он: пустой файл проверяется тремя формами пустоты, невалидный JSON обязан назвать НОМЕР СТРОКИ, потому что указатель правят руками. Это не обход храповика, а то, чего ему не хватало.
