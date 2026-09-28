@@ -1,7 +1,7 @@
 ---
 slug: gmcp-spike-roots
 title: "[P0][SPIKE] Механизм резолва проекта и launch-модель (Roots — только переходный путь)"
-status: planning
+status: done
 epic: v2-global-mcp
 story: v2gm-core
 complexity: complex
@@ -10,22 +10,24 @@ stack: python
 tier: null
 call_budget: null
 defect_of: null
-scope: null
+scope: "Только спайк: документ исследования с сырыми логами, решение и dead_end при отказе. scripts/ и harness/ НЕ трогаются — непустой diff по ним означает выход за границу (AC-6). Пробный сервер живёт в scratchpad, а не в дереве."
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "docs/ru/research/global-mcp-spike.md"
 scope_paths:
   - "docs/ru/research/global-mcp-spike.md"
-  - "tests/*"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-28T21:45:38Z"
 resolution: null
 resolution_reason: null
 tracker_refs:
   - "github#34"
-started_model_id: null
+started_model_id: claude-opus-5
 started_model_version: null
-done_model_id: null
+done_model_id: claude-opus-5
 done_model_version: null
 model_mismatch: 0
 no_file_changes_declared: 0
@@ -50,6 +52,9 @@ cost_budget_usd: null
 
 ## Rollback
 
-исследование, кода в проде нет — откат не требуется
+git revert документа; кода нет, откатывать нечего. Решение и dead_end остаются записью о проделанной пробе — их отменяют superseding-записью, а не удалением, иначе следующий спайк повторит ту же пробу.
 
 ## Journal
+
+- 2026-09-28T21:45:26Z [implementation] — AC-1 (три механизма с сырым логом): ✓ docs/ru/research/global-mcp-spike.md, проба 1. Параметр тула — работает, сервер получил абсолютный путь дословно. Resource URI — resources/list и resources/read отвечают, хост несёт ListMcpResourcesTool; задачи НЕ решает по кругу: ресурс публикует сервер, значит корень он уже знает. Конфиг сервера — работает и в проде. ПОПРАВКА ФАКТА: .mcp.json объявляет CLAUDE_PROJECT_DIR, но проба прочитала null внутри процесса MCP — хост переменную не экспортирует, резолв делает запасной '.' плюс cwd. AC-2: ✓ 7 хостов claude.exe, 6 серверов tausik-project, 6 РАЗНЫХ родителей — процесс на окно, multi-tenant кэш не нужен.
+- 2026-09-28T21:45:26Z [implementation] — AC-3: ✓ решение #403 — первичный механизм конфиг сервера, из НЕ-депрекированных; roots переходным путём НЕ берём, обращений к ним ноль. AC-4 НЕГАТИВНЫЙ не сработал по условию (хост не отказал: два из трёх механизмов подтверждены, третий в проде), но смежный пробел записан как пробел: dead_end #794 — ответ хоста на session.list_roots() не проверяется изнутри смены, нужен сервер в конфиге и перезапуск; пересмотр к 2027-07-28 по гарантии SEP-2577. AC-5: ✓ падение пробы записано с сырым выводом — LookupError request_ctx, дефект пробы, а не протокола; вывод из него: возможности клиента снаружи запроса не читаются. AC-6: ✓ git diff по scripts/ и harness/ пуст, пробный сервер и клиент живут в scratchpad.

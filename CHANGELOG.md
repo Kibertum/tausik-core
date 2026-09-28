@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Documented -- how an MCP server actually learns which project it serves
+
+A spike, no production code: `docs/ru/research/global-mcp-spike.md` with the raw logs. The
+premise had been rewritten once already because SEP-2577 deprecates roots, so the subject was
+the three NON-deprecated mechanisms the spec names.
+
+* **Tool parameter** — works at protocol level; a probe server received the absolute path
+  verbatim. But none of the 147 tools declares one, and an undeclared argument is refused by
+  name, so it is work rather than a property. Worth doing only under an HTTP transport.
+* **Resource URI** — the host supports resources (`ListMcpResourcesTool` answers with a clean
+  empty list) and the probe served `resources/list` and `resources/read`. It still does not
+  solve the problem, and the reason is a circle: a resource is published BY the server, so the
+  server has to know the project already.
+* **Server config** — the mechanism actually in production, and a fact came out wrong along
+  the way. `.mcp.json` declares `${CLAUDE_PROJECT_DIR:-.}`, but the probe read
+  `CLAUDE_PROJECT_DIR: null` inside the MCP process: **the host does not export it.** The
+  resolution is really the `.` fallback plus the cwd the host sets to the workspace root. The
+  documentation that names the variable describes something that does not happen.
+
+**LAUNCH MODEL, MEASURED: one stdio process per window, not shared.** Seven `claude.exe` hosts
+under VS Code windows, six `tausik-project` servers, six DISTINCT parents. So a multi-tenant
+cache is not needed — the process already serves one root, pinned at spawn. One host was found
+holding servers for DIFFERENT projects at once, which puts multi-project life at the host level
+rather than inside a server.
+
+**WHAT WAS NOT PROBED IS RECORDED AS SUCH.** Asking the host about `session.list_roots()` needs
+a server registered in the config and a host restart, which a running session cannot do. Dead
+end filed with the reason and a review date of 2027-07-28, since SEP-2577 guarantees at least
+twelve months from 2026-07-28. The probe's own crash at shutdown is in the document too: a
+`LookupError` on `request_context`, which is a defect of the probe rather than of the protocol,
+and the finding it carries is that a client's capabilities cannot be read outside a request.
+
 ### Added -- semantic re-rank over FTS5, gated by the evidence and off until it pays
 
 The plan for this was pure local embeddings. The published record turned it around, and the
