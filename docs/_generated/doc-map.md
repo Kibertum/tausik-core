@@ -111,6 +111,7 @@ generated from those declarations.
 | `renar-11-deltas.md` | maintainer | en, ru |
 | `senar-compliance-matrix.md` | maintainer | en, ru |
 | `severity-scale.md` | user | en, ru |
+| `state-projection-cost.md` | maintainer | en, ru |
 | `troubleshooting.md` | user | en, ru |
 
 ## release-notes
@@ -143,4 +144,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-67 page(s), 66 carried by both languages.
+68 page(s), 67 carried by both languages.

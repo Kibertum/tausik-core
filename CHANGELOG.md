@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added -- the state projection's cost is measured, and the measurement refuted the plan
+
+A hygiene story planned on soft-archiving old done tasks to cut a projection "occupying 69%
+of the tree". Both halves of that were wrong, and `scripts/projection_census.py` is how
+anyone can see it in one command.
+
+**ARCHIVAL DOES NOT TOUCH THE PROJECTION.** `state_export` selects `FROM tasks` with no
+`archived_at` filter. Archiving hides a task from `task list`; the file stays where it was.
+
+**THE REACHABLE CEILING IS 19%, NOT 69%.** 917 task files match "done and older than 90
+days" -- 2.7 MB, 19.0% of tracked paths. A filter that removed every one of them would leave
+the projection at half the tree.
+
+**AND REMOVING THEM IS NOT ON THE TABLE**, because of the fact the plan was missing:
+`.tausik/tausik.db` is gitignored, so the Markdown tree is the only carrier of state between
+machines. A row dropped from the tree is a row a fresh clone never sees. Hiding a task from
+a listing and deleting its record are different acts, and archival was built for the first.
+
+So the verdict is "stays" for all six kinds, each with its number in
+`docs/{en,ru}/state-projection-cost.md`: tasks (39.1% of tree bytes), memory (4.8%, and it
+already filters `archived_at` on export), decisions (2.1%), stories (0.3%), epics (0.1%),
+graph-snapshots (0.5%, one gzipped file per release).
+
+**THE LEVER THAT EXISTS IS PER-ENTRY LENGTH.** Journals are 47.8% of task-file bytes, and
+the journal budget already advises at the point of writing -- a habit with a brake, which is
+a different mechanism from a threshold on the total. There is deliberately **no ratchet** on
+the projection's share: every closed task adds a file, so ordinary work would cross it, and
+a threshold ordinary work crosses gets switched off along with the measurement.
+
 ### Added -- `hygiene unarchive`, so that the soft in soft-delete is true
 
 The archive spec called task archival a soft-delete and a task's Rollback line called it
