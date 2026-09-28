@@ -382,6 +382,26 @@ def add_hygiene(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Stamp archived_at on matching rows (idempotent). Without it, dry-run lists candidates.",
     )
+    # THE OTHER DIRECTION, without which the soft in soft-delete is a claim. A selector is
+    # required rather than defaulted: the recovery is for a batch somebody regrets, and a
+    # bare `unarchive` that unhid everything would be a second mistake in the same shape.
+    h_un = h_sub.add_parser(
+        "unarchive",
+        help="Clear archived_at on archived tasks (by slug or recency); dry-run by default",
+    )
+    h_un.add_argument("--slug", default=None, help="Unhide exactly this task")
+    h_un.add_argument(
+        "--archived-within",
+        type=int,
+        default=None,
+        metavar="DAYS",
+        help="Unhide tasks archived in the last DAYS days — undoes a recent batch",
+    )
+    h_un.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Apply. status and completed_at are never touched, only archived_at.",
+    )
 
 
 def add_redact(sub: argparse._SubParsersAction) -> None:

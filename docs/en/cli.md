@@ -620,9 +620,19 @@ hygiene archive                 # Dry-run: list done tasks older than task_archi
                                 # NEVER included regardless of config.
 hygiene archive --confirm       # Write: stamps archived_at (UTC ISO8601) on each candidate.
                                 # Does NOT bypass task_archive.enabled=false.
-                                # IRREVERSIBLE: no command clears archived_at.
                                 # Does NOT shrink the tree: the exporter selects
                                 # FROM tasks with no archived_at filter.
+
+hygiene unarchive --slug S      # Dry-run: what clearing archived_at on S would unhide.
+hygiene unarchive --archived-within DAYS
+                                # Select by recency instead — undoes a batch just applied.
+                                # Not "older than": the oldest archived rows are the ones
+                                # meant to stay hidden.
+                                # A selector is REQUIRED; a bare unarchive is refused.
+      ... --confirm             # Write: clears archived_at only. status and completed_at
+                                # are untouched, so the row is unhidden, not reopened.
+                                # Works with task_archive.enabled=false: the config gates
+                                # hiding, not recovery.
 ```
 
 Spec: `docs/en/task-archive-spec.md`. Exclusion rules and developer-side

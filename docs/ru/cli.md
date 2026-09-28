@@ -627,9 +627,19 @@ hygiene archive                 # Dry-run: список done-задач стар
                                 # НЕ включаются ни при каких настройках.
 hygiene archive --confirm       # Write: проставляет archived_at (UTC ISO8601) на каждого кандидата.
                                 # НЕ обходит task_archive.enabled=false.
-                                # НЕОБРАТИМО: команды, снимающей archived_at, нет.
                                 # НЕ уменьшает дерево: экспортёр выбирает FROM tasks
                                 # без фильтра archived_at, файл проекции остаётся.
+
+hygiene unarchive --slug S      # Dry-run: что раскроет снятие archived_at у S.
+hygiene unarchive --archived-within DAYS
+                                # Выбор по свежести — откат только что применённой партии.
+                                # НЕ «старше»: самые старые архивные строки — это те,
+                                # которые должны остаться скрытыми.
+                                # Селектор ОБЯЗАТЕЛЕН; голый unarchive отклоняется.
+      ... --confirm             # Write: снимает только archived_at. status и completed_at
+                                # не трогаются — строка раскрывается, а не открывается заново.
+                                # Работает при task_archive.enabled=false: конфиг управляет
+                                # скрытием, а не восстановлением.
 ```
 
 Спека: `docs/ru/task-archive-spec.md`. Правила исключений и audit-скрипты

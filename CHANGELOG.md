@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added -- `hygiene unarchive`, so that the soft in soft-delete is true
+
+The archive spec called task archival a soft-delete and a task's Rollback line called it
+"reversible by command". A grep for a path that clears `archived_at` across `scripts/`,
+`harness/` and `docs/` returned ZERO: 25 live mentions, every one a read
+(`WHERE archived_at IS NULL`) or the stamp itself. Applying the pass to the 877 eligible
+rows would have been irreversible except through raw SQL, which this project forbids. The
+CLI reference even said so out loud -- "IRREVERSIBLE: no command clears archived_at" --
+two lines below prose promising the opposite.
+
+`tausik hygiene unarchive` is that missing command. Dry-run by default, like its
+counterpart, and shaped by what recovery actually needs:
+
+* **A selector is required** (`--slug` or `--archived-within DAYS`). A bare `unarchive`
+  would unhide the whole archive, which is not a recovery but a second mistake.
+* **`--archived-within`, not "older than".** What needs undoing is the batch somebody ran
+  minutes ago. Selecting the oldest archived rows would restore exactly the tasks meant to
+  stay hidden and leave the fresh mistake in place.
+* **Only `archived_at` moves.** `status` and `completed_at` are untouched -- archiving
+  never changed them, so lifting the flag unhides a row rather than reviving work. A
+  command that also reopened the task would be editing history under the name of recovery.
+* **Not gated on `task_archive.enabled`.** The config gates the operation that HIDES rows;
+  a recovery path that switched off with it would be unavailable exactly when it is needed.
+
+**MEMORY STILL HAS NO WAY BACK, and the spec now says why** rather than leaving it to look
+like an omission: archiving a memory row stamps `valid_to` on its graph edges, and clearing
+the flag would not bring them back. A task carries no such edges.
+
+**THE PROMISE IS NOW CHECKED, not just written.** The false comfort was a sentence nobody
+verified, so `tests/test_hygiene_unarchive.py` reads the spec's own reversal claim and
+requires the named command to parse -- the sentence cannot outlive the code again.
+
 ### Removed -- TODO.md, a hand-written direction map that had drifted two releases behind
 
 The file called itself the map of the project's direction and said "v1.7.0 released, v1.8 in

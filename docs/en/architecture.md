@@ -90,7 +90,7 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `code_counts.py` | Counts repo state: hooks, stacks, roles, review agents, skills |
 | `mcp_tool_counts.py` | Counts the MCP surface each server advertises |
 | `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.5) |
-| `project_cli_hygiene.py` | `tausik hygiene archive` (read-only project hygiene, v1.5) |
+| `project_cli_hygiene.py` | `tausik hygiene archive` / `unarchive` (soft-archive old done tasks and the one path back) |
 | `hooks/check_docs.py` | Pre-commit / CI wrapper for doc-constants drift (v1.5) |
 
 ### Bootstrap (Generation)

@@ -91,7 +91,7 @@
 | `code_counts.py` | Считает состояние репозитория: хуки, стеки, роли, агенты ревью, скиллы |
 | `mcp_tool_counts.py` | Считает поверхность MCP, которую объявляет каждый сервер |
 | `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.5) |
-| `project_cli_hygiene.py` | `tausik hygiene archive` (read-only гигиена проекта, v1.5) |
+| `project_cli_hygiene.py` | `tausik hygiene archive` / `unarchive` (мягкий архив старых done-задач и единственный путь обратно) |
 | `hooks/check_docs.py` | Pre-commit / CI wrapper для drift-проверки doc-constants (v1.5) |
 
 ### Начальная настройка (генерация)
