@@ -27,6 +27,7 @@ scope_paths:
 scope_tools: []
 depends_on:
   - doc-language-pairs-have-drifted-and-three-are-unpaired
+  - kontrakt-agenta-suschestvuet-tolko-po-russki-a
 completed_at: null
 resolution: null
 resolution_reason: null

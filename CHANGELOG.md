@@ -9,6 +9,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the agent contract in English: a reader of the English branch is no longer without one
+
+`CLAUDE.md` calls `agent-contract.md` the agent's FULL contract, and the document existed in
+Russian only — 527 lines. That was not a deliberate gap but a product defect: an agent working
+from the English branch of the documentation had no full contract at all, while the localization
+policy claimed everything was localized.
+
+The English half is written and structurally matches the Russian one: 19 headings, 10 code
+blocks, 7 tables on both sides, with the parity detector green and no skip marker. The normative
+parts carried over as NORMS rather than paraphrase: the QG-2 mechanics with all their boundaries
+(subtracting a task's own export from coverage, the projection exclusion, the three states of a
+scope), estimation in tool calls, Rule 4 with its separation of duties, Rule 7 with its closed
+category list, the cap on the output of a command of unknown size, and every measurement with
+its numbers and its caveats about what it does NOT claim.
+
+`hooks-events.md` followed, because it was waiting on exactly that contract — its
+residual-boundary section defers to an anchor INSIDE it, and an English half would previously
+have pointed into a Russian document. ONE one-language document remains, permanent by its
+declared reason (an agent-facing spec with no user-facing mirror).
+
+The localization policy stopped contradicting its own diagram: a line of it admitted a RU-only
+file that no longer exists.
+
 ### Fixed — a one-language doc must name its reason, or it is a finding
 
 The task statement named five drifted document pairs; the measurement found ZERO structural

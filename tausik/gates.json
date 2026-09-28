@@ -14,8 +14,12 @@
     "exempt_basenames": [
       "CHANGELOG.md",
       "CHANGELOG.ru.md",
-      "cli.md"
+      "cli.md",
+      "agent-contract.md"
     ],
+    "_exempt_basenames_reasons": {
+      "agent-contract.md": "BY SPECIES, not by count. This page exists BECAUSE of the line cap on CLAUDE.md: everything non-enforceable was moved out of the per-turn hot path into one place a reader opens on demand. Splitting it would spread the agent's contract across several files and reopen the question the split already answered - which of them is the contract. Same treatment as cli.md, a reference whose value is being one address. Note how this surfaced: the RU half had been 527 lines for a long time and nothing said so, because the filesize gate looks only at a task's declared scope (a deliberate gap, documented in known-limitations.md) and no task had declared this file."
+    },
     "_exempt_files_comment": "EXACT repo-relative paths, read by gate_filesize._resolve_exempt_files. File-precise on purpose: a directory exemption also covers every file added there later, which is how the blanket harness/claude/mcp/ entry came to hide the repo's two largest modules. Each entry below states WHY, and a temporary one names the task that retires it. Adding an entry is a reviewable diff, not a default.",
     "exempt_files": [
       "harness/claude/mcp/project/tools.py"

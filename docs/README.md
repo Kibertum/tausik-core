@@ -25,6 +25,7 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | **[Skills](en/skills.md)** | What the agent can do |
 | **[Hooks](en/hooks.md)** | Real-time enforcement: blockers, firewall, drift guards |
 | **[Known limitations](en/known-limitations.md)** | What is NOT guaranteed: deliberate gaps with their reason, open defects, out of scope |
+| **[Agent contract](en/agent-contract.md)** | The extended agent reference: QG-2 mechanics, estimation, Rule 4/7, stacks |
 | **[CLI Commands](en/cli.md)** | Full terminal command reference |
 | **[MCP Tools](en/mcp.md)** | 147 tools for the AI agent |
 | **[Artifact graph](en/graph.md)** | What changes with what, and on what evidence |
@@ -127,6 +128,7 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 | **[Навыки (Skills)](ru/skills.md)** | Что умеет AI-агент |
 | **[Хуки (Hooks)](ru/hooks.md)** | Real-time контроль: блокировки, firewall, drift guards |
 | **[Намеренные пробелы](ru/known-limitations.md)** | Что НЕ гарантировано: пробелы с названной причиной, открытые дефекты, вне области |
+| **[Контракт агента](ru/agent-contract.md)** | Расширенная справка агента: механика QG-2, оценка, Rule 4/7, стеки |
 | **[CLI-команды](ru/cli.md)** | Справочник команд терминала |
 | **[MCP-инструменты](ru/mcp.md)** | 152 инструмента для AI-агента |
 | **[Архитектура](ru/architecture.md)** | Как устроен фреймворк внутри |
