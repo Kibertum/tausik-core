@@ -66,6 +66,34 @@ Point to documentation; don't copy it.
 - Read: docs/database.md when changing the schema
 ```
 
+## The ceiling is a budget, not a wall
+
+TAUSIK's own CLAUDE.md caps its static portion at 4096 bytes: the file is loaded into
+context every turn, so a kilobyte above the cap is roughly 250 tokens per turn -- about 25K
+across a hundred-turn session. `tests/test_claude_md_size.py` holds the cap.
+
+**MEASURED, session #277: 13 bytes were free.** No new pointer fit, and the ceiling had
+silently become a ban on any addition -- the worst kind of limit, because it does not refuse
+anything, it just leaves no room, and the next author finds out from a failing test.
+
+The admission rule that gave the headroom back: **a line earns a place in CLAUDE.md only if
+the agent would do the wrong thing without it.** Reference prose does not change behaviour --
+`--help` and error messages carry it, and an agent reads those at the moment of use. The one
+exception is a declaration a standard requires where readers look: the SENAR conformance
+claim has to sit there, and its own test keeps it.
+
+Removed under that rule (246 bytes; headroom 13 -> 254):
+
+| What | Why it had no place |
+|---|---|
+| the stack line | every clause of it is stated where it is used |
+| the memory type list | a closed enum the CLI validates and names in its own error |
+| the five-command crib | four lines repeated a constraint above; the fifth is in the CLI reference |
+| a second address for the contract | one address, named once; the full description is under Reference |
+
+No hard constraint was dropped: the list of bold rules before and after is the same,
+nineteen for nineteen.
+
 ## Recommended Structure
 
 ```markdown

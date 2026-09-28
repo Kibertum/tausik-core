@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed -- CLAUDE.md's cap became a budget again, and the admission rule is written down
+
+**MEASURED: 13 bytes free of 4096.** The static portion stood at 4083, then 4088 -- less than
+one pointer line -- and every test was green. A cap with no room left does not refuse an
+addition, it just has nowhere to put it, so the next author would have learned about the wall
+from a failing test rather than from the file.
+
+The rule that gave the room back is now stated in the file it governs, because a rule kept
+away from its subject is an excuse nobody re-reads: **a line earns a place in CLAUDE.md only
+if the agent would do the wrong thing without it.** Reference prose does not change
+behaviour -- `--help` and error messages carry it, read at the moment of use. The one
+exception is a declaration a standard requires where readers look: the SENAR conformance
+claim stays, kept by its own test.
+
+Removed under that rule, 246 bytes, headroom 13 -> 254:
+
+| What | Why it had no place |
+|---|---|
+| the stack line | every clause of it is stated where it is used |
+| the memory type list | a closed enum the CLI validates and names in its own error |
+| the five-command crib | four of its lines repeated a constraint stated above; the fifth is in the CLI reference, where the rule against guessing arguments already sends the agent |
+| a second address for the contract | one address, named once -- the full description is under Reference |
+
+**NOTHING HARD WAS DROPPED**, and that is checked rather than asserted: nineteen bold rules
+before, nineteen after. Three new tests keep the result -- the headroom is a number with a
+message that says to trim rather than raise the cap, the admission rule has to be present in
+CLAUDE.md itself, and no documentation address may be named twice.
+
+The guide the file points at now carries the measurement in both languages, and its structure
+template no longer invites a command crib: commands belong there only where `--help` would
+send the reader the wrong way.
+
 ### Added -- the state projection's cost is measured, and the measurement refuted the plan
 
 A hygiene story planned on soft-archiving old done tasks to cut a projection "occupying 69%

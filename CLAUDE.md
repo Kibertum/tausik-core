@@ -4,8 +4,6 @@
 
 TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23. Задачи, сессии, качество, проектная память.
 
-Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytest. Данные в `.tausik/`.
-
 ## Принципы
 
 - **Нулевая толерантность к тихим ошибкам.** Ошибка CLI — заведи баг-задачу.
@@ -15,9 +13,12 @@ Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytes
 
 ## Ограничения (жёсткие)
 
+**Что имеет право стоять здесь:** ограничение, которое агент нарушает по умолчанию, и заявление, которого требует стандарт. Справка — в docs, адрес называется один раз (`docs/ru/claude-md-guide.md`).
+
+
 - **Нет кода без задачи.** `task start <slug>` перед Write/Edit.
 - **QG-0 Context Gate.** `task start` требует goal + acceptance_criteria.
-- **QG-2 Verify-First.** `tausik verify --task <slug>` (scoped, cache 10 мин) → `task done --ac-verified`. Edge-cases — `docs/ru/agent-contract.md`.
+- **QG-2 Verify-First.** `tausik verify --task <slug>` (scoped, cache 10 мин) → `task done --ac-verified`.
 - **Проверка соразмерна правке.** Scoped verify; полная лента — в CI и один раз у тега. Тест — на поведение, не на число в документе и не на свежесть порождённого файла.
 - **Нет коммита без gates.** Исправь blocking failures.
 - **Нет прямого доступа к БД.** Только MCP/CLI.
@@ -39,24 +40,11 @@ Stack: Python 3.11+ stdlib | CLI `.tausik/tausik` | DB SQLite+FTS5 | Tests pytes
 | **Общая база** (`memory add --global`) | Факт об инструменте, верный вне проекта; без секретов |
 | **Claude auto-memory** (`~/.claude/`) | Привычки пользователя; НЕ знания и правила TAUSIK |
 
-Типы: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
 CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scripts/project.py` напрямую.
 
 ## Компакция
 
 Через сжатие контекста переноси дословно: активную задачу и slug; scope и квитанцию verify; замеры сессии с числами; отменённые правила; запреты владельца; открытые развилки. Выбрасывай нарратив и вывод инструментов — не эти шесть.
-
-## Команды
-
-```bash
-.tausik/tausik status                # обзор + предупреждения SENAR
-.tausik/tausik task start <slug>     # QG-0
-.tausik/tausik verify --task <slug>  # scoped, cache 10 мин
-.tausik/tausik task done <slug> --ac-verified
-.tausik/tausik task log <slug> "message"
-```
-
-Остальное — `docs/ru/cli.md`.
 
 ## Reference
 
