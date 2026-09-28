@@ -94,7 +94,7 @@ def _record_bypass(svc: Any, slug: str, name: str) -> None:
             f"bypass_post_scope_gate_{name}",
             f"gates.{name}.enabled=false — post-scope QG-2 gate '{name}' skipped",
         )
-    except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+    except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
         pass
 
 

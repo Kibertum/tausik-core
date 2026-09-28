@@ -18,7 +18,7 @@ def _root_cause_hard_enabled() -> bool:
         td = load_config().get("task_done", {})
         if isinstance(td, dict):
             return bool(td.get("root_cause_hard", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 
@@ -32,6 +32,6 @@ def _checklist_hard_enabled() -> bool:
         td = load_config().get("task_done", {})
         if isinstance(td, dict):
             return bool(td.get("checklist_hard", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True

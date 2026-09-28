@@ -140,7 +140,7 @@ class SQLiteBackend(
         """Flush WAL to main DB file so .db is self-contained without -shm/-wal."""
         try:
             self._conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
-        except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
+        except Exception:  # noqa: BLE001,S110 — best-effort: maintenance/IO, non-fatal to the surrounding op
             pass
 
     def _q(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:

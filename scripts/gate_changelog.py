@@ -206,7 +206,7 @@ def enforce_changelog(
                 "--no-changelog — task declares no changelog entry warranted "
                 "(docs/cleanup/measurement); continuous-changelog gate skipped",
             )
-        except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+        except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
             pass
         try:
             svc.be.task_append_notes(
@@ -214,7 +214,7 @@ def enforce_changelog(
                 "Changelog gate: skipped via --no-changelog (no behaviour "
                 "change; exception logged).",
             )
-        except Exception:  # noqa: BLE001 — best-effort note, never blocks
+        except Exception:  # noqa: BLE001,S110 — best-effort note, never blocks
             pass
         return
 
@@ -291,5 +291,5 @@ def enforce_changelog(
             slug,
             f"Changelog gate: verified — git shows added changelog text in {', '.join(files)}.",
         )
-    except Exception:  # noqa: BLE001 — best-effort note, never blocks
+    except Exception:  # noqa: BLE001,S110 — best-effort note, never blocks
         pass

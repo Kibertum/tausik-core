@@ -349,7 +349,7 @@ def _reindex_fts(conn) -> None:
     for fts in external_content_fts_tables(conn.cursor()):
         try:
             conn.execute(f"INSERT INTO {fts}({fts}) VALUES('rebuild')")
-        except Exception:  # noqa: BLE001 — maintenance, non-fatal to the import
+        except Exception:  # noqa: BLE001,S110 — maintenance, non-fatal to the import
             pass
 
 

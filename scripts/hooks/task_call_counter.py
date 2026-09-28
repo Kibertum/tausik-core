@@ -96,7 +96,7 @@ def main() -> int:
         from _common import force_utf8_io
 
         force_utf8_io()
-    except Exception:  # noqa: BLE001 - the guard is a courtesy, not a dependency
+    except Exception:  # noqa: BLE001,S110 - the guard is a courtesy, not a dependency
         pass
 
     if os.environ.get("TAUSIK_SKIP_HOOKS"):

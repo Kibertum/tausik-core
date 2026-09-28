@@ -192,7 +192,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             from project_config import find_tausik_dir
 
             record_active_task_recommendation(find_tausik_dir(), slug, task.get("complexity"))
-        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         return "\n".join(msgs) if len(msgs) > 1 else msgs[0]
 
@@ -233,7 +233,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             finalize_close(find_tausik_dir(), slug)  # routing telemetry (best-effort)
             # cast: mixin is a composed ProjectService at runtime (see service_knowledge)
             auto_export_entity(cast("ProjectService", self), "tasks", slug)
-        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         message = report.get("message")
         if isinstance(message, str) and message.strip():

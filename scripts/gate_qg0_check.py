@@ -129,7 +129,7 @@ def _scope_hard_gate_enabled() -> bool:
         qg0 = load_config().get("qg0", {})
         if isinstance(qg0, dict):
             return bool(qg0.get("scope_hard_gate", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 
@@ -197,7 +197,7 @@ def check_qg0_start(
             # failure must never crash task_start (AC5 fail-open).
             try:
                 on_scope_hard_gate_bypass()
-            except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+            except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
                 pass
         warnings.append(
             f"WARNING: Task '{slug}' has no scope defined. "
@@ -257,7 +257,7 @@ def check_qg0_start(
             session_warning = session_check_duration_fn()
             if session_warning:
                 warnings.append(f"SESSION: {session_warning}")
-        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+        except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
             pass  # callback unavailable — skip
     # SENAR Rule 9.5: audit overdue warning at task start
     if audit_check_fn is not None:
@@ -265,7 +265,7 @@ def check_qg0_start(
             audit_warning = audit_check_fn()
             if audit_warning:
                 warnings.append(f"AUDIT: {audit_warning}")
-        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+        except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
             pass
     # QG-0: security surface warning (SENAR Core Start Gate #5).
     # ac_text is case-preserving for has_negative_scenario (case-insensitive
@@ -286,7 +286,7 @@ def check_qg0_start(
             renar_msg = renar_advisory_fn()
             if renar_msg:
                 warnings.append(renar_msg)
-        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+        except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
             pass
     # QG-0: 9-dimension intent completeness (prompt-master pattern)
     dims = qg0_dimensions_score(task)

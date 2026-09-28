@@ -56,7 +56,7 @@ def _record_gate_disable(name: str, tausik_dir: str | None) -> None:
             conn.commit()
         finally:
             conn.close()
-    except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+    except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
         pass
 
 

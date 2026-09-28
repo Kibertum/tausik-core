@@ -146,7 +146,7 @@ def run_check_mode(lib_dir: str, project_dir: str, ides: list[str]) -> None:
         scripts = scripts_drift_names(project_dir)
         if scripts:
             drift.extend(scripts)
-    except Exception:  # noqa: BLE001 — scripts comparator is best-effort here
+    except Exception:  # noqa: BLE001,S110 — scripts comparator is best-effort here
         pass
     drift = sorted(set(drift))
     if not drift:

@@ -124,7 +124,7 @@ def _block_enabled() -> bool:
         risk_cfg = load_config().get("risk", {})
         if isinstance(risk_cfg, dict):
             return bool(risk_cfg.get("l3_block_on_high", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 
@@ -207,5 +207,5 @@ def _emit_l3_downgrade(conn: sqlite3.Connection, slug: str, ms: float) -> None:
             aux.commit()
         finally:
             aux.close()
-    except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+    except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
         pass

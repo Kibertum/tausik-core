@@ -127,7 +127,7 @@ class SessionMixin:
         # blocks or breaks session end. (v15p-fts-optimize-cron)
         try:
             self.be.fts_maybe_optimize()
-        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         if os.environ.get("TAUSIK_DISABLE_SESSION_METRICS") == "1":
             return f"Session #{current['id']} ended."
@@ -161,7 +161,7 @@ class SessionMixin:
                 check=False,
                 stdin=subprocess.DEVNULL,
             )
-        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         return f"Session #{current['id']} ended."
 

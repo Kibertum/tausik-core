@@ -83,7 +83,7 @@ def main() -> int:
         from graph_refresh import refresh_one
 
         refresh_one(project_dir, file_path)
-    except Exception:  # noqa: BLE001 - the graph is secondary to the work
+    except Exception:  # noqa: BLE001,S110 - the graph is secondary to the work
         pass
 
     # THE PER-FILE JOURNAL ENTRY WAS REMOVED HERE, session #235, with numbers.

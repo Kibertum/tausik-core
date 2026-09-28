@@ -79,7 +79,7 @@ def handle_skill_list() -> str:
             if s["name"] not in active_names and s["name"] not in vendored_names:
                 desc = f" — {s['description']}" if s.get("description") else ""
                 lines.append(f"[AVAILABLE] {s['name']} ({s['repo']}){desc}")
-    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
+    except Exception:  # noqa: BLE001,S110 — best-effort: MCP handler must not crash the server on a tool call
         pass  # Non-fatal — repo listing is optional
     return "\n".join(lines) if lines else "(none)"
 

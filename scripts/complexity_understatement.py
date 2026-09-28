@@ -183,7 +183,7 @@ def warn_if_understated(be, slug: str, declared: str | None, relevant_files) -> 
             f"declared={u['declared']} implied={u['implied']} files={u['file_count']} "
             f"declared_files={u['declared_count']}",
         )
-    except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+    except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
         pass
     return (
         f"COMPLEXITY UNDERSTATED: declared '{u['declared']}' but touched "

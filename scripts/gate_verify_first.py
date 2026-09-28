@@ -401,7 +401,7 @@ def enforce_verify_first(
                 "bypass_auto_verify",
                 "auto_verify=true — Verify-First cached-receipt requirement bypassed (inline gates)",
             )
-        except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+        except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
             pass
         try:
             passed, results, _status = run_gates_with_cache(

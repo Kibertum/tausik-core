@@ -150,7 +150,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
                 )
     except RuntimeError:
         raise  # Re-raise schema version guard errors
-    except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
+    except Exception:  # noqa: BLE001,S110 — best-effort: maintenance/IO, non-fatal to the surrounding op
         pass  # Table doesn't exist yet -- run full DDL
     cur.executescript(SCHEMA_SQL)
     cur.executescript(FTS_SQL)

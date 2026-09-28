@@ -61,7 +61,7 @@ def main():
         from tausik_utils import fix_stdio_encoding
 
         fix_stdio_encoding()
-    except Exception:  # noqa: BLE001 — never let stdio setup crash the server
+    except Exception:  # noqa: BLE001,S110 — never let stdio setup crash the server
         pass
 
     # Pin the moment this process started, for the bootstrap_drift gate's
@@ -74,7 +74,7 @@ def main():
         import running_source_drift
 
         running_source_drift.record_start(os.path.dirname(os.path.abspath(__file__)))
-    except Exception:  # noqa: BLE001 — see above
+    except Exception:  # noqa: BLE001,S110 - a server that cannot snapshot must still serve
         pass
 
     parser = argparse.ArgumentParser()

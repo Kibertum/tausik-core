@@ -138,5 +138,5 @@ def emit_universality_hint(
             import sys
 
             print(hint, file=sys.stderr)
-    except Exception:  # noqa: BLE001 — best-effort: the hint is non-fatal to the local flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: the hint is non-fatal to the local flow
         pass

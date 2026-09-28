@@ -58,7 +58,7 @@ def _qg0_substance_compat_shim(request, monkeypatch):
 
             monkeypatch.setattr(ac_placeholder, "MIN_AC_WORDS", 0)
             monkeypatch.setattr(ac_placeholder, "MIN_GOAL_WORDS", 0)
-        except Exception:  # noqa: BLE001 — a test that cannot import it has no QG-0
+        except Exception:  # noqa: BLE001,S110 — a test that cannot import it has no QG-0
             pass
     yield
 
@@ -111,7 +111,7 @@ def _verify_first_autouse_compat_shim(request, monkeypatch):
             return None
 
         monkeypatch.setattr(GatesMixin, "_enforce_changelog", _noop_changelog)
-    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+    except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
         pass
     yield
 

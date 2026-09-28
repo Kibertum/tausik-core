@@ -175,7 +175,7 @@ class TestConcurrentCascade:
                             complexity="simple",
                             role="developer",
                         )
-                    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+                    except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
                         pass  # Story may be deleted by cascade
                 be.close()
             except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive

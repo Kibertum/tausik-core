@@ -105,7 +105,7 @@ def _append_pending(project_dir: str, action: str, entity_id: str, details: str 
                 "both the DB and the file sink were unavailable.",
                 file=sys.stderr,
             )
-        except Exception:  # noqa: BLE001 — even stderr may be closed; never raise
+        except Exception:  # noqa: BLE001,S110 — even stderr may be closed; never raise
             pass
         return False
 
@@ -172,7 +172,7 @@ def _drain_pending(project_dir: str, conn) -> None:
                     ),
                 )
             conn.commit()
-        except Exception:  # noqa: BLE001 — leave the snapshot for a later retry
+        except Exception:  # noqa: BLE001,S112 — leave the snapshot for a later retry
             continue
         try:
             os.remove(snap)

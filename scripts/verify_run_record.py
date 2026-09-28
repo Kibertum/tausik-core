@@ -52,7 +52,7 @@ def _project_dir_from_conn(conn: sqlite3.Connection) -> str:
             name, dbfile = row[1], row[2]
             if name == "main" and dbfile:
                 return os.path.dirname(os.path.dirname(os.path.abspath(str(dbfile))))
-    except Exception:  # noqa: BLE001 — best-effort: fall back to CWD, never break the record
+    except Exception:  # noqa: BLE001,S110 — best-effort: fall back to CWD, never break the record
         pass
     return "."
 

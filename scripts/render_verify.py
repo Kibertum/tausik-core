@@ -244,7 +244,7 @@ def receipt_lines(svc: Any, run_id: int | None) -> list[str]:
                 "receipt_sign_failed",
                 "project key present but receipt emission failed (STATUS_ERROR)",
             )
-        except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+        except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
             pass
         return [
             f"Receipt: WARNING — a project key is configured but run #{run_id} was "

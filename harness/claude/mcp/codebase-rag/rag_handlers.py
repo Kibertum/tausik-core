@@ -206,7 +206,7 @@ def call_tool_sync(name: str, arguments: dict, project_dir: str) -> str:
                     if related:
                         output += "\n\n=== RELATED TASKS ===\n" + related
                     be.close()
-                except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
+                except Exception:  # noqa: BLE001,S110 — best-effort: MCP handler must not crash the server on a tool call
                     pass
             return output
         finally:

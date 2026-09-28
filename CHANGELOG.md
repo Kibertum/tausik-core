@@ -9,6 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — S110 and S112 joined ruff's select: a seventy-third swallow cannot arrive silently
+
+THE MEASUREMENT BEFORE refuted the premise twice. The count is not 79 but 72 in the product plus
+7 in the tests. And more importantly, 69 of those 72 ALREADY carried a stated reason beside the
+broad catch — the judgement had been made long ago, just not in a form a linter can see. Three
+were bare, with no reason at all.
+
+Those three were judged on their substance rather than annotated. Two in `cost_pricing` were
+NARROWED to the exceptions that can actually fire there: in one the body only reads a mapping and
+strips strings, so the single real failure is a `config` that is not a mapping; in the other the
+module may be absent (a consumer install without delegation), the private constant may be gone, or
+it may be empty — three facts rather than three unknowns. The third, inside a hook, was left BROAD
+with its policy named: a hook must fail open on an unreadable config, and the default window is a
+working answer, unlike a traceback in the middle of someone else's call.
+
+The rules are selected even though 79 sites carry a suppression, and that is not a contradiction:
+the suppression is not the outcome, the REASON beside it is, and `RUF100` already refuses a
+suppression that suppresses nothing. What it buys is exactly one thing — the seventy-third site. A
+new `except: pass` now fails the lint instead of joining a list nobody re-reads.
+
 ### Added — a documentation map: every page names its reader, its zone and the test that holds it
 
 MEASURED BEFORE: 64 English pages and 63 Russian ones, about 21 thousand lines; 17 English and 23

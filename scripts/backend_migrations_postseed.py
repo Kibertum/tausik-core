@@ -47,7 +47,7 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
                 logging.getLogger("tausik.migrations").warning("v18 seed/flag failed: %s", e)
                 try:
                     conn.rollback()
-                except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
+                except Exception:  # noqa: BLE001,S110 — best-effort: maintenance/IO, non-fatal to the surrounding op
                     pass
             if report and report["dropped_legacy_values"]:
                 import sys

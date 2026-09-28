@@ -311,6 +311,17 @@ line-length = 100
 # project does not select were first turned into plain `# ruff-not-enabled:` comments
 # — deleting them would have pre-empted the decision this file defers above, and
 # leaving them as `noqa` would have made RUF100 permanently red.
+# S110 / S112 (try-except-pass, try-except-continue) joined in 1.10 after every site was
+# judged. MEASURED FIRST, and the premise of the task was wrong twice: 72 sites, not 79, and
+# 69 of them ALREADY carried a stated reason beside the broad catch — the judgement had been
+# made long before, just not in a form the linter could see. Three were bare: two narrowed to
+# the exceptions that can actually fire there, one left broad because a HOOK must fail open on
+# an unreadable config and the default window is a working answer.
+#
+# Why the rules are selected while 70 sites carry a suppression: the suppression is not the
+# outcome, the REASON beside it is, and RUF100 refuses a `noqa` that suppresses nothing. What
+# the selection buys is the 73rd site — a new bare `except: pass` now fails the lint instead of
+# joining a list nobody re-reads.
 select = [
     "E4",
     "E7",
@@ -323,6 +334,8 @@ select = [
     "B017",
     "PYI036",
     "RUF100",
+    "S110",
+    "S112",
 ]
 
 [tool.ruff.lint.per-file-ignores]

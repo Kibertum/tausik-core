@@ -12,7 +12,7 @@ def make_audit_overdue(svc, closures: int = 17) -> None:
     try:
         svc.epic_add("cad-e", "Cadence epic")
         svc.story_add("cad-e", "cad-s", "Cadence story")
-    except Exception:  # noqa: BLE001 — already seeded by an earlier call
+    except Exception:  # noqa: BLE001,S110 — already seeded by an earlier call
         pass
     for i in range(closures):
         slug = f"cad-{i}"

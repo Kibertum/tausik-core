@@ -179,7 +179,7 @@ class BackendQueriesMetricsMixin:
 
             for trigger in ("verify", "task-done"):
                 known.extend(g["name"] for g in get_gates_for_trigger(trigger))
-        except Exception:  # noqa: BLE001 — metrics are read-only; config trouble must not blank them
+        except Exception:  # noqa: BLE001,S110 — metrics are read-only; config trouble must not blank them
             pass
         return gate_activity(self._conn, sorted(set(known)))  # type: ignore[attr-defined]
 

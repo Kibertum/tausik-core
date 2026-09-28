@@ -140,7 +140,7 @@ def session_overrun_warning(
         from session_pressure import note_crossing
 
         note_crossing(be, current["id"], active, limit)  # §9.4(d): recorded once
-    except Exception:  # noqa: BLE001 — recording the crossing must never cost the advice
+    except Exception:  # noqa: BLE001,S110 — recording the crossing must never cost the advice
         pass
     wall = session_wall_minutes(be, current["id"])
     return (

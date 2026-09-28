@@ -54,7 +54,7 @@ def reset_checkpoint_counter(svc: Any) -> None:
     # clearing the display-only warning bucket so the next advice fires again.
     try:
         svc.be.meta_set("checkpoint_warn_bucket", "0")
-    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
+    except Exception:  # noqa: BLE001,S110 — best-effort: MCP handler must not crash the server on a tool call
         pass
 
 

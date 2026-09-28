@@ -40,7 +40,7 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
                 plan_done = full.get("plan_done") or []
                 if isinstance(plan, list) and plan:
                     print(f"  Plan progress: {len(plan_done)}/{len(plan)} steps")
-            except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+            except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
                 pass
             try:
                 logs = svc.task_logs(slug)
@@ -50,7 +50,7 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
                         msg = (log.get("message") or "")[:80]
                         phase = log.get("phase") or "-"
                         print(f"    [{phase}] {msg}")
-            except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+            except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
                 pass
     else:
         print("\nActive: (no active task)")
@@ -65,7 +65,7 @@ def cmd_hud(svc: ProjectService, args: Any) -> None:
                 mh = nxt.get("model_hint")
                 if mh:
                     print(f"  Model hint: {mh['display']} ({mh['model']})")
-    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+    except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
         pass
     # Gates
     try:

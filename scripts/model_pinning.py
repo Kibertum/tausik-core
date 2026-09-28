@@ -81,7 +81,7 @@ def _cost_cell(model_id: Any, tokens_total: int, cost_usd: float) -> str:
 
             if get_pricing(model_id) is None:
                 return f"not priced ({tokens_total:,} tokens unmetered)"
-        except Exception:  # noqa: BLE001 — a broken import must not hide the table
+        except Exception:  # noqa: BLE001,S110 — a broken import must not hide the table
             pass
     return f"${cost_usd:.4f}"
 

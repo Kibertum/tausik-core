@@ -239,7 +239,7 @@ class TestMCPHandlerDispatch:
                 result = handle_tool(svc, tool["name"], {})
             except (KeyError, TypeError):
                 continue  # handler exists; it just wants arguments we deliberately withheld
-            except Exception:  # noqa: BLE001 — any other error still proves dispatch happened
+            except Exception:  # noqa: BLE001,S112 — any other error still proves dispatch happened
                 continue
             if "Unknown tool" in result:
                 unhandled.append(tool["name"])

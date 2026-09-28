@@ -34,7 +34,7 @@ def _publication_blocklists() -> tuple[list[str], list[str]]:
     names: list[str] = []
     try:
         names.append(os.path.basename(os.path.dirname(os.path.abspath(find_tausik_dir()))))
-    except Exception:  # noqa: BLE001 — no project here: the config lists are still honoured
+    except Exception:  # noqa: BLE001,S110 — no project here: the config lists are still honoured
         pass
     try:
         section = load_config().get("publication") or {}

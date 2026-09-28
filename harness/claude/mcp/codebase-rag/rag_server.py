@@ -60,7 +60,7 @@ def main():
         from tausik_utils import fix_stdio_encoding
 
         fix_stdio_encoding()
-    except Exception:  # noqa: BLE001 — never let stdio setup crash the server
+    except Exception:  # noqa: BLE001,S110 — never let stdio setup crash the server
         pass
 
     parser = argparse.ArgumentParser()

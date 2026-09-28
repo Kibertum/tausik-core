@@ -30,7 +30,7 @@ class BackendQueriesFtsMixin:
     def _set_fts_baseline(self, value: int) -> None:
         try:
             self.meta_set(self._FTS_OPTIMIZE_META_KEY, str(value))  # type: ignore[attr-defined]
-        except Exception:  # best-effort: a baseline write failure must not propagate  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
+        except Exception:  # best-effort: a baseline write failure must not propagate  # noqa: BLE001,S110 — best-effort: maintenance/IO, non-fatal to the surrounding op
             pass
 
     def fts_maybe_optimize(self, threshold: int = 200) -> dict[str, Any]:
@@ -65,7 +65,7 @@ class BackendQueriesFtsMixin:
         results = self.fts_optimize()
         try:
             self.event_add("fts", "all", "optimize", f"auto: {delta} events since last optimize")  # type: ignore[attr-defined]
-        except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
+        except Exception:  # noqa: BLE001,S110 — best-effort: maintenance/IO, non-fatal to the surrounding op
             pass
         # Baseline AFTER logging so the optimize event itself isn't counted
         # toward the next window (delta truly resets to 0). If the recount fails,

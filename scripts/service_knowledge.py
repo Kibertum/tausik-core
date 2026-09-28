@@ -127,9 +127,9 @@ class KnowledgeMixin:
                 for u in cq_results:
                     try:
                         local.append(build_cq_row(u))
-                    except Exception:  # noqa: BLE001 — one bad unit must not cost the rest
+                    except Exception:  # noqa: BLE001,S112 — one bad unit must not cost the rest
                         continue
-        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
             pass  # cq unavailable -- graceful degradation
         return local
 
@@ -271,7 +271,7 @@ class KnowledgeMixin:
             config = self._load_config()
             if get_cq_client(config):
                 cq_hint = " Consider sharing via tausik_cq_publish for other projects."
-        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
         return f"Dead end #{mid} documented.{cq_hint}"
 

@@ -100,7 +100,7 @@ def build_dynamic_state(svc: Any, project_dir: str) -> str:
             if memory_tail := service_knowledge_aggregates.build_compact_memory_tail(be):
                 lines.append("")
                 lines.extend(memory_tail)
-        except Exception:  # noqa: BLE001 — best-effort: см. docstring
+        except Exception:  # noqa: BLE001,S110 — best-effort: см. docstring
             pass
 
     return "\n".join(lines)
