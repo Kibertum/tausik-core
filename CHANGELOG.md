@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — an owner's instruction is read at the point of action, not filed without a reader
+
+THE MEASUREMENT: the owner said CI was not wanted until the release approached. Twenty-three
+commits followed, each with a push and therefore a pipeline. Twenty-three to nothing in favour of
+the ritual.
+
+THE CAUSE IS STRUCTURAL, NOT MOTIVATIONAL, which is why trying harder does not touch it. The
+framework's rules are GATED: verify blocks a close, the changelog blocks a close, push-ok is built
+into the commit ritual. An owner's instruction blocks nothing and is read by nothing. When the two
+diverge, the one that stops things wins. The instruction does not evaporate because it was
+rejected; it evaporates because it has no surface where anyone meets it.
+
+THE MARKER IS EXACT, NOT GUESSED. Over 399 decisions a prose search returns five matches of which
+THREE are about something else — a rule's hard floor, a command scanner, a story being added to a
+release. Forty percent precision is a coin, and a detector that cries wolf teaches the reader to
+switch the signal off, dying the same death the instruction already died. So a decision declares
+itself with `ЗАПРЕТ ВЛАДЕЛЬЦА [tags]` or `OWNER BAN [tags]`, and nothing else counts.
+
+THE READING IS CHEAP: a LIKE over two prefixes in SQL, with the action point asking for its own
+tag. Parsing 399 decisions on every action would be a price paid per call, and a check that costs
+something every time is a check somebody eventually removes.
+
+A SIGNAL, NOT A GATE: the owner's word created the constraint and the owner lifts it; a block would
+be argued with and then switched off. Retirement is read from the `supersedes` edge, the way this
+project records a reversal — otherwise a lifted ban would print forever and become noise.
+
+`push-ok` prints a constraint in force BEFORE it spends its round trip.
+
 ### Added — the autonomy promise became a number: closures per owner message
 
 "The agent works autonomously through your plan" is words, and a user learns their price on their

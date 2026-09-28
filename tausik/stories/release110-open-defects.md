@@ -1,7 +1,7 @@
 ---
 slug: release110-open-defects
 title: "1.10 I. Открытые дефекты: ни один известный баг трекеров и линии разработки не переезжает в следующую версию"
-status: active
+status: done
 epic: release-110-deferred-from-19
 ---
 

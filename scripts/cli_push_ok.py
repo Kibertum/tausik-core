@@ -127,6 +127,10 @@ def cmd_push_ok(_svc_unused: Any, args: Any) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+    # BEFORE the ticket is spent, not after. The owner said CI was not wanted until the
+    # release approached, and 23 commits went out with a push each — the instruction was not
+    # rejected, it simply had no surface where anyone would meet it. This is that surface.
+    _report_owner_bans(tausik_dir)
     sha, why = _git_detail(["rev-parse", "HEAD"])
     if not sha:
         # The reason comes from what actually happened. The old text named one
@@ -139,6 +143,31 @@ def cmd_push_ok(_svc_unused: Any, args: Any) -> None:
     branch_str = branch if branch and branch != "HEAD" else "(detached)"
     print(f"push ticket written: {path.name} (commit {short}, branch {branch_str}, ttl {ttl}s)")
     _report_published_lane()
+
+
+def _report_owner_bans(tausik_dir: Path) -> None:
+    """Print any owner prohibition covering a push. A SIGNAL: it never refuses.
+
+    The owner's word created the constraint and the owner lifts it; a block here would be
+    argued with and then switched off, which is how a framework loses rules. Best-effort by
+    design — a database that cannot be read must not stop a commit.
+    """
+    try:
+        import sqlite3
+
+        from owner_constraints import active_bans, advisory
+
+        conn = sqlite3.connect(str(tausik_dir / "tausik.db"))
+        try:
+            for tag in ("ci", "network", "push"):
+                text = advisory(active_bans(conn, tag))
+                if text:
+                    print(text)
+                    break
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001 - a signal must never block the commit ritual
+        _ = e
 
 
 def _report_published_lane() -> None:
