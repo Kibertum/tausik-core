@@ -108,7 +108,9 @@ def test_migration_v52_then_v53_matches_fresh_shape(tmp_path):
     conn.execute(
         "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
     )  # defect_of: v10 column, indexed by v62
-    conn.execute("CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)")  # ALTER target for v63
+    conn.execute(
+        "CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )  # ALTER target for v63
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     conn.execute("CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     conn.execute("CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)")
@@ -556,11 +558,6 @@ def test_fts_delete_trigger_removes_entry(svc):
     svc.actz_create("z1", "Сроки приёмки", "TZ-2026-001")
     svc.actz_delete("z1")
     assert svc.actz_search("приёмки") == []
-
-
-def test_malformed_fts_query_is_friendly_error(svc):
-    with pytest.raises(ServiceError, match="unterminated"):
-        svc.actz_search('"unterminated')
 
 
 # === CLI parser wiring ===

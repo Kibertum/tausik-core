@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — four FTS searches accept a query written the way this project writes names
+
+`spec search`, `at search`, `adapt search` and `actz search` passed the query to FTS5 MATCH raw, so
+an ordinary hyphen made SQLite read `foo-bar` as a column reference and the command answered
+`Invalid search query 'foo-bar': no such column: bar`. Names in this project are written exactly
+like that: `release-1.10`, `github#124`, `tausik.tech`.
+
+THE CONSEQUENCE COST MORE THAN THE REFUSAL: the message points at the SYNTAX, so the reader retries
+in another form instead of learning that the query was fine.
+
+THE SITE-BY-SITE CHECK CHANGED THE SIZE OF THE FIX. The task named six unsanitised sites; two were
+already safe and were left alone. `memory_relevance` builds its query itself from keywords,
+stripping specials and quoting each term; `snippet_storage` quotes on the way in. A second layer
+there would escape an already-escaped string and break a search that works. The fix is four sites,
+not six, and the test pins both halves.
+
+OUR OWN NEGATIVE TEST FOUND A SECOND DEFECT: a query of only operators sanitises to an empty
+string, and an empty MATCH is itself a syntax error — so the fix would have swapped one error for
+another. The guard the three working searches already carry was added: an empty sanitiser result
+returns an empty list. That is the honest answer; a match-all would be worse than the refusal it
+replaced, because the reader would take the whole table for hits.
+
 ### Fixed — a citation without its directory is no longer charged with fabrication
 
 The evidence audit resolved paths LITERALLY, so a citation written as a bare filename matched

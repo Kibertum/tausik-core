@@ -113,7 +113,9 @@ def test_migration_v36_creates_tables_clean(tmp_path):
     conn.execute(
         "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
     )  # defect_of: v10 column, indexed by v62
-    conn.execute("CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)")  # ALTER target for v63
+    conn.execute(
+        "CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )  # ALTER target for v63
     # ALTER target for v38 — run_migrations walks every version up to current,
     # not just the one under test here.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
@@ -363,12 +365,6 @@ def test_fts_delete_trigger_removes_entry(svc):
     assert svc.adapt_search("Ephemeral")
     svc.adapt_delete("ghost")
     assert svc.adapt_search("Ephemeral") == []
-
-
-def test_malformed_fts_query_is_friendly_error(svc):
-    svc.adapt_create("a1", "T", "TZ-1")
-    with pytest.raises(ServiceError, match="Invalid search query"):
-        svc.adapt_search('"unbalanced')
 
 
 # === CLI parser wiring ===

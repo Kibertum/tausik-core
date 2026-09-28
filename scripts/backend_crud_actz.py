@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from backend_queries import _sanitize_fts5
 from tausik_utils import utcnow_iso
 
 
@@ -253,9 +254,15 @@ class ActzCrudMixin:
 
     def actz_search(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         """FTS5 search over ACTZ slug/title/tz_ref, ranked by bm25."""
+        q = _sanitize_fts5(query)
+        if not q:
+            # A query of only operators sanitises to nothing, and an empty MATCH is a
+            # syntax error in FTS5. "Nothing matched" is the honest answer; returning
+            # every row would be worse than the refusal this replaced.
+            return []
         return self._q(
             "SELECT a.*, snippet(fts_actz, 1, '>>>', '<<<', '...', 32) AS _snippet "
             "FROM actz a JOIN fts_actz f ON a.id=f.rowid "
             "WHERE fts_actz MATCH ? ORDER BY bm25(fts_actz, 5.0, 10.0, 2.0) LIMIT ?",
-            (query, limit),
+            (q, limit),
         )

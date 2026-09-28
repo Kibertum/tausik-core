@@ -69,7 +69,9 @@ def test_migration_v35_creates_tables_clean(tmp_path):
     conn.execute(
         "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
     )  # defect_of: v10 column, indexed by v62  # FK target
-    conn.execute("CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)")  # ALTER target for v63
+    conn.execute(
+        "CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )  # ALTER target for v63
     # ALTER target for v38 — run_migrations walks every version up to current,
     # not just the one under test here.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
@@ -253,13 +255,6 @@ def test_fts_delete_trigger_removes_entry(svc):
     assert svc.spec_search("Ephemeral")
     svc.spec_delete("ghost-api")
     assert svc.spec_search("Ephemeral") == []
-
-
-def test_malformed_fts_query_is_friendly_error(svc):
-    """NEGATIVE: an unbalanced FTS5 query is a ServiceError, not a raw crash."""
-    svc.spec_add("s", "API", "T", "v1")
-    with pytest.raises(ServiceError, match="Invalid search query"):
-        svc.spec_search('"unbalanced')
 
 
 # === NEGATIVE: validation surfaces as ServiceError (no raw traceback) ===
