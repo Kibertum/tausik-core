@@ -56,11 +56,11 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 .tausik/tausik task log <slug> "message"
 ```
 
-Остальное (`dead-end`, `metrics`, `search`, `doctor`) — `docs/ru/cli.md`.
+Остальное — `docs/ru/cli.md`.
 
 ## Reference
 
-Контракт (estimation в tool calls, SENAR, roles, custom_stacks, QG-2): `docs/ru/agent-contract.md`. CLI: `docs/ru/cli.md`. Архитектура: `docs/ru/architecture.md`.
+Контракт (estimation в tool calls, SENAR, roles, custom_stacks, QG-2): `docs/ru/agent-contract.md`. Архитектура: `docs/ru/architecture.md`. Что НЕ гарантировано: `docs/ru/known-limitations.md`.
 
 <!-- DYNAMIC:START -->
 ## Current State

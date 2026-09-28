@@ -102,6 +102,7 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 | **MCP tools (146; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
 | **Skills reference (14 core skills, 20 official skills opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
+| **What is NOT guaranteed (deliberate gaps with their reason, open defects, out of scope)** | [docs/en/known-limitations.md](docs/en/known-limitations.md) (EN) / [docs/ru/known-limitations.md](docs/ru/known-limitations.md) (RU) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
 | **SENAR compliance matrix** | [docs/en/senar-compliance-matrix.md](docs/en/senar-compliance-matrix.md) |
 

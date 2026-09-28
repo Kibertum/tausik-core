@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a register of deliberate gaps: what is NOT guaranteed, with a reason on every line
+
+Before this page three different things looked identical, which is to say invisible: "we
+decided not to do this", "we have not finished this" and "this is broken". The gaps WERE
+declared, but each in its own place: the two limits of the knowledge-routing gate in its
+docstring, second-granularity timestamps in a memory record, the MCP server holding old
+code until the IDE restarts in the `/start` skill. A reader of the documentation saw none
+of them, and a guard whose blind spot is undocumented reads as total.
+
+Ten gaps are collected in `docs/{ru,en}/known-limitations.md`. Each carries three required
+lines: **what exactly is not guaranteed** (not "works partially", but what gets through and
+in which case), **why living with it is cheaper than closing it now**, and **what holds the
+boundary** — a test, a docstring or a decision. The reason is required for a hard purpose:
+an entry without one is a defect, and a section that does not demand it becomes a bin for
+defects nobody wants to fix, laundering them as decisions.
+
+Open defects are NOT listed by hand, and that is a decision: a hand-maintained list falls
+behind silently — exactly how a root document calling itself the map of the project's
+direction ended up asserting a state two releases old, with a link to a file that no longer
+existed. The commands that read the live database are named instead.
+
+`CLAUDE.md`, `AGENTS.md` and the documentation index carry a POINTER, not a copy, and that
+is asserted: the gap markers may appear on the page and nowhere else. A pointer cannot
+disagree with the page; a copied gap can, and then the reader has two answers and no way to
+tell which is current.
+
 ### Fixed — a ratchet in the lane nobody runs, and a signal instead of silence about backups
 
 **A check deselected by default is a check switched off.** `addopts` in pyproject carries
