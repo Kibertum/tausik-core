@@ -36,6 +36,7 @@ _SHALLOW = (
         cwd=_REPO,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         stdin=subprocess.DEVNULL,
     ).stdout.strip()
     == "true"
