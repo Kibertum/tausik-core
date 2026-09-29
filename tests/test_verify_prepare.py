@@ -120,23 +120,67 @@ class TestAGreenIsNeverProducedOverAnUnpreparedTree:
         assert said[0].endswith("ok")
 
 
-class TestWithoutTheFlagNothingChanges:
-    def test_the_flag_defaults_off(self):
-        """NEGATIVE, AC-4. Every existing caller keeps the behaviour it had."""
+class TestPreparationIsTheDefaultRatherThanAFlag:
+    """It shipped behind `--prepare` first, and nothing ever named that flag — no skill, no
+    CLAUDE.md line, no hint. This project has measured what a rule that is only ASKED for is
+    worth: switched off the same week. A flag is weaker, because nobody even asks."""
+
+    @staticmethod
+    def _parsed(*argv):
         import argparse
 
         from project_parser_verify import add_verify_parsers
 
         parser = argparse.ArgumentParser()
         add_verify_parsers(parser.add_subparsers(dest="cmd"))
-        assert parser.parse_args(["verify", "--task", "t"]).prepare is False
-        assert parser.parse_args(["verify", "--task", "t", "--prepare"]).prepare is True
+        return parser.parse_args(["verify", *argv])
 
-    def test_the_handler_only_prepares_when_asked(self):
-        """Read from the source rather than by running a verify: the point is that the
-        preparation is behind the flag, and a live run would prove it for one tree only."""
+    def test_opting_out_is_the_flag_now(self):
+        """AC-1 and AC-2: nothing has to be remembered to get preparation."""
+        assert self._parsed("--task", "t").no_prepare is False
+        assert self._parsed("--task", "t", "--no-prepare").no_prepare is True
+
+    def test_the_old_flag_is_still_accepted(self):
+        """AC-6. A caller that already types it must not start failing."""
+        assert self._parsed("--task", "t", "--prepare").prepare is True
+
+    def test_the_handler_branches_on_the_opt_out_not_on_the_opt_in(self):
         text = (_REPO / "scripts" / "project_cli_verify.py").read_text(encoding="utf-8")
-        assert 'if getattr(args, "prepare", False):' in text
-        assert text.index('if getattr(args, "prepare", False):') < text.index(
+        assert 'if getattr(args, "no_prepare", False):' in text
+        assert 'if getattr(args, "prepare", False):' not in text, "the opt-in gate is gone"
+
+    def test_preparation_still_happens_before_anything_is_judged(self):
+        text = (_REPO / "scripts" / "project_cli_verify.py").read_text(encoding="utf-8")
+        assert text.index('if getattr(args, "no_prepare", False):') < text.index(
             "report = svc.run_verify_for_task("
-        ), "preparation has to happen BEFORE anything is judged"
+        )
+
+    @pytest.mark.parametrize(
+        ("needle", "why"),
+        [
+            ("PREPARATION SKIPPED by --no-prepare", "the caller asked for it"),
+            ("PREPARATION SKIPPED: no --task", "there is no declared scope to format"),
+        ],
+    )
+    def test_every_skip_says_itself(self, needle, why):
+        """AC-4 and AC-5. Silence about a skip reads exactly like "it ran", and the whole
+        value of the default is that the reader knows which tree was judged."""
+        text = (_REPO / "scripts" / "project_cli_verify.py").read_text(encoding="utf-8")
+        assert needle in text, why
+
+    def test_a_service_that_names_no_root_does_not_prepare_anything(self):
+        """NEGATIVE. Preparation WRITES, so it must act on the project the service speaks
+        for and no other. A fallback to the process's current directory made a verify held
+        by a temporary service reformat and redeploy the LIVE tree — the suite's own guard
+        caught it by the config file changing underneath 281 tests."""
+        text = (_REPO / "scripts" / "project_cli_verify.py").read_text(encoding="utf-8")
+        assert 'root_from_service(svc) or "."' not in text, "the cwd fallback is gone"
+        assert "PREPARATION SKIPPED: this service names no project root" in text
+
+    def test_a_run_without_a_task_does_not_format_the_tree(self):
+        """NEGATIVE, AC-4. No task means no declared scope, and a tree-wide `ruff format`
+        is what rewrote 90 files the first time this existed."""
+        text = (_REPO / "scripts" / "project_cli_verify.py").read_text(encoding="utf-8")
+        branch = text[text.index("elif not task_slug:") :]
+        branch = branch[: branch.index("else:")]
+        assert "run_preparation" not in branch

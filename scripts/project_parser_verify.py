@@ -32,12 +32,16 @@ def add_verify_parsers(sub: Any) -> None:
     vp.add_argument(
         "--prepare",
         action="store_true",
-        help=(
-            "Run the fixed preparation — `ruff format` and the bootstrap redeploy — "
-            "in THIS call, before the gates. Both fix a gate that goes red for a "
-            "reason known in advance, and each otherwise costs its own call. The "
-            "run reports that preparation happened and what it said."
-        ),
+        help="Accepted and ignored: preparation is the default now. Kept so callers "
+        "that already pass it keep working.",
+    )
+    vp.add_argument(
+        "--no-prepare",
+        action="store_true",
+        help="Do NOT run the fixed preparation (`ruff format` over the declared scope, "
+        "then the bootstrap redeploy). The default is to run it, because both fix a gate "
+        "that goes red for a reason known in advance and each otherwise costs its own "
+        "call. Pass this to judge the tree exactly as it stands.",
     )
     vp.add_argument(
         "--no-tests-expected",

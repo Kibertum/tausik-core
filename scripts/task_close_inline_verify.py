@@ -45,8 +45,16 @@ def refuse_two_sources(args: Any) -> None:
 
 
 def declared_scope(svc: Any, slug: str) -> list[str]:
-    """The task's own relevant_files, as a list; [] when it declared none."""
-    row = svc.task_show(slug) or {}
+    """The task's own relevant_files, as a list; [] when it declared none.
+
+    A service that cannot answer gives [] rather than raising. This is asked on the way to
+    an OPTIONAL step — preparing the tree before the gates — and a helper reaching for
+    optional information must never be the reason the run it serves does not happen.
+    """
+    try:
+        row = svc.task_show(slug) or {}
+    except Exception:  # noqa: BLE001 - see above: optional information, never fatal
+        return []
     raw = row.get("relevant_files")
     if not raw:
         return []

@@ -71,15 +71,45 @@ def cmd_verify(svc: Any, args: Any) -> None:
                 "scope already declared on the task. Pass paths to change it."
             )
 
+    # DEFAULT, not a flag. The first version shipped preparation behind `--prepare`, and
+    # nothing — no skill, no CLAUDE.md line, no hint — ever named it. This project has
+    # already measured what a rule that is only asked for is worth: it gets switched off
+    # the same week. A flag is weaker still, because nobody even asks. Opting out is
+    # explicit and says so; `bootstrap_drift` alone was 56 red runs in one month.
     prepared: list[str] = []
-    if getattr(args, "prepare", False):
+    if getattr(args, "no_prepare", False):
+        print(
+            "PREPARATION SKIPPED by --no-prepare. `ruff_format` and `bootstrap_drift` are "
+            "judged on the tree exactly as it stands."
+        )
+    elif not task_slug:
+        # Without a task there is no declared scope, so formatting would go tree-wide —
+        # which is how the first version rewrote 90 files. Saying it beats skipping in
+        # silence, which reads as though preparation had run.
+        print(
+            "PREPARATION SKIPPED: no --task, so there is no declared scope to format and "
+            "a tree-wide run would edit files nobody declared."
+        )
+    else:
         from project_root import root_from_service
         from verify_prepare import PreparationFailed, run as run_preparation
 
-        try:
-            prepared = run_preparation(
-                root_from_service(svc) or ".", declared or _declared_on_task(svc, task_slug)
+        # NEVER `or "."`. Preparation WRITES — it formats files and redeploys the profile —
+        # so it must act on the project this service speaks for and on no other. The
+        # fallback to the process's current directory made a verify held by a temporary
+        # service reformat and redeploy the LIVE tree, which the suite's own guard caught
+        # by the config file changing under it. No root, no preparation, and say so.
+        root = root_from_service(svc)
+        if not root:
+            print(
+                "PREPARATION SKIPPED: this service names no project root, and preparation "
+                "writes — formatting and redeploying somewhere else would be worse than "
+                "not preparing at all."
             )
+            prepared = []
+        try:
+            if root:
+                prepared = run_preparation(root, declared or _declared_on_task(svc, task_slug))
         except PreparationFailed as exc:
             # Not a gate failure: nothing was judged. Saying so is the difference
             # between "the tree is red" and "the tree was never looked at".

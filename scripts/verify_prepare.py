@@ -44,6 +44,11 @@ class Step:
     #: rather than run tree-wide: a prepare that edits undeclared files is a scope breach
     #: wearing a convenience's clothes.
     takes_files: bool = False
+    #: A path that must exist under the root for this step to MEAN anything. Absent, the
+    #: step does not apply and is skipped out loud — it has not failed. A project that
+    #: installs TAUSIK as a dependency has no `bootstrap/` of its own, and treating that
+    #: as a failed preparation would refuse every check it ever ran.
+    requires: str | None = None
 
 
 #: The closed list. Adding to it is a decision about what "preparation" means, so it is
@@ -62,6 +67,7 @@ STEPS: tuple[Step, ...] = (
         argv=(sys.executable, "bootstrap/bootstrap.py", "--ide", "all"),
         because="the CLI runs the DEPLOYED copies under .claude/, so an edit under "
         "scripts/ leaves bootstrap_drift red until the profile is rebuilt",
+        requires="bootstrap/bootstrap.py",
     ),
 )
 
@@ -86,6 +92,12 @@ def run(
     said: list[str] = []
     targets = [f for f in (files or []) if f]
     for step in STEPS:
+        if step.requires and not (Path(root) / step.requires).exists():
+            said.append(
+                f"NOT PREPARED: {step.name} — this tree has no {step.requires}, so the "
+                "step does not apply here. It has not failed."
+            )
+            continue
         if step.takes_files and not targets:
             said.append(
                 f"NOT PREPARED: {step.name} — no declared scope to apply it to, and "

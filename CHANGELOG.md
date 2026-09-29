@@ -9,6 +9,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — preparation before a check is the default now, not a flag
+
+`verify --prepare` removed `bootstrap_drift` — 56 red runs in September, 25.3% of every
+red. But it stayed a FLAG that nothing ever named: no skill, no CLAUDE.md line, no hint.
+This project has already measured what a rule that is only ASKED for is worth — switched
+off the same week. A flag is weaker still, because nobody even asks.
+
+`verify --task <slug>` now prepares the tree with no flag at all. Opting out is explicit:
+`--no-prepare`. The old `--prepare` is still accepted and breaks nothing.
+
+**EVERY SKIP SAYS ITSELF.** Silence about a skip reads exactly like "it ran", and the
+whole value of the default is that the reader knows WHICH tree was judged. So
+`--no-prepare` prints that the gates judge the tree as it stands, and a run without
+`--task` prints that there is no declared scope and a tree-wide format would edit files
+nobody declared — which is how the first version rewrote 90 files.
+
 ### Added — the 500-line cap warns at write time instead of reddening at verify
 
 Of 285 red `verify` runs, `filesize` is 16.1%, and it is not history: 20 fell in

@@ -314,7 +314,18 @@ class TestVerifyReportIsBuiltOnce:
         monkeypatch.setattr(svc, "run_verify_for_task", lambda *a, **k: self._report())
         mcp = handle_tool(svc, "tausik_verify", {"task_slug": "t", "scope": "manual"})
         cmd_verify(svc, _Args(task="t", scope="manual"))
-        assert capsys.readouterr().out.rstrip("\n") == mcp
+        # The subject is the REPORT. The CLI also prepares the tree before judging it, and
+        # says what that did or why it did not apply; those lines describe what happened
+        # BEFORE the report and have no counterpart on a surface that does not prepare.
+        # Comparing them would make this test fail for the preparation rather than for
+        # drift between two renderings, which is the thing it exists to catch.
+        out = capsys.readouterr().out.rstrip("\n")
+        report = "\n".join(
+            line
+            for line in out.splitlines()
+            if not line.startswith(("PREPARED:", "NOT PREPARED:", "PREPARATION SKIPPED"))
+        )
+        assert report == mcp
 
 
 class _Args:
