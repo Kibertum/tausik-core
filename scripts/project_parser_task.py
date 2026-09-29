@@ -176,6 +176,15 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     )
     tdone.add_argument("--relevant-files", nargs="*", default=None)
     tdone.add_argument(
+        "--verify",
+        action="store_true",
+        help="Run the scoped check in THIS call and close with its handle — the whole "
+        "ceremony in one call instead of four. The run is the same one `tausik verify "
+        "--task <slug>` performs and records the same receipt; a red run refuses the "
+        "close and leaves the task open. Refuses alongside --verify-handle, and refuses "
+        "a task that declares no relevant_files unless --no-file-changes says so.",
+    )
+    tdone.add_argument(
         "--verify-handle",
         default=None,
         dest="verify_handle",

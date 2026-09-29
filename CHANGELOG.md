@@ -9,6 +9,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — closing a task costs one call instead of four
+
+The ceremony ran: `verify`, then `task done`, then a refusal from a gate that only
+fires at close, then `verify` again, then `task done` again. At the measured
+482 000 tokens of prefix re-sent on EVERY call, an extra call costs about half a
+million tokens, and closing is the most frequent ceremony in the framework — 1240
+closures carry a recorded call count.
+
+`task done <slug> --ac-verified --verify` now runs the check itself and closes with
+the same single-use handle the separate path would have minted. This is NOT a way
+around QG-2: the run is the same one, the receipt is the same, and a red run refuses
+the close and leaves the task open — the red run's receipt stays, because a run that
+happened is evidence whichever way it went.
+
+**THE ONE CALL REFUSES EXACTLY WHAT THE FOUR REFUSED.** Two sources of verification
+in one call (`--verify` alongside `--verify-handle`) is a refusal: only one is
+redeemed and the output does not say which. An undeclared scope is a refusal: a
+verify over one skips the scoped gates and still signs a receipt, so the single call
+would become a cheaper way to certify nothing. `--no-file-changes` remains the honest
+way to say a task changed no files, and it is accepted.
+
+**THE CLOSING GATES ANNOUNCE THEMSELVES EARLY.** `changelog` lived only at
+`task done`, so an agent met it after the ceremony had already been paid for.
+`verify` now asks the REAL gate and prints its verdict as an "AT CLOSE, NOT NOW"
+line — advice, not a refusal: mid-task the entry legitimately does not exist yet,
+and a gate that goes red on the normal case is one people learn to skip.
+
 ### Changed — the CLI reference is cut by measured use
 
 `cli.md` was 899 lines in which all 54 commands weigh the same. This project's database

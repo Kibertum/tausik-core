@@ -176,6 +176,16 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 )
             _sys.stderr.flush()
 
+        # --verify closes in ONE call: the check runs here and its handle is presented
+        # below exactly as a hand-driven close presents one. Measured, the separate path
+        # costs four to six calls at ~482 000 tokens of re-sent prefix each.
+        from task_close_inline_verify import handle_for_close, refuse_two_sources
+
+        refuse_two_sources(args)
+        handle = getattr(args, "verify_handle", None)
+        if getattr(args, "verify", False):
+            handle = handle_for_close(svc, args) or None
+
         _print_with_warnings(
             svc.task_done(
                 args.slug,
@@ -187,7 +197,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 progress_fn=_stderr_progress,
                 no_file_changes=getattr(args, "no_file_changes", False),
                 no_changelog=getattr(args, "no_changelog", False),
-                verify_handle=getattr(args, "verify_handle", None),
+                verify_handle=handle,
                 zero_gate_ack=bool(getattr(args, "zero_gate_ack", False)),
             )
         )

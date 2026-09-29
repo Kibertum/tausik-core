@@ -77,6 +77,14 @@ def cmd_verify(svc: Any, args: Any) -> None:
 
     print("\n".join(verify_lines(svc, report, task_slug, scope)))
 
+    # The post-scope gates run only at `task done`, so without this the agent meets them
+    # after the closing ceremony has already been paid for. Advisory, never a refusal.
+    if task_slug:
+        from task_close_inline_verify import post_close_advisory
+
+        for line in post_close_advisory(svc, task_slug):
+            print(line)
+
     if report.get("cache_hit") is not None:
         # A hit with no task means the cache layer changed shape under this
         # caller; the report says so, and the exit code has to agree with it.
