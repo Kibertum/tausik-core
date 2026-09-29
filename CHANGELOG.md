@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added -- what a finished task costs, counted in turns, and the number is five times worse
+
+The token question had been answered in the wrong unit. Across 5,964 telemetry rows the input
+side is **99.5% `cache_read`** — 2,876,911,173 tokens against 22,099 of fresh input. The prefix
+is re-sent whole on every call, so an extra CALL costs about **482,000 tokens** while
+shortening a request saves hundreds. An edit that trims the request and adds a round-trip loses
+by roughly a hundred to one.
+
+`scripts/turn_economy.py` prices the thing that is actually bought — a finished task — and the
+answer is not flattering. Over 1,230 closures carrying a call count: **median 20 turns, p90 78,
+max 1,900**. By month, **2026-04 median 6 → 2026-09 median 32**, p90 35 → 114. Five times more
+turns per task in six months. In tokens: 9.6M for the median task, 37.6M at p90.
+
+**WHERE THEY GO:** `Bash` is **87.6%** of 8,195 measured calls and 3.64 of 4.07 billion
+`cache_read`. `Write` 7.7%, `Edit` 2.7%, everything else together under 2%.
+
+**SO THE LEVER IS FEWER, LARGER TURNS — NOT SHORTER ONES**, and the report says so in the same
+breath as the numbers, because the opposite advice is the intuitive one and it is wrong here by
+two orders of magnitude. A test holds that sentence against the constant it spends: a report
+that recommended trimming requests would contradict the figure printed two lines above it.
+
+Both halves are local — the call count lives in this project's database, the sidecar is written
+by a hook on this machine — so a fresh clone gets the absence in words instead of a zero.
+
 ### Added -- a ratchet on answer length, because measuring it was not enough
 
 `tausik metrics answers` produced a number from 1.10 and nothing compared it to anything.
