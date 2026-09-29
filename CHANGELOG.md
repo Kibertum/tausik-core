@@ -9,6 +9,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — widening a scope costs one short call instead of two long ones
+
+A task's scope is declared BEFORE the work reveals which files it will touch, so the
+ACL refuses in almost every non-trivial task: seven refusals across three consecutive
+tasks in the session that filed this — the last one on the very module that fixes it,
+which could not have been named in a declaration written before it existed. Each
+refusal cost two calls: the refusal, then a `task update --scope-paths` restating the
+WHOLE list.
+
+`task update <slug> --add-scope-paths <paths>` adds while keeping what was declared.
+Both hooks now print exactly that command, with exactly the paths they refused — there
+is nothing to retype, and retyping was also where a path went missing.
+
+**RULE 2 IS NOT WEAKENED.** Widening stays an explicit act by the agent, path by path,
+and nothing is added that was not asked for. An empty list is refused rather than read
+as a revocation: an empty list is almost always a shell glob that matched nothing.
+`--scope-paths` together with `--add-scope-paths` is refused, because which one won
+would not be visible in the output.
+
 ### Changed — closing a task costs one call instead of four
 
 The ceremony ran: `verify`, then `task done`, then a refusal from a gate that only

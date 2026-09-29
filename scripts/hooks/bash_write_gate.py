@@ -64,6 +64,7 @@ sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
 import shell_channel  # noqa: E402
+from task_scope_widen import widen_command  # noqa: E402
 from _common import (  # noqa: E402
     cli_invocation,
     is_tausik_project,
@@ -225,7 +226,7 @@ def main() -> int:
         "scope (SENAR Rule 2 — the same rule the Write tool enforces):\n"
         f"{paths}\n"
         f"Active ACL(s):\n{acl_lines}\n"
-        f"Extend it: `tausik task update {first_slug} --scope-paths <existing...> <path>`, "
+        f"Extend it: `{widen_command(first_slug, outside_norm)}`, "
         "or reconsider whether these files belong to the task.",
         file=sys.stderr,
     )

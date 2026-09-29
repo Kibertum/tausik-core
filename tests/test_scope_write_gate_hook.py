@@ -98,7 +98,12 @@ class TestHook:
         _make_db(tmp_path, [("t1", "active", '["scripts/*.py"]')])
         r = _run_hook(tmp_path, file_path=str(tmp_path / "docs" / "x.md"))
         assert r.returncode == 2
-        assert "BLOCKED" in r.stderr and "t1" in r.stderr and "--scope-paths" in r.stderr
+        # The remediation is ADDITIVE and names only the path it refused: the old text
+        # said `--scope-paths <existing...>`, which asked the agent to retype the whole
+        # declared list — a second long call, and where a path went missing.
+        assert "BLOCKED" in r.stderr and "t1" in r.stderr
+        assert "--add-scope-paths docs/x.md" in r.stderr
+        assert "<existing" not in r.stderr
 
     def test_explicit_empty_acl_blocks_everything(self, tmp_path):
         _make_db(tmp_path, [("t1", "active", "[]")])

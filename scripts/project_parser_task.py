@@ -253,6 +253,16 @@ def add_task(sub: argparse._SubParsersAction) -> None:
 
     tupdate = task_sub.add_parser("update")
     tupdate.add_argument("slug")
+    tupdate.add_argument(
+        "--add-scope-paths",
+        nargs="*",
+        default=None,
+        dest="add_scope_paths",
+        help="ADD paths to the declared write scope, keeping what is already there. "
+        "The scope is declared before the work reveals which files it touches, so "
+        "widening is the normal case; --scope-paths replaces and made every widening "
+        "restate the whole list.",
+    )
     tupdate.add_argument("--title", default=None)
     tupdate.add_argument("--goal", default=None)
     tupdate.add_argument("--notes", default=None)

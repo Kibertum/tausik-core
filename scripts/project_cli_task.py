@@ -225,6 +225,13 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
     elif c == "update":
         import json as _json
 
+        from task_scope_widen import refuse_conflicting_flags, widen
+
+        refuse_conflicting_flags(args)
+        add_paths = getattr(args, "add_scope_paths", None)
+        if add_paths is not None:
+            print(widen(svc, args.slug, list(add_paths)))
+
         fields = {}
         for k in (
             "title",
@@ -263,7 +270,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             fields["tracker_refs"] = tracker_ref.dumps(tracker_ref.normalise_all(list(tickets)))
         if fields:
             print(svc.task_update(args.slug, **fields))
-        else:
+        elif add_paths is None:
+            # A widening already printed what it did; saying this after one
+            # would read as "nothing happened" over a change that did.
             print("No fields to update.")
     elif c == "delete":
         print(svc.task_delete(args.slug))

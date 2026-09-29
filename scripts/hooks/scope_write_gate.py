@@ -30,6 +30,7 @@ sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
 from _common import is_tausik_project  # noqa: E402
+from task_scope_widen import widen_command  # noqa: E402
 from hook_policy import (  # noqa: E402
     classify_target,
     fail_open_on_db_error,
@@ -259,8 +260,7 @@ def main() -> int:
     print(
         f"BLOCKED: '{rel}' is outside the declared scope of the active task(s) "
         f"(SENAR Rule 2 scope enforcement).\n{acl_lines}\n"
-        f"Options: extend the ACL — `tausik task update {first_slug} "
-        f"--scope-paths <existing...> {rel}` (overwrites prior list), or "
+        f"Options: extend the ACL — `{widen_command(first_slug, [rel])}`, or "
         "reconsider whether this file belongs to the task.",
         file=sys.stderr,
     )
