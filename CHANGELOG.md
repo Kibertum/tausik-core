@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed -- code and comments are written in English, and the rule now exists
+
+The owner had asked repeatedly. The rule existed nowhere: not in this project's CLAUDE.md, not
+in the agent contract, and the shipped `CODE_STYLE` template said the opposite in as many
+words — "docstrings, comments and test descriptions take any language". Decision #404
+supersedes that half of convention #745; identifiers were already ASCII.
+
+**THE REMAINDER IS MEASURED AND RATCHETED, NOT TRANSLATED IN ONE PASS.** 5,348 lines of
+non-English prose across 287 files (scripts 1,406, tests 3,740, bootstrap 127, harness 75).
+Rewriting them in a single edit is exactly the size of change this project refuses to make
+without a task per unit of meaning; the ratchet lets the number fall as files are touched for
+their own reasons and refuses to let it rise.
+
+**TWO NUMBERS, BECAUSE THEY CARRY DIFFERENT PRICES.** 269 Cyrillic identifiers, all in
+`tests/`, stay: 83 evidence citations in 21 closed tasks point at Cyrillic pytest node ids,
+journals are append-only, and renaming would turn live evidence into unresolvable references.
+That price was measured before the exemption was declared, and the counts are kept apart so it
+cannot quietly grow into the prose number.
+
+**THE RULE STOPS AT THE FILE.** Answers to the user stay in the user's language; a test holds
+that boundary, because a rule about source that leaked into replies would be a different and
+worse rule.
+
+**THE DETECTOR COUNTED ITSELF ON THE FIRST RUN.** `ruff format` collapsed the escaped
+character range into literal characters, so the pattern line became a finding. It is built
+with `chr()` now, and the test that reads this project's own rule builds its needle the same
+way — it had added a line to the number it guards.
+
 ### Added -- what a finished task costs, counted in turns, and the number is five times worse
 
 The token question had been answered in the wrong unit. Across 5,964 telemetry rows the input

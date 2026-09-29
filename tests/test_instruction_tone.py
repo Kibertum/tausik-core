@@ -123,7 +123,7 @@ class TestTheRulesThemselvesSurvivedTheEdit:
             pytest.param("No direct DB access", id="db"),
             pytest.param("Git: ask before commit/push", id="git"),
             pytest.param("Max 500 lines per file", id="filesize"),
-            pytest.param("Identifiers are ASCII", id="code_style"),
+            pytest.param("Code is written in English", id="code_style"),
         ],
     )
     def test_the_rule_is_still_stated(self, body, phrase):
@@ -163,6 +163,13 @@ class TestTheBodyStaysWithinItsBudget:
         existing one, not an addition. The ordering it carried reaches the agent from
         the task-start prompt instead (scripts/code_necessity.py).
 
+        A FIFTH re-base, to 15431, carries decision #404: the owner's instruction that code
+        and comments are written in English. The rule it replaced said the opposite in as many
+        words -- docstrings and comments could take any language -- so this was a CORRECTION of
+        a shipped rule rather than an addition, and it cost 203 characters to say the three
+        things it now says: the identifier half, the prose half, and the boundary that keeps
+        the rule off the user's reply.
+
         A FOURTH re-base, to 15228, was TAKEN rather than refused, and the reason is
         the difference: the owner ordered the answer shape into the shipped rules, so
         the rule was not optional and the question was only what it displaced. It was
@@ -179,7 +186,7 @@ class TestTheBodyStaysWithinItsBudget:
         growing inside lines the line count cannot see. Each re-base names what was
         bought, because a budget raised without a reason is not a budget.
         """
-        assert len(body) <= 15228
+        assert len(body) <= 15431
 
     def test_it_is_still_within_the_line_budget(self, body):
         """The same 80-180 bound `test_bootstrap_generate` holds the file to."""

@@ -69,7 +69,9 @@ class TestBothRulesAreStated:
     @pytest.mark.parametrize(
         ("phrase", "why"),
         [
-            pytest.param("Identifiers are ASCII", "the naming rule itself", id="naming_rule"),
+            pytest.param(
+                "Code is written in English", "the naming and prose rule itself", id="naming_rule"
+            ),
             pytest.param("goes to `memory add`", "where a note belongs", id="note_destination"),
             pytest.param(
                 "Identifier style", "the doctor row, so the rule can be found", id="doctor_row"
@@ -138,7 +140,7 @@ class TestHardConstraintsAreNotBlurred:
     def test_the_style_section_is_separate_from_the_hard_ones(self):
         """Neither style rule refuses anything, and saying otherwise in the file a
         fresh agent reads first would teach it to distrust the rest."""
-        assert "Identifiers are ASCII" not in bt.HARD_CONSTRAINTS
+        assert "Code is written in English" not in bt.HARD_CONSTRAINTS
         assert "non-negotiable" not in bt.CODE_STYLE
 
 
@@ -147,7 +149,7 @@ class TestTheRulesReachTheGeneratedFile:
 
     def test_the_section_is_assembled_into_claude_md(self):
         generated = _body()
-        assert "Identifiers are ASCII" in generated
+        assert "Code is written in English" in generated
         assert "goes to `memory add`" in generated
 
     def test_it_sits_next_to_the_hard_constraints(self):
@@ -165,7 +167,7 @@ class TestTheRulesReachTheGeneratedFile:
 
         generate_claude_md(str(tmp_path), "proj", ["python"], "standard", "off")
         text = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
-        assert "Identifiers are ASCII" in text
+        assert "Code is written in English" in text
         assert "goes to `memory add`" in text
 
     def test_this_repository_uses_a_hand_written_claude_md(self):

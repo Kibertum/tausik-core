@@ -263,5 +263,11 @@
     "_comment": "MEASURED BASELINE, local by nature. The subject is host transcripts, which live on the machine that produced them and never travel — the same property red_history declares. So this is a ratchet where the answers were written and an ABSENCE everywhere else; it never fails a build for want of data. It is deliberately NOT the 200-word budget the agent is told to aim at: a threshold ordinary work crosses on day one is one somebody switches off, and this project paid for that lesson once with a telemetry window. Measured 2026-09-29 over 10 transcripts / 52 answers, with the answer-shape rule newly in the rules file and most of the sample written before it. May only shrink.",
     "final_words_median": 522.5,
     "final_words_p90": 923
+  },
+  "prose_language": {
+    "_comment": "Decision #404, the owner's instruction: code and comments are written in English. It supersedes half of convention #745, which had settled that identifiers must be ASCII and that docstrings and comments could take any language. TWO NUMBERS because they carry different prices. PROSE (comments, docstrings, string literals) costs only the rewrite. IDENTIFIERS stay: 83 evidence citations in 21 closed tasks point at Cyrillic pytest node ids, journals are append-only, and renaming would turn live evidence into unresolvable references — the price was measured before the exemption was declared. Measured 2026-09-29 over scripts/harness/bootstrap/tests. Both may only shrink, and no mass translation is scheduled: 5348 lines in one pass is the size of edit this project refuses to make without a task per unit of meaning.",
+    "prose_lines": 5348,
+    "files": 287,
+    "identifiers": 269
   }
 }

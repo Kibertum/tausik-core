@@ -64,7 +64,7 @@ HARD_CONSTRAINTS = """## Hard Constraints
 # reluctant to take on ambitious work, which costs far more than the prose saves.
 CODE_STYLE = """## Code Style
 
-- **Identifiers are ASCII; prose is not.** Traces, `grep`, pytest node ids and coverage reports read the name, and a non-ASCII one breaks quietly — console encoding, a regex over `\\w`, a backslash in `sh`. Docstrings, comments and test descriptions take any language. `doctor` reports this as `Identifier style`, counted from your own code.
+- **Code is written in English — identifiers AND prose.** Traces, `grep`, pytest node ids and coverage reports read the name, and a non-ASCII one breaks quietly: console encoding, a regex over `\\w`, a backslash in `sh`. Comments, docstrings and test descriptions are English too, so the next reader of a file is not decided by which language they happen to have. `doctor` reports the identifier half as `Identifier style`, counted from your own code. Answers to the user stay in the user's language: this rule is about the file, not the reply.
 - **What happened goes to `memory add`; why the code is that way stays in the docstring.** A session id, decision id or date in a comment is paid for on every read of that file and found only by whoever already opened it. Closing a task names the ones it added and prints the command that files them; the invariant in your docstrings is not the target.
 """
 
