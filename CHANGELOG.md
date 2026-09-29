@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed -- the register of rotted citations was not empty after all, and the release notes said it was
+
+The coherence lens raised it as HIGH before the tag: two closure citations named a test that no
+longer exists, against a declared remainder of zero. The 1.10 notes claim the register is
+empty, so shipping like that would have made the release lie in its own release notes.
+
+Both were answered in the journals of the tasks that made them, because those journals are
+append-only and rewriting them would forge the evidence this project exists to keep honest:
+
+* `test_brain_config.py` -- RETIRED in all five citing tasks, with the commit that removed it
+  (`77703c4a`, the Notion transport). The file went WITH ITS SUBJECT; there is no successor and
+  there cannot be one.
+* `test_verify_first_contract.py::test_fallback_skipped_when_no_verify_row` -- MOVED. The
+  name-similarity candidate was REJECTED by reading it: it covers security-sensitive paths,
+  which is a different check. The real successor is named in its own docstring.
+
+**AND THE MECHANISM PROVED ITSELF ON THE WAY.** The first MOVED answer was silently not
+counted: the address was followed by a full stop, and the parser swallowed it into the address,
+which then stopped resolving. A correcting line in the same journal fixed it without rewriting
+anything -- the append-only contract working. The swallowed full stop is filed as its own
+defect.
+
 ### Added -- release notes for 1.10 in both languages, which the release procedure requires
 
 `tausik publish notes` refuses a release body without both pages, a rule this project put in

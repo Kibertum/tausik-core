@@ -59,3 +59,4 @@ Currently Notion token is read only from os.environ — confusing for users (she
 - 2026-09-26T18:44:23Z [done] — EVIDENCE-RETIRED: test_brain_runtime_web_cache.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport); cited without its directory
 - 2026-09-26T18:44:25Z [done] — EVIDENCE-RETIRED: test_brain_token_resolve.py — file deleted by 77703c4a (feat(knowledge)!: remove the Notion transport); cited without its directory
 - 2026-09-26T18:44:26Z [done] — EVIDENCE-UNPROVEN: test_brain_runtime.py — git never carried this path or member under any directory
+- 2026-09-29T10:08:43Z [done] — EVIDENCE-RETIRED: test_brain_config.py — файл удалён ВМЕСТЕ СО СВОИМ ПРЕДМЕТОМ коммитом 77703c4a «feat(knowledge)!: remove the Notion transport» (решение #358). Преемника нет и быть не может: транспорт Notion упразднён целиком, проверять больше нечего. Покрытие не потеряно — оно стало неприменимо.
