@@ -9,6 +9,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-09-30
+
 ### Fixed — a reissued ROADMAP.md no longer refuses a close without files
 
 A status change rewrites ROADMAP.md, and `task done --no-file-changes` then refused because
