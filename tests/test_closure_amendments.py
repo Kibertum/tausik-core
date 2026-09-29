@@ -108,3 +108,74 @@ def test_the_answer_template_names_the_full_successor(tmp_path):
     (finding,) = report["findings"]
     assert successor_ref(finding) == NEW
     assert ca.template(OLD, "a", NEW) == f'tausik task log a "EVIDENCE-MOVED: {OLD} => {NEW}"'
+
+
+class TestAnAddressIsNotASentence:
+    """MEASURED on the first real use: one answer, one full stop, silently not counted.
+
+    A journal line is prose. An author who finishes the thought puts a full stop right after
+    the reference, `\S+` took it into the address, the address resolved to nothing, and the
+    answer did not count — with no complaint, which is the class this project calls zero
+    tolerance. The register stayed red and the reason was invisible.
+    """
+
+    @pytest.mark.parametrize(
+        ("line", "expected"),
+        [
+            pytest.param(
+                "EVIDENCE-MOVED: a.py::t => tests/x.py::test_y.",
+                "tests/x.py::test_y",
+                id="full_stop",
+            ),
+            pytest.param(
+                "EVIDENCE-MOVED: a.py::t => tests/x.py::test_y,",
+                "tests/x.py::test_y",
+                id="comma",
+            ),
+            pytest.param(
+                "EVIDENCE-MOVED: a.py::t => tests/x.py::test_y;",
+                "tests/x.py::test_y",
+                id="semicolon",
+            ),
+            pytest.param(
+                "EVIDENCE-MOVED: a.py::t => tests/x.py::test_y",
+                "tests/x.py::test_y",
+                id="nothing_to_trim",
+            ),
+        ],
+    )
+    def test_sentence_punctuation_after_an_address_is_not_part_of_it(self, line, expected):
+        assert ca.parse(line)["a.py::t"] == ("moved", expected)
+
+    def test_a_dot_inside_an_address_is_load_bearing(self):
+        """Trimming by class rather than by position would eat the extension."""
+        assert ca.parse("EVIDENCE-MOVED: a.py::t => tests/x.py")["a.py::t"] == (
+            "moved",
+            "tests/x.py",
+        )
+
+    def test_the_old_address_is_trimmed_too(self):
+        """It is read from the same prose and ends a clause just as often.
+
+        The separator before a reason is an em dash or a hyphen, as the format documents; a
+        comma there produces no reason at all, and that is the format's answer, not a bug this
+        change is allowed to paper over.
+        """
+        assert ca.parse("EVIDENCE-RETIRED: tests/x.py. — gone with its subject")["tests/x.py"] == (
+            "retired",
+            "gone with its subject",
+        )
+        assert ca.parse("EVIDENCE-RETIRED: tests/x.py, gone with its subject") == {}
+
+    def test_a_reason_keeps_its_own_full_stop(self):
+        """THE NEGATIVE: a reason is free text, and trimming there would edit what somebody
+        wrote. Only addresses are trimmed."""
+        got = ca.parse("EVIDENCE-RETIRED: tests/x.py — subject removed in 77703c4a.")
+        assert got["tests/x.py"] == ("retired", "subject removed in 77703c4a.")
+
+    def test_a_reference_that_is_only_punctuation_survives(self):
+        """Reduced to an empty string it would be a ref nobody can report back, so the trim
+        yields to the original rather than returning nothing."""
+        got = ca.parse("EVIDENCE-RETIRED: . — nothing here")
+        assert "." in got
+        assert "" not in got, "an empty key is a finding nobody can name back to the author"

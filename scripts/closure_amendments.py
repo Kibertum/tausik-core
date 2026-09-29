@@ -33,14 +33,42 @@ _LINE = re.compile(
 )
 
 
+#: Punctuation that ends a SENTENCE, never an address. A journal line is prose, so an author
+#: who finishes the thought puts one of these right after the reference — and `\S+` took it
+#: into the address, which then resolved to nothing and the answer was silently not counted.
+#: The first real use of the mechanism lost its answer exactly this way: one full stop, and
+#: nothing said so.
+#:
+#: Stripped from the RIGHT only, and only these: a dot INSIDE an address is load-bearing
+#: (`tests/x.py::test_y`), and trimming by class rather than by position would eat the
+#: extension. `::` is excluded for the same reason a colon is not in this set.
+_SENTENCE_TAIL: str = ".,;!?"
+
+
+def _address(raw: str) -> str:
+    """An address with sentence punctuation taken off its tail.
+
+    Only the tail: `tests/x.py` keeps its dot because the dot is not last. A reference that IS
+    only punctuation is left alone rather than reduced to an empty string, so the caller sees a
+    ref it can report instead of a blank one it cannot.
+    """
+    trimmed = raw.rstrip(_SENTENCE_TAIL)
+    return trimmed or raw
+
+
 def parse(notes: str) -> dict[str, tuple[str, str]]:
-    """{old ref: (outcome, new ref or reason)} for every outcome line in notes."""
+    """{old ref: (outcome, new ref or reason)} for every outcome line in notes.
+
+    Addresses are trimmed of sentence punctuation; REASONS are not. A reason is free text and
+    the author's full stop belongs to it — trimming there would edit what somebody wrote.
+    """
     out: dict[str, tuple[str, str]] = {}
     for m in _LINE.finditer(notes or ""):
         kind, ref, new, reason = m.group(1).lower(), m.group(2), m.group(3), m.group(4)
+        ref = _address(ref)
         if kind == MOVED:
             if new:
-                out[ref] = (MOVED, new)
+                out[ref] = (MOVED, _address(new))
         elif reason and reason.strip():
             out[ref] = (kind, reason.strip())
     return out

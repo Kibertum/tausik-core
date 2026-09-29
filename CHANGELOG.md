@@ -9,6 +9,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed -- an `EVIDENCE-MOVED` answer was silently not counted when the address ended a sentence
+
+Found by using the mechanism for the first time. A journal line is prose: the author finishes
+the thought with a full stop, the parser took the reference as `\S+` and swallowed the stop
+into the address, the address stopped resolving, and the answer did not count -- with nothing
+said about it. The register stayed red and the reason was invisible, which is the class this
+project calls zero tolerance.
+
+Sentence punctuation is now trimmed from the TAIL of an address, and only there: a dot inside
+`tests/x.py::test_y` is load-bearing, so trimming by character class rather than by position
+would have eaten the extension. Both the old and the new address are trimmed, since both are
+read out of the same prose.
+
+**A REASON KEEPS ITS OWN FULL STOP.** It is free text, and trimming there would edit what
+somebody wrote. A reference that is nothing but punctuation is left alone too, because reducing
+it to an empty string would produce a finding nobody can name back to its author.
+
 ### Fixed -- the register of rotted citations was not empty after all, and the release notes said it was
 
 The coherence lens raised it as HIGH before the tag: two closure citations named a test that no
