@@ -19,6 +19,7 @@ scope_paths:
   - "tausik/"
   - "docs/"
   - "tests/"
+  - ".gitlab-ci.yml"
 scope_tools: []
 depends_on: []
 completed_at: null
@@ -50,3 +51,5 @@ AC-1 CHANGELOG.md/.ru.md carry '## [1.10.0] — 2026-09-30' and an empty [Unrele
 A published tag is never moved (publishing.md). Before the GitHub push: delete the local/origin tag and the snapshot commit. After: publish 1.10.1.
 
 ## Journal
+
+- 2026-09-29T22:59:16Z [implementation] — AC-1: ✓ '## [1.10.0] — 2026-09-30' in both changelogs, empty [Unreleased] above (118 related tests green). AC-2: ✓ annotated v1.10.0 on df7d9f90, branch v1-10 pushed to origin (215c29ab..df7d9f90). Waiting: GitLab pipeline #8695 (publishing.md step 1). Prepared: snapshot dry-run from v1.10.0, leak classes 0/0, filtered tree e3e0b8ea; release body passes 'publish notes'.
