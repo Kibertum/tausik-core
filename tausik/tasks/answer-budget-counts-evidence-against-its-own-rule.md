@@ -1,9 +1,9 @@
 ---
 slug: answer-budget-counts-evidence-against-its-own-rule
 title: "Бюджет ответа считает доказательство, хотя конвенция ставит его на пересказ"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-owner-priorities
 complexity: simple
 role: developer
 stack: python
@@ -12,7 +12,11 @@ call_budget: null
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - "scripts/answer_shape.py"
+  - "tausik/gates.json"
+  - "tests/test_answer_evidence_split.py"
+  - "changelog.d/answer-budget-counts-evidence-against-its-own-rule.md"
 scope_paths:
   - "scripts/answer_shape.py"
   - "scripts/answer_budget_ratchet.py"
@@ -20,13 +24,13 @@ scope_paths:
   - "tausik/gates.json"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-29T22:11:24Z"
 resolution: null
 resolution_reason: null
 tracker_refs: []
-started_model_id: null
+started_model_id: claude-opus-5
 started_model_version: null
-done_model_id: null
+done_model_id: claude-opus-5
 done_model_version: null
 model_mismatch: 0
 no_file_changes_declared: 0
@@ -53,3 +57,5 @@ AC-5 Полная лента зелёная.
 git revert; мера считает все слова, как сейчас
 
 ## Journal
+
+- 2026-09-29T22:10:32Z [implementation] — AC-1: ✓ declared mark in code: scripts/answer_shape.py _FENCE/_TABLE_ROW + evidence_words(); tests/test_answer_evidence_split.py::test_fenced_output_and_table_rows_are_evidence_not_retelling. AC-2: ✓ baseline declared anew on the new measure: median 162.0, p90 365 (same newest-10 window), tausik/gates.json answer_shape with provenance. AC-3 Negative: ✓ tests/test_answer_evidence_split.py::test_an_answer_with_no_evidence_is_counted_whole and ::test_an_unclosed_fence_does_not_exempt_the_rest. AC-4 Negative: ✓ started only with the measure green (p90 453 = baseline 453 before the change). AC-5: ✓ full lane 12579 passed; the 1 red (comment history refs 235>234, from comments added this session) fixed, tests/test_comment_history_refs.py 80 passed.

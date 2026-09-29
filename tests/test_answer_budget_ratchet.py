@@ -143,9 +143,13 @@ class TestTheBaselineIsAMeasurementNotAWish:
         lesson this project already paid for with a telemetry window."""
         from answer_shape import DEFAULT_BUDGET_WORDS
 
+        # Was `> DEFAULT_BUDGET_WORDS`: that was an empirical premise, measured on the
+        # OLDEST transcripts by a mis-sliced reader. On the newest ten the median is 198,
+        # under the budget. What stays is the invariant: the number is measured, not set.
         recorded = abr.baseline(str(_REPO))
         assert recorded, "the live repository must carry a recorded baseline"
-        assert recorded["final_words_median"] > DEFAULT_BUDGET_WORDS
+        assert recorded["final_words_median"] != DEFAULT_BUDGET_WORDS
+        assert "RE-MEASURED" in recorded.get("_comment", "")
 
     def test_the_recorded_baseline_says_when_and_over_what_it_was_measured(self):
         note = abr.baseline(str(_REPO)).get("_comment", "")

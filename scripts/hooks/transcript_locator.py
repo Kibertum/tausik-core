@@ -140,6 +140,17 @@ def project_transcripts(project_dir: str | None = None) -> list[str]:
     return sorted(files, key=_safe_mtime)
 
 
+def newest_project_transcripts(project_dir: str | None, last: int) -> list[str]:
+    """The NEWEST `last` transcripts, oldest of them first.
+
+    `project_transcripts` is oldest-first, so `[:last]` is the FIRST sessions ever
+    recorded. Both the answer measure and its ratchet sliced it that way and read a
+    window frozen on the project's earliest transcripts (p90 1325 on the oldest ten
+    against 453 on the newest ten). One helper, so the two cannot drift.
+    """
+    return project_transcripts(project_dir)[-max(1, int(last)) :]
+
+
 def latest_project_transcript(project_dir: str | None = None) -> str | None:
     """Newest transcript that verifiably belongs to this project, or None."""
     files = project_transcripts(project_dir)

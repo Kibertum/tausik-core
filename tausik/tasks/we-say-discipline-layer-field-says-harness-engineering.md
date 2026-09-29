@@ -1,9 +1,9 @@
 ---
 slug: we-say-discipline-layer-field-says-harness-engineering
 title: "Мы называем себя discipline layer, поле называет эту дисциплину harness engineering — и не находит нас"
-status: planning
+status: blocked
 epic: release-110-deferred-from-19
-story: deferred-110-outward-loop-and-test-authorship
+story: release110-owner-priorities
 complexity: medium
 role: tech-writer
 stack: null
@@ -19,13 +19,14 @@ scope_paths:
   - "docs/ru/*.md"
   - "docs/en/*.md"
 scope_tools: []
-depends_on: []
+depends_on:
+  - readme-is-a-wall-not-a-path
 completed_at: null
 resolution: null
 resolution_reason: null
 tracker_refs:
   - "github#95"
-started_model_id: null
+started_model_id: claude-opus-5
 started_model_version: null
 done_model_id: null
 done_model_version: null
@@ -55,3 +56,5 @@ TAUSIK описан в терминах, которыми поле себя на
 git revert коммита; правки только в документах
 
 ## Journal
+
+- 2026-09-29T21:27:02Z [implementation] — Text part done: 'Where it sits' paragraph (harness engineering = loop+tools+context+control; TAUSIK is NOT a harness, it is the verification/control layer on top; differentiator: nothing is done without evidence) in README.md, README.ru.md, docs/en/architecture.md, docs/ru/architecture.md. AC-1 ✓ AC-2 ✓ AC-5 ✓ (287 doc tests incl tests/test_code_counts.py) AC-6 ✓ (term absent from bootstrap/ and CLI parsers). Open: AC-3 GitHub topics on the mirror and AC-4 PRs into curated lists are OUTWARD actions -> owner.

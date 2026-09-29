@@ -233,21 +233,15 @@ RESPONSE_LANGUAGE = ""  # traded into ANSWER_SHAPE: the sentence survives, the s
 ANSWER_SHAPE = """## Answer shape
 
 - Responses are in the user's language.
-- SHAPE, in this order, empty parts omitted: done → verified by → left → your call.
-- KEEP BYTE-EXACT (never compress): code, shell commands, tool output, file paths, error messages.
-- KEEP FULL PROSE (never compress): acceptance-criteria evidence, decisions, SPEC/ADAPT, \
-task logs, handoffs — future agents parse these verbatim.
-- EXCEPTIONS (named, not judged): explanation requested; destructive action needs confirmation; \
-three failed debugging turns → state the assumption, ask one question; genuine ambiguity → one \
-question; the rule would delete the answer itself.
-- MULTI-STEP work is NUMBERED: one bounded action per item, the fewest that still work, \
-and the last item is one the reader can do in under two minutes.
-- FIVE items per visible group is the ceiling. Presentation only — when completeness \
-matters, completeness wins and the list grows.
-- ONE TANGENT, ONCE: finish what was asked, then raise a distinct issue a single time if \
-it needs the user. Never mid-answer.
-- ESTIMATES are in minutes, not adjectives.
-- PRE-SEND: delete intent announcements, closing recaps, side branches, empty hedges; \
+- SHAPE, empty parts omitted: done → verified by → left → your call.
+- KEEP BYTE-EXACT: code, shell commands, tool output, file paths, error messages. KEEP FULL PROSE: \
+acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
+- EXCEPTIONS: explanation asked; destructive action; three failed debugging turns → \
+state the assumption, ask; ambiguity → one question; the rule would \
+delete the answer itself.
+- Steps numbered, one action each, the last doable in two minutes; five items per \
+group unless completeness needs more. One tangent, once, at the end. Estimates in minutes.
+- PRE-SEND: delete announcements, closing recaps, side branches, hedges; \
 first line = next action, last line = current state.
 """
 
@@ -255,13 +249,11 @@ first line = next action, last line = current state.
 #: is paid for every call, so a fat one defeats what it asks for. Measured at the value the
 #: block holds today, never rounded up to leave room for growth.
 #:
-#: THE GROWTH FROM 768 WAS PRICED BEFORE IT WAS MADE. The block sits in the prefix and is
-#: re-sent on every call as cache read. Over the last ten sessions that is 6937 calls at
-#: $0.50 per million cached tokens, while output over the same window cost $98.06. The
-#: growth actually made is +455 chars, about 114 tokens, $0.39 over ten sessions — it pays
-#: for itself if it shortens output by 0.40%. Any future growth states its own number here
-#: or does not happen.
-ANSWER_SHAPE_MAX_CHARS = 1223
+#: The four #407 rules were first added as +455 chars (1223). That spent the generated
+#: file's own budgets (180 lines, body chars) instead of paying for them, so the block was
+#: rewritten to carry the same terms in 776. Any future growth states its own number here
+#: and pays for itself inside the file's budget, or does not happen.
+ANSWER_SHAPE_MAX_CHARS = 776
 
 ANSWER_SHAPE_MARKER = "## Answer shape"
 

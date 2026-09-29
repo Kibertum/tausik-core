@@ -47,6 +47,7 @@ def main() -> None:
     from project_cli_stack import cmd_stack
     from project_cli_config import cmd_config
     from project_cli_doctor import cmd_doctor
+    from project_cli_demo import cmd_demo
     from update_check import cmd_update_check
     from project_cli_coherence import cmd_coherence
     from project_cli_graph import cmd_graph
@@ -126,6 +127,7 @@ def main() -> None:
         "stack": cmd_stack,
         "role": cmd_role,
         "doctor": cmd_doctor,
+        "demo": cmd_demo,
         "dead-end": cmd_dead_end,
         "explore": cmd_explore,
         "audit": cmd_audit,

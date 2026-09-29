@@ -125,6 +125,32 @@ cannot be trusted — the CLI, which re-reads disk on every call, can.
 **Holds the boundary:** `tausik_self_check`, the "MCP Health" section of the `/start`
 skill.
 
+### `/rewind` does not undo what the agent did through the shell
+
+**Not guaranteed:** Claude Code's `/rewind` restores the files an agent changed. Its
+checkpoints track only edits made by its own file tools; anything written through Bash,
+a script or another process is not in the snapshot and is not rolled back.
+
+**Why we live with it:** it is the host's mechanism, not ours, and TAUSIK agents do much
+of their work through the shell. Pretending otherwise would hand the next agent a safety
+net that is not there.
+
+**Holds the boundary:** git. Commit or stash before a risky step; `git diff` shows what a
+rewind would miss.
+
+### The rules file keeps its changing part last
+
+**Not guaranteed:** that everything the agent is given stays in the prompt cache. The
+host caches the longest unchanged prefix, so whatever changes invalidates what follows it.
+
+**Why we live with it:** some context has to change — the session state and the memory
+tail. It is kept in one block at the very end of the rules file (`<!-- DYNAMIC:START -->`),
+after every stable rule, so a change there costs only itself. Per-prompt hook text arrives
+after the conversation prefix for the same reason.
+
+**Holds the boundary:** `tests/test_context_order.py` fails if anything static follows
+the dynamic block in the generated rules file or in this repository's `CLAUDE.md`.
+
 ### Time windows have SECOND granularity
 
 **Not guaranteed:** an event written in the same second in which a window bounded by `now`

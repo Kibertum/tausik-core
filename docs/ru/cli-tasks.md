@@ -10,6 +10,7 @@
 ```bash
 init --name <slug>             # Инициализация проекта (создаёт .tausik/tausik.db)
 init --template aidd [--force] # Скаффолдит AIDD-слои (idea.md/vision.md/conventions.md) в корень проекта.
+demo [--keep]                  # Посмотреть, как TAUSIK ловит ложное «тесты прошли», в одноразовой песочнице: без сети, без ключа LLM, ваш проект не трогается
                                #   Существующие файлы → 4-option prompt: overwrite / merge-append / skip / abort-all.
                                #   Default (Enter) = skip. `--force` перезаписывает без вопросов.
                                #   Неизвестное значение --template — exit ≠ 0, сообщение в stderr.
@@ -34,6 +35,7 @@ metrics record-session         # Записать LLM usage (tokens/cost/tool/mo
 metrics log-usage              # Одна строка manual в usage_events (--task-slug опционально; session_usage_metrics не трогаем)
 metrics cost [--since ISO] [--until ISO]   # SUM токенов/cost и COUNT по task (slug NULL исключены)
 metrics answers [--last N] [--json]   # Форма итоговых ответов агента: слова (медиана/p90), вердикт первой строкой %, доля списков, «вода»
+metrics calls [--last N]             # Вызовы инструментов на закрытую задачу по видам (чтение/правка/запуск/скрипт/обряд/прочее), по сложности
 metrics tokens [--last N] [--rebuild] [--json]   # Объём контекста по инструментам за последние N смен
                                 # Источник: .tausik/token_metrics.jsonl — его пишет SessionEnd hook
                                 #   scripts/hooks/session_metrics.py, обходя транскрипт и раскладывая

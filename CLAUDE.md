@@ -2,7 +2,7 @@
 
 # TAUSIK — фреймворк AI-агентов
 
-TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23. Задачи, сессии, качество, проектная память.
+TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23.
 
 ## Принципы
 
@@ -12,24 +12,32 @@ TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23. Задач�
 
 ## Ограничения (жёсткие)
 
-**Что имеет право стоять здесь:** ограничение, которое агент нарушает по умолчанию, и заявление, которого требует стандарт. Справка — в docs, адрес называется один раз (`docs/ru/claude-md-guide.md`).
+**Что имеет право стоять здесь:** `docs/ru/claude-md-guide.md`.
 
 
 - **Нет кода без задачи.** `task start <slug>` перед Write/Edit.
 - **QG-0 Context Gate.** `task start` требует goal + acceptance_criteria.
-- **QG-2 Verify-First.** `tausik verify --task <slug>` (scoped, cache 10 мин) → `task done --ac-verified`.
-- **Проверка соразмерна правке.** Scoped verify; полная лента — в CI и один раз у тега. Тест — на поведение, не на число в документе и не на свежесть порождённого файла.
+- **QG-2 Verify-First.** `task done <slug> --ac-verified --verify` — проверка и закрытие одним вызовом.
+- **Проверка соразмерна правке.** Scoped verify; полная лента — CI и тег. Тест — на поведение.
 - **Нет коммита без gates.** Исправь blocking failures.
 - **Нет прямого доступа к БД.** Только MCP/CLI.
 - **Не угадывай аргументы CLI.** `tausik <cmd> --help` или `docs/ru/cli.md`.
-- **Исходники в корне** (`scripts/`, `docs/`, `harness/`, `bootstrap/`). Не редактируй `.claude/` напрямую.
-- **MCP-first.** MCP > CLI когда equivalent.
+- **Не редактируй `.claude/`** — исходники в корне (`scripts/`, `docs/`, `harness/`, `bootstrap/`).
+- **MCP-first**, если есть MCP-эквивалент.
 - **Git: спроси перед commit/push.**
-- **Макс. 500 строк/файл.** Filesize gate (decision #190). Исключения: тесты, generated.
-- **Непрерывное журналирование.** `task log <slug> "msg"` после каждого шага.
+- **Макс. 500 строк/файл** (гейт filesize).
+- **Журналируй:** `task log <slug> "msg"` после каждого шага.
 - **Время и ёмкость сессии — сигнал, не ворота** (#376).
-- **Код и комментарии по-английски** (#404); ответ — на языке пользователя.
-- **Форма ответа.** Сделано → чем подтверждено → осталось → ваше решение. Доказательства не сокращаются.
+- **Код и комментарии по-английски** (#404).
+
+## Answer shape (#407)
+
+- Responses are in the user's language.
+- SHAPE, empty parts omitted: done → verified by → left → your call.
+- KEEP BYTE-EXACT: code, shell commands, tool output, file paths, error messages. KEEP FULL PROSE: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
+- EXCEPTIONS: explanation asked; destructive action; three failed debugging turns → state the assumption, ask; ambiguity → one question; the rule would delete the answer itself.
+- Steps numbered, one action each, the last doable in two minutes; five items per group unless completeness needs more. One tangent, once, at the end. Estimates in minutes.
+- PRE-SEND: delete announcements, closing recaps, side branches, hedges; first line = next action, last line = current state.
 
 ## Память
 
@@ -51,11 +59,11 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #278 (active) | Branch: v1-10 | TAUSIK: 1.10.0
-Tasks: 1686/1774 done, 4 obsolete, 1 active, 1 blocked
-Active: adhd-rules-become-ours-not-a-vendored-dependency
-Blocked: site-is-rebuilt-from-the-core-docs-of-the-release
-Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\117ec53f-dbde-45ea-93f1-eb22c72335fd.jsonl
+Session: #279 (active) | Branch: v1-10 | TAUSIK: 1.10.0
+Tasks: 1696/1783 done, 6 obsolete, 2 active, 4 blocked
+Active: reading-code-costs-a-third-of-calls, answer-rules-are-in-every-prompt-not-only-consumers
+Blocked: we-say-discipline-layer-field-says-harness-engineering, memory-tail-by-relevance-not-recency, site-is-rebuilt-from-the-core-docs-of-the-release, github-milestones-follow-the-rebuilt-composition
+Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\2fb2646a-10b7-4fc5-8fb4-be2e70726533.jsonl
 
 ### Memory tail
 Context (5):
@@ -65,11 +73,11 @@ Context (5):
 - #798 Цена задачи в ходах выросла впятеро за полгода: медиана 6 → 32, а рычаг — Bash, 87,6% вызовов
 - #746 Расход токенов TAUSIK почти целиком в cache_read: 99,5% входа, и главный рычаг — число ходов
 Decisions (5):
+- #408 1.10 ПЕРЕСОБРАН под три приоритета владельца (#406), утверждено владельцем в смене #279. Новая история release110-owner-
 - #407 Дисциплина ответа TAUSIK — НАША, а не вендоренная. Принципы (вести с действия, нумеровать многошаговое, потолок пунктов 
 - #406 1.10 ОСТАНОВЛЕН И ПЕРЕСОБИРАЕТСЯ. Указание владельца, смена #278: качество не устраивает. Три приоритета в порядке владе
 - #405 Сайт живёт в ОТДЕЛЬНОМ репозитории tausik-site и ТОЛЬКО на GitLab. Публикации сайта на GitHub нет. Указание владельца, с
 - #404 Код и комментарии пишутся ПО-АНГЛИЙСКИ. Указание владельца, смена #278. Отменяет часть конвенции #745 «докстринг и комме
-- #403 Первичный механизм резолва проекта — КОНФИГ СЕРВЕРА (argv --project + cwd), из НЕ-депрекированных; multi-tenant кэш НЕ н
 Conventions (5):
 - #799 Переименовал тест — ответь на цитаты в том же заходе, иначе регистр покраснеет следующей проверкой
 - #792 Потолок без запаса есть запрет: у бюджета контекста должен быть проверяемый остаток, а не только пре

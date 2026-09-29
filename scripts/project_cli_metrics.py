@@ -187,6 +187,9 @@ def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:
             return True
         print(render(build(conn), closed))
         return True
+    if sub == "calls":
+        __import__("call_mix").run(svc, args)
+        return True
     if sub == "answers":
         __import__("project_parser_answers").run(args)
         return True

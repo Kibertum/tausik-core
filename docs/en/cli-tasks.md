@@ -10,6 +10,7 @@ File, start, drive and close work. Part of the command reference. Start, and the
 ```bash
 init --name <slug>             # Initialize project (creates .tausik/tausik.db)
 init --template aidd [--force] # Scaffold AIDD layers (idea.md/vision.md/conventions.md) into project root.
+demo [--keep]                  # Watch TAUSIK catch a false "tests pass" in a throwaway sandbox: no network, no LLM key, your project untouched
                                #   Existing files trigger a 4-option prompt: overwrite / merge-append / skip / abort-all.
                                #   Default (Enter) = skip. `--force` overwrites without prompting.
                                #   Unknown --template values exit non-zero with a stderr error.
@@ -34,6 +35,7 @@ metrics record-session         # Persist LLM usage (tokens/cost/tool/model) for 
 metrics log-usage              # Append one manual usage_events row (--task-slug optional; no session_usage_metrics overwrite)
 metrics cost [--since ISO] [--until ISO]   # SUM tokens/cost + COUNT rows grouped by task (NULL slug excluded)
 metrics answers [--last N] [--json]   # Shape of the agent's final answers: words (median/p90), verdict-first %, list share, filler
+metrics calls [--last N]             # Tool calls per closed task by kind (read/edit/run/script/ceremony/other), per complexity
 metrics tokens [--last N] [--rebuild] [--json]   # Context volume per tool over the last N sessions
                                 # Source: .tausik/token_metrics.jsonl, written by the SessionEnd hook
                                 #   scripts/hooks/session_metrics.py, which walks the transcript and

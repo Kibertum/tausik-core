@@ -27,11 +27,11 @@ def run(args: Any) -> None:
 
     if sys_path_hooks not in sys.path:
         sys.path.insert(0, sys_path_hooks)
-    from transcript_locator import project_transcripts
+    from transcript_locator import newest_project_transcripts
 
     tdir = find_tausik_dir()
     project_dir = os.path.dirname(tdir) if tdir else os.getcwd()
-    paths = project_transcripts(project_dir)[: max(1, int(getattr(args, "last", 10) or 10))]
+    paths = newest_project_transcripts(project_dir, int(getattr(args, "last", 10) or 10))
     report, skipped = measure(paths)
     summary = report.summary()
     if getattr(args, "as_json", False):

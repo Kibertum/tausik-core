@@ -144,17 +144,49 @@ class TestMCPServerStartup:
             # Timeout is acceptable — server might be waiting for more input
             pass
 
-    def test_server_rejects_missing_project(self):
-        """Server should fail without --project flag."""
-        result = subprocess.run(
+    def test_server_without_project_still_answers_the_host(self, tmp_path):
+        """Without --project the project is resolved per request (a4219bdf), so a launch
+        outside any project must still list tools and answer a call with the way out —
+        a host that cannot list tools reads the server as dead. The old contract, a
+        refusal at startup, was withdrawn; a bad --project is still refused
+        (tests/test_mcp_project_server.py::test_project_server_rejects_missing_dir)."""
+        messages = [
+            _jsonrpc(
+                "initialize",
+                {
+                    "protocolVersion": _protocol_version(),
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1.0"},
+                },
+                req_id=1,
+            ),
+            json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+            _jsonrpc("tools/list", {}, req_id=2),
+            _jsonrpc("tools/call", {"name": "tausik_status", "arguments": {}}, req_id=3),
+        ]
+        env = os.environ.copy()
+        env.pop("TAUSIK_DIR", None)
+        proc = subprocess.Popen(
             [PYTHON, SERVER],
-            capture_output=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
-            timeout=5,
+            errors="replace",
+            cwd=str(tmp_path),
+            env=env,
         )
-        assert result.returncode != 0
-        assert "required" in result.stderr.lower() or "error" in result.stderr.lower()
+        stdout, stderr = proc.communicate("\n".join(messages) + "\n", timeout=15)
+        replies = {r.get("id"): r for r in map(json.loads, filter(None, stdout.splitlines()))}
+
+        assert "result" in replies.get(2, {}), f"no tools/list reply: {stdout!r} {stderr!r}"
+        assert len(replies[2]["result"]["tools"]) >= 26
+        call = replies.get(3, {}).get("result", {})
+        text = " ".join(c.get("text", "") for c in call.get("content", []))
+        assert text, f"no tools/call reply: {stdout!r} {stderr!r}"
+        assert "Traceback" not in text and "Traceback" not in stderr
+        assert "--project" in text
 
 
 class TestMCPToolsListing:

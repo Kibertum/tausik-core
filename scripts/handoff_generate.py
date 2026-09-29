@@ -69,7 +69,40 @@ def _last_log(be: Any, slug: str) -> str:
     return str(logs[-1]["message"])[:300] if logs else ""
 
 
-def generate(be: Any, session: dict[str, Any]) -> dict[str, Any]:
+SLOW_LANE_FILE = "slow_lane.json"
+
+
+def slow_lane(tausik_dir: str | None, start: datetime) -> str | None:
+    """The slow lane's colour as the handoff states it, or None where no lane is recorded.
+
+    A project whose test suite writes `.tausik/slow_lane.json` (this repository's
+    conftest does) has a lane the default run deselects and CI may not reach. For such
+    a project silence is the failure mode: a lane not run in this session, or run red,
+    is said in words. A project that records nothing gets nothing — it has no such lane.
+    """
+    import json
+    import os
+
+    if not tausik_dir:
+        return None
+    path = os.path.join(tausik_dir, SLOW_LANE_FILE)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            rec = json.load(f)
+        ran_at = _ts(rec.get("ran_at"))
+        failed, passed = int(rec.get("failed", 0)), int(rec.get("passed", 0))
+    except (OSError, ValueError, TypeError, AttributeError) as e:
+        return f"UNREADABLE {path}: {type(e).__name__} — run `pytest -q -m slow`"
+    if ran_at is None or ran_at < start:
+        return f"NOT RUN this session (last {rec.get('ran_at')}) — run `pytest -q -m slow`"
+    if failed or rec.get("exit_status") not in (0, None):
+        return f"RED: {failed} failed, {passed} passed at {rec.get('ran_at')}"
+    return f"green: {passed} passed at {rec.get('ran_at')}"
+
+
+def generate(be: Any, session: dict[str, Any], tausik_dir: str | None = None) -> dict[str, Any]:
     """The handoff of `session`, projected from the records of its window."""
     start, end = _window(session)
     tasks = be.task_list() or []
@@ -114,6 +147,9 @@ def generate(be: Any, session: dict[str, Any]) -> dict[str, Any]:
     }
     if exploration:
         out["exploration"] = {"id": exploration.get("id"), "title": exploration.get("title")}
+    lane = slow_lane(tausik_dir, start)
+    if lane is not None:
+        out["slow_lane"] = lane
     if not any(out[k] for k in _RECORDED) and not exploration:
         out["empty"] = EMPTY_WINDOW
     return out

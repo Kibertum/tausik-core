@@ -62,10 +62,10 @@ def measure_local(project_dir: str, last: int = 10) -> dict[str, Any]:
             sys.path.insert(0, p)
     try:
         from answer_shape import measure
-        from transcript_locator import project_transcripts
+        from transcript_locator import newest_project_transcripts
     except ImportError:
         return {}
-    paths = project_transcripts(project_dir)[: max(1, last)]
+    paths = newest_project_transcripts(project_dir, last)
     if not paths:
         return {}
     report, _skipped = measure(paths)

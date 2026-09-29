@@ -111,6 +111,17 @@ def _answer_budget_nudge(project_dir: str) -> str | None:
         return None
 
 
+def _answer_rules() -> str | None:
+    """The answer rules on every human prompt: before the answer, not after a long one."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from answer_shape import rules_line
+
+        return rules_line()
+    except Exception:  # noqa: BLE001 — an advisory line must never break the prompt hook
+        return None
+
+
 def main() -> int:
     # hook-stderr-encoding-locale-dependent: this hook's messages contain
     # non-ASCII, and their readability must not depend on how it was
@@ -144,6 +155,9 @@ def main() -> int:
     budget_line = _answer_budget_nudge(project_dir)
     if budget_line:
         nudges.append(budget_line)
+    rules = _answer_rules()
+    if rules:
+        nudges.append(rules)
 
     if not nudges:
         return 0

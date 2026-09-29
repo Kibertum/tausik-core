@@ -81,6 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_actz_subparsers(sub)
     build_at_subparsers(sub)
     build_aidd_subparsers(sub)
+    __import__("project_cli_demo").build_demo_subparser(sub)
     doctor_p = sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
     doctor_p.add_argument(
         "--fix-bytecode",

@@ -47,13 +47,38 @@ _NARRATION_START = re.compile(
 )
 VERDICT_MAX_WORDS = 25
 
+#: THE DECLARED MARK OF EVIDENCE (convention #768: the budget is on the retelling, not on
+#: the proof). Two forms, both visible in the text rather than guessed: a fenced block
+#: (tool output, a command, a quoted receipt) and a markdown table row (measurements).
+#: Everything else is retelling. An answer with neither is counted whole — a long answer
+#: cannot declare itself evidence by saying so.
+_FENCE = re.compile(r"^\s*(```|~~~)")
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+
+
+def evidence_words(text: str) -> int:
+    """Words inside fenced blocks and markdown table rows."""
+    inside, n, pending = False, 0, 0
+    for ln in (text or "").splitlines():
+        if _FENCE.match(ln):
+            if inside:
+                n += pending  # a block counts only once it is closed
+            inside, pending = not inside, 0
+            continue
+        if inside:
+            pending += len(_WORD.findall(ln))
+        elif _TABLE_ROW.match(ln):
+            n += len(_WORD.findall(ln))
+    return n  # an unclosed fence stays retelling: one stray ``` cannot exempt the rest
+
 
 @dataclass
 class Score:
-    words: int
+    words: int  # retelling only: everything outside the declared evidence
     verdict_first: bool
     list_share: float
     filler: int
+    evidence: int = 0
 
 
 def score(text: str) -> Score:
@@ -64,8 +89,10 @@ def score(text: str) -> Score:
     verdict = bool(first) and first_words <= VERDICT_MAX_WORDS and not _NARRATION_START.match(first)
     listed = sum(1 for ln in lines if _LIST_LINE.match(ln))
     low = (text or "").lower()
+    proof = evidence_words(text)
     return Score(
-        words=len(_WORD.findall(text or "")),
+        words=len(_WORD.findall(text or "")) - proof,
+        evidence=proof,
         verdict_first=verdict,
         list_share=round(listed / len(lines), 2) if lines else 0.0,
         filler=sum(low.count(p) for p in FILLER),
@@ -94,6 +121,7 @@ class Report:
             "verdict_first_pct": round(
                 100 * sum(s.verdict_first for s in self.finals) / len(self.finals), 1
             ),
+            "evidence_words_median": median(s.evidence for s in self.finals),
             "list_share_median": median(s.list_share for s in self.finals),
             "filler_per_answer": round(sum(s.filler for s in self.finals) / len(self.finals), 2),
             "interim_words_per_turn_median": median(self.interim_words)
@@ -199,6 +227,25 @@ def last_final_answer(transcript_path: str, tail_bytes: int = 2_000_000) -> str 
             if text:
                 last = text
     return last
+
+
+#: The shipped answer rules (bootstrap_templates.ANSWER_SHAPE without its heading), put in
+#: front of the agent on EVERY human prompt. In the rules file alone they reached consumer
+#: projects and not this one, and the budget line spoke only after a long answer was read.
+#: tests/test_answer_rules_every_prompt.py holds this byte-equal to ANSWER_SHAPE.
+ANSWER_RULES = (
+    "- Responses are in the user's language.\n"
+    "- SHAPE, empty parts omitted: done → verified by → left → your call.\n"
+    "- KEEP BYTE-EXACT: code, shell commands, tool output, file paths, error messages. KEEP FULL PROSE: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.\n"
+    "- EXCEPTIONS: explanation asked; destructive action; three failed debugging turns → state the assumption, ask; ambiguity → one question; the rule would delete the answer itself.\n"
+    "- Steps numbered, one action each, the last doable in two minutes; five items per group unless completeness needs more. One tangent, once, at the end. Estimates in minutes.\n"
+    "- PRE-SEND: delete announcements, closing recaps, side branches, hedges; first line = next action, last line = current state.\n"
+)
+
+
+def rules_line() -> str:
+    """The answer rules as the prompt hook injects them, before the answer is written."""
+    return "**[TAUSIK answer rules]** Apply to the answer you are about to write:\n" + ANSWER_RULES
 
 
 def budget_nudge(text: str | None, budget: int = DEFAULT_BUDGET_WORDS) -> str | None:

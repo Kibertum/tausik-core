@@ -100,7 +100,7 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 | **Architecture & internals** | [docs/en/architecture.md](docs/en/architecture.md) (EN) / [docs/ru/architecture.md](docs/ru/architecture.md) (RU) |
 | **Testing principles (scoped pytest, when to add tests)** | [docs/en/testing-principles.md](docs/en/testing-principles.md) (EN) / [docs/ru/testing-principles.md](docs/ru/testing-principles.md) (RU) |
 | **MCP tools (146; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
-| **Skills reference (14 core skills, 20 official skills opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
+| **Skills reference (13 core skills, 20 official skills opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
 | **The agent contract in full (QG-2 mechanics, estimation, Rule 4/7, stacks)** | [docs/en/agent-contract.md](docs/en/agent-contract.md) (EN) / [docs/ru/agent-contract.md](docs/ru/agent-contract.md) (RU) |
 | **What is NOT guaranteed (deliberate gaps with their reason, open defects, out of scope)** | [docs/en/known-limitations.md](docs/en/known-limitations.md) (EN) / [docs/ru/known-limitations.md](docs/ru/known-limitations.md) (RU) |
@@ -149,11 +149,11 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #278 (active) | Branch: v1-10 | TAUSIK: 1.10.0
-Tasks: 1686/1774 done, 4 obsolete, 1 active, 1 blocked
-Active: adhd-rules-become-ours-not-a-vendored-dependency
-Blocked: site-is-rebuilt-from-the-core-docs-of-the-release
-Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\117ec53f-dbde-45ea-93f1-eb22c72335fd.jsonl
+Session: #279 (active) | Branch: v1-10 | TAUSIK: 1.10.0
+Tasks: 1696/1783 done, 6 obsolete, 2 active, 4 blocked
+Active: reading-code-costs-a-third-of-calls, answer-rules-are-in-every-prompt-not-only-consumers
+Blocked: we-say-discipline-layer-field-says-harness-engineering, memory-tail-by-relevance-not-recency, site-is-rebuilt-from-the-core-docs-of-the-release, github-milestones-follow-the-rebuilt-composition
+Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\2fb2646a-10b7-4fc5-8fb4-be2e70726533.jsonl
 
 ### Memory tail
 Context (5):
@@ -163,11 +163,11 @@ Context (5):
 - #798 Цена задачи в ходах выросла впятеро за полгода: медиана 6 → 32, а рычаг — Bash, 87,6% вызовов
 - #746 Расход токенов TAUSIK почти целиком в cache_read: 99,5% входа, и главный рычаг — число ходов
 Decisions (5):
+- #408 1.10 ПЕРЕСОБРАН под три приоритета владельца (#406), утверждено владельцем в смене #279. Новая история release110-owner-
 - #407 Дисциплина ответа TAUSIK — НАША, а не вендоренная. Принципы (вести с действия, нумеровать многошаговое, потолок пунктов 
 - #406 1.10 ОСТАНОВЛЕН И ПЕРЕСОБИРАЕТСЯ. Указание владельца, смена #278: качество не устраивает. Три приоритета в порядке владе
 - #405 Сайт живёт в ОТДЕЛЬНОМ репозитории tausik-site и ТОЛЬКО на GitLab. Публикации сайта на GitHub нет. Указание владельца, с
 - #404 Код и комментарии пишутся ПО-АНГЛИЙСКИ. Указание владельца, смена #278. Отменяет часть конвенции #745 «докстринг и комме
-- #403 Первичный механизм резолва проекта — КОНФИГ СЕРВЕРА (argv --project + cwd), из НЕ-депрекированных; multi-tenant кэш НЕ н
 Conventions (5):
 - #799 Переименовал тест — ответь на цитаты в том же заходе, иначе регистр покраснеет следующей проверкой
 - #792 Потолок без запаса есть запрет: у бюджета контекста должен быть проверяемый остаток, а не только пре

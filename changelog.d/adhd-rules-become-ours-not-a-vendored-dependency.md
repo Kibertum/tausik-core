@@ -12,10 +12,10 @@ reader can take in under two minutes; five items per visible group; one tangent,
 never mid-answer; estimates in minutes rather than adjectives. The four-part shape, the
 five exceptions and the pre-send check were already there.
 
-**THE GROWTH WAS PRICED BEFORE IT WAS MADE.** The block sits in the prefix and is re-sent
-on every call as cache read: +455 characters, about 114 tokens, $0.39 over ten sessions
-against $98.06 of output in the same window — it pays for itself if it shortens output by
-0.40%. Any future growth of that block states its own number or does not happen.
+**THE RULES COST 8 CHARACTERS, NOT 455.** It is re-sent on every call as cache read, and the
+generated rules file has its own budgets (180 lines, a body-size cap). The first version
+added the four rules as +455 characters and broke both. The block now carries the same
+terms in 776 characters, against 768 before the rules were added.
 
 **THE EVIDENCE BOUNDARY SURVIVED THE FILE THAT CARRIED IT.** Brevity is a rule about
 PRESENTATION: code, tool output, acceptance-criteria evidence, decisions and journals are
@@ -38,10 +38,10 @@ TAUSIK нёс `harness/skills/i-have-adhd/` — чужой SKILL.md с чужо�
 один раз и никогда посреди ответа; оценки в минутах, а не прилагательных. Форма из
 четырёх частей, пять исключений и проверка перед отправкой там уже были.
 
-**РОСТ ОПЛАЧЕН ДО ТОГО, КАК СДЕЛАН.** Блок лежит в префиксе и пересылается на каждом
-вызове как чтение кэша: +455 символов, около 114 токенов, $0,39 за десять смен против
-$98,06 выхода за то же окно — окупается сокращением выхода на 0,40%. Любой следующий
-рост этого блока называет своё число или не происходит.
+**ПРАВИЛА СТОЯТ 8 СИМВОЛОВ, А НЕ 455.** Он пересылается на каждом вызове как чтение кэша,
+а у порождаемого файла правил есть свои бюджеты: 180 строк и потолок размера тела. Первая
+версия добавила четыре правила как +455 символов и нарушила оба. Теперь блок несёт те же
+термины в 776 символах; до добавления правил было 768.
 
 **ГРАНИЦА ДОКАЗАТЕЛЬСТВА ПЕРЕЖИЛА ФАЙЛ, КОТОРЫЙ ЕЁ НЁС.** Краткость — правило о ПОДАЧЕ:
 код, вывод инструментов, доказательство критериев, решения и журналы не сокращаются.

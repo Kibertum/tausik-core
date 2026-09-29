@@ -302,6 +302,7 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
         "the monthly trend — the price-neutral answer to whether a task got dearer",
     )
     __import__("project_parser_answers").add(metrics_sub)  # metrics answers (story J)
+    __import__("call_mix").add(metrics_sub)  # metrics calls
     mt = metrics_sub.add_parser(
         "tokens",
         help="Per-tool token aggregates (p50/p90) over last N sessions from .tausik/token_metrics.jsonl",

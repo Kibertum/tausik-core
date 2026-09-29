@@ -9,6 +9,7 @@ HierarchyMixin/TaskMixin/KnowledgeMixin/SkillsMixin.
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError
@@ -217,7 +218,9 @@ class SessionMixin:
         # write is a single UPDATE, so there is no moment with zero holders.
         from datetime import datetime, timezone
 
-        handoff = merge_authored(generate(self.be, current), handoff)
+        db_path = getattr(self.be, "db_path", None)
+        tausik_dir = os.path.dirname(os.path.abspath(db_path)) if isinstance(db_path, str) else None
+        handoff = merge_authored(generate(self.be, current, tausik_dir), handoff)
         # Microseconds: two writes in one second must still have an order.
         handoff["written_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         # The checkpoint counter's zero point (SENAR 9.3): a recorded fact of

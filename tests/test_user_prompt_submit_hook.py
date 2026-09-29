@@ -87,13 +87,13 @@ class TestIntentDetection:
         _setup_empty_tausik(tmp_path)
         result = _run(tmp_path, "что такое этот модуль?")
         assert result.returncode == 0
-        assert result.stdout.strip() == "", "question should not trigger nudge"
+        assert "[TAUSIK nudge]" not in result.stdout, "question should not trigger nudge"
 
     def test_explain_prompt_does_not_nudge(self, tmp_path):
         _setup_empty_tausik(tmp_path)
         result = _run(tmp_path, "explain how this function works")
         assert result.returncode == 0
-        assert result.stdout.strip() == ""
+        assert "[TAUSIK nudge]" not in result.stdout
 
     def test_empty_prompt_does_not_nudge(self, tmp_path):
         _setup_empty_tausik(tmp_path)
@@ -108,7 +108,7 @@ class TestActiveTaskCheck:
         _setup_active_task(tmp_path)
         result = _run(tmp_path, "add a new endpoint")
         assert result.returncode == 0
-        assert result.stdout.strip() == "", "active task should suppress nudge"
+        assert "[TAUSIK nudge]" not in result.stdout, "active task should suppress nudge"
 
 
 def _context(result) -> str:
@@ -256,10 +256,10 @@ class TestAnswerBudget:
         result = self._run_with(
             tmp_path, self._transcript(tmp_path, "Done: 3 tasks closed.\n- A: 2")
         )
-        assert result.returncode == 0 and result.stdout.strip() == ""
+        assert result.returncode == 0 and "answer budget" not in result.stdout
 
     def test_a_missing_transcript_injects_nothing(self, tmp_path):
         """NEGATIVE: never blocks, never guesses."""
         _setup_empty_tausik(tmp_path)
         result = self._run_with(tmp_path, str(tmp_path / "absent.jsonl"))
-        assert result.returncode == 0 and result.stdout.strip() == ""
+        assert result.returncode == 0 and "answer budget" not in result.stdout

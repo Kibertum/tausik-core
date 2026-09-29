@@ -57,6 +57,11 @@ def _repo_root() -> str:
     `tausik/gates.json` and no `tests/`. That would measure the mirror and lose
     the baseline, which is exactly how the class-surface gate learned this.
     """
+    from gate_project_root import project_root
+
+    found = project_root()
+    if found:
+        return found
     here = os.path.dirname(os.path.abspath(__file__))
     d = here
     for _ in range(12):

@@ -31,6 +31,12 @@ def _repo_root(here: str | None = None) -> str:
     path came out as `../scripts/x.py`, so a listed legacy file was refused as
     unformatted (session #269). Same lesson as gate_test_dedupe._repo_root.
     """
+    if here is None:
+        from gate_project_root import project_root
+
+        found = project_root()
+        if found:
+            return found
     start = here or os.path.dirname(os.path.abspath(__file__))
     d = start
     for _ in range(12):

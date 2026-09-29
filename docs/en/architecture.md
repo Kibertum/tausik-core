@@ -4,6 +4,8 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
+**Where it sits.** The field calls this discipline *harness engineering*: a harness is the agent loop, the tool interface, context management and control mechanisms. TAUSIK is not a harness — the loop and the tools belong to Claude Code, Cursor, Codex and the rest. It is the verification and control layer on top of them: what makes it different is that nothing counts as done without evidence.
+
 ## Architecture: CLI -> Service -> Backend
 
 Three layers with clear boundaries. The Service layer contains business logic,

@@ -30,6 +30,8 @@ Run in parallel (prefer MCP tools, CLI as fallback):
 
 **Session time is a signal, not a gate** (decision #376): if `status` shows the advisory, mention it once; nothing is refused.
 
+**Slow lane** — only where `.tausik/slow_lane.json` exists (the project's test suite records it): run `pytest -q -m slow` once, in the background, while you do step 2. The default `pytest -q` deselects it and CI does not run on an unpushed branch, so this is the only place it runs. The handoff reads the record itself and says `NOT RUN` or `RED` in `slow_lane`; relay a red lane to the user, do not re-type it.
+
 ### 2. Save handoff
 
 Call `tausik_session_handoff` (CLI: `tausik session handoff`). The handoff is

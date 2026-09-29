@@ -1,9 +1,9 @@
 ---
 slug: memory-tail-by-relevance-not-recency
 title: "Хвост памяти в CLAUDE.md отбирается по свежести, а не по значимости"
-status: planning
+status: blocked
 epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+story: deferred-110-audit-hygiene
 complexity: complex
 role: architect
 stack: python
@@ -25,7 +25,7 @@ resolution: null
 resolution_reason: null
 tracker_refs:
   - "github#125"
-started_model_id: null
+started_model_id: claude-opus-5
 started_model_version: null
 done_model_id: null
 done_model_version: null
@@ -56,3 +56,5 @@ AC7. Механизм включается ЯВНО и по умолчанию �
 git revert: отбор возвращается к последним N по типу; слои остаются в БД неиспользованными и не мешают
 
 ## Journal
+
+- 2026-09-29T21:19:32Z [implementation] — Taken out of 1.10 (my own inclusion error, session #279): AC1 needs per-record access counts that do not exist (brain_events has no memory id), AC7 ships it off by default, and it does not shrink the tail — so it pays nothing to 1.10 token economy. Prerequisite: record memory hits per id. Back to deferred for 1.11.

@@ -1,9 +1,9 @@
 ---
 slug: verify-first-profile-keeps-a-legacy-auto-verify-setting
 title: "Профиль Verify-First: auto_verify=true остаётся легаси-настройкой без решения"
-status: planning
+status: done
 epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+story: release110-owner-priorities
 complexity: simple
 role: architect
 stack: null
@@ -20,9 +20,9 @@ scope_paths:
   - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
-resolution: null
-resolution_reason: null
+completed_at: "2026-09-29T21:46:26Z"
+resolution: obsolete
+resolution_reason: "Premise resolved before 1.10: auto_verify=false is decided in committed tausik/policy.json:15 with _auto_verify_reason (decision #287), and 'tausik doctor' (session #279) shows no Verify-First WARN, only 'OK Config trust tier ... tightened back here'. The outsider-facing confusion (quickstart:202-208 'restore the legacy single-step behavior') is carried by task quickstart-contradicts-readme-and-buries-first-run."
 tracker_refs:
   - "github#120"
 started_model_id: null

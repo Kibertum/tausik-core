@@ -40,6 +40,21 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
 |---|---|---|
 | `verify_cache_ttl_seconds` | `600` | How long a green verify run is reused before re-running gates. Lower for security-critical projects. |
 
+## Settings met in the quick-start
+
+All keys sit at the root of `.tausik/config.json` unless a path says otherwise.
+
+| Key | Default | Purpose |
+|---|---|---|
+| `context_tier` | `"standard"` | Size of the generated rules file: `"minimal"` (shorter), `"standard"`, `"full"` (extended pointers). Bootstrap refuses an unknown value; `tausik doctor` checks drift against the saved tier. |
+| `output_mode` | `"off"` | `"caveman"` adds a directive for terse, telegraphic answers. Code, commands, tool output, error messages, acceptance-criteria evidence and decisions stay whole. The answer rules (shape, exceptions, pre-send check) ship in every rules file regardless of this key. A bad value falls back to `"off"`. The "~65% reduction" is the caveman project's own figure, not measured here. |
+| `model_profile` | unset | Host profile slug (`a-z`, digits, hyphens), e.g. `claude`, `codex`. Bootstrap writes it when `TAUSIK_MODEL_PROFILE` is set; an invalid value aborts bootstrap. `python bootstrap/bootstrap.py --refresh` refreshes config only. |
+| `task_done.auto_verify` | `false` | `true` makes `task done` run the gates inline and close **without a signed receipt**. It is not a bypass of the gates — they still run — but it gives up the receipt, so the config trust check treats it as a weakening and a trusted tier sets it back (`scripts/config_trust.py`). Prefer `task done <slug> --ac-verified --verify`: one call, with the receipt. |
+
+**Rules files are preserved once written.** `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `QWEN.md` and the OpenCode rules file are not rewritten by bootstrap when they exist, so changing `context_tier` or `output_mode` later does not reach them. Bootstrap says so; delete the generated file and run bootstrap again, or edit it by hand.
+
+**The MCP close returns structure.** `tausik_task_done` answers with `stage`, `gate_results` and `blocking_failures`, so an agent can fix what failed without parsing prose.
+
 ## Stacks
 
 | Key | Default | Purpose |

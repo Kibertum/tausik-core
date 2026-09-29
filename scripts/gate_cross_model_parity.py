@@ -112,7 +112,20 @@ def run_cross_model_parity_gate(gate: dict, files: list[str]) -> tuple[bool, str
     if files and not _touches_host_layer(files):
         return True, "cross-model parity: not the host layer — skipped"
 
-    table = matcher_table()
+    # The generators live in bootstrap/ of the framework SOURCE. From the deployed copy
+    # (`.claude/scripts/`) the module-relative guess lands on `.claude/`, every generator
+    # raised ModuleNotFoundError, and a close with no files was refused for a crash.
+    # A project without that source has no
+    # generator to compare: the gate does not apply there.
+    from gate_project_root import project_root
+
+    root = project_root()
+    if root and os.path.isfile(os.path.join(root, "bootstrap", "bootstrap_generate.py")):
+        table = matcher_table(root)
+    elif root:
+        return True, "cross-model parity: no bootstrap source in this project — not applicable"
+    else:
+        table = matcher_table()
     broken = sorted(h for h, caps in table.items() if any(c.startswith("error:") for c in caps))
     if broken:
         return False, (
