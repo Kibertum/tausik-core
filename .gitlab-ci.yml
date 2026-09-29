@@ -47,10 +47,7 @@ variables:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PIP_NO_CACHE_DIR: "1"
   PYTHONUTF8: "1"
-  # FULL HISTORY. The citation audit asks git whether a file cited by a closed task once
-  # existed and was deleted; at depth 50 that history is cut off and three tests of
-  # test_bare_basename_is_not_invention.py fail on the runner while passing locally.
-  GIT_DEPTH: "0"
+  GIT_DEPTH: "50"
   # The shell runner keeps the working copy between jobs. Without -ffdx a stale
   # .tausik/ from the previous run leaks into this one.
   GIT_CLEAN_FLAGS: -ffdx
@@ -153,10 +150,6 @@ doc-constants:
   - *venv
   # Six test modules drive a real git (clone, cat-file, ls-files).
   - git --version
-  # The shell runner REUSES its working copy, and a fetch into a clone that was once
-  # shallow stays shallow whatever GIT_DEPTH says. The citation audit needs the whole
-  # history, so unshallow explicitly; no `|| true`, a failed fetch must fail the job.
-  - if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then git fetch --unshallow --quiet; fi
   # Job-local git config: `--global` on a shared shell runner would rewrite the
   # runner user's ~/.gitconfig and affect every other project built here.
   - export GIT_CONFIG_GLOBAL="$GIT_CFG"

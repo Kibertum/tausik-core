@@ -20,6 +20,7 @@ scope_paths:
   - "docs/"
   - "tests/"
   - ".gitlab-ci.yml"
+  - ROADMAP.md
 scope_tools: []
 depends_on: []
 completed_at: null

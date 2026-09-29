@@ -24,6 +24,25 @@ from pathlib import Path
 import pytest
 
 _REPO = Path(__file__).resolve().parents[1]
+
+# These cases read THIS repository's own history as their fixture (a file deleted long
+# ago, conftest.py in six directories). A shallow CI clone does not have it, so they run
+# where the history is: a full local checkout.
+import subprocess  # noqa: E402
+
+_SHALLOW = (
+    subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=_REPO,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    ).stdout.strip()
+    == "true"
+)
+needs_history = pytest.mark.skipif(
+    _SHALLOW, reason="shallow clone: this fixture is the repo's own history"
+)
 if str(_REPO / "scripts") not in sys.path:
     sys.path.insert(0, str(_REPO / "scripts"))
 
@@ -67,11 +86,13 @@ _SHAPES = (
 )
 
 
+@needs_history
 @pytest.mark.parametrize("citation,expected,why", _SHAPES, ids=lambda v: str(v)[:40])
 def test_the_verdict_matches_the_shape_of_the_citation(citation, expected, why):
     assert _history_verdict(_no_literal_match, str(_REPO), citation, None) == expected, why
 
 
+@needs_history
 def test_a_name_from_several_directories_is_ambiguous_not_a_match():
     """AC-4: two directories mean the citation is unresolved, not resolved to a guess.
 
@@ -104,6 +125,7 @@ def test_git_failing_is_unknown_not_a_verdict():
     assert _history_verdict(None, str(_REPO), "whatever.py", None) == UNKNOWN_HISTORY
 
 
+@needs_history
 @pytest.mark.parametrize(
     "name,expect_empty",
     [("test_brain_config.py", False), ("test_absolutely_not_a_real_file_xyz.py", True)],
