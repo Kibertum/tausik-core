@@ -9,6 +9,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the cost trend was blended while the task mix moved underneath it
+
+`metrics task-cost` printed one median per month, and the first person it misled was
+its own author. The mix moved over the same span: May closed 50 simple / 43 medium /
+11 complex, September 25 / 73 / 33. The blended line 41k -> 79k (1.9x) reads as the
+framework getting dearer, while within each class the answer differs: **simple
+27k -> 22k (17% cheaper), medium 52k -> 88k (+70%), complex 68k -> 130k (+92%)**. Part
+of the rise is heavier work; part is medium and complex tasks genuinely costing more.
+
+Each month now carries the task count and the median for every class, and the blended
+line stays with a warning attached: people quote it, so it has to say for itself that
+it mixes "the work got heavier" with "the work got dearer" and cannot tell them apart.
+
+A class with fewer than eight tasks prints NO median but still prints its count: a
+median over three is not a trend, and hiding the count would read as though the class
+was never worked. A task that declared no complexity gets its own line rather than
+joining a class it never claimed, where it would move that median on a guess.
+
 ### Added — `tausik metrics task-cost`: what a task cost, in a unit the price list cannot move
 
 `cost_actual_usd` was filled on ZERO tasks of 1675 and `tokens_actual` on 27. The
