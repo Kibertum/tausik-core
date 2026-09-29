@@ -217,8 +217,7 @@ TAUSIK is model-agnostic, but the surface you actually use differs from Claude C
 RESPONSE_LANGUAGE = ""  # traded into ANSWER_SHAPE: the sentence survives, the section does not
 
 # THE SHAPE OF THE ANSWER, shipped unconditionally. It used to live inside the caveman
-# directive, which defaults to OFF, and inside the `/i-have-adhd` skill, which has to be
-# invoked. Measured on this project's own transcripts after both existed: the median final
+# directive, which defaults to OFF, and in a vendored skill that had to be invoked. Measured on this project's own transcripts after both existed: the median final
 # answer was 522 words against a budget of 200 — worse than the 396 measured before them.
 # A rule an agent must remember to switch on is a rule that is off.
 #
@@ -226,8 +225,11 @@ RESPONSE_LANGUAGE = ""  # traded into ANSWER_SHAPE: the sentence survives, the s
 # to take on ambitious work, which costs far more than the prose saves. It asks that the
 # answer be ORDERED and that the record stay whole.
 #
-# Adapted from ayghri/i-have-adhd (MIT); the same four parts the `/i-have-adhd` skill
-# carries, stated once here so the two cannot drift.
+# OURS, NOT VENDORED. The four-part shape and the rules below started as a reading of
+# ayghri/i-have-adhd, recorded in a decision. Carrying that project's SKILL.md in the tree
+# gave us a dependency to keep in sync AND no discipline at all, because a skill is
+# invoked and nobody invoked it. The ideas are restated here in our own words, in the
+# block that ships every session whether or not anyone asks for it.
 ANSWER_SHAPE = """## Answer shape
 
 - Responses are in the user's language.
@@ -238,14 +240,28 @@ task logs, handoffs — future agents parse these verbatim.
 - EXCEPTIONS (named, not judged): explanation requested; destructive action needs confirmation; \
 three failed debugging turns → state the assumption, ask one question; genuine ambiguity → one \
 question; the rule would delete the answer itself.
+- MULTI-STEP work is NUMBERED: one bounded action per item, the fewest that still work, \
+and the last item is one the reader can do in under two minutes.
+- FIVE items per visible group is the ceiling. Presentation only — when completeness \
+matters, completeness wins and the list grows.
+- ONE TANGENT, ONCE: finish what was asked, then raise a distinct issue a single time if \
+it needs the user. Never mid-answer.
+- ESTIMATES are in minutes, not adjectives.
 - PRE-SEND: delete intent announcements, closing recaps, side branches, empty hedges; \
 first line = next action, last line = current state.
 """
 
 #: Ceiling on the always-injected shape. Same argument as the caveman cap below: this block
-#: is paid for every session, so a fat one defeats what it asks for. Measured at the value
-#: the block holds today, not rounded up to leave room for growth.
-ANSWER_SHAPE_MAX_CHARS = 768
+#: is paid for every call, so a fat one defeats what it asks for. Measured at the value the
+#: block holds today, never rounded up to leave room for growth.
+#:
+#: THE GROWTH FROM 768 WAS PRICED BEFORE IT WAS MADE. The block sits in the prefix and is
+#: re-sent on every call as cache read. Over the last ten sessions that is 6937 calls at
+#: $0.50 per million cached tokens, while output over the same window cost $98.06. The
+#: growth actually made is +455 chars, about 114 tokens, $0.39 over ten sessions — it pays
+#: for itself if it shortens output by 0.40%. Any future growth states its own number here
+#: or does not happen.
+ANSWER_SHAPE_MAX_CHARS = 1223
 
 ANSWER_SHAPE_MARKER = "## Answer shape"
 
@@ -329,7 +345,7 @@ def build_skills_section(ide_subdir: str) -> str:
         f"## Skills\n\n"
         f"After bootstrap, **13 core skills** ship from `harness/skills/` and are always available: "
         f"`/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, "
-        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`, `/i-have-adhd`.\n\n"
+        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`.\n\n"
         f"**25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py "
         f"--include-official` (full bundle) or `tausik skill install <name>` (per skill) from the "
         f"`tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, "

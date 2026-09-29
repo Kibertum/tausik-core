@@ -43,7 +43,6 @@ These are always available after bootstrap — the workflow primitives every TAU
 | `/review` | Code review against 28-point SENAR checklist (5 parallel agents, iterative) |
 | `/test` | Run or write tests, track coverage |
 | `/debug` | Reproduce → isolate root cause → fix |
-| `/i-have-adhd` | Action-first user-facing output; it never reduces TAUSIK evidence. Vendored from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) under MIT. |
 
 ## Official / Vendor Skills (20)
 

@@ -1,7 +1,7 @@
 """Measure the shape of the agent's answers in host transcripts.
 
 terse-answers-measured-first (1.10, story J, decision #391). The 1.9 answer
-rules (i-have-adhd, the response contract) were text, and the owner still read
+rules (the response contract) were text, and the owner still read
 long answers. Before a mechanism is built, the answers are MEASURED:
 
 * final answer — the last assistant text before the next human prompt: words,

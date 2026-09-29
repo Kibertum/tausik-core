@@ -43,7 +43,6 @@ Skill'ы — intent-based инструкции, определяющие пов�
 | `/review` | Code review против 28-point SENAR checklist (5 параллельных агентов, итеративно) |
 | `/test` | Запуск/написание тестов, отслеживание coverage |
 | `/debug` | Reproduce → isolate root cause → fix |
-| `/i-have-adhd` | Ответ владельцу начинается с действия и не скрывает доказательства TAUSIK; вендорирован из [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) под MIT. |
 
 ## Official / Vendor skill'ы (20)
 

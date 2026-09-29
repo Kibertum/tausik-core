@@ -1,12 +1,12 @@
 """Response-contract adherence audit: how often real answers break the contract.
 
-`output_mode: caveman` and `/i-have-adhd` tell the agent what to delete before
+`output_mode: caveman` and the always-shipped answer shape tell the agent what to delete before
 sending (intent announcements, closing recaps, side branches, empty hedges).
 Until this file, nothing measured whether the agent does. A rule whose
 adherence is never measured is the class of defect release 1.9 is about: a
 check that never ran is indistinguishable from a passing one.
 
-The port of ayghri/i-have-adhd's `evals/` is the idea — cases, rubric, runner —
+The idea of an eval harness — cases, rubric, runner —
 not its text. The unit is a USER-FACING answer: the last assistant text block
 before the next human message (a tool result is not a human). Scoring runs on
 prose only: fenced and inline code, quoted tool output, file paths, AC-evidence
