@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed -- the tree says 1.10.0, and the README says what 1.10 is
+
+`pyproject.toml` and `scripts/tausik_version.py` carried 1.9.0 while 1.10 was being released.
+They are the single source, so `constants.json` and everything generated from it read 1.8's
+successor as the current version.
+
+The bump reddened exactly what it should: the version mentions in both READMEs. Each was
+settled on its merits and none was silenced — historical ones stay historical (Codex
+first-class since 1.9, the arc from 1.8, the link to the 1.9 notes), and the narrative section
+was rewritten for 1.10 in both languages.
+
+**THE CHANGELOG CUT AND THE TAG ARE NOT DONE HERE.** `[Unreleased]` stays as it is: the cut
+carries a DATE and pairs with the tag, and the tag is the owner's act. The 1.9 release kept
+these as two commits five days apart for the same reason.
+
+Two guards fired on the new prose and both were right. The claim about token saving must sit
+within 120 characters of "on this pair" — a generalisation is exactly what one reading cannot
+support — so the sentence uses the scoped wording. And a bare count of breaking changes in the
+README collided with the guard that keeps 1.8's four hand-written copies of that number in
+agreement; the count belongs in the whats-new page, and the README now points at it without
+restating it.
+
+**A CALIBRATION TEST STOPPED DEPENDING ON A DEFECT SURVIVING.** With the register of rotted
+citations driven to zero, the test asserting the lens still sees that class went red for the
+RIGHT repository state. It now PLANTS a citation instead — and a second test plants an
+obviously illustrative one and requires silence, which is the filter that made the first
+planting attempt fail.
+
 ### Fixed -- an `EVIDENCE-MOVED` answer was silently not counted when the address ended a sentence
 
 Found by using the mechanism for the first time. A journal line is prose: the author finishes

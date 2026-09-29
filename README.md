@@ -8,9 +8,9 @@
 
 TAUSIK is a discipline layer for AI coding agents. It turns the agent's word — "tests pass," "the task is done" — into something you can actually verify. Plan before code, ship with proof, remember every decision. Not suggestions the agent can ignore: a discipline rail that refuses the easy shortcut and makes the ones it can't refuse visible and recorded — with tamper-evidence against outside edits, not a firewall that claims to stop a determined agent.
 
-[![v1.9.0](https://img.shields.io/badge/version-v1.9.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.10.0](https://img.shields.io/badge/version-v1.10.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
-[![11762 tests](https://img.shields.io/badge/tests-11762-brightgreen.svg)](#proof-tausik-built-tausik)
+[![12407 tests](https://img.shields.io/badge/tests-12407-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#whats-inside)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -112,7 +112,7 @@ Both are fail-closed: a gate that can't evaluate blocks rather than waves the ta
 TAUSIK was built with TAUSIK — every feature, refactor, and bug fix went through the gates that ship in the box. Not as a vanity metric, as the strongest test of the contract:
 
 - **Every task closed with a goal + acceptance criteria.** Zero closed without verify evidence.
-- **11762 tests** — the discipline core is the most-tested part.
+- **12407 tests** — the discipline core is the most-tested part.
 - **76% line coverage** (baseline, `scripts/`, 4124 selected tests) — refresh with `pytest tests/ --cov=scripts --cov-report=json:coverage.json` and update the badge; CI uploads `coverage.json` as a build artifact on every PR.
 - **0 core dependencies** — Python 3.11+ stdlib only; MCP deps live in an isolated `.tausik/venv/`.
 - **1 outbound call, and only one** — at most once a day, an anonymous GET to `api.github.com/repos/Kibertum/tausik-core/releases/latest` asks whether a newer TAUSIK exists. It carries no project name, path, version or user; it runs detached, so no session waits on it. Turn it off with `"updates": {"check": false}` in `.tausik/config.json`. Everything else runs and stays on your machine.
@@ -194,64 +194,59 @@ Disclosed with the claim (SENAR 1.5 §13.1(c), (e)): No SHALL is handled under �
 
 ---
 
-## v1.9 — the release that stopped taking its own word for things
+## v1.10 — the release that made its own discipline a mechanism
 
-1.8 answered "does the framework enforce discipline". 1.9 makes two statements
-about the product and requires each to be measured. One of them is not measured
-yet, and this page says so rather than leaving it to be discovered.
+1.8 answered "does the framework enforce discipline". 1.9 made two statements about the
+product and required each to be measured. 1.10 turns the asking into machinery: what the
+framework used to request of an agent, it now either enforces or measures — and where it can
+do neither, it says so on the page instead of leaving it to be found.
 
-**The artifact graph became framework machinery, not a table in our database.**
-`tausik graph` answers what to read in order to change a file, and what a change
-will break — from three kinds of evidence kept apart: what git saw change
-together, what a task declared, and what a test run actually reached. Roots are
-asked of the PROJECT rather than assumed from our own layout, so a consumer
-project is indexed as itself. Measured: an unranked neighbour list costs 2,881 KB
-to read; the ranked answer costs 927 bytes.
-**[The graph →](docs/en/graph.md)**
+**Autonomy stopped being a request.** The measurement was blunt: a rule that is only asked
+for gets switched off the same week. `/run` closes tasks one after another inside a single
+turn; the call budget becomes a CEILING in an unattended run and stays advice everywhere else;
+a run watches its own capacity and stops BETWEEN tasks rather than halfway through one. The
+promise itself became a number — closures per owner message — because a promise with no number
+has nothing to check it.
 
-**Evidence stopped being a claim about itself.** A gate now declares WHICH
-CHANGE does not happen while its verdict is negative, and every blocking gate
-has a test that hands it a violation and requires red. A test never observed
-failing has not shown it can fail, and that history is now recorded. A receipt
-says WHO ran the verification, so separation of duties is a checkable property
-rather than a sentence in the documentation — and the first thing it showed is
-that on the verify path there is no separation: across 29 tasks recording both a
-starting and a closing model, none differ.
+**Cost is a number now, not an impression.** The state projection was measured at 68.6% of
+tracked paths and 47.1% of bytes, with a verdict per kind and the reason none of them leaves:
+the database is gitignored, so the Markdown tree is the only carrier of state between
+machines. The story that asked for the measurement had guessed twice, and both guesses were
+wrong. **[What the projection costs →](docs/en/state-projection-cost.md)**
 
-**A quantity that cannot be obtained is ABSENT, not nought.** That sounds like a
-nicety until you look at the numbers: the telemetry asserted 55,471 times that
-work had cost $0.00, and model pinning had never fired in 231 sessions. Both
-defects looked exactly like "a feature nobody needs".
+**A deliberate gap is declared, with a reason on every line.** A gap with no reason reads as
+an unfinished job, and the register now says what is NOT guaranteed and why we live with it.
+**[Known limitations →](docs/en/known-limitations.md)**
 
-**The token-saving figure is MEASURED ONCE, and on this pair there is no saving.**
-Telemetry produces no figure (of 57,251 rows, 233 carry input tokens; no
-"without TAUSIK" baseline exists); the figure came from a paired replay on a
-fixed corpus ([protocol §7, in
-Russian](docs/ru/research/rag-nudge-replay-protocol.md)): with the rag-first
-nudges 198,848 against 195,055 tokens (+1.9%), 326,323 against 292,715 bytes of
-exploration results (+11.5%), and `search_code` never called with or without
-them. One reading on one corpus — that alone is published as fact.
+**The framework stopped believing its own paperwork.** A forged receipt no longer passes
+verification. A whole-project gate PASS no longer certifies files it did not look at. The
+duplication ratchet measures duplication instead of similarity. And semantic search shipped
+SWITCHED OFF: the published evidence puts the effect at +0.3% on the metric that pays and
+concentrates it past a thousand records, so the gate is closed and the activation rate on our
+own corpus is zero. That is a result, not a gap.
+**[The gates on the semantic layer →](docs/en/semantic-rerank.md)**
 
-**[What changed in 1.9 →](docs/en/whats-new-1.9.md)**
-([Русский](docs/ru/whats-new-1.9.md)) — including the breaking changes and their
-migrations. Earlier releases: **[1.8 →](docs/en/whats-new-1.8.md)**.
+**The token-saving figure is still MEASURED ONCE, and on this pair there is no saving.**
+1.10 did not re-measure it, so 1.9's reading stands as the last word: with the rag-first
+nudges 198,848 against 195,055 tokens (+1.9%), 326,323 against 292,715 bytes of exploration
+results (+11.5%), `search_code` never called with or without them. One reading on one corpus —
+that alone is published as fact, and the nudges it tested have since been removed.
 
-v1.9 continues the hardening on the road to 2.0: signed receipts, fail-closed
-gates, external adversarial review for under-evidenced closures, closure-risk
-scoring, structured root cause, and a skill supply chain that verifies the same
-way on every platform.
+**[What changed in 1.10 →](docs/en/whats-new-1.10.md)**
+([Русский](docs/ru/whats-new-1.10.md)) — including the breaking changes and what to do
+about each. Earlier releases: **[1.9 →](docs/en/whats-new-1.9.md)**,
+**[1.8 →](docs/en/whats-new-1.8.md)**.
 
-A theme runs through this release's fixes, and it is worth stating plainly: a
-mechanism that works and that nothing calls is indistinguishable from one that
-does not work. The graph was built and held zero rows. A schema table added by
-migration alone was missing from every fresh install, and failed silently. A
-detector for invented closure citations existed and nobody ran it. All three now
-have a caller and a test that goes red without one. What the rail proves is
-bounded on purpose — tamper-evidence against outside edits, not attestation
-against the agent that holds the key ([receipts](docs/en/receipts.md)). On
-uncommon paths you may still hit doc-vs-behavior drift — if you do,
-[file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll
-converge it before 2.0.
+A theme runs through this release's fixes, and it is worth stating plainly: a check that
+cannot fail on the thing it names is indistinguishable from no check. A ratchet sat in a lane
+nobody ran. A register of rotted citations was declared empty and was not. A promise of
+reversibility named a command that did not exist. Each was found by a measurement rather than
+by a review, and each is now held by something that goes red. What the receipt rail proves is
+bounded on purpose — tamper-evidence against outside edits, not attestation against the agent
+that holds the key ([receipts](docs/en/receipts.md)). On uncommon paths you may still hit
+doc-vs-behavior drift — if you do,
+[file an issue](https://github.com/Kibertum/tausik-core/issues) and we'll converge it
+before 2.0.
 
 ## License
 

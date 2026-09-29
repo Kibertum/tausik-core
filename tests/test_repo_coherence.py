@@ -87,11 +87,38 @@ class TestALensThatFindsNothingIsBroken:
         kinds = {f["kind"] for f in live["findings"]}
         assert "duplicate_tests" in kinds
 
-    def test_it_sees_the_known_rotted_evidence_class(self, live):
-        """The other one this session met in person: closure citations that no
-        longer resolve, found by `audit evidence` in a previous shift."""
-        kinds = {f["kind"] for f in live["findings"]}
-        assert "rotted_closure_evidence" in kinds or "invented_closure_evidence" in kinds
+    def test_it_sees_a_citation_to_a_file_that_never_existed(self):
+        """Detectability is PROVEN BY PLANTING, not by the repository staying dirty.
+
+        This used to assert that the live tree still carries the class, and it held only for
+        as long as nobody had answered the citations. The moment the register was driven to
+        zero — the outcome the project wants — the test went red for the RIGHT repository
+        state, and its message would have read as a dead collector. A calibration test must
+        not depend on a defect surviving; the class below already knew that and plants its own.
+        """
+        planted = "tests/test_gmcp_tenant_pool.py::test_pool_reuses_the_service"
+        found = repo_coherence.collect(
+            _ROOT, tasks=[{"slug": "planted", "notes": f"AC-1: {planted}"}], service=None
+        )
+        kinds = {f["kind"] for f in found["findings"]}
+        assert "invented_closure_evidence" in kinds or "rotted_closure_evidence" in kinds, (
+            "a citation to a file git never had must be a finding; if it is not, the "
+            "collector is dead and the live tree's silence would mean nothing"
+        )
+
+    def test_a_name_that_reads_as_an_example_is_not_a_finding(self):
+        """THE OTHER HALF, and the reason the first draft of the test above failed: a
+        citation shaped like an illustration — `test_this_file_never_existed_anywhere` — is
+        prose quoting a shape, not a claim of coverage. A collector that counted those would
+        report the documentation as a defect and teach the reader to skim it.
+        """
+        example = "tests/test_this_file_never_existed_anywhere.py::test_x"
+        found = repo_coherence.collect(
+            _ROOT, tasks=[{"slug": "planted", "notes": f"AC-1: {example}"}], service=None
+        )
+        kinds = {f["kind"] for f in found["findings"]}
+        assert "invented_closure_evidence" not in kinds
+        assert "rotted_closure_evidence" not in kinds
 
 
 class TestTheThirdCalibrationClassIsDetectable:
