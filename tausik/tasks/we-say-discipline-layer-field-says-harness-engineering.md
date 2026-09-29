@@ -1,7 +1,7 @@
 ---
 slug: we-say-discipline-layer-field-says-harness-engineering
 title: "Мы называем себя discipline layer, поле называет эту дисциплину harness engineering — и не находит нас"
-status: blocked
+status: done
 epic: release-110-deferred-from-19
 story: release110-owner-priorities
 complexity: medium
@@ -12,23 +12,29 @@ call_budget: 40
 defect_of: null
 scope: null
 scope_exclude: null
-relevant_files: []
+relevant_files:
+  - README.md
+  - README.ru.md
+  - "docs/en/architecture.md"
+  - "docs/ru/architecture.md"
+  - "changelog.d/we-say-discipline-layer-field-says-harness-engineering.md"
 scope_paths:
   - README.md
   - README.ru.md
   - "docs/ru/*.md"
   - "docs/en/*.md"
+  - "changelog.d/"
 scope_tools: []
 depends_on:
   - readme-is-a-wall-not-a-path
-completed_at: null
+completed_at: "2026-09-29T22:45:32Z"
 resolution: null
 resolution_reason: null
 tracker_refs:
   - "github#95"
 started_model_id: claude-opus-5
 started_model_version: null
-done_model_id: null
+done_model_id: claude-opus-5
 done_model_version: null
 model_mismatch: 0
 no_file_changes_declared: 0
@@ -58,3 +64,6 @@ git revert коммита; правки только в документах
 ## Journal
 
 - 2026-09-29T21:27:02Z [implementation] — Text part done: 'Where it sits' paragraph (harness engineering = loop+tools+context+control; TAUSIK is NOT a harness, it is the verification/control layer on top; differentiator: nothing is done without evidence) in README.md, README.ru.md, docs/en/architecture.md, docs/ru/architecture.md. AC-1 ✓ AC-2 ✓ AC-5 ✓ (287 doc tests incl tests/test_code_counts.py) AC-6 ✓ (term absent from bootstrap/ and CLI parsers). Open: AC-3 GitHub topics on the mirror and AC-4 PRs into curated lists are OUTWARD actions -> owner.
+- 2026-09-29T22:32:38Z [implementation] — Owner prohibition (decision above): AC-4 (PRs into curated lists) is WITHDRAWN. A fork Yumash/awesome-harness-engineering was created by mistake and must be deleted by the owner (token lacks delete_repo). AC-3 done: topic 'verification' added to Kibertum/tausik-core.
+- 2026-09-29T22:45:05Z [implementation] — AC-3: ✓ README.md, README.ru.md, docs/en/architecture.md, docs/ru/architecture.md carry the 'Where it sits' paragraph; GitHub topics of Kibertum/tausik-core include harness-engineering and now verification. AC-4: WITHDRAWN by the owner, decision #409 (no PRs or forks outside TAUSIK). AC-1/2/5/6 evidence logged earlier.
+- 2026-09-29T22:45:13Z [implementation] — NO-DEAD-END: blocked only while waiting for the owner; the outward half (PR) was withdrawn by the owner.

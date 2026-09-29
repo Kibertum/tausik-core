@@ -1,7 +1,7 @@
 ---
 slug: github-milestones-follow-the-rebuilt-composition
 title: "GitHub milestones and tickets follow the rebuilt 1.10 composition"
-status: active
+status: done
 epic: release-110-deferred-from-19
 story: release110-owner-priorities
 complexity: simple
@@ -19,16 +19,16 @@ scope_paths:
   - "tausik/"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-29T22:30:00Z"
 resolution: null
 resolution_reason: null
 tracker_refs: []
 started_model_id: claude-opus-5
 started_model_version: null
-done_model_id: null
+done_model_id: claude-opus-5
 done_model_version: null
 model_mismatch: 0
-no_file_changes_declared: 0
+no_file_changes_declared: 1
 token_budget: null
 cost_budget_usd: null
 ---

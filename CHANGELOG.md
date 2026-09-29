@@ -9,6 +9,205 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — a reissued ROADMAP.md no longer refuses a close without files
+
+A status change rewrites ROADMAP.md, and `task done --no-file-changes` then refused because
+git saw the file modified — the framework's own output blocked the close it had just
+caused. The file is now excused only when it is byte-equal to what the generator renders;
+a hand edit still counts as work and still refuses.
+
+### Documented — where TAUSIK sits in harness engineering
+
+The README and the architecture page now say it in the field's terms: a harness is the
+agent loop, the tool interface, context management and control mechanisms; TAUSIK is not
+one — the loop and the tools belong to Claude Code, Cursor, Codex and the rest — but the
+verification and control layer on top of them.
+
+### Changed — the answer discipline is ours, and the vendored skill is gone
+
+TAUSIK carried `harness/skills/i-have-adhd/` — another project's SKILL.md with its MIT
+LICENSE — and got the worst of both: an upstream to keep in sync AND no discipline at
+all, because a skill is invoked and nobody invoked it. The word "adhd" appeared **zero**
+times in the generated rules file.
+
+The principles are now stated in our own words in the block that ships every session,
+whether or not anyone asks: multi-step work is numbered and ends with an action the
+reader can take in under two minutes; five items per visible group; one tangent, once,
+never mid-answer; estimates in minutes rather than adjectives. The four-part shape, the
+five exceptions and the pre-send check were already there.
+
+**THE RULES COST 8 CHARACTERS, NOT 455.** It is re-sent on every call as cache read, and the
+generated rules file has its own budgets (180 lines, a body-size cap). The first version
+added the four rules as +455 characters and broke both. The block now carries the same
+terms in 776 characters, against 768 before the rules were added.
+
+**THE EVIDENCE BOUNDARY SURVIVED THE FILE THAT CARRIED IT.** Brevity is a rule about
+PRESENTATION: code, tool output, acceptance-criteria evidence, decisions and journals are
+never shortened. The test that used to assert this of the vendored skill now asserts it
+of the shipped block, and a second test fails if the vendored copy ever returns.
+
+Where the ideas came from is recorded in a decision, not carried as a file.
+
+### Changed — the answer budget counts the retelling, not the proof
+
+The answer measure counted every word, so quoting a failing test or a table of
+measurements pushed an answer over budget — the rule said the budget is on the
+retelling, and the measure did the opposite. Words inside closed fenced blocks and
+markdown table rows now count as evidence (`evidence_words_median`) and are left out of
+`final_words`. An unclosed fence exempts nothing. The ratchet baseline is declared anew
+on the new measure: median 162, p90 365.
+
+### Fixed — `metrics answers` and its ratchet read the oldest transcripts, not the newest
+
+The transcript list is oldest-first and both readers took its first N entries, so the
+"last ten transcripts" were the project's first ten, and the measure could never move.
+On the newest ten: 238 answers, median 198 words, p90 453 (the frozen window said 430
+and 1325). The ratchet baseline is re-measured on the corrected window.
+
+### Changed — the answer rules arrive before every answer
+
+The answer rules shipped only into a generated consumer CLAUDE.md, and the prompt hook
+spoke only after an answer had already run over budget. The UserPromptSubmit hook now
+injects the full rules on every human prompt, before the answer is written; a test holds
+the injected text byte-equal to the shipped block.
+
+### Documented — `/rewind` is not a safety net, and the changing context comes last
+
+Known limitations now state two facts nothing recorded: Claude Code's `/rewind` restores
+only edits made by its own file tools, so anything done through the shell is not rolled
+back and git is the only safety net; and the changing part of the rules file (session
+state, memory tail) sits in one block at the very end so it does not invalidate the
+cached prefix. A test holds that order for the generated rules file and this repository.
+
+### Added — `tausik demo`: watch a false "tests pass" get caught
+
+`tausik demo` runs a scripted scenario in a throwaway sandbox, in about ten seconds, with
+no network and no LLM key: the agent claims the tests are green without running them,
+the close is refused, the real check runs red, and only an actual fix closes the task
+with a signed receipt. Every line it prints is the real CLI's output. The README now
+opens with it, above the install steps.
+
+### Fixed — three gates located "the project" from their own file
+
+Found by running the demo from the framework's own tree. `ruff_format` refused a
+project on another drive ("path is on mount 'C:', start on mount 'D:'"), `test_dedupe`
+measured the framework's tests inside another project's close, and
+`cross_model_parity` crashed from the deployed copy because it looked for the bootstrap
+sources under `.claude/`. All three now find the project from its `.tausik/` directory;
+parity reports "not applicable" where there is no bootstrap source.
+
+### Added — one changelog file per task instead of every task editing the same two lines
+
+The continuous-changelog gate asks each closing task for an added line in `CHANGELOG.md`
+AND `CHANGELOG.ru.md`, and every entry goes to the head of the same `[Unreleased]`
+section. With parallel lanes that is a conflict on EVERY closed task in both languages —
+not occasionally, but always, because everyone writes into the first lines of one section.
+Of the three shared files a lane touches this is the only one that conflicts every time.
+
+A task now writes `changelog.d/<slug>.md`, named after itself, which cannot collide by
+construction. `tausik changelog assemble --apply` folds every fragment into both files in
+slug order and removes them. Stdlib only, no new dependency.
+
+**BOTH LANGUAGES IN ONE FILE.** The project ships a pair and half a pair is not an entry,
+so the fragment carries `<!-- lang: en -->` and `<!-- lang: ru -->` and is refused without
+either. Two files per task would let one language be forgotten in exactly the way the
+parity test exists to catch.
+
+**THE GATE DID NOT GET WEAKER.** It accepts a second proof, not a smaller one: a fragment
+that is missing, empty, half-written or unparseable falls through to the git check that
+was there before, and a task with neither route is refused exactly as it always was.
+Assembly reads every fragment before writing anything, so a malformed one stops the fold
+instead of leaving some folded and others deleted with nothing to show for them.
+
+### Changed — the quick-start's first run no longer carries a settings reference
+
+Step 7 of the quick-start held six callouts, one of them a single 350-word paragraph,
+about settings a first-time user does not need. They moved to "Settings met in the
+quick-start" in the configuration page; the quick-start keeps one sentence and a link.
+Two statements were wrong and are corrected there: `task_done.auto_verify` does not
+"restore the legacy behavior", it closes without a signed receipt and is treated as a
+weakening; and SENAR stands for "Supervised Engineering & Normative AI Regulation", as
+the standard itself says.
+
+### Changed — the README is a path: install, check it worked, first task
+
+A fresh reader who had never seen TAUSIK was asked to read the README and report where
+they stalled. They met about 27 undefined terms before the install section, an internal
+decision number and five standard section references on the front page, and a wall of
+release notes. The README now leads with three install commands (including the
+`.gitignore` step), a status check for both POSIX and Windows shells, and the first task.
+Terms are defined where they first appear; release detail lives in "What's new".
+Re-read by a second fresh agent: confidence 8/10, no internal numbers, 1–2 undefined
+terms before install, 1400 words instead of 2513.
+
+### BREAKING — a task closes only with a verify run, in every project
+
+Until 1.10 a project with no test gate skipped Verify-First entirely, so
+`task done --ac-verified` closed a task on the agent's word. The static gates now also run
+on `verify`, so every project has a verify gate and a close without a verify run is
+refused. Close with `task done <slug> --ac-verified --relevant-files <files> --verify`, or
+run `tausik verify --task <slug>` first; a task that changed no file closes with
+`--no-file-changes` on a clean tree. Release notes: breaking change 6 in "What's new 1.10".
+
+### Added — the handoff says what colour the slow lane is
+
+`pytest -q` deselects `-m slow`, and CI does not run on a branch that may not be pushed,
+so a red slow test could live a whole session unseen. A whole-tree slow run
+(`pytest -m slow` or `-m ''`) now leaves its verdict in `.tausik/slow_lane.json`. The
+generated handoff reads it and carries `slow_lane`: `green`, `RED` with counts, or
+`NOT RUN this session`. A project that records no lane gets no field. `/checkpoint` runs
+the lane once, in the background, where the record exists. Under xdist the run summary
+now also names the deselected count, which pytest's own summary line omits there.
+
+### Fixed — `test_dedupe` no longer measures the framework inside your project
+
+Run from the framework's own tree, the duplicate-test gate counted TAUSIK's tests
+instead of the project's, so a project could be refused a close for debt that was not
+its own. It now measures the project whose `.tausik/` it runs for; a project without a
+baseline gets "NOT ADOPTED", as before.
+
+### Fixed — the cost model was blind to 94% of the bill
+
+Rates lived in two places that could not answer together. `cost_pricing` ships a table
+of input and output, prices no cache at all, and is what writes `usage_events.cost_usd`.
+`token_price` understands cache but read rates only from a config nobody had filled, so
+the cache-aware report printed UNPRICED. One path counted the small stream; the other
+could see the large one and had no rate for it.
+
+Measured over the last ten sessions: **3,044,531,708 cached tokens read against
+3,922,523 of output — 776 times as many.** Priced, that is **cache 94.2% of the bill,
+output 5.8%**.
+
+`token_price` now falls back to the shipped table, deriving the cache rates from the
+input rate by the published multipliers (read 0.1x, write 1.25x) rather than carrying a
+second table that would drift. A project's own `token_price` entry still overrides it
+whole, so the config predicts the bill from what is written in it.
+
+**A DATE SUFFIX NO LONGER UNPRICES A MODEL.** `claude-haiku-4-5-20251001` is the id this
+host reports and the table is keyed without the date, so the canonical Haiku went
+unpriced; trailing numeric segments are now dropped until something matches. That alone
+brought 984 previously uncounted calls into the total.
+
+The report states the cache share in one line, because reading the rows alone is what
+led this project's own author to announce that output was the bill.
+
+### Fixed — two slow-lane tests were red, and nothing ran them
+
+`pytest -q` deselects `-m slow`, and CI, which runs the full lane, does not run on a branch
+that may not be pushed. Two tests therefore stayed red unseen. Both were broken by
+intentional changes in the same release, not earlier, as `git bisect` shows:
+
+- `test_mcp_integration` expected the MCP server to refuse a launch without `--project`.
+  Since the server resolves the project per request (a4219bdf), that refusal is gone by
+  design. The test now checks the new contract end to end: launched outside any project,
+  the server still lists its tools and answers a call with the way out.
+- `test_tausik_cli::test_full_lifecycle` closed a task without a verify run. Since the
+  static gates also run on `verify` (2d192942), **QG-2 applies to every project, including
+  one with no test gate**. Before that change, a project with no verify-trigger gate
+  skipped Verify-First entirely. The test now closes the way a user does,
+  `task done --ac-verified --relevant-files ... --verify`, and asserts that a fileless
+  close without verify is refused. It no longer switches off each verify gate by name.
+
 ### Changed — preparation before a check is the default now, not a flag
 
 `verify --prepare` removed `bootstrap_drift` — 56 red runs in September, 25.3% of every
@@ -769,7 +968,7 @@ the flag would not bring them back. A task carries no such edges.
 verified, so `tests/test_hygiene_unarchive.py` reads the spec's own reversal claim and
 requires the named command to parse -- the sentence cannot outlive the code again.
 
-### Removed -- TODO.md, a hand-written direction map that had drifted two releases behind
+### BREAKING — Removed -- TODO.md, a hand-written direction map that had drifted two releases behind
 
 The file called itself the map of the project's direction and said "v1.7.0 released, v1.8 in
 flight" while 1.9.0 was out and 1.10 was in composition. Nobody had read it in two releases, and
@@ -2244,7 +2443,7 @@ Fail-closed covered policy verdicts, not the environment. When a project key was
 
 The FTS tables have no stemming and the sanitizer stripped `*`, so each word form found only itself: «задача» 565 records, «задачам» 27. A trailing `*` is now kept (`гейт*`), and a Cyrillic word of five letters or more is searched together with its stem (`(form OR stem*)`) — «задача», «задачи» and «задачам» all find 900. Stars elsewhere, unpaired quotes and operators are still neutralised. The technique is in the agent contract.
 
-### Changed — the user tier moves to `~/.config/tausik/config.json` (github#104)
+### BREAKING — Changed — the user tier moves to `~/.config/tausik/config.json` (github#104)
 
 `~/.tausik/config.json` recreated the `~/.tausik` directory that 1.8 had moved the shared store out of — the directory that makes a home folder look like a project. The user tier now lives in `~/.config/tausik/config.json`. An existing `~/.tausik/config.json` is still read when it is the only one, so no setting is lost, and `tausik doctor` asks to move it; when both exist the new one wins and doctor says the legacy one is ignored. Project discovery already refused to treat the home `~/.tausik` as a project; a test now pins it for a home with a config-only `.tausik`.
 
@@ -2312,7 +2511,7 @@ The Qwen profile built its hooks from a hand-kept copy of the list, and it had d
 
 The project MCP server has refused undeclared arguments since 1.9; the codebase-rag server passed them through, so `search_code(query=..., qurey=...)` looked like a call that simply found nothing. The guard now lives once, in `scripts/mcp_arguments.py`, and both servers call it before the handler: the reply names the unknown key, the nearest declared one and the usage line. (The third server the defect named, brain, was removed with the Notion transport.)
 
-### Changed — the RAG server's entry point is `rag_server.py`, and mypy now checks it (github#72)
+### BREAKING — Changed — the RAG server's entry point is `rag_server.py`, and mypy now checks it (github#72)
 
 `harness/claude/mcp/codebase-rag/server.py` shared its file name with the project server's `server.py`, and mypy aborts on two modules of one name before checking anything, so the whole RAG package stayed out of the type check. It is now `rag_server.py`; every launch point follows (bootstrap for Claude, Cursor, Qwen, Kilo, OpenCode and Codex, the session-start probe, the pre-commit hook, the environment docs), and `harness/claude/mcp/codebase-rag` joins `[tool.mypy] files` with zero errors. Re-run bootstrap after updating: host configs written by an older version still name `server.py`.
 
@@ -2706,7 +2905,7 @@ to be recovered from the IDE transcript, because nothing read an older one.
 `tests/test_past_handoff_is_readable.py`. Task
 `handoff-of-any-past-session-is-unreadable`, story E of 1.10.
 
-### Changed — the TAUSIK session is the host session: hooks open and close it (schema v63)
+### BREAKING — Changed — the TAUSIK session is the host session: hooks open and close it (schema v63)
 
 A session used to be a ritual: `/start` opened it, `/end` closed it, and an
 autonomous agent performs neither — session #265 stayed open nine days at 76
@@ -2725,7 +2924,7 @@ memory #716). The 1.9 release-notes test now pins the schema tag v1.9.0
 shipped (62) instead of the live tree. `tests/test_session_host_binding.py`.
 Task `session-is-the-host-session-not-a-ritual`, story E of 1.10.
 
-### Changed — session time and call capacity are signals, not gates; `task start --force` is retired (decision #376)
+### BREAKING — Changed — session time and call capacity are signals, not gates; `task start --force` is retired (decision #376)
 
 QG-0 used to refuse a task start on two conditions that say nothing about
 the task record it examines: the session's active time over 180 minutes and

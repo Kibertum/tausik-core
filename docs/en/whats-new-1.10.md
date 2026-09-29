@@ -36,11 +36,33 @@ OFF: the published evidence says there is no effect below a thousand records,
 so the gate is closed and the activation rate on our own machine is zero. That
 is a result, not a gap.
 
+## Rebuilt before release
+
+The owner stopped 1.10 at the tag and sent it back for three things, in this order.
+
+**Understandable from outside.** The README is now a path: three install commands, a
+status check for POSIX and Windows shells, the first task. A fresh reader who had never
+seen TAUSIK met about 27 undefined terms before the install section; a second one, after
+the rewrite, named none of the internal references and rated their understanding 8/10.
+`tausik demo` shows the point in ten seconds, with no network and no LLM key: an agent
+claims the tests pass without running them, the close is refused, the real check is red,
+and only a real fix closes the task with a signed receipt.
+
+**Token economy.** Cache is 94% of the bill, and every call re-sends the context, so the
+lever is the number of calls. The cost model now prices the cache, closing a task takes
+one call instead of four, and `tausik metrics calls` shows what a closed task spends its
+calls on — reading code is 31% of them.
+
+**Answer quality.** The answer rules ship in every rules file and now also arrive before
+every answer. The measure that watched them was reading the ten OLDEST transcripts, not
+the newest, so it could never move; it now reads the newest and counts the retelling,
+not the quoted proof. On the newest ten: median 162 words, p90 365.
+
 ---
 
 ## BREAKING CHANGES
 
-Five. Each with what to do.
+Six. Each with what to do.
 
 ### 1. The user tier moved to `~/.config/tausik/config.json`
 
@@ -83,6 +105,17 @@ content is preserved in a decision and in the active epics.
 **What to do:** read `ROADMAP.md`. If you linked to `TODO.md`, that link is
 dead — which is better than a link to something stale.
 
+### 6. A task closes only with a verify run, in every project
+
+Until 1.10 a project with no test gate skipped Verify-First entirely, so
+`task done --ac-verified` closed a task on the agent's word. The static gates now also
+run on `verify`, so every project has a verify gate, and a close without a verify run
+is refused.
+
+**What to do:** close with `task done <slug> --ac-verified --relevant-files <files> --verify`
+(one call), or run `tausik verify --task <slug>` first. A task that changed no file
+closes with `--no-file-changes` on a clean tree.
+
 ---
 
 ## What else changes on upgrade
@@ -110,6 +143,8 @@ version at 44 — is fixed; if you are stuck on it, the upgrade will go through.
 | `tausik memory edit` | rewrite a record with a command instead of going around through the projection |
 | `tausik task obsolete` | close a task that time resolved, without passing it off as delivered |
 | `tausik metrics answers` | the shape of the agent's answers, measured |
+| `tausik metrics calls` | tool calls per closed task by kind, per complexity |
+| `tausik demo` | watch a false "tests pass" get caught, in a throwaway sandbox |
 | `tausik db telemetry` | trim accumulating sidecars to their declared lifetime |
 | `tausik publish notes` | a release body that refuses itself without both notes pages |
 | `/run` | work the release composition task by task without handing control back |
@@ -140,9 +175,9 @@ than by modification time.
 
 ### Answers got shorter, and that is measured
 
-An agent's answer now has a budget it sees on the next request, and
-`tausik metrics answers` puts a number on the shape of answers. The rule is
-about RETELLING: evidence of closure is not capped.
+The answer rules arrive before every answer, and an answer over budget is named on the
+next request. `tausik metrics answers` reads the newest transcripts and counts the
+RETELLING only: fenced output and table rows are evidence and are not capped.
 
 ---
 

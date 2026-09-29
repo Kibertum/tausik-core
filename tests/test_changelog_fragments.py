@@ -179,9 +179,16 @@ class TestTheGateReadsTheFragmentRoute:
         assert text.index("fragment_check") < text.index("files_with_substantive_additions")
 
     def test_this_task_shipped_its_own_fragment(self):
-        """Dogfood: the change that introduced fragments is itself recorded as one."""
+        """Dogfood: the change that introduced fragments is itself recorded as one —
+        as a fragment until the release is assembled, and folded into both changelogs
+        after `changelog assemble --apply`, which removes the fragment by design."""
         ok, why = cf.check(str(_REPO), "lanes-changelog-fragments")
-        assert ok, why
+        if ok:
+            return
+        en = (_REPO / "CHANGELOG.md").read_text(encoding="utf-8")
+        ru = (_REPO / "CHANGELOG.ru.md").read_text(encoding="utf-8")
+        assert "one changelog file per task instead of every task editing" in en, why
+        assert "changelog.d/<slug>.md" in ru, why  # the Russian entry names the same path
 
 
 class TestNoNewDependency:

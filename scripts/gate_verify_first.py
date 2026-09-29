@@ -138,6 +138,28 @@ def _projection_prefixes(svc: Any) -> tuple[str, ...]:
         return ()
 
 
+def roadmap_is_generated(svc: Any, project_root: str) -> bool:
+    """True iff ROADMAP.md is byte-equal to what the generator renders now.
+
+    A status change reissues ROADMAP.md, and a fileless close then saw the file dirty
+    and refused: the framework's own output blocked the close it had just caused. Only
+    an EXACT match is the generator's; a hand edit differs and still counts as work.
+    """
+    try:
+        path = os.path.join(project_root, "ROADMAP.md")
+        with open(path, encoding="utf-8", newline="") as fh:
+            current = fh.read()
+        from state_triggers import _ROADMAP_MARK
+
+        if _ROADMAP_MARK not in current[:512]:
+            return False
+        import release_roadmap
+
+        return release_roadmap.render(svc.be._conn) == current
+    except Exception:  # noqa: BLE001 — unknown is not "generated": the file stays dirty
+        return False
+
+
 def _enforce_no_file_changes(
     svc: Any,
     report: dict[str, Any],
@@ -181,6 +203,9 @@ def _enforce_no_file_changes(
         excluded = _projection_prefixes(svc)
         if excluded:
             dirty = [p for p in dirty if not p.startswith(excluded)]
+        if dirty and "ROADMAP.md" in dirty:
+            if roadmap_is_generated(svc, root):
+                dirty = [p for p in dirty if p != "ROADMAP.md"]
     scope_desc = (
         "declared paths " + ", ".join(relevant_files) if relevant_files else "the working tree"
     )
