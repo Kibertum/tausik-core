@@ -30,6 +30,16 @@ def add_verify_parsers(sub: Any) -> None:
         ),
     )
     vp.add_argument(
+        "--prepare",
+        action="store_true",
+        help=(
+            "Run the fixed preparation — `ruff format` and the bootstrap redeploy — "
+            "in THIS call, before the gates. Both fix a gate that goes red for a "
+            "reason known in advance, and each otherwise costs its own call. The "
+            "run reports that preparation happened and what it said."
+        ),
+    )
+    vp.add_argument(
         "--no-tests-expected",
         action="store_true",
         help=(

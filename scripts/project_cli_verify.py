@@ -18,6 +18,13 @@ from __future__ import annotations
 from typing import Any
 
 
+def _declared_on_task(svc, slug):
+    """The scope already on the task, for a prepare run that declared none in this call."""
+    from task_close_inline_verify import declared_scope
+
+    return declared_scope(svc, slug) if slug else []
+
+
 def cmd_verify(svc: Any, args: Any) -> None:
     """Scoped per-task verification, recorded in DB.
 
@@ -63,6 +70,23 @@ def cmd_verify(svc: Any, args: Any) -> None:
                 "verify --relevant-files was given no paths — keeping the "
                 "scope already declared on the task. Pass paths to change it."
             )
+
+    prepared: list[str] = []
+    if getattr(args, "prepare", False):
+        from project_root import root_from_service
+        from verify_prepare import PreparationFailed, run as run_preparation
+
+        try:
+            prepared = run_preparation(
+                root_from_service(svc) or ".", declared or _declared_on_task(svc, task_slug)
+            )
+        except PreparationFailed as exc:
+            # Not a gate failure: nothing was judged. Saying so is the difference
+            # between "the tree is red" and "the tree was never looked at".
+            print(str(exc))
+            raise SystemExit(2) from exc
+        for line in prepared:
+            print(line)
 
     try:
         report = svc.run_verify_for_task(

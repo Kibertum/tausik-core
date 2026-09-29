@@ -9,6 +9,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the preparation a check needs now runs inside the check
+
+Two gates went red for reasons known IN ADVANCE and fixed by a fixed command:
+`ruff_format` until `ruff format` has run, and `bootstrap_drift` after any edit
+under `scripts/` until the profile is redeployed. Neither is a judgement, and each
+cost its own call — about a million tokens per task at the measured 482 000 tokens
+of prefix re-sent per call, against roughly 400 closures a month.
+
+`tausik verify --task <slug> --prepare` does both in the same call, before the
+gates, and prints that preparation ran and what it said.
+
+**THIS IS NOT A GATE HEALING ITSELF.** `bootstrap_drift` still refuses to rebuild
+the copies it evaluates, and rightly: a gate that mutates the state it judges
+certifies its own repair. Here it is the AGENT that asks, by name, before the gates
+have looked at anything.
+
+**GREEN DID NOT COME TO MEAN LESS.** A failed preparation STOPS the run with its own
+text — going on would judge a tree the caller believes was prepared and was not, and
+that green says the opposite of what it seems to. The step list is closed and
+declared as data: formatting and redeployment, two operations whose result does not
+depend on what the code means. A third kind would be a decision laundered through a
+flag, and a test fails on one.
+
 ### Changed — widening a scope costs one short call instead of two long ones
 
 A task's scope is declared BEFORE the work reveals which files it will touch, so the

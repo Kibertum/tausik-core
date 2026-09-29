@@ -124,7 +124,6 @@
       "scripts/project_parser_stack.py",
       "scripts/project_types.py",
       "scripts/renar_tc_premise.py",
-      "scripts/repo_coherence.py",
       "scripts/route_map.py",
       "scripts/service_stack_ops.py",
       "scripts/stack_registry.py",
