@@ -294,6 +294,11 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
     )
     mc.add_argument("--since", default=None, help="ISO-8601 lower bound on recorded_at (inclusive)")
     mc.add_argument("--until", default=None, help="ISO-8601 upper bound on recorded_at (inclusive)")
+    metrics_sub.add_parser(
+        "task-cost",
+        help="Tokens per CLOSED task, apportioned from session totals by call share, with "
+        "the monthly trend — the price-neutral answer to whether a task got dearer",
+    )
     __import__("project_parser_answers").add(metrics_sub)  # metrics answers (story J)
     mt = metrics_sub.add_parser(
         "tokens",

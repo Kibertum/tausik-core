@@ -176,6 +176,17 @@ def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:
         # Local now: the helper crossed back from project_cli_ops with cmd_metrics.
         _print_usage_cost_rollup(svc, getattr(args, "since", None), getattr(args, "until", None))
         return True
+    if sub == "task-cost":
+        from task_cost_report import build, render
+
+        conn = svc.be._conn
+        closed = int(conn.execute("SELECT COUNT(*) FROM tasks WHERE status = 'done'").fetchone()[0])
+        if not closed:
+            # Absence, not an empty table dressed as a zero-cost project.
+            print("No closed task yet, so there is nothing to apportion a session onto.")
+            return True
+        print(render(build(conn), closed))
+        return True
     if sub == "answers":
         __import__("project_parser_answers").run(args)
         return True

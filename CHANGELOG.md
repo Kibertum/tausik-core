@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `tausik metrics task-cost`: what a task cost, in a unit the price list cannot move
+
+`cost_actual_usd` was filled on ZERO tasks of 1675 and `tokens_actual` on 27. The
+cause: the hook records the CALL and not the tokens (120 of 67 081 rows carry a token
+count), while the session-level rows carry tokens and no task slug. The rollup joins on
+the slug, finds nothing and writes NULL — correctly. So "is a task getting dearer" went
+unanswered for five releases although both halves of the answer sat in the database.
+
+Session tokens are now apportioned across a session's tasks by each task's share of its
+calls, and the result is CALLED an apportioned estimate everywhere it appears.
+
+**THE MEASUREMENT THIS PRODUCED INVERTS THE ANSWER.** In dollars, cost per closed task
+fell 61%: $3.04 in May to $1.19 in September. But the price per million tokens moved
+$74.43 -> $10.32 -> $15.76 over the same span, so the falling bill is the price list,
+not us. In tokens, where the price cannot reach, the median per task ROSE from **41k in
+May to 79k in September — 1.9x** — and p90 from 184k to 410k. August was worse than
+September (122k), so autumn improved on itself without recovering May.
+
+Coverage is a number: 665 closed tasks of 1684 (39%); a further 195 were worked in
+sessions that recorded no tokens and are declared ABSENT rather than zero, because a
+zero would drag every median containing it towards free.
+
 ### Added — `tausik gates ratchets`: a moved ratchet in 23 seconds instead of five minutes
 
 Fifteen ratchets live in `tausik/gates.json`, each guarded by its own test, and the
