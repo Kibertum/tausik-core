@@ -84,8 +84,19 @@ Invoke the `/task` skill with the slug. **Never reimplement what it does** — i
 QG-0, the scope ACL, the context pack, the plan advisory and the model check. A driver that
 bypasses them is a driver that closes tasks the gates would have refused.
 
-Then do the work: Read/Edit/Bash/Glob/Grep as the task requires. Do not delegate to a
-subagent unless the individual task says to; `/run` is a loop, not a dispatcher.
+Then do the work: Read/Edit/Bash/Glob/Grep as the task requires.
+
+**Delegate what `task start` tells you to, and nothing else.** The banner prints a `DELEGATE`
+line only for a task the complexity score rates `simple` while the session runs a more
+expensive model. Measured over 218 closes: 195 ran on the premium tier, 47 of them on simple
+work — printed every time, followed almost never, because the host cannot switch a running
+session's model. A subagent can be STARTED on one, and begins with a fresh context while this
+session re-sends roughly half a million tokens of prefix per call.
+
+**The closure is not delegated.** The subagent does the work and reports; verification, the
+evidence lines and `task done` stay here. A receipt signed by a worker nobody reviewed is the
+failure QG-2 exists to prevent — and for anything the banner does not mark, `/run` is a loop,
+not a dispatcher.
 
 Close with `task done --ac-verified --verify-handle …` exactly as manual work does.
 
@@ -168,10 +179,6 @@ this skill exists to avoid.
 - It does not ask the owner between tasks. That is the point.
 
 ## Gotchas
-
-- **A list of slugs captured up front is stale by its second entry.** Closing a task can
-  auto-close a story, unblock a dependant or surface a defect that outranks what looked
-  next. Ask `task next` before EVERY task, not once.
 
 - **A turn that ends with prose ends the run.** Control returns to the user and the agent
   cannot resume itself. Between tasks print one line, never a summary — the summary is

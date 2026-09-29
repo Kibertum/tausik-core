@@ -9,6 +9,35 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed -- model routing became a mechanism, by delegating instead of switching
+
+Of 218 closed tasks carrying a model id, **195 ran on the premium tier** — 47 of them rated
+`simple`, 90 rated `medium`, where the recommendation pointed at a cheaper model. The banner
+printed at every `task start` and was followed almost never.
+
+It could only ask, and the reason was real: the host does not switch a running session's
+model, which is why decision #183 settled that the adherence metric is calibration rather
+than compliance. **A subagent is started on a model the caller picks** — that is the one
+programmatic choice available, and it moves both multipliers of the price at once. The
+cheaper tier is the visible half; the larger half is that a subagent begins with a FRESH
+context while the session spawning it re-sends about 500,000 tokens of prefix on every call,
+against roughly 42,000 at a session's start. Twelve times the prefix, per call, for the rest
+of the session.
+
+`task start` now prints a `DELEGATE` line for simple work on a premium session, naming both
+halves. `/run` no longer forbids delegation outright — a rule written before anything
+measured how often the cheaper model was actually used — and instead delegates exactly what
+the banner marks.
+
+**THE CLOSURE IS NOT DELEGATED.** The subagent does the work and reports; verification, the
+evidence lines and `task done` stay with the agent that owns the task. A receipt signed by a
+worker nobody reviewed is the failure QG-2 exists to prevent, and a test holds that sentence
+in the skill.
+
+Complex work is never delegated: its recommendation points UP, and buying tokens with the
+result is the trade this project does not make. The skill paid for the new rule by dropping a
+gotcha that repeated step 2 almost verbatim.
+
 ### Changed -- cheap gates run first, and the expensive one is not paid for a run already lost
 
 Five static gates -- `test_dedupe`, `filesize`, `class_surface`, `bootstrap_drift`,

@@ -200,6 +200,19 @@ def format_task_start_banner(
                 f"  ⓘ quality surplus — active exceeds recommended {rec_display}; "
                 "switch down to save cost"
             )
+            # The host cannot switch a running session's model, so for years this line could
+            # only ask — and the measurement says asking did not work: 195 of 218 closed
+            # tasks ran on the premium tier, 47 of them rated simple. A SUBAGENT is started
+            # with a model the caller picks, which is the one programmatic choice available,
+            # and it also begins with a fresh context. `model_delegation` decides when that
+            # is worth saying.
+            from model_delegation import advise, banner_line
+
+            delegation = banner_line(
+                advise(complexity, rec_display, active_tier=active_tier, recommended_tier=rec_tier)
+            )
+            if delegation:
+                extra_lines.append(delegation)
             extra_lines.append(_PICKER.replace("Mid-session switch", "Switch down"))
             if slug:
                 extra_lines.append(
