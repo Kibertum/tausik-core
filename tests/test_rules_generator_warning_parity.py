@@ -147,15 +147,17 @@ class TestTheCheckWouldNoticeASilentGenerator:
 class TestTheDirectiveStaysTheOnlyLeverAndStaysSmall:
     def test_the_cap_is_pinned(self):
         """The measuring task did not add a lever or resize it (700). The 1.9
-        response contract moved the cap to its measured 888 — by measurement,
-        not by rounding up; `tests/test_response_contract_shape.py` pins the
-        no-headroom half of that."""
+        response contract moved the cap to its measured 888. 1.10 moved the contract
+        OUT of this directive — the shape, the carve-outs and the exceptions ship
+        unconditionally now — and what is left here is only the prose compression,
+        measured at 358. The cap follows the block down, by measurement rather than by
+        rounding; `tests/test_response_contract_shape.py` pins the no-headroom half."""
         import sys
 
         sys.path.insert(0, str(_BOOTSTRAP))
         from bootstrap_templates import CAVEMAN_DIRECTIVE, CAVEMAN_DIRECTIVE_MAX_CHARS
 
-        assert CAVEMAN_DIRECTIVE_MAX_CHARS == 888
+        assert CAVEMAN_DIRECTIVE_MAX_CHARS == 358
         assert len(CAVEMAN_DIRECTIVE) <= CAVEMAN_DIRECTIVE_MAX_CHARS
 
     def test_the_session_start_hook_does_not_carry_a_second_copy(self):

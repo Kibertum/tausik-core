@@ -152,7 +152,7 @@ class TestTheRulesThemselvesSurvivedTheEdit:
 class TestTheBodyStaysWithinItsBudget:
     def test_it_does_not_bloat_inside_a_line(self, body):
         """The tone edit took 15,013 characters to 14,998 — quieter and no longer.
-        The number was then re-based to 15178 when the compaction contract gained its
+        The number was then re-based to 15228 when the compaction contract gained its
         seventh item, which was paid for in LINES (the file sits at 180 of its
         180-line budget) rather than in characters.
 
@@ -163,12 +163,23 @@ class TestTheBodyStaysWithinItsBudget:
         existing one, not an addition. The ordering it carried reaches the agent from
         the task-start prompt instead (scripts/code_necessity.py).
 
+        A FOURTH re-base, to 15228, was TAKEN rather than refused, and the reason is
+        the difference: the owner ordered the answer shape into the shipped rules, so
+        the rule was not optional and the question was only what it displaced. It was
+        paid for first — the three workflow bullets that restated what each skill does,
+        the model-selection paragraph that `task start` already prints, the code fence
+        around the one-line pipeline, and the `## Response Language` section whose one
+        sentence became a bullet of the shape. That covered 700 of the 750 characters;
+        the remaining 50 moved the ceiling. The contract itself ships WHOLE: a first
+        pass compressed it and silently dropped three of its elements, which
+        `test_response_contract_shape` caught.
+
         So this is the weaker of two guards and says so: the 180-line budget in
         test_bootstrap_generate is the binding one, and this one only catches text
         growing inside lines the line count cannot see. Each re-base names what was
         bought, because a budget raised without a reason is not a budget.
         """
-        assert len(body) <= 15178
+        assert len(body) <= 15228
 
     def test_it_is_still_within_the_line_budget(self, body):
         """The same 80-180 bound `test_bootstrap_generate` holds the file to."""

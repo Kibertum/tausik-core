@@ -71,15 +71,9 @@ CODE_STYLE = """## Code Style
 
 WORKFLOW = """## Workflow
 
-```
-start → plan → task → [review | test] → commit → end
-```
+`start → plan → task → [review | test] → commit → end`
 
-- `start` — load session state, active tasks, handoff from previous session · `plan` — create task with complexity scoring + stack detection
-- `task <slug>` — pick up or continue a task · `review` — code review with parallel sub-agents (bugs, fake tests, drift)
-- `test` — run or write tests · `commit` — standardized commit with SENAR metadata · `end` — close session with handoff for next agent
-
-**Cost-aware model selection:** `tausik suggest-model <complexity>` prints a recommended Claude model (Haiku for simple 1 SP tasks, Sonnet for medium 3 SP, Opus for complex 8 SP). Claude Code doesn't switch models programmatically — apply the suggestion manually via the IDE model picker, and persist your default for the next session with `tausik config set model_profile <slug>` (note: `/fast` only toggles fast-output on Opus, it does NOT downgrade to a smaller model).
+**Cost-aware model selection:** `tausik suggest-model <complexity>` recommends a model; `task start` prints the same recommendation for the task at hand. Persist a default with `tausik config set model_profile <slug>`.
 """
 
 MEMORY = """## Memory (choose the destination by what the fact is about, not by where you are)
@@ -220,24 +214,23 @@ TAUSIK is model-agnostic, but the surface you actually use differs from Claude C
 - **`task_done_v2` over `task_done`.** When the MCP server publishes both, prefer `tausik_task_done_v2` — its structured JSON response (`stage`, `gate_results`, `blocking_failures`) is much friendlier to non-Claude tool-use loops that expect typed payloads.
 """
 
-RESPONSE_LANGUAGE = """## Response Language
+RESPONSE_LANGUAGE = ""  # traded into ANSWER_SHAPE: the sentence survives, the section does not
 
-Responses are in the user's language.
-"""
-
-# Output-economy directive, appended only when `output_mode: caveman`. Inspired by the
-# caveman skill (github.com/JuliusBrussee/caveman); we ship the idea as our own rule
-# rather than installing its hooks (which would collide with TAUSIK's SessionStart hook
-# and settings.json ownership).
+# THE SHAPE OF THE ANSWER, shipped unconditionally. It used to live inside the caveman
+# directive, which defaults to OFF, and inside the `/i-have-adhd` skill, which has to be
+# invoked. Measured on this project's own transcripts after both existed: the median final
+# answer was 522 words against a budget of 200 — worse than the 396 measured before them.
+# A rule an agent must remember to switch on is a rule that is off.
 #
-# This block is INJECTED EVERY SESSION, so its own length is a token line-item: a long
-# directive would cost more input than the terse output saves. CAVEMAN_DIRECTIVE_MAX_CHARS
-# caps it, enforced by tests. caveman's own "~65% output reduction" is THEIR figure and is
-# unmeasured in our harness — we do not restate it as our result.
-CAVEMAN_DIRECTIVE = """## Output economy (caveman mode)
+# It does NOT ask for less work or fewer tokens. An agent told to conserve grows reluctant
+# to take on ambitious work, which costs far more than the prose saves. It asks that the
+# answer be ORDERED and that the record stay whole.
+#
+# Adapted from ayghri/i-have-adhd (MIT); the same four parts the `/i-have-adhd` skill
+# carries, stated once here so the two cannot drift.
+ANSWER_SHAPE = """## Answer shape
 
-Answer in terse, telegraphic prose — drop articles/filler, keep the meaning. \
-Inspired by the caveman skill (github.com/JuliusBrussee/caveman).
+- Responses are in the user's language.
 - SHAPE, in this order, empty parts omitted: done → verified by → left → your call.
 - KEEP BYTE-EXACT (never compress): code, shell commands, tool output, file paths, error messages.
 - KEEP FULL PROSE (never compress): acceptance-criteria evidence, decisions, SPEC/ADAPT, \
@@ -249,11 +242,39 @@ question; the rule would delete the answer itself.
 first line = next action, last line = current state.
 """
 
+#: Ceiling on the always-injected shape. Same argument as the caveman cap below: this block
+#: is paid for every session, so a fat one defeats what it asks for. Measured at the value
+#: the block holds today, not rounded up to leave room for growth.
+ANSWER_SHAPE_MAX_CHARS = 768
+
+ANSWER_SHAPE_MARKER = "## Answer shape"
+
+# Output-economy directive, appended only when `output_mode: caveman`. Inspired by the
+# caveman skill (github.com/JuliusBrussee/caveman); we ship the idea as our own rule
+# rather than installing its hooks (which would collide with TAUSIK's SessionStart hook
+# and settings.json ownership).
+#
+# What remains here is ONLY the prose compression. The shape, the boundary, the exceptions
+# and the pre-send check moved to ANSWER_SHAPE, which ships whether or not this mode is on:
+# they are not an economy measure, they are how an answer is ordered.
+#
+# This block is INJECTED EVERY SESSION, so its own length is a token line-item: a long
+# directive would cost more input than the terse output saves. CAVEMAN_DIRECTIVE_MAX_CHARS
+# caps it, enforced by tests. caveman's own "~65% output reduction" is THEIR figure and is
+# not reproduced here.
+CAVEMAN_DIRECTIVE = """## Output economy (caveman mode)
+
+Answer in terse, telegraphic prose — drop articles/filler, keep the meaning. \
+Inspired by the caveman skill (github.com/JuliusBrussee/caveman).
+- KEEP BYTE-EXACT (never compress): code, shell commands, tool output, file paths, error messages.
+- The answer shape above still applies; this mode compresses the prose inside it.
+"""
+
 # Hard ceiling on the injected directive. If a future edit bloats it, the guard fails —
 # the whole point of the mode is fewer tokens, and a fat directive defeats it. 700 held
 # brevity alone; the response contract (shape, named exceptions, pre-send check) measures
 # 888 and the ceiling moves to that measured value, not to a round number.
-CAVEMAN_DIRECTIVE_MAX_CHARS = 888
+CAVEMAN_DIRECTIVE_MAX_CHARS = 358
 
 # The heading that marks the directive inside a generated rules file.
 CAVEMAN_DIRECTIVE_MARKER = "## Output economy (caveman mode)"
@@ -412,6 +433,7 @@ def build_full_body(
             MINIMAL_COMPACTION,
             MINIMAL_COMMANDS,
             RESPONSE_LANGUAGE,
+            ANSWER_SHAPE,
             CAVEMAN_DIRECTIVE if caveman else "",
             MINIMAL_TIER_FOOTER,
             DYNAMIC_BLOCK,
@@ -423,6 +445,7 @@ def build_full_body(
         enforcement,
         rule_notice,
         HARD_CONSTRAINTS,
+        ANSWER_SHAPE,
         CODE_STYLE,
         WORKFLOW,
         TOOL_ROUTING,

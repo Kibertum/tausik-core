@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed -- the answer contract ships unconditionally instead of behind two opt-ins
+
+The shape (`done → verified by → left → your call`), the carve-outs that protect the record
+and the five named exceptions lived in `CAVEMAN_DIRECTIVE`, which `output_mode` leaves OFF by
+default, and in the `/i-have-adhd` skill, which has to be invoked. Measured on this project's
+own transcripts while both existed: **median final answer 522 words against a budget of 200,
+p90 923** — worse than the 396/915 measured before either. A rule an agent must remember to
+switch on is a rule that is off.
+
+`ANSWER_SHAPE` now ships in every generated rules file in both tiers. `output_mode: caveman`
+keeps only what it is actually for — compressing the prose inside the shape — and its cap
+follows it down from 888 to its measured 358.
+
+**IT WAS PAID FOR, AND THEN THE BOUND MOVED BY THE REMAINDER.** The generated body has a
+180-line and a 15,178-character budget whose convention is that a new rule TRADES against an
+existing one. Traded out: three workflow bullets restating what each skill does, the
+model-selection paragraph `task start` already prints, the code fence around a one-line
+pipeline, and the `## Response Language` section whose one sentence is now a bullet of the
+shape. That covered 700 of 750 characters; the last 50 re-based the ceiling, recorded with the
+reason in the test that holds it.
+
+**THE CONTRACT SHIPS WHOLE.** A first pass compressed it to fit and silently dropped three of
+its elements — `first line = next action`, `last line = current state`, and one of the five
+exceptions. `test_response_contract_shape` caught all three, and that test now reads the
+always-shipped block instead of the opt-in one: while it read the directive, every assertion
+in it was conditional on a mode that is off.
+
+**A BLOCKING `Stop` HOOK WAS REJECTED AS THE LEVER.** It is the obvious way to enforce a
+length, and this project already measured what it costs: the harness renders a blocked Stop as
+a hook error and the turn dies with no output. For a long answer that is strictly worse than
+the disease — the reader gets nothing instead of too much. Recorded as a dead end.
+
 ### Changed -- the tree says 1.10.0, and the README says what 1.10 is
 
 `pyproject.toml` and `scripts/tausik_version.py` carried 1.9.0 while 1.10 was being released.
