@@ -78,7 +78,15 @@ def main():
         pass
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project", required=True, help="Project root directory")
+    # OPTIONAL SINCE THE MULTI-TENANT SEAM. With it the server is pinned and behaves exactly
+    # as before — that is how the host launches it today and how a cron job says what it
+    # means. Without it the project is resolved per request; see `tenancy.py` for what that
+    # costs and why the cost is only paid in that mode.
+    parser.add_argument(
+        "--project",
+        default=None,
+        help="Project root directory. Omit to resolve per request.",
+    )
     args = parser.parse_args()
 
     # Pin cwd to --project so handlers that resolve paths relative to cwd
@@ -86,13 +94,14 @@ def main():
     # the user-override path in handlers_stack.py) read the right project
     # regardless of the host's launch directory. Mirrors tausik-brain
     # server.py behavior — keeps the two MCP servers symmetric.
-    if not os.path.isdir(args.project):
-        print(
-            f"Error: --project {args.project!r} is not a directory.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-    os.chdir(args.project)
+    if args.project is not None:
+        if not os.path.isdir(args.project):
+            print(
+                f"Error: --project {args.project!r} is not a directory.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        os.chdir(args.project)
 
     try:
         from mcp.server import Server
@@ -113,7 +122,14 @@ def main():
     import self_check  # noqa: F401
 
     server = Server("tausik-project")
-    svc = _get_service(args.project)
+    from tenancy import ProjectUnresolved, ServiceRegistry
+
+    registry = ServiceRegistry(args.project, _get_service)
+    # The listing needs A service to read the active task's scope ACL from. Pinned, that is
+    # the one project; per request, it is whichever project the working directory resolves to
+    # at the moment the host asks — and if none does, the listing must still answer, because a
+    # host that cannot list tools reads as a dead server rather than as an unopened project.
+    svc = registry.service(registry.pinned) if registry.pinned else None
 
     # state-roundtrip-regression-sync-corrupts: warm the git-native projection off
     # the request path. session_open's `sync_suggested` section is watchdog-bounded,
@@ -125,7 +141,8 @@ def main():
 
     from state_triggers import prewarm
 
-    threading.Thread(target=prewarm, args=(svc,), name="state-prewarm", daemon=True).start()
+    if svc is not None:
+        threading.Thread(target=prewarm, args=(svc,), name="state-prewarm", daemon=True).start()
 
     # mcp-scope-tools-exposure: expose only the tools the active task's
     # scope_tools ACL allows (∪ always-safe-core). Fail-open by construction —
@@ -142,6 +159,15 @@ def main():
     from mcp_tool_scope import LIST_CACHE_HINT, expose_tools
     from mcp_tool_tiers import apply_tiers
 
+    def _listing_service():
+        """A service for the ACL read, or None. Never raises: see the comment above `svc`."""
+        if svc is not None:
+            return svc
+        try:
+            return registry.for_call()
+        except Exception:  # noqa: BLE001 - an unopened project still gets the full tool list
+            return None
+
     @server.list_tools()
     async def list_tools():
         tools = [
@@ -150,7 +176,7 @@ def main():
                 description=t["description"],
                 inputSchema=t["inputSchema"],
             )
-            for t in apply_tiers(expose_tools(TOOLS, svc))
+            for t in apply_tiers(expose_tools(TOOLS, _listing_service()))
         ]
         return ListToolsResult.model_validate({"tools": tools, **LIST_CACHE_HINT})
 
@@ -183,7 +209,20 @@ def main():
         except ValueError as e:
             return [TextContent(type="text", text=_error_reply(TOOLS, name, e))]
         try:
-            result = await asyncio.to_thread(handle_tool, svc, name, arguments)
+            project_dir = registry.resolve()
+            call_svc = registry.service(project_dir)
+        except ProjectUnresolved as e:
+            # NOT a traceback and NOT a crash: the server is healthy, the request simply has
+            # no project. The agent gets the two ways out, which is the difference between an
+            # error it can act on and one it reports to a human.
+            return [TextContent(type="text", text=str(e))]
+
+        def _run_tool():
+            with registry.call_context(project_dir):
+                return handle_tool(call_svc, name, arguments)
+
+        try:
+            result = await asyncio.to_thread(_run_tool)
             return [TextContent(type="text", text=result)]
         except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
             # Full traceback to host stderr for diagnostics, mirroring

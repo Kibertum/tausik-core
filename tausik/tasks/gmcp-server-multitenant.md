@@ -1,7 +1,7 @@
 ---
 slug: gmcp-server-multitenant
 title: "[P0] Multi-tenant server: резолв per-request вместо --project"
-status: planning
+status: done
 epic: v2-global-mcp
 story: v2gm-core
 complexity: complex
@@ -10,24 +10,28 @@ stack: python
 tier: null
 call_budget: null
 defect_of: null
-scope: null
-scope_exclude: null
-relevant_files: []
-scope_paths:
+scope: "Резолв per-request и кэш ProjectService по project_dir в отдельном модуле tenancy рядом с сервером; server.py только подключает. --project остаётся явным override и ведёт себя как сегодня. resolve_project НЕ меняется — он уже параметризован."
+scope_exclude: "scripts/gmcp_project_resolver.py (закрытая задача, первое звено уже параметр); handlers/* — переписывать их зависимость от cwd не в этом объёме, вместо этого tenancy держит cwd на время вызова и сериализует вызовы, когда проект резолвится по запросу."
+relevant_files:
+  - "harness/claude/mcp/project/tenancy.py"
   - "harness/claude/mcp/project/server.py"
-  - "harness/cursor/mcp/project/server.py"
-  - "scripts/resolve_project.py"
-  - "tests/*"
+  - "tests/test_mcp_tenancy.py"
+scope_paths:
+  - "harness/claude/mcp/project/tenancy.py"
+  - "harness/claude/mcp/project/server.py"
+  - "tests/test_mcp_tenancy.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-29T09:55:00Z"
 resolution: null
 resolution_reason: null
 tracker_refs:
   - "github#36"
-started_model_id: null
+started_model_id: claude-opus-5
 started_model_version: null
-done_model_id: null
+done_model_id: claude-opus-5
 done_model_version: null
 model_mismatch: 0
 no_file_changes_declared: 0
@@ -53,6 +57,10 @@ cost_budget_usd: null
 
 ## Rollback
 
-git revert + re-bootstrap возвращает launch-time --project сервер
+git revert плюс python bootstrap/bootstrap.py --ide all, потому что сервер запускается из развёрнутой копии. Поведение с --project не меняется, значит откат не трогает ни один работающий сеанс: путь по умолчанию в конфиге проекта — именно --project.
 
 ## Journal
+
+- 2026-09-28T22:22:39Z [implementation] — AC-1: ✓ СМОУК НА НАСТОЯЩЕМ СЕРВЕРЕ без --project. Из корня проекта: 147 инструментов, tausik_status отдал живые данные (tasks_done 1659, session_id 277). Механизм в критерии не назван и в коде не зашит: primary_signal проходит насквозь в resolve_project, роль первичного сигнала играет cwd, как показал спайк. AC-2: ✓ tests/test_mcp_tenancy.py::TestTheCacheIsKeyedByProject — повтор того же каталога переиспользует инстанс (made==1), разные каталоги дают разные, ключ — абсолютный путь, а не написание. AC-6: ✓ ::TestPinnedModeIsUnchanged — с --project резолвер ВООБЩЕ не зовётся (подставлен взрывающийся), cwd не двигается, замок не берётся.
+- 2026-09-28T22:22:39Z [implementation] — AC-3 НЕГАТИВНЫЙ: ✓ смоук из D:/tmp — те же 147 инструментов и понятное сообщение с обоими выходами (tausik init здесь / открыть проект), не traceback и не падение. Список инструментов продолжает отвечать намеренно: хост, не получивший список, читается как мёртвый сервер. AC-4 НЕГАТИВНЫЙ: ✓ ::test_a_resolved_path_without_dot_tausik_is_refused — сервис НЕ строится (made==0), потому что SQLiteBackend создал бы файл и успешно обслужил бы пустой проект. AC-5 НЕГАТИВНЫЙ: ✓ ::TestTwoProjectsInOneProcessDoNotSeeEachOther на НАСТОЯЩИХ ProjectService и двух базах: задача из alpha не видна в beta, на диске два файла, счёт строк через sqlite3 напрямую 1 и 1.
+- 2026-09-28T22:22:39Z [implementation] — ЦЕНА НАЗВАНА, А НЕ СПРЯТАНА: рабочий каталог один на процесс, а часть обработчиков резолвит пути от него, поэтому режим по запросу держит cwd под замком на время вызова и пересекающиеся вызовы сериализуются — ::test_overlapping_calls_serialise_because_the_cwd_is_process_wide. Соседний тест проверяет, что замок отпускается при неудачной смене каталога, иначе один плохой запрос повесил бы все следующие. Лента: 12220 прошли, 30 пропущены (было 12197). Редеплой профилей выполнен до закрытия.

@@ -9,6 +9,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed -- the MCP server can resolve its project per request, and `--project` still wins
+
+`--project` was required and pinned one service for the life of the process. It is now
+optional: with it the server behaves exactly as before, and without it each request resolves
+its own project and gets a `ProjectService` cached by directory.
+
+**MEASURED FIRST, BUILT SECOND.** The spike counted seven `claude.exe` hosts against six
+`tausik-project` servers with six DISTINCT parents -- one stdio process per window, so today
+the cache holds one entry. What changes that is a transport where the process is not tied to a
+window, and the 2026-07-28 spec removed the handshake and the session header precisely so any
+request may land in any instance. The seam costs a module now and would cost the migration
+later.
+
+**A DEAD PROJECT DIRECTORY IS REFUSED RATHER THAN ADOPTED**, which is the dangerous case:
+`SQLiteBackend` creates the file it is pointed at, so an unresolvable or vanished path would
+not raise — it would succeed at serving an empty project next to nothing. The registry checks
+for `.tausik/` before it constructs anything.
+
+**AN UNRESOLVED PROJECT IS AN ANSWER, NOT A TRACEBACK.** Smoke-tested against the real server
+with no `--project`: from inside the project, 147 tools and a live `tausik_status`; from an
+unrelated directory, still 147 tools and a message naming both ways out — `tausik init` here,
+or open the project. The tool list keeps answering because a host that cannot list tools reads
+as a dead server rather than as an unopened project.
+
+**THE COST OF TENANCY ON A PROCESS-GLOBAL IS STATED, NOT LEFT AS A RACE.** Several handlers
+resolve paths against the working directory, which is process-wide, so per-request mode holds
+it under a lock for the duration of a call and overlapping calls serialise. A test asserts
+that, and another asserts the lock is released when the directory move fails. Pinned mode
+takes no lock at all: the common path pays nothing for a capability it is not using.
+
 ### Fixed -- the spike document carried absolute developer paths and reddened the publication gate
 
 Found by a check nobody aimed at it: the public-snapshot leak scan named
