@@ -49,7 +49,7 @@ These gates are **hard blocks** — the agent literally cannot proceed without m
 Working sessions have structure:
 
 - **Session start** — load context from previous work (what was done, what's blocked, what failed)
-- **Context pressure** — session time, calls since the last checkpoint and a quiet journal are printed as advice with a measured basis; they never block a task start (1.10, decision #376).
+- **Context pressure** — session time, calls since the last checkpoint and a quiet journal are printed as advice with a measured basis; they never block a task start (1.10).
 - **Checkpoints** — periodic context snapshots so nothing is lost if the session crashes
 - **Session end** — save a handoff: what was accomplished, what's unfinished, what decisions were made
 

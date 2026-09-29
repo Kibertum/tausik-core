@@ -182,7 +182,7 @@ harness/
 +-- opencode/plugins/ # QG-0 enforcement plugin for OpenCode (tool.execute.before)
 ```
 
-#### Runtime (IDE) × Model — two orthogonal axes (Decision #119)
+#### Runtime (IDE) × Model — two orthogonal axes
 
 TAUSIK separates *where* it runs from *which model* answers:
 
@@ -259,7 +259,7 @@ Claude is "missing" OpenCode's plugin is a question with no meaning. The gate do
 NOT demand sameness: Cursor has no extension point at all, so there is nothing for
 it to be equal to. What it demands is that a difference be NAMED, with a reason —
 and a declaration that no longer matches any live difference is refused as loudly
-as an undeclared difference (decision #335). It fires only on host-layer edits
+as an undeclared difference. It fires only on host-layer edits
 (`bootstrap/`, `scripts/hooks/`, `harness/opencode/`): a gate that asks every task
 about cross-model parity is a tax, and a tax gets switched off.
 
@@ -301,8 +301,7 @@ too long to read" are different defects. Counts are a **lower bound** (AST, neve
 classes sit behind a ratchet baseline in `tausik/gates.json` that may only shrink.
 
 **Post-scope gates** — take the close context and edit the QG-2 report:
-`verify_first` (a fresh signed verify green must exist) and `changelog`
-(convention #275). `get_gates_for_trigger` excludes them, so `run_gates` never
+`verify_first` (a fresh signed verify green must exist) and `changelog`. `get_gates_for_trigger` excludes them, so `run_gates` never
 calls one with the wrong signature.
 
 Stack-scoped gates: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `golangci-lint`,
@@ -313,7 +312,7 @@ Stack-scoped gates: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `
 
 TAUSIK is a lightweight, zero-dependency framework, so it adopts [RENAR](https://renar.tech)
 (reasoning/governance standard) **advisory-first** rather than as heavyweight mandatory
-ceremony. Adoption climbs a ladder with explicit entry conditions per rung (Decision #115):
+ceremony. Adoption climbs a ladder with explicit entry conditions per rung:
 
 | Rung | What | Status |
 |---|---|---|

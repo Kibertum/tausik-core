@@ -80,7 +80,7 @@ telemetered.
 server with seven tools, the `/brain` skill and two hooks that searched the
 brain before a web fetch.
 
-**Now.** None of that ships (decision #358). The shared store is local and
+**Now.** None of that ships. The shared store is local and
 file-based — `~/.tausik-knowledge` — and `--global` on `decide` and
 `memory add` is the only way a record leaves this project. `tausik knowledge
 import-brain` still reads the local mirror file `~/.tausik-brain/brain.db`, so

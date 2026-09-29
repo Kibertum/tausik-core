@@ -11,7 +11,7 @@ them could be dropped.
 | | What it is | A property of |
 |---|---|---|
 | **Work continuity** | handoff: what was done, what is in flight, what comes next, what to warn about | a property of the **WORK** |
-| **Agent context hygiene** | the session's active time, the call capacity, the checkpoint counter — since 1.10 **signals, not gates** (decision #376): they advise a checkpoint or a handoff and never refuse a task start | a property of the agent's **CONTEXT WINDOW** |
+| **Agent context hygiene** | the session's active time, the call capacity, the checkpoint counter — since 1.10 **signals, not gates**: they advise a checkpoint or a handoff and never refuse a task start | a property of the agent's **CONTEXT WINDOW** |
 
 The two halves are no longer coupled. They used to be, in three ways, and every
 one of them looked harmless:

@@ -9,6 +9,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed -- record numbers came off the pages written for the user
+
+A reader running TAUSIK on their own project has no row #404. The number resolves to nothing
+for them, and the sentence around it asks them to take it on faith. Measured across the pages
+marked `reader=user`: **123** such references. Now **52**, and the rest come off as pages are
+touched — a ratchet holds the number down.
+
+**WHAT WENT IS THE ADDRESS, NOT THE FACT.** "...left the framework in 1.9 (decision #358)"
+became "...left the framework in 1.9". Deleting the clause would have taken the fact with it.
+
+**MAINTAINER AND AGENT PAGES ARE UNTOUCHED**, and that is the point of counting per reader:
+there the number is an address the reader CAN follow, because they have the database and
+`decisions_list` answers. External references like `github#51` stay everywhere — they address
+something anyone can open.
+
+**THE REMAINING 52 ARE PROSE, AND THEY STAY UNTIL SOMEBODY READS THEM.** The pass that landed
+only touches bracket-bounded forms, because a bracket is a boundary the text itself declares.
+A first version also rewrote prose and broke a sentence — the reference sat behind a
+preposition and removing it left the preposition with nothing after it. That is dead end #784,
+a bulk regex over prose, for the second time in one day; the rule was narrowed rather than
+patched.
+
+**AND IT TOOK THE PARENTHESES OFF FUNCTION NAMES.** A cleanup rule for parentheticals emptied
+by the pass matched `run_command_gate()` in a diagram. Caught by reading the diff, reverted,
+and the rule deleted rather than refined: the pass cannot leave an empty pair, so nothing
+needed cleaning up after it.
+
 ### Added -- a glossary, because the vocabulary was a wall with no door
 
 Counted across the 88 pages marked `reader=user`: `gate` appears **715** times, `slug` 467,

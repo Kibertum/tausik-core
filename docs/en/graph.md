@@ -19,7 +19,7 @@ RU mirror: [`../ru/graph.md`](../ru/graph.md).
 The MCP twin is `tausik_graph` with a `command` argument (`build`, `show`,
 `status`). One tool for three subcommands rather than three: the MCP surface is
 paid for on every turn, and three names would have cost triple for the same
-reach (decision #350).
+reach.
 
 ## Two layers, kept apart
 
@@ -39,7 +39,7 @@ twice.
 The co-change layer knows no languages: it reads git history, so it works
 identically for code, documentation, configuration and images. Verified by
 running it over python, terraform and markdown — one edge per stack, identical
-relation, layer and confidence (decision #349).
+relation, layer and confidence.
 
 ## Roots are asked of the PROJECT
 
@@ -90,7 +90,7 @@ symbols: 13312 from files this framework can parse
 
 Silence here would be the defect: a Go project would read "0 symbols" as "my
 code has no definitions" rather than "this framework cannot read them yet".
-Absence is not zero (decision #334).
+Absence is not zero.
 
 ## Freshness is recomputed on EVERY query
 
@@ -216,7 +216,7 @@ invoked the POSIX wrapper `.tausik/tausik`, which raises `OSError` there, and th
 surrounding `except` swallowed it. Reviving it would have cost 190 ms on every
 write, so it was removed rather than repaired: git records the changed file more
 precisely, and a machine-written line dilutes the journal entries an agent makes
-on purpose (decision #351).
+on purpose.
 
 ## Cost
 
@@ -349,7 +349,7 @@ is a statement about EDGES.
 raw — comparable to all of `scripts/*.py` at 3,683 KB — and 150 KB compressed; a
 live snapshot came out at 154 KB. A delta chain needs a base and every link
 intact, and a broken link invalidates everything after it. At 154 KB per release
-that fragility buys nothing (decision #354).
+that fragility buys nothing.
 
 **A snapshot carries its own COMPLETENESS, and that decides whether the reports
 survive.** Alongside the edges it stores what the graph was at the time: the
@@ -373,7 +373,7 @@ flood every report with the noise of ordinary work.
 
 ### How this sits beside the RENAR drift detectors
 
-It complements them and replaces neither (decision #354). `drift-1` re-validates
+It complements them and replaces neither. `drift-1` re-validates
 stored rows against cross-field invariants a CHECK cannot express — a question
 about DATA VALIDITY, which no snapshot comparison asks. `drift-7` catches a task
 closed against a requirement edited AFTER the link was made — a relation in TIME,
@@ -383,7 +383,7 @@ into one would lose two.
 ## What the graph does not express
 
 Listed deliberately, so the absence of these relations is not later mistaken for
-a data defect (decision #349):
+a data defect:
 
 - **direction of dependency** in the co-change layer: the relation is
   symmetric — "A changes with B" follows from history, "A depends on B" does

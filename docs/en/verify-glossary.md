@@ -68,7 +68,7 @@ Measured in session #235: of 135 under-declared runs in the last 300, **26 (19%)
 consisted of nothing but framework output**, and another 39 (29%) were mixed.
 
 They are now subtracted, on the same principle that already subtracts a task's
-own export (convention #409, decision #283): a check whose subject is "what did
+own export (convention #409): a check whose subject is "what did
 the AGENT change" does not count what it wrote itself.
 
 **The decision is taken by the DIFF, never by the name.** `CLAUDE.md` and

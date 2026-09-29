@@ -50,7 +50,7 @@ metrics tokens [--last N] [--rebuild] [--json]   # Context volume per tool over 
                                 #   splits message-level usage across the tool_use blocks in a message.
                                 # THE COLUMN THAT MATTERS IS ctx_*: the message's full input context
                                 #   (input + cache_creation + cache_read). That is the quantity a
-                                #   token-economy claim is about (decision #338). The in_* column is
+                                #   token-economy claim is about. The in_* column is
                                 #   NOT the input: with prompt caching on it is the uncached remainder
                                 #   — literally 2 tokens per message on this project — so it is a
                                 #   doubled call counter wearing a cost label.
@@ -304,7 +304,7 @@ guards nothing and says so; an unreadable staged set blocks.
 The `ruff_format` gate (block, on verify and commit) runs `ruff format --check` over the
 task's Python files. Files that diverged when it landed are frozen in `tausik/gates.json`
 → `ruff_format.legacy_unformatted` and skipped; the list only shrinks — format a listed file
-and remove it from the list in the same change (decision #386).
+and remove it from the list in the same change.
 
 The `test_dedupe` gate (block, on task-done and commit) reddens on GROWTH in COPIES
 — tests that are the same code once formatting, comments and the function's own name
@@ -735,7 +735,7 @@ snippet detect [--path X] [--threshold N]  # AST clone detection: normalizes
                                            #   Idempotent (deduped by hash).
 ```
 
-## Redacting from memory (v1.9, decision #258)
+## Redacting from memory (v1.9)
 
 The task journal is append-only, memory has no `update`, decisions have only
 `list`. That is deliberate: a record that can be quietly rewritten stops being
@@ -810,7 +810,7 @@ suggest-model [complexity]            # Recommend Claude model: simple→Haiku, 
 
 ## Commands not covered by the sections above
 
-This section exists because of a measurement (session #235): of the 53 commands
+This section exists because of a measurement: of the 53 commands
 the parser declares, fourteen were named nowhere in this file, so an agent had
 no way to learn they existed. Alphabetical within groups; `--help` carries the
 detail for each.
@@ -849,7 +849,7 @@ redact --pattern <pattern>     # scrub a secret from the knowledge history (--ap
 redact list                    # show the redactions already applied
 
 # --- release and network ---
-publish snapshot --from <ref> --parent <sha> [--dry-run]   # the public snapshot: the filtered tree on top of the public head (decision #368)
+publish snapshot --from <ref> --parent <sha> [--dry-run]   # the public snapshot: the filtered tree on top of the public head
 publish verify --snapshot <sha> --from <ref>               # snapshot == the filtered tree of the source, byte for byte
 push-ok [--ttl N]              # issue a git-push ticket (60 seconds by default)
 serve [--host H] [--port P]    # run the local receipt-verification endpoint

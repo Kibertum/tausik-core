@@ -53,8 +53,7 @@ anywhere would silently attach to the configuration tier instead of a project.
 
 ### 2. `task start --force` is withdrawn
 
-Session time and call capacity became SIGNALS rather than gates (decision
-#376). There is no flag to bypass a gate, because there is no gate.
+Session time and call capacity became SIGNALS rather than gates. There is no flag to bypass a gate, because there is no gate.
 
 **What to do:** drop `--force` from scripts. The long-session warning stays and
 is still worth reading.

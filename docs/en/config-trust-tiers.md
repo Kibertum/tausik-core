@@ -90,7 +90,7 @@ The seven keys above. The selection criterion is explicit: **a key is guarded
 only if it TURNS OFF supervision** — not if it scopes supervision or tunes one
 of its parameters.
 
-Deliberately outside the perimeter (decision #137):
+Deliberately outside the perimeter:
 
 - `gates.filesize.exempt_files` — scopes the gate. Its legitimate values
   (generated directories, research dumps) are project-specific by nature and
@@ -190,7 +190,7 @@ ONE consumer project — `task_done.auto_verify` for a repository whose payment
 code trips the security classifier, `gates.bootstrap_drift.enabled=false` for a
 submodule layout — sat at the top level of `~/.config/tausik/config.json` and governed
 every project on the box. A fresh project then had to notice a foreign
-`auto_verify` and tighten it back (gotcha #690).
+`auto_verify` and tighten it back.
 
 Both trusted tiers may carry a `projects` object. Its keys are absolute project
 directories, its values are overlays that apply ONLY when the project being

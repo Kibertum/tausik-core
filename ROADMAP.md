@@ -48,7 +48,7 @@
 | `deferred-110-context-and-output-shape` | 0 |
 | `generated-code-is-lean-and-ascii` | 3 |
 | `harness-costs-less-per-task` | 7 |
-| `release110-docs-are-legible-to-an-outsider` | 1 |
+| `release110-docs-are-legible-to-an-outsider` | 2 |
 
 ## Траектория объёма
 

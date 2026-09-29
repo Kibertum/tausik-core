@@ -269,5 +269,10 @@
     "prose_lines": 5348,
     "files": 287,
     "identifiers": 269
+  },
+  "doc_internal_refs": {
+    "_comment": "Record numbers on pages written for the user. Each addresses a row in THIS project's database; a reader running TAUSIK on their own project has no such row, so the number resolves to nothing and the sentence asks them to take it on faith. Counted only for reader=user: on maintainer and agent pages the number is an address the reader can follow, and stripping it there would remove traceability. Measured 2026-09-29: 123 before, 52 after the bracket-bounded pass. The remainder is prose — a reference behind a preposition or opening a sentence — and prose is rewritten by hand: a regex over it broke a sentence twice in one day (dead end #784). May only shrink.",
+    "references": 52,
+    "pages": 26
   }
 }

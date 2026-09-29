@@ -4,7 +4,7 @@
 
 <!-- doc-map: reader=user; zone=sessions -->
 
-SENAR Foundation (10.2) requires a documented maximum session duration with a basis; SENAR Core, the edition TAUSIK claims, does not govern sessions at all. In TAUSIK the **180-minute** threshold is, since 1.10, **advice, not a gate** (decision #376): above it `task start`, `status` and the Stop hook print a warning and refuse nothing. The threshold is measured on **active time**, not wall-clock — long pauses are clipped to the idle threshold instead of being dropped entirely. This page explains the algorithm, the semantics choice (clip vs exclude), the basis of the threshold, and how to tune it.
+SENAR Foundation (10.2) requires a documented maximum session duration with a basis; SENAR Core, the edition TAUSIK claims, does not govern sessions at all. In TAUSIK the **180-minute** threshold is, since 1.10, **advice, not a gate**: above it `task start`, `status` and the Stop hook print a warning and refuse nothing. The threshold is measured on **active time**, not wall-clock — long pauses are clipped to the idle threshold instead of being dropped entirely. This page explains the algorithm, the semantics choice (clip vs exclude), the basis of the threshold, and how to tune it.
 
 ## Why Active Time
 
@@ -81,7 +81,7 @@ If you legitimately need a longer session (e.g. release day):
 .tausik/tausik session extend --minutes 60
 ```
 
-`task_start --force` was retired in 1.10: capacity is no longer a gate, so there is nothing to bypass; the flag is refused with the reason (decision #376).
+`task_start --force` was retired in 1.10: capacity is no longer a gate, so there is nothing to bypass; the flag is refused with the reason.
 
 ## The basis of the threshold (SENAR 1.5 §9.4(c))
 
@@ -92,7 +92,7 @@ The numbers 180 / 150 / 200 are inherited from the SENAR 1.3 §9.2 guideline ("s
 - It is **not** wall clock — long pauses are dropped above the idle threshold.
 - It is **not** an estimate of real focused-work time. Tool calls are the proxy; if you read code in your head without tool use, the timer pauses.
 - The **180** threshold is on **active**, not wall. A session that has been open for 12 hours with 30 min of activity is still at 30 min and well under the threshold.
-- It is **not** a gate: crossing the threshold prints advice and refuses nothing (1.10, decision #376).
+- It is **not** a gate: crossing the threshold prints advice and refuses nothing (1.10).
 
 ## What's Next
 
