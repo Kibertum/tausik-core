@@ -63,8 +63,12 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             )
         )
         rb = getattr(args, "rollback_plan", None)
-        if rb:
-            svc.task_update(slug, rollback_plan=rb)
+        ac = getattr(args, "acceptance_criteria", None)
+        if rb or ac:
+            svc.task_update(
+                slug,
+                **{k: v for k, v in (("rollback_plan", rb), ("acceptance_criteria", ac)) if v},
+            )
         acl = {
             f: getattr(args, f, None)
             for f in ("scope_paths", "scope_tools")
@@ -187,6 +191,17 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 zero_gate_ack=bool(getattr(args, "zero_gate_ack", False)),
             )
         )
+        # The verdict a driver used to spend a separate call on. `budget-check` stays — it
+        # answers with an EXIT CODE, which is what a shell chain reads and what a printed
+        # line cannot replace. This is the same answer for the reader who is already here.
+        try:
+            from call_budget_guard import breach
+
+            refusal = breach(svc.task_show(args.slug))
+            if refusal:
+                print(refusal, file=_sys.stderr)
+        except Exception:  # noqa: BLE001,S110 - the close already happened; a note must not undo it
+            pass
     elif c == "obsolete":
         from task_obsolete import close_obsolete
 

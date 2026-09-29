@@ -9,6 +9,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed -- two calls per task removed, and the two that stay are the ones a driver reads
+
+`task add` could not set acceptance criteria while QG-0 refuses a start without them, so every
+creation was followed by a `task update` supplying the one field the next step requires — nine
+tasks in one shift, nine extra calls. And `budget-check` was a second call after every close.
+At roughly 482,000 tokens of re-sent prefix per call, ceremony is not a rounding error: the
+median task went from 6 calls in April to 32 in September.
+
+`task add --acceptance-criteria` makes a task startable after one command, routed through the
+follow-up update that already carried the rollback plan. `task done` now prints the budget
+verdict it already knows how to compute.
+
+**`budget-check` STAYS, and that is the point of the change rather than an oversight.** It
+answers with an EXIT CODE, which is what a shell chain reads and what a printed line cannot
+replace. What the closure prints is the same verdict for the reader already looking at the
+output — the call is saved, the command is not taken away.
+
+**THE DRIFT GATE STILL REFUSES TO FIX ITSELF.** Auto-redeploying would have saved another
+call per task and was refused: a gate that rebuilt the copies it evaluates would mutate the
+state it judges, which is the defect class this project already caught in a toggle declared a
+check and executed as a write. A test holds both the stated reason and the absence of any
+subprocess in the gate's body.
+
 ### Changed -- model routing became a mechanism, by delegating instead of switching
 
 Of 218 closed tasks carrying a model id, **195 ran on the premium tier** — 47 of them rated

@@ -81,6 +81,17 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="SENAR Rule 6: how to undo this change (git revert / migration "
         "down / feature flag off).",
     )
+    # QG-0 refuses a start without acceptance criteria, and until now the command that
+    # CREATES a task could not set them — every `task add` was followed by a `task update`
+    # to supply the one field the next step requires. Measured over this project's own
+    # shift: nine tasks, nine extra calls, at roughly 482,000 tokens of re-sent prefix each.
+    ta.add_argument(
+        "--acceptance-criteria",
+        default=None,
+        dest="acceptance_criteria",
+        help="QG-0: what must be true for this task to close. Settable here so a task is "
+        "startable after one command.",
+    )
     ta.add_argument(
         "--ticket",
         nargs="*",
