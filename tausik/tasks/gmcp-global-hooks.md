@@ -19,7 +19,8 @@ scope_paths:
   - "scripts/hooks/_common.py"
   - "tests/*"
 scope_tools: []
-depends_on: []
+depends_on:
+  - gmcp-packaging
 completed_at: null
 resolution: null
 resolution_reason: null
