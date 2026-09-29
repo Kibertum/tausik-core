@@ -258,5 +258,10 @@
       "_baseline_comment": "ЗАМЕР ДО: три артефакта возрастом от 24 до 46 дней — каталог с именем неразвёрнутой переменной и два с именами кусков команды git config, ставших целями перенаправления. Ни один не был виден git status. ДЕТЕКТОР ПРОШЁЛ ТРИ РЕДАКЦИИ, и числа объясняют почему: 543 находки при рукописном списке из двух строк, 197 при чтении двух реестров порождаемых деревьев (реестров ЧЕТЫРЕ, и .agents не было ни в одном прочитанном), 5 когда вопрос задан гиту. Детектор, печатающий 543 строки, учит их пролистывать — той же смертью артефакты уже один раз выжили. ПОСЛЕ: артефакты удалены (файлов внутри ноль, то есть ничьи), находок 0.",
       "findings": 0
     }
+  },
+  "answer_shape": {
+    "_comment": "MEASURED BASELINE, local by nature. The subject is host transcripts, which live on the machine that produced them and never travel — the same property red_history declares. So this is a ratchet where the answers were written and an ABSENCE everywhere else; it never fails a build for want of data. It is deliberately NOT the 200-word budget the agent is told to aim at: a threshold ordinary work crosses on day one is one somebody switches off, and this project paid for that lesson once with a telemetry window. Measured 2026-09-29 over 10 transcripts / 52 answers, with the answer-shape rule newly in the rules file and most of the sample written before it. May only shrink.",
+    "final_words_median": 522.5,
+    "final_words_p90": 923
   }
 }

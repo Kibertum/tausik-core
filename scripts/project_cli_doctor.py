@@ -381,6 +381,17 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         _print_warn("Telemetry", f"could not read: {e}")
         warnings += 1
 
+    try:
+        from answer_budget_ratchet import doctor_line as _answer_line
+
+        project_dir = os.path.dirname(svc.tausik_dir()) or "."
+        level, detail = _answer_line(project_dir, repo_root=project_dir)
+        (_print_ok if level == "ok" else _print_warn)("Answer shape", detail)
+        warnings += level != "ok"
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        _print_warn("Answer shape", f"could not read: {e}")
+        warnings += 1
+
     print("=" * 40)
     if failures:
         print(f"{RED} {failures} FAIL, {warnings} WARN — fix above before running tasks.")

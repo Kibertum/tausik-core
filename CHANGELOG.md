@@ -9,6 +9,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added -- a ratchet on answer length, because measuring it was not enough
+
+`tausik metrics answers` produced a number from 1.10 and nothing compared it to anything.
+Story J closed as delivered while the median final answer went from 396 words to 522 against
+a budget of 200. A number nobody compares only records the drift it was built to stop.
+
+The baseline lives in `tausik/gates.json` and is a MEASUREMENT: median 522.5, p90 923 over 10
+transcripts and 52 answers. It is deliberately not the 200-word budget — a threshold ordinary
+work crosses on day one is one somebody switches off, which this project paid for once with a
+telemetry window. It may only shrink, and an improvement passes while printing the lower
+number to record.
+
+**IT IS LOCAL, AND THEREFORE IT NEVER FAILS A BUILD FOR WANT OF DATA.** Host transcripts live
+on the machine that wrote them and do not travel — the property `red_history` already
+declares. Absence is reported as absence three separate ways, because each is a different
+fact: no transcripts, too few answers for a median to describe a habit rather than a sample,
+and no baseline recorded yet. A check that fails on missing data is one people learn to pass a
+flag to.
+
+A `doctor` row carries it, and the warning points at the rules file rather than at the number:
+a ratchet that only says "bigger" invites raising the baseline, and the fix is to follow the
+shape.
+
 ### Changed -- the answer contract ships unconditionally instead of behind two opt-ins
 
 The shape (`done → verified by → left → your call`), the carve-outs that protect the record
