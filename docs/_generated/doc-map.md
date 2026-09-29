@@ -13,6 +13,7 @@ generated from those declarations.
 | Page | Reader | Languages |
 |---|---|---|
 | `agent-quickstart.md` | agent | en, ru |
+| `glossary.md` | user | en, ru |
 | `quickstart.md` | user | en, ru |
 | `senar.md` | user | en, ru |
 | `start-here-agent.md` | agent | en, ru |
@@ -146,4 +147,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-70 page(s), 69 carried by both languages.
+71 page(s), 70 carried by both languages.

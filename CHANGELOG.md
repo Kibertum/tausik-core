@@ -9,6 +9,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added -- a glossary, because the vocabulary was a wall with no door
+
+Counted across the 88 pages marked `reader=user`: `gate` appears **715** times, `slug` 467,
+`stack` 350, `QG-2` 74, `QG-0` 66 — and the tree held no `glossary.md`, `terms.md`,
+`concepts.md` or `faq.md`. A reader met the words and had nowhere to go.
+
+**THE LIST WAS MEASURED, NOT IMAGINED.** Every entry is a word counted on those pages, and
+the page says so; a glossary padded with words nobody uses teaches the reader to skim it.
+Eighteen terms, grouped from what you meet in the first hour to what you need later, each one
+sentence of definition plus where it applies.
+
+**AND IT CANNOT GO STALE QUIETLY.** The test reads the PAGES, not the page: a measured term
+used on a user page and missing from the glossary goes red. A second check refuses an internal
+reference number inside a definition — a reader handed `decision #404` has been handed a dead
+end, because the number addresses a record they cannot open.
+
+`start-here-user.md` now names the glossary in its first line of links, in both languages.
+
+Two of this project's own checks caught the new file on the way in: it walks the docs tree
+without declaring the scope that selects it, and its regex spelled two Russian words out,
+adding a line to the very count `prose_language` guards. Both fixed; the second is the third
+time this trap has sprung, and the pattern is now built from code points like the counter's
+own.
+
 ### Fixed -- the 1.9 upgrade crash reported from a consumer project, pinned by its own route
 
 Reported: `1.7 -> 1.9` died on `duplicate column name: declared_scope_status`, stamp 37, table

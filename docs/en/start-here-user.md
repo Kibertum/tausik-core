@@ -9,6 +9,8 @@ until a task exists. This page is the reading order for that situation. It exist
 documentation used to be one undifferentiated list: 64 pages in English with no statement of who
 each one is for, and the order of reading lived only in the navigation hub.
 
+- [Glossary](glossary.md) — what QG-0, gate, ratchet, projection and the rest of the words mean
+
 Three entry pages exist, one per reader. This is the one for **the person whose project TAUSIK
 governs**. If you are an agent working through TAUSIK, read
 [start-here-agent.md](start-here-agent.md); if you are changing TAUSIK itself, read
