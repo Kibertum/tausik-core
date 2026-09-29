@@ -9,6 +9,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed -- the 1.9 upgrade crash reported from a consumer project, pinned by its own route
+
+Reported: `1.7 -> 1.9` died on `duplicate column name: declared_scope_status`, stamp 37, table
+`verification_runs`, and the reporter's plan was a cold rebuild — a fresh database at the cost
+of the task and decision history.
+
+**That is not necessary: the defect is github#51 and 1.10 already carries the fix.**
+Reproduced both ways before anything was written — v38's statements run directly against that
+state raise the reported message verbatim, and the guarded chain walks stamp 37 to the current
+schema version.
+
+**THE ROUTE, THOUGH, IS A SECOND ONE, and it now has its own test.** The existing regression
+comes in through `actz_points`, a table `init_schema` builds at install. `verification_runs`
+is created LAZILY, on the first `tausik verify`, and therefore in the CURRENT shape while the
+stamp still names an old version — the same hybrid state through a different door. A paired
+negative runs the same statements with the guard bypassed and requires the exact reported
+error, so the pair proves the guard is what carries the upgrade rather than resting on a chain
+that never had a defect to survive.
+
 ### Changed -- two calls per task removed, and the two that stay are the ones a driver reads
 
 `task add` could not set acceptance criteria while QG-0 refuses a start without them, so every

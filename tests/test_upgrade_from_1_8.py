@@ -27,6 +27,7 @@ import pytest
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 
+import backend_schema  # noqa: E402
 import backend_migrations  # noqa: E402
 from backend_init import init_schema  # noqa: E402
 from backend_schema import SCHEMA_VERSION  # noqa: E402
@@ -117,3 +118,46 @@ def test_a_database_the_1_9_0_upgrade_already_broke_is_carried_up(tmp_path, monk
     init_schema(conn)
     assert _version(conn) == SCHEMA_VERSION
     assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
+
+def test_a_lazily_created_table_is_the_other_route_into_the_hybrid_state(tmp_path):
+    """Reported from a consumer project: 1.7 -> 1.9 died on
+    `duplicate column name: declared_scope_status`, stamp 37, table
+    `verification_runs`.
+
+    The route is not the one above. `actz_points` is built by `init_schema` at install;
+    `verification_runs` is created LAZILY, on the first `tausik verify`, and therefore in the
+    CURRENT shape while the stamp still names an old version. Same hybrid state, different
+    door into it — so it gets its own test rather than resting on the class.
+
+    Reproduced both ways before this landed: running v38's statements directly against that
+    state raises the reported error verbatim, and the guarded chain walks 37 to the current
+    version.
+    """
+    conn = sqlite3.connect(str(tmp_path / "hybrid.db"))
+    conn.executescript(backend_schema.SCHEMA_SQL)
+    conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', '37')")
+    conn.commit()
+
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(verification_runs)")}
+    assert "declared_scope_status" in columns, "the fixture must reproduce the hybrid state"
+
+    reached = backend_migrations.run_migrations(conn, 37)
+    assert reached == backend_schema.SCHEMA_VERSION
+    conn.close()
+
+
+def test_without_the_guard_that_same_state_raises_the_reported_error(tmp_path):
+    """NEGATIVE: the test above would pass on a chain that never had a defect to survive.
+
+    This runs the migration's own statements with the guard bypassed and requires the exact
+    message from the report, so the pair proves the guard is what carries the upgrade.
+    """
+    from backend_migrations_v38 import MIGRATION_V38
+
+    conn = sqlite3.connect(str(tmp_path / "unguarded.db"))
+    conn.executescript(backend_schema.SCHEMA_SQL)
+    with pytest.raises(sqlite3.OperationalError, match="duplicate column name"):
+        for stmt in MIGRATION_V38:
+            conn.execute(stmt)
+    conn.close()
