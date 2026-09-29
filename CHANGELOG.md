@@ -9,6 +9,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the 500-line cap warns at write time instead of reddening at verify
+
+Of 285 red `verify` runs, `filesize` is 16.1%, and it is not history: 20 fell in
+September alone, second only to `bootstrap_drift`. A red run is expensive — a task with
+none costs a median 51k tokens, one red 78k, two 123k — and this red is arithmetic: the
+cap is a number, the file is on disk, and the write that crosses it is in the author's
+hand at that moment.
+
+The warning now arrives in the same turn, through the write hook's
+`additionalContext`: the file, the resulting line count, the cap. For `Write` the result
+comes from the content; for `Edit` from the `old_string`/`new_string` delta applied to
+the file on disk.
+
+**IT WARNS AND NEVER BLOCKS.** A refusal mid-task leaves a half-applied change and a
+thought with no end; splitting a file is a decision about structure, not a reflex at the
+moment of typing. Every path out returns 0.
+
+**IT IS SILENT WHEREVER THE ANSWER IS NOT KNOWN.** `replace_all` does not carry the
+occurrence count, so the delta is a lower bound — better to say nothing than to name a
+figure that is wrong whenever the string repeats. The same for an unreadable file, a
+payload it cannot compute from, and a tool whose result is not derivable. An author who
+learns these lines are sometimes wrong stops reading them, and then the measurement
+above returns.
+
+The exemption predicate is EXTRACTED from `run_filesize_gate`: the forecast asks the
+gate its own question, and no second copy of the rules exists to drift.
+
 ### Fixed — the cost trend was blended while the task mix moved underneath it
 
 `metrics task-cost` printed one median per month, and the first person it misled was
