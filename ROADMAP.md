@@ -37,7 +37,7 @@
 | История | Статус | Осталось |
 |---|---|---|
 | `deferred-110-architecture-and-research` | open | 9 |
-| `deferred-110-audit-hygiene` | active | 13 |
+| `deferred-110-audit-hygiene` | active | 12 |
 | `deferred-110-knowledge-lifecycle` | active | 20 |
 | `deferred-110-outward-loop-and-test-authorship` | active | 12 |
 

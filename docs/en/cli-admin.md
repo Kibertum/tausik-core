@@ -254,3 +254,21 @@ spend is almost entirely the prefix being re-sent. Hence the rule — measure co
 per COMPLETED TASK rather than per request: one extra turn costs on the order of
 half a million cache_read tokens, and a change that saves request tokens at the
 price of a turn loses by about two orders of magnitude.
+
+## Per-task changelog entries
+
+A task writes its own `changelog.d/<slug>.md` rather than a line in the shared
+`CHANGELOG`. The shared file is one for everybody and every entry goes to the head of
+one section, so parallel work conflicts on every closed task in both languages. A file
+named after the task cannot collide.
+
+A fragment carries BOTH languages: the project ships a pair, and half a pair is not an
+entry.
+
+```bash
+changelog assemble                 # what would be folded; writes nothing
+changelog assemble --apply         # fold into both CHANGELOGs and delete the fragments
+```
+
+The closing gate accepts a fragment in place of a line in the shared file. The old way
+still works: a task that edits `CHANGELOG` directly closes as before.
