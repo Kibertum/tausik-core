@@ -1,7 +1,7 @@
 ---
 slug: github-milestones-follow-the-rebuilt-composition
 title: "GitHub milestones and tickets follow the rebuilt 1.10 composition"
-status: blocked
+status: active
 epic: release-110-deferred-from-19
 story: release110-owner-priorities
 complexity: simple
@@ -50,3 +50,4 @@ re-assign milestones back from the logged list
 ## Journal
 
 - 2026-09-29T22:16:01Z [implementation] — AC-1 mapping (read-only, gh api, 2026-09-30): milestone v1.10.0 has 93 open issues: 83 map to tasks already DONE (issues stay open until the release closes them), 1 to the blocked site task (#189), 9 are epics with no task link — nothing to move out. PROPOSED (not applied): #143 v1.11.0 -> v1.10.0 (context-order, done in 1.10); #118 v1.11.0 -> v1.10.0 (demo, done in 1.10); #95 v1.11.0 -> v1.10.0 (we-say, in #408 composition, blocked on the owner); #120 Planning -> v1.10.0 (verify-first profile, closed obsolete in 1.10 — resolved, not dropped). #125 stays v1.11.0 (memory-tail moved out of 1.10). 12 new 1.10 tasks carry no ticket; none needed for the milestone. AC-2: nothing closed or edited.
+- 2026-09-29T22:29:38Z [implementation] — AC-3: ✓ owner approved in session #279 ('2. Да'). Applied via gh api PATCH: #143 -> v1.10.0, #118 -> v1.10.0, #95 -> v1.10.0, #120 -> v1.10.0 (each confirmed by the API response). AC-1: ✓ mapping logged earlier (83 done, 1 blocked site, 9 epics, 4 moved). AC-2 Negative: ✓ no issue closed or edited beyond its milestone.
