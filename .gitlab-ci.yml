@@ -153,6 +153,10 @@ doc-constants:
   - *venv
   # Six test modules drive a real git (clone, cat-file, ls-files).
   - git --version
+  # The shell runner REUSES its working copy, and a fetch into a clone that was once
+  # shallow stays shallow whatever GIT_DEPTH says. The citation audit needs the whole
+  # history, so unshallow explicitly; no `|| true`, a failed fetch must fail the job.
+  - if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then git fetch --unshallow --quiet; fi
   # Job-local git config: `--global` on a shared shell runner would rewrite the
   # runner user's ~/.gitconfig and affect every other project built here.
   - export GIT_CONFIG_GLOBAL="$GIT_CFG"

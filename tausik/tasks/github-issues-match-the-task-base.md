@@ -47,3 +47,5 @@ AC-1 The full mapping (issue -> task -> action) is logged before anything is cha
 Reopen the closed issues and restore milestones from the list logged in the task
 
 ## Journal
+
+- 2026-09-29T23:08:04Z [implementation] — AC-1 MAP (gh api, 184 open issues, before any change): CLOSE after release 93 (task done/obsolete); KEEP 56 (milestone already matches the task's release); MOVE Planning -> v1.11.0 20: #156 #152 #151 #147 #140 #136 #132 #130 #114 #103 #102 #101 #100 #99 #93 #89 #88 #80 #78 #62 (except #78 -> v2.0.0, a v2- task); NO-TASK 15, all epics: close after release when every child is closed -> #192 #168 #167 #166 #55 #54 #53 #52; keep #188 (child #189 site open), #170 #169 (1.11), #59 #58 #57 #56 (2.0).
