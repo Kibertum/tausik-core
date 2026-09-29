@@ -40,13 +40,27 @@ def _row(model: str = "claude-opus-5", **counts: int) -> dict:
     return {"model": model, **base}
 
 
+#: A model the shipped table does not know. "No config" stopped meaning "unpriced" when
+#: `token_price` gained its fallback to that table — a Claude id now prices out of the box,
+#: which was the point. The property these tests guard survives intact for anything else,
+#: and testing it on a Claude id would only assert that the fallback is broken.
+_UNKNOWN_MODEL = "some-other-model"
+
+
 class TestUnpricedIsAbsentNotZero:
     """A zero here reads as free work, and the report would understate the bill."""
 
     def test_no_rates_yields_none_not_zero(self):
-        result = tp.breakdown([_row(output_tokens=1_000_000)], {})
+        result = tp.breakdown([_row(model=_UNKNOWN_MODEL, output_tokens=1_000_000)], {})
         assert result["usd"] is None
         assert result["usd_total"] is None
+
+    def test_a_shipped_model_prices_without_any_config(self):
+        """The paired positive, and the whole point of the fallback: the cache-aware
+        report used to print UNPRICED over every call because nobody had filled a config
+        it could not function without."""
+        result = tp.breakdown([_row(output_tokens=1_000_000)], {})
+        assert result["usd_total"] is not None and result["usd_total"] > 0
 
     def test_the_unpriced_model_is_named(self):
         result = tp.breakdown([_row(model="some-other-model", output_tokens=10)], _RATES)
@@ -60,7 +74,7 @@ class TestUnpricedIsAbsentNotZero:
         assert result["tokens"]["cache_read"] == 500
 
     def test_the_text_says_why_and_how_to_fix_it(self):
-        text = tp.format_breakdown(tp.breakdown([_row(output_tokens=1)], {}))
+        text = tp.format_breakdown(tp.breakdown([_row(model=_UNKNOWN_MODEL, output_tokens=1)], {}))
         assert "UNPRICED" in text and "token_price" in text
         assert "free work" in text
 

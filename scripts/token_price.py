@@ -38,6 +38,58 @@ _FIELD_OF_KIND: dict[str, str] = {
 
 _CONFIG_KEY = "token_price"
 
+#: Cache rates are not a second price list — they are published MULTIPLIERS of the input
+#: rate: a cache read bills at a tenth of input, and writing a cache entry at one and a
+#: quarter. Deriving them keeps one number per model; a second table would drift, and the
+#: two would then disagree about the stream that dominates the bill.
+CACHE_READ_MULTIPLIER: float = 0.1
+CACHE_CREATE_MULTIPLIER: float = 1.25
+
+
+def builtin_rates(model: str | None) -> dict[str, float] | None:
+    """The shipped rate for `model`, with the cache kinds derived, or None if unpriced.
+
+    WHY THIS FALLBACK EXISTS. Rates lived in two places that could not answer together:
+    `cost_pricing` ships a table of input and output and prices no cache at all, while
+    this module understands cache and read rates ONLY from a config nobody filled. So the
+    cache-aware report printed UNPRICED over 5953 calls while the priced path quietly
+    omitted 3.04 BILLION cache-read tokens — 776 times the output it did count. Note that
+    `usage_events.cost_usd` still comes from `cost_pricing` and so stays input plus output:
+    the hook that writes it sees no cache counters, because they arrive with the message
+    in the transcript and not with a tool result. The two numbers mean different things
+    and are not to be read as one.
+
+    A DATE SUFFIX DOES NOT UNPRICE A MODEL. `claude-haiku-4-5-20251001` is the id this
+    host actually reports, and the shipped table is keyed without the date — so the exact
+    lookup misses and the canonical Haiku went unpriced. Trailing numeric segments are
+    dropped one at a time until something matches.
+    """
+    try:
+        from cost_pricing import get_pricing
+
+        shipped = get_pricing(model)
+        candidate = model or ""
+        while not shipped and "-" in candidate:
+            head, _, tail = candidate.rpartition("-")
+            if not tail.isdigit():
+                break
+            candidate = head
+            shipped = get_pricing(candidate)
+    except Exception:  # noqa: BLE001 — an absent table is unpriced, never guessed at
+        return None
+    if not shipped:
+        return None
+    inp = shipped.get("input")
+    out = shipped.get("output")
+    if inp is None or out is None:
+        return None
+    return {
+        "input": float(inp),
+        "output": float(out),
+        "cache_read": float(inp) * CACHE_READ_MULTIPLIER,
+        "cache_create": float(inp) * CACHE_CREATE_MULTIPLIER,
+    }
+
 
 def load_prices(project_dir: str | None = None) -> dict[str, dict[str, float]]:
     """`{model prefix: {kind: usd per million}}` from config, or empty.
@@ -82,7 +134,12 @@ def rates_for(model: str | None, prices: dict[str, dict[str, float]]) -> dict[st
     for prefix, rates in prices.items():
         if model.startswith(prefix) and (best is None or len(prefix) > best[0]):
             best = (len(prefix), rates)
-    return best[1] if best else None
+    if best is not None:
+        # A project that declared its own price gets its own: the config OVERRIDES the
+        # shipped table rather than merging with it, so a reader of the config can predict
+        # the bill from what they wrote.
+        return best[1]
+    return builtin_rates(model)
 
 
 def breakdown(rows: list[dict[str, Any]], prices: dict[str, dict[str, float]]) -> dict[str, Any]:
@@ -133,6 +190,20 @@ def format_breakdown(result: dict[str, Any]) -> str:
         for kind in KINDS:
             lines.append(f"  {kind:13s} {result['usd'][kind]:>12.4f}")
         lines.append(f"  {'total':13s} {result['usd_total']:>12.4f}")
+        # THE SHARE, NOT JUST THE ROWS. Reading the rows alone, this project's own author
+        # concluded that output was the bill and said so — because the priced path he
+        # looked at omitted the cache entirely. The share is one line and it is the whole
+        # conclusion: what costs money here is the number of CALLS, each re-sending the
+        # prefix, not the length of what is written.
+        total = result["usd_total"]
+        if total:
+            cache = result["usd"]["cache_read"] + result["usd"]["cache_create"]
+            lines.append(
+                f"  cache is {100 * cache / total:.1f}% of this bill and output is "
+                f"{100 * result['usd']['output'] / total:.1f}%. Cache is re-sent context, "
+                "so the lever is FEWER CALLS; shortening what is written moves the smaller "
+                "share."
+            )
     if result["unpriced_calls"]:
         lines.append(
             f"  {result['unpriced_calls']} call(s) left out — unpriced model(s): "
