@@ -119,6 +119,7 @@ generated from those declarations.
 
 | Page | Reader | Languages |
 |---|---|---|
+| `whats-new-1.10.md` | user | en, ru |
 | `whats-new-1.8.md` | user | en, ru |
 | `whats-new-1.9.md` | user | en, ru |
 
@@ -145,4 +146,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-69 page(s), 68 carried by both languages.
+70 page(s), 69 carried by both languages.

@@ -9,6 +9,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added -- release notes for 1.10 in both languages, which the release procedure requires
+
+`tausik publish notes` refuses a release body without both pages, a rule this project put in
+place for 1.10 and had not yet satisfied for 1.10 itself. The pages exist now, so the tag is
+not blocked on paperwork.
+
+They are written from this CHANGELOG rather than composed: every claim on the page is an entry
+below. Five breaking changes are named with what to do about each -- the user tier's new
+address, the withdrawn `task start --force`, the RAG server's entry point, the session
+becoming the host's, and the retirement of `TODO.md`.
+
+**AND A SECTION FOR WHAT IS NOT IN THE RELEASE**, because a reader who finds the gap later
+trusts the rest less: tausik.tech is not rebuilt and why, there is still no measured token
+saving and the 1.9 measurement stands as the last word, and the host's answer about roots is
+recorded as unverified rather than assumed.
+
 ### Changed -- the MCP server can resolve its project per request, and `--project` still wins
 
 `--project` was required and pinned one service for the life of the process. It is now
