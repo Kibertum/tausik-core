@@ -39,7 +39,7 @@
   },
   "red_proofs": {
     "doc_coverage": {
-      "test": "tests/test_doc_coverage_gate.py::TestTheGateGoesRedOnARealOmission::test_a_command_missing_from_the_reference_is_refused",
+      "test": "tests/test_doc_coverage_gate.py::TestTheGateGoesRedOnARealOmission::test_a_command_on_no_page_of_the_group_is_refused",
       "violation": "a command the parser declares that the CLI reference names nowhere — the shape measured at 14 of 53 when this gate landed"
     },
     "_comment": "RED-PROOF REGISTRY. For every blocking gate IN FORCE: the test that hands it a VIOLATION and requires red. Not 'is covered by tests' — a gate that has forgotten how to fail passes its whole happy path. Read by scripts/gate_degeneracy.py, which resolves every `test` node against the tree's AST and reddens, naming the gate, when an entry is missing, unresolvable, or names a gate the live registry no longer blocks on. BORROWED from ADR-021, NOT owed to it: §3.1 of that ADR rejects the 'for every mandatory control' form and its norm lives in §13.9.4, the procedure for amending the STANDARD, which we are not doing. Adding a blocking gate means adding a line here. See task no-degeneracy-measure-for-our-own-mandatory-controls.",
@@ -271,8 +271,8 @@
     "identifiers": 269
   },
   "doc_internal_refs": {
-    "_comment": "Record numbers on pages written for the user. Each addresses a row in THIS project's database; a reader running TAUSIK on their own project has no such row, so the number resolves to nothing and the sentence asks them to take it on faith. Counted only for reader=user: on maintainer and agent pages the number is an address the reader can follow, and stripping it there would remove traceability. Measured 2026-09-29: 123 before, 52 after the bracket-bounded pass. The remainder is prose — a reference behind a preposition or opening a sentence — and prose is rewritten by hand: a regex over it broke a sentence twice in one day (dead end #784). May only shrink.",
-    "references": 52,
-    "pages": 26
+    "_comment": "Record numbers on pages written for the user. Each addresses a row in THIS project's database; a reader running TAUSIK on their own project has no such row, so the number resolves to nothing and the sentence asks them to take it on faith. Counted only for reader=user: on maintainer and agent pages the number is an address the reader can follow, and stripping it there would remove traceability. Measured 2026-09-29: 123 before, 52 after the bracket-bounded pass, 45 after the CLI reference was cut into pages and its carried attributions written out. The remainder is prose — a reference behind a preposition or opening a sentence — and prose is rewritten by hand: a regex over it broke a sentence twice in one day (dead end #784). May only shrink.",
+    "references": 45,
+    "pages": 24
   }
 }

@@ -107,8 +107,15 @@ class TestWhatCountsAsAReference:
         assert dir_.count_page(str(page)) == expected
 
     def test_an_external_tracker_reference_survives_the_cleanup(self):
-        """`github#51` addresses something a reader CAN open. It is not ours to strip."""
-        text = (_REPO / "docs" / "ru" / "cli.md").read_text(encoding="utf-8")
+        """`github#51` addresses something a reader CAN open. It is not ours to strip.
+
+        Read across the whole CLI page GROUP rather than one page. This test named
+        `cli.md` until that 899-line file was cut into five, and the reference moved with
+        its section — a red for the move, not for the thing the test guards.
+        """
+        import gate_doc_coverage
+
+        text = gate_doc_coverage.cli_reference_text(str(_REPO), "ru")
         assert "github#" in text
 
 

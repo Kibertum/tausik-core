@@ -354,7 +354,7 @@ EXCUSED: dict[str, tuple[str, str, str, str]] = {
         "violation is a whole repository shape rather than a file handed in; "
         "driven there against a temporary tree with a command left undocumented",
         "test_doc_coverage_gate.py",
-        "test_a_command_missing_from_the_reference_is_refused",
+        "test_a_command_on_no_page_of_the_group_is_refused",
         "test_the_repository_passes",
     ),
 }

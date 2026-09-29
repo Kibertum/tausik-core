@@ -52,7 +52,7 @@ When changing verify / QG / cache text:
 ## See also
 
 - [Testing principles](testing-principles.md) — when to add tests; anti-pattern: duplicate tests without new behaviour.
-- [CLI — Verification](cli.md#verification)
+- [CLI — Verification](cli-quality.md#verification)
 - [MCP — Verify-First Contract](mcp.md#verify-first-contract-v14)
 - [Hooks — Disable / bypass](hooks.md#disable--bypass)
 

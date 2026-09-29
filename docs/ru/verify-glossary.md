@@ -52,7 +52,7 @@
 ## См. также
 
 - [Принципы тестирования](testing-principles.md) — когда писать тесты; анти-паттерн: дубли без нового поведения.
-- [CLI — Верификация](cli.md#верификация)
+- [CLI — Верификация](cli-quality.md#верификация)
 - [MCP — Verify-First Contract](mcp.md#verify-first-contract-v14)
 - [Хуки — Отключение / bypass](hooks.md#отключение--bypass)
 

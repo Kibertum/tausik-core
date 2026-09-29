@@ -98,4 +98,4 @@ CREATE INDEX idx_tasks_archived_at ON tasks(archived_at);
 ## См. также
 
 - [Принципы тестирования](testing-principles.md)
-- [CLI — Задачи](cli.md#задачи)
+- [CLI — Задачи](cli-tasks.md#задачи)

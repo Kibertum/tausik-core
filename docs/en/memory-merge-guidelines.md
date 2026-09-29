@@ -13,7 +13,7 @@ How to keep **local** project memory (`.tausik/tausik.db`) and the **shared loca
 | Situation | Prefer |
 |-----------|--------|
 | Same topic, adding nuance, typo fix, or tightening wording | **Merge**: update the existing memory row (single source of truth). |
-| Same *symptom*, different **root cause** | **New** entry; optionally relate rows with [`memory link`](cli.md#knowledge) / graph tools so searches surface both. |
+| Same *symptom*, different **root cause** | **New** entry; optionally relate rows with [`memory link`](cli-knowledge.md#knowledge) / graph tools so searches surface both. |
 | Verbatim duplicate (copy-paste) | **Delete** the redundant row after confirming it adds nothing. |
 | Insight tied to a closed task but potentially reusable | Capture locally first; generalize wording before `memory add --global`, and again before a redacted export. |
 
@@ -91,4 +91,4 @@ Word-boundary guards prevent false positives (e.g. `aggregate` does not trigger 
 
 ## See also
 
-- [CLI — Knowledge](cli.md#knowledge) — `memory add`, `memory link`, search.
+- [CLI — Knowledge](cli-knowledge.md#knowledge) — `memory add`, `memory link`, search.

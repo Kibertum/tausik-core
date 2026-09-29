@@ -9,6 +9,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — the CLI reference is cut by measured use
+
+`cli.md` was 899 lines in which all 54 commands weigh the same. This project's database
+records **6930 calls** into the surface across 74 distinct tools, and **twelve commands are
+81%** of them, twenty-eight are 95%. Those twelve now open the page as a table with their
+shares, and the rest moved onto four pages named for what the reader came for: `cli-tasks`,
+`cli-quality`, `cli-knowledge`, `cli-admin`. The entry page is 60 lines instead of 905. The
+measurement describes this work rather than predicting anyone else's, and the page says so.
+
+**THE GATE WAS THE REASON.** `doc_coverage` demanded that every declared command be named in
+ONE file, which is why the reference carried a 57-line section called "commands not covered
+by the sections above". The gate now checks a GROUP of pages per language, and the languages
+still do not cover for each other: a command documented only in Russian stays a gap in the
+English group. A group is exactly the shape that can make a coverage gate green by
+construction, so three red proofs are written against it — a command on no page, a page of
+the group missing from disk, and one language standing in for the other.
 ### Changed -- record numbers came off the pages written for the user
 
 A reader running TAUSIK on their own project has no row #404. The number resolves to nothing

@@ -98,4 +98,4 @@ CREATE INDEX idx_tasks_archived_at ON tasks(archived_at);
 ## See also
 
 - [Testing principles](testing-principles.md) — scoped changes and evidence.
-- [CLI — Tasks](cli.md#tasks) — current task commands.
+- [CLI — Tasks](cli-tasks.md#tasks) — current task commands.

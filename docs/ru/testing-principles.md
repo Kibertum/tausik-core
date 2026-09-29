@@ -46,4 +46,4 @@ RESOLVED`.
 
 - [Архитектура](architecture.md) — структура репозитория, гейты, команды тестирования.
 - [Глоссарий verify / QG](verify-glossary.md) — Verify-First, тестовый shim, обход кеша для чувствительных файлов.
-- [CLI — Верификация](cli.md#верификация) — `verify`, TTL кеша, `task done`.
+- [CLI — Верификация](cli-quality.md#верификация) — `verify`, TTL кеша, `task done`.

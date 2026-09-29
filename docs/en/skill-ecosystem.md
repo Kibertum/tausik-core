@@ -16,7 +16,7 @@ flowchart TD
   I --> V[vendor cache]
 ```
 
-**CLI steps** (mirror of [CLI — Skills](cli.md#skills); run via `.tausik/tausik`):
+**CLI steps** (mirror of [CLI — Skills](cli-admin.md#skills); run via `.tausik/tausik`):
 
 1. **`skill repo add <url>`** — register a TAUSIK-compatible repo (`tausik-skills.json` / legacy `skills.json`).
 2. **`skill install <name>`** — clone if needed, copy skill files, install declared pip dependencies.

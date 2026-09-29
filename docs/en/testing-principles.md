@@ -45,4 +45,4 @@ wrong: `CITED BUT FORM NOT RECOGNISED` or `CITED BUT NOT RESOLVED`.
 
 - [Architecture](architecture.md) — repo layout, gates, testing commands.
 - [Verify / QG glossary](verify-glossary.md) — Verify-First contract, test shim, cache bypass for sensitive files.
-- [CLI — Verification](cli.md#verification) — `verify`, cache TTL, `task done`.
+- [CLI — Verification](cli-quality.md#verification) — `verify`, cache TTL, `task done`.

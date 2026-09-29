@@ -28,6 +28,10 @@ generated from those declarations.
 |---|---|---|
 | `agent-contract.md` | agent | en, ru |
 | `architecture.md` | user | en, ru |
+| `cli-admin.md` | user | en, ru |
+| `cli-knowledge.md` | user | en, ru |
+| `cli-quality.md` | user | en, ru |
+| `cli-tasks.md` | user | en, ru |
 | `cli.md` | user | en, ru |
 | `graph.md` | user | en, ru |
 | `hooks.md` | user | en, ru |
@@ -147,4 +151,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-71 page(s), 70 carried by both languages.
+75 page(s), 74 carried by both languages.

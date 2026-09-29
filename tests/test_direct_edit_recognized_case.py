@@ -18,6 +18,7 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+import gate_doc_coverage  # noqa: E402
 from gate_bypass_record import RECOGNIZED_AS_OF, RECOGNIZED_CASE  # noqa: E402
 from project_cli_events import cmd_events_emit_supervision  # noqa: E402
 
@@ -53,20 +54,20 @@ def test_the_live_refusal_names_one_dated_case(tmp_path, capsys):
 
 def test_the_english_docs_quote_the_live_refusal(tmp_path, capsys):
     sentence = _sentence(_live_refusal(tmp_path, capsys))
-    assert sentence in (ROOT / "docs" / "en" / "cli.md").read_text(encoding="utf-8")
+    assert sentence in gate_doc_coverage.cli_reference_text(str(ROOT), "en")
 
 
 def test_the_russian_docs_quote_the_printed_case_and_the_date(tmp_path, capsys):
     err = _live_refusal(tmp_path, capsys)
     printed = err[err.index("The one recognized case is") :].split(" (", 1)[0]
-    ru = (ROOT / "docs" / "ru" / "cli.md").read_text(encoding="utf-8")
+    ru = gate_doc_coverage.cli_reference_text(str(ROOT), "ru")
     assert printed in ru
     assert "07.09.2026" in ru and "§10.13" in ru
 
 
 @pytest.mark.parametrize("lang", ["en", "ru"])
 def test_the_1_4_list_is_not_presented_as_recognized(lang):
-    text = (ROOT / "docs" / lang / "cli.md").read_text(encoding="utf-8")
+    text = gate_doc_coverage.cli_reference_text(str(ROOT), lang)
     assert "incident while agent capacity is unavailable" not in text
     assert "инцидент при недоступной агентской мощности" not in text
     assert "SENAR 1.4 §8.6(j)" not in text

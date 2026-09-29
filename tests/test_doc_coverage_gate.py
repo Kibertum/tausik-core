@@ -38,16 +38,38 @@ CROSSCUTTING_SCOPE = ["scripts/", "docs/"]
 
 class TestTheGateGoesRedOnARealOmission:
     """The red proof. A gate that has forgotten how to fail passes its whole
-    happy path and certifies nothing."""
+    happy path and certifies nothing.
 
-    def test_a_command_missing_from_the_reference_is_refused(self, tmp_path, monkeypatch):
-        (tmp_path / "docs" / "ru").mkdir(parents=True)
-        (tmp_path / "docs" / "en").mkdir(parents=True)
+    The CLI reference is a GROUP of pages, and a group is exactly the shape that can make a
+    coverage gate green by construction: enough pages, and some page mentions every word.
+    So the group is what these tests attack — a command on none of them, a page missing from
+    it, and one language documented while the other is not.
+    """
+
+    @staticmethod
+    def _plant(root, *, ru, en, drop=()):
+        """Write both groups, with `ru` / `en` the commands documented in each.
+
+        Every page of the group is written, because a page left out is a DIFFERENT failure —
+        the one `test_a_page_of_the_group_that_is_absent_is_a_gap` is about — and a test that
+        confused the two would go green on either.
+        """
+        pages = {}
+        for group, documented in ((gate.CLI_PAGES_RU, ru), (gate.CLI_PAGES_EN, en)):
+            for rel in group:
+                pages[rel] = "# CLI\n"
+            pages[group[-1]] = "# CLI\n\n```bash\n" + "\n".join(documented) + "\n```\n"
         for lang in ("ru", "en"):
-            (tmp_path / "docs" / lang / "cli.md").write_text(
-                "# CLI\n\n```bash\nstatus\n```\n", encoding="utf-8"
-            )
-            (tmp_path / "docs" / lang / "doctor.md").write_text("# doctor\n", encoding="utf-8")
+            pages[f"docs/{lang}/doctor.md"] = "# doctor\n"
+        for rel in drop:
+            pages.pop(rel)
+        for rel, text in pages.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+
+    def test_a_command_on_no_page_of_the_group_is_refused(self, tmp_path, monkeypatch):
+        self._plant(tmp_path, ru=["status"], en=["status"])
         monkeypatch.setattr(gate, "cli_commands", lambda: ["status", "graph"])
         monkeypatch.setattr(gate, "doctor_checks", lambda: [])
 
@@ -55,9 +77,45 @@ class TestTheGateGoesRedOnARealOmission:
         assert ok is False
         assert "graph" in message, "the refusal must name WHAT is missing"
         assert "docs/ru/cli.md" in message, "and WHERE to write it"
-        assert "status" not in message.split("cli.md")[1], "a documented command must not appear"
+        assert "status" not in message, "a documented command must not be reported missing"
 
-    def test_a_missing_document_is_itself_a_gap(self, tmp_path, monkeypatch):
+    def test_a_command_documented_on_any_one_page_of_the_group_counts(self, tmp_path, monkeypatch):
+        """The point of the group: `hygiene` lives on the maintenance page and nowhere else,
+        and demanding it on all five would put every command back on every page — which is
+        how the reference grew to 899 lines with a section named for what did not fit."""
+        self._plant(tmp_path, ru=["hygiene"], en=["hygiene"])
+        monkeypatch.setattr(gate, "cli_commands", lambda: ["hygiene"])
+        monkeypatch.setattr(gate, "doctor_checks", lambda: [])
+
+        ok, message = gate.check(str(tmp_path))
+        assert ok is True, message
+
+    def test_a_page_of_the_group_that_is_absent_is_a_gap(self, tmp_path, monkeypatch):
+        """Reading around a missing page would shrink the group in silence, and the gate
+        would then certify coverage against whatever pages happened to survive."""
+        gone = gate.CLI_PAGES_RU[1]
+        self._plant(tmp_path, ru=["status"], en=["status"], drop=(gone,))
+        monkeypatch.setattr(gate, "cli_commands", lambda: ["status"])
+        monkeypatch.setattr(gate, "doctor_checks", lambda: [])
+
+        ok, message = gate.check(str(tmp_path))
+        assert ok is False
+        assert gone in message, "the refusal names the page that is not there"
+
+    def test_the_two_languages_do_not_cover_for_each_other(self, tmp_path, monkeypatch):
+        """Groups are joined WITHIN a language and never across one. A gate that pooled both
+        would call a command documented once in Russian documented in English too, which is
+        the drift a per-language check caught before."""
+        self._plant(tmp_path, ru=["graph"], en=[])
+        monkeypatch.setattr(gate, "cli_commands", lambda: ["graph"])
+        monkeypatch.setattr(gate, "doctor_checks", lambda: [])
+
+        ok, message = gate.check(str(tmp_path))
+        assert ok is False
+        assert "docs/en/" in message
+        assert "docs/ru/" not in message, "the language that documented it is not accused"
+
+    def test_a_missing_document_outside_a_group_is_itself_a_gap(self, tmp_path, monkeypatch):
         """A document that does not exist covers nothing, and silence about it
         would read exactly like full coverage."""
         monkeypatch.setattr(gate, "cli_commands", lambda: ["status"])
