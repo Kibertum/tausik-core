@@ -143,7 +143,10 @@ def test_the_gate_is_registered_on_the_blocking_triggers():
     spec = next(s for s in specs_for_phase(PHASE_SCOPED) if s.name == "test_dedupe")
     assert spec.default_config["enabled"] is True
     assert spec.default_config["severity"] == "block"
-    assert set(spec.default_config["trigger"]) == {"task-done", "commit"}
+    # `verify` joined the two in 1.10: the gate is static and answers in milliseconds, and
+    # firing it only at task-done meant it fired AFTER the full lane and after the scoped
+    # verify — the last possible moment, at the highest possible price.
+    assert set(spec.default_config["trigger"]) == {"task-done", "commit", "verify"}
 
 
 class TestTheVerdictIsWhatReddens:

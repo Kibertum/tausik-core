@@ -157,7 +157,10 @@ class TestOffByAnotherSpelling:
 
     def test_adding_a_trigger_is_allowed(self):
         cfg, rejections = ct.resolve(
-            {"gates": {"filesize": {"trigger": ["task-done", "commit", "review"]}}},
+            # The default's own triggers plus one: the subject here is WIDENING. Dropping a
+            # default trigger would be a narrowing and is rejected by the test below, which
+            # is what happened when `verify` joined the defaults and this list did not.
+            {"gates": {"filesize": {"trigger": ["task-done", "commit", "verify", "review"]}}},
             trusted={},
         )
         assert rejections == []

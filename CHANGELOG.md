@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed -- cheap gates run first, and the expensive one is not paid for a run already lost
+
+Five static gates -- `test_dedupe`, `filesize`, `class_surface`, `bootstrap_drift`,
+`doc_coverage` -- fired only at `task done`, which is AFTER the full lane and after the scoped
+verify: the last possible moment, at the highest possible price. They are all static. Measured
+on this project: ruff plus the duplicate-test audit plus the prose audit answer in **3.5
+seconds** against about **four minutes** for the lane, and in one shift a static gate failed
+after the lane fifteen times -- each costing the lane again plus two or three calls. That is
+where the median task went from 6 calls in April to 32 in September.
+
+A gate now declares its COST, the runner sorts cheap-first, and the two phases have different
+rules. **Between** phases a blocking failure stops the run: nothing the expensive half could
+say survives the fix the cheap half just demanded. **Within** a phase nothing stops -- three
+defects have to come back in one report, because stopping at the first would turn one round
+into three, which is the cost this change exists to remove.
+
+**A SKIPPED TEST GATE IS `COULD_NOT_RUN`, NOT A PASS.** It applies and produced no evidence,
+and SENAR §8.6(e) is explicit that an absent verdict cannot certify; recording it as a pass
+would let a green report mean "the tests never ran".
+
+The slow set is declared by name in one place, and a test requires that union to cover every
+gate whose command runs tests or builds -- a list that could silently miss the next one would
+put a four-minute gate back in the phase that promises seconds. Nothing was weakened: every
+gate kept its severity and its `task-done` trigger.
+
 ### Changed -- code and comments are written in English, and the rule now exists
 
 The owner had asked repeatedly. The rule existed nowhere: not in this project's CLAUDE.md, not

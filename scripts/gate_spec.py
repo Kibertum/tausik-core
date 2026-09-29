@@ -30,6 +30,40 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+#: A gate's COST decides which PHASE it runs in. Fast is the default: static analysis reads
+#: files and answers in seconds. Slow means the gate compiles or runs the project.
+#:
+#: Measured on this project: ruff plus the duplicate-test audit plus the prose audit answer in
+#: 3.5 seconds together, while the full pytest lane takes about four minutes. Fifteen times
+#: that shift a static gate failed AFTER the lane had already run, each costing the lane again
+#: plus two or three calls. Ordering them is worth more than any one of them.
+#:
+#: DECLARED BY NAME, and `tests/test_gate_runner_phases.py` requires the union to cover every
+#: gate whose command runs tests or builds — a list that can silently miss the next one would
+#: put a four-minute gate back in the cheap phase without anybody noticing.
+COST_FAST = "fast"
+COST_SLOW = "slow"
+
+SLOW_GATES: frozenset[str] = frozenset(
+    {
+        "pytest",
+        "go-test",
+        "js-test",
+        "cargo-test",
+        "flutter-test",
+        "swift-test",
+        "swift-build",
+        "phpunit",
+        "javac",
+    }
+)
+
+
+def gate_cost(name: str) -> str:
+    """``COST_SLOW`` for a gate that runs the project, ``COST_FAST`` otherwise."""
+    return COST_SLOW if name in SLOW_GATES else COST_FAST
+
+
 PHASE_SCOPED = "scoped"
 PHASE_POST_SCOPE = "post_scope"
 

@@ -30,6 +30,7 @@ from project_config import get_gates_for_trigger, load_config  # noqa: E402
 # cap). Re-exported so tests and the run_gates dispatch import them unchanged.
 from gate_filesize import count_lines, run_filesize_gate  # noqa: E402,F401
 
+from gate_spec import COST_FAST, COST_SLOW, gate_cost  # noqa: E402
 from gate_stack_dispatch import (  # noqa: E402,F401
     gate_applies_to,
     infer_stacks_from_files,
@@ -84,8 +85,21 @@ def run_gates(
     if not gates:
         return True, []
 
+    # TWO PHASES, and the order is the whole point. Static gates read files and answer in
+    # seconds; a test gate compiles or runs the project and answers in minutes. Measured on
+    # this project: ruff plus the duplicate-test audit plus the prose audit
+    # together take 3.5 seconds against about four minutes for the full lane, and fifteen
+    # times that shift a static gate failed AFTER the lane had already run — each costing the
+    # lane again plus two or three calls.
+    #
+    # WITHIN a phase nothing stops early: three defects must come back in one report, not in
+    # three rounds. BETWEEN phases a blocking failure stops the run, because there is nothing
+    # the expensive half can tell you that you are not about to invalidate anyway.
+    gates = sorted(gates, key=lambda g: gate_cost(g["name"]) == COST_SLOW)
+
     results = []
     has_block_failure = False
+    fast_phase_failed = False
 
     total = len(gates)
     # v1.4 r14-mcp-streaming-progress: emit a "run_start" event with the
@@ -115,6 +129,27 @@ def run_gates(
         name = gate["name"]
         severity = gate.get("severity", "warn")
         start_ms = time.monotonic()
+
+        if fast_phase_failed and gate_cost(name) == COST_SLOW:
+            # NOT a pass and NOT "not applicable": the gate applies and produced no evidence,
+            # which §8.6(e) says cannot certify. The run is already red from the cheap half;
+            # this records honestly that the expensive half never spoke.
+            results.append(
+                {
+                    "name": name,
+                    "severity": severity,
+                    "outcome": gate_outcome.COULD_NOT_RUN,
+                    "reason_code": gate_outcome.REASON_FAST_PHASE_FAILED,
+                    "passed": False,
+                    "skipped": True,
+                    "duration_ms": 0,
+                    "output": (
+                        "not run: a blocking static gate failed first. Fix that and re-run — "
+                        "this gate takes minutes and its verdict would be invalidated anyway."
+                    ),
+                }
+            )
+            continue
         if progress_callback:
             progress_callback(
                 {
@@ -260,6 +295,8 @@ def run_gates(
         # evidence, so it cannot certify. It blocks alongside an honest failure.
         if outcome.blocks and severity == "block":
             has_block_failure = True
+            if gate_cost(name) == COST_FAST:
+                fast_phase_failed = True
 
     return not has_block_failure, results
 

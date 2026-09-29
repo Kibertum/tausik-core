@@ -95,7 +95,7 @@ _UNIVERSAL_GATES_BEFORE = {
     "filesize": {
         "enabled": True,
         "severity": "block",
-        "trigger": ["task-done", "commit"],
+        "trigger": ["task-done", "commit", "verify"],
         "command": None,
         "description": "Warn if files exceed max_lines threshold",
         "max_lines": 500,  # interim cap raised 400→500 (decision #190)
@@ -117,7 +117,7 @@ _UNIVERSAL_GATES_BEFORE = {
     "bootstrap_drift": {
         "enabled": True,
         "severity": "block",
-        "trigger": ["task-done"],
+        "trigger": ["task-done", "verify"],
         "command": None,
         "description": "Fail if deployed IDE profiles drift from scripts/ source",
     },
@@ -141,6 +141,12 @@ _UNIVERSAL_GATES_BEFORE = {
 class TestDerivedMetadata:
     def test_universal_gates_unchanged_by_the_refactor(self):
         """Every gate that predated the registry still has its exact config.
+
+        Updated once, deliberately: five static gates gained the `verify` trigger in 1.10
+        so they answer BEFORE the four-minute lane rather than after it. That is a change of
+        WHEN, not of what — severity and implementation are untouched, and the task-done
+        trigger stayed — so the snapshot moves with it rather than the change being bent to
+        fit the snapshot.
 
         Subset, not equality: the snapshot's job is to catch a "refactor" that
         quietly changes a severity or a trigger, and a MISSING key still fails

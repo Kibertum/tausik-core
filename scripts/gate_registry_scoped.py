@@ -108,7 +108,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done", "commit"],
+            "trigger": ["task-done", "commit", "verify"],
             "command": None,
             "description": "Warn if files exceed max_lines threshold",
             # Interim cap raised 400→500 (task l26-filesize-gate-revisit,
@@ -168,7 +168,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done", "commit"],
+            "trigger": ["task-done", "commit", "verify"],
             "command": None,
             "description": "Block GROWTH in structurally indistinguishable tests",
             # The detector (`audit_pytest_dedupe`) shipped with a --check flag
@@ -193,7 +193,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done", "commit"],
+            "trigger": ["task-done", "commit", "verify"],
             "command": None,
             "description": "Cap a class's composed public surface after inheritance",
             # Complements `filesize`, never replaces it (task filesize-mro-exempt-mcp).
@@ -259,7 +259,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done"],
+            "trigger": ["task-done", "verify"],
             "command": None,
             "description": "Fail if deployed IDE profiles drift from scripts/ source",
         },
@@ -301,7 +301,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done", "commit"],
+            "trigger": ["task-done", "commit", "verify"],
             "command": None,
             "description": "Block a shipped name that no document mentions",
         },
