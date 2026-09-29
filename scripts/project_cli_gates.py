@@ -26,6 +26,17 @@ def _print_gate(name: str, gate: dict, indent: str, verbose: bool) -> None:
 def cmd_gates(svc: ProjectService, args: Any) -> None:
     """Handle gates subcommands: status, list, enable, disable."""
     c = args.gates_cmd or "status"
+    if c == "ratchets":
+        from project_root import root_from_service
+        from ratchet_lane import NoRatchetTests, run as run_ratchets
+
+        try:
+            raise SystemExit(run_ratchets(root_from_service(svc) or "."))
+        except NoRatchetTests as exc:
+            # Absence, not a green: there was nothing to run, and saying "ok" would be
+            # the report of a check that never happened.
+            print(str(exc))
+            raise SystemExit(2) from exc
     if c in ("status", "list"):
         data = svc.gates_status()
         gates = data["gates"]

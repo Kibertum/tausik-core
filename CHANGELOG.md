@@ -9,6 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `tausik gates ratchets`: a moved ratchet in 23 seconds instead of five minutes
+
+Fifteen ratchets live in `tausik/gates.json`, each guarded by its own test, and the
+only way to learn you moved one was the full lane — 12 441 tests, five minutes, plus a
+call to work out whose failure it was. In the session that filed this, ratchets went
+red on the author's own work about ten times. The same guards — 25 files, 549 tests —
+run in 21 seconds.
+
+**THE SET IS DERIVED, NOT LISTED.** A file belongs when it names the baseline in a
+string OR imports a module under `scripts/` that does. The second half is not optional:
+the first version stopped at the first and missed `test_gate_ruff_format.py`, which
+reads the baseline through `gate_ruff_format.legacy_unformatted()` — the very ratchet
+that had gone red that morning. A hand-kept list goes blind the first time someone adds
+a ratchet and forgets to register it.
+
+**AN EMPTY SET IS A REFUSAL, NOT A GREEN.** If no test reaches the baseline, the
+command says so and exits 2: reporting "all green" for a check that never ran is the
+silent error this project has no tolerance for. And the output states plainly that this
+is NOT the full lane — a ratchet held says nothing about the behaviour around it.
+
 ### Changed — the preparation a check needs now runs inside the check
 
 Two gates went red for reasons known IN ADVANCE and fixed by a fixed command:

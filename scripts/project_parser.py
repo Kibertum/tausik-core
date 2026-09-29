@@ -337,6 +337,11 @@ def build_parser() -> argparse.ArgumentParser:
     gates_sub = gates_p.add_subparsers(dest="gates_cmd")
     gates_sub.add_parser("status", help="Show active gates and their config")
     gates_sub.add_parser("list", help="List all gates with enabled/disabled state")
+    gates_sub.add_parser(
+        "ratchets",
+        help="Run only the tests that read the ratchet baseline (seconds, not the "
+        "full lane) — the fast answer to whether this change moved one",
+    )
     ge = gates_sub.add_parser("enable")
     ge.add_argument("name", help="Gate name to enable")
     gd = gates_sub.add_parser("disable")
