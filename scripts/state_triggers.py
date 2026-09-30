@@ -140,7 +140,9 @@ def _tree_root(svc: ProjectService) -> str | None:
         )
         if os.path.basename(tausik_dir) != TAUSIK_DIR:
             return None
-        return os.path.join(os.path.dirname(tausik_dir), "tausik")
+        from derived_trees import PROJECTION_ROOT
+
+        return os.path.join(os.path.dirname(tausik_dir), PROJECTION_ROOT)
     except Exception:  # noqa: BLE001
         return None
 
@@ -251,29 +253,26 @@ def _reproject_orphaned_edge_sources(svc: ProjectService) -> int:
     means, past or future, is picked up on the next departure, without anyone
     having to have routed it here.
 
-    IT DOES NOT CONVERGE, and this used to be called "self-healing", which reads
-    as if it did. Re-serializing the SOURCE does not touch `memory_edges`, so the
-    predicate this scan runs on never clears: the same orphans are found, and
-    the same files re-rendered, on every subsequent departure, forever.
+    IT CONVERGES NOW, and it did not when this was written. Re-serializing the SOURCE
+    does not touch `memory_edges`, so the predicate this scan runs on never cleared: the
+    same orphans were found, and the same files re-rendered, on every subsequent
+    departure, forever.
 
-    MEASURED, so the cost is a number and not a worry — 2000 memory rows, 40
-    orphaned edges, three consecutive sweeps:
+    MEASURED BEFORE — 2000 memory rows, 40 orphaned edges, three consecutive sweeps:
+    `returned=40/0/0` while each one re-serialized 40 files and left 40 orphans behind.
+    Forty serializations that changed nothing, bounded by the orphan count rather than by
+    tree size — and archived memory only grows, so the per-departure bill grew with it.
 
-        sweep #1: returned=40  export_one=40  47ms   orphans_left=40
-        sweep #2: returned=0   export_one=40  281ms  orphans_left=40
-        sweep #3: returned=0   export_one=40  16ms   orphans_left=40
+    MEASURED AFTER, same shape: orphans reach 0 on the first departure and stay there,
+    `returned=0` with nothing to re-serialize. The edge is now soft-invalidated where the
+    departure happens — `edges_invalidate_to`, called from `memory_archive_ids`,
+    `memory_archive_apply` and `_delete_projected_by_id` — and NOT from here, because this
+    trigger is fail-open and downstream of the write: a database mutation from something
+    whose contract is to never raise would be a write nobody can account for.
 
-    `returned=0` with `export_one=40` is the whole defect in one line: forty
-    serializations that changed nothing. It is bounded by the ORPHAN count, not
-    by tree size, but archived memory only ever grows, so the per-departure bill
-    grows monotonically with it.
-
-    Converging means invalidating the edge (`valid_to`) when its target leaves —
-    and that belongs at the SERVICE layer, where the archive or the delete
-    happens, not in a fail-open projection trigger that would then be writing to
-    the database it is downstream of. Tracked as
-    `orphaned-edges-never-converge-so-every-departure-pays-for-them`; deliberately
-    not smuggled in here.
+    This scan stays as the SAFETY NET. An edge orphaned by a path nobody routed through
+    the invalidation still gets its source re-serialized, and now the set it works on is
+    normally empty. Held by tests/test_orphaned_edges_converge.py.
 
     `memory_edges` is polymorphic (`source_type`/`target_type` instead of a
     foreign key), so `_projection_victims` — which reads PRAGMA foreign_key_list

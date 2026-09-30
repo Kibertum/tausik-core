@@ -54,7 +54,7 @@ def _build_stack_scoped_gates() -> dict[str, dict]:
                 if gname not in out:
                     out[gname] = dict(gcfg)
         return out
-    except Exception:  # noqa: BLE001 — must not crash module import
+    except Exception:
         import logging
 
         logging.getLogger("tausik.default_gates").warning(

@@ -28,13 +28,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
-from verify_cache import (  # noqa: E402
+from conftest import VERIFICATION_RUNS_DDL
+from verify_cache import (
     _build_cache_command,
     has_fresh_verify_run,
 )
-from verify_files_hash import compute_files_hash  # noqa: E402
-from service_verification import record_run  # noqa: E402
+from verify_files_hash import compute_files_hash
+from service_verification import record_run
 
 
 @pytest.fixture

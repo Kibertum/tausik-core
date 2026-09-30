@@ -51,7 +51,7 @@ def main() -> int:
             conn.commit()
         finally:
             conn.close()
-    except Exception:  # noqa: BLE001 — best-effort hook
+    except Exception:  # noqa: BLE001,S110 — best-effort hook
         pass
     return 0
 

@@ -20,10 +20,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from state_export import ENTITY_DIRS, ExportError, build_tree  # noqa: E402
-from state_serialize import (  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from state_export import ENTITY_DIRS, ExportError, build_tree
+from state_serialize import (
     check_tree,
     normalize_ts,
     render_file,
@@ -124,6 +124,31 @@ def test_fixed_frontmatter_key_order_for_task(svc):
         # a plan that evaporates on clone is the defect that feature was filed about.
         "depends_on",
         "completed_at",
+        # The OUTCOME travels too. An obsolete close is `status: done` with a
+        # resolution, so without these two a task refused as unnecessary reads in
+        # the tree exactly like one that was delivered. They are emitted for every
+        # task, empty included, ON PURPOSE: with a fixed key set a field the
+        # exporter drops shows up as a missing line, and a dropped field is how
+        # this pair went two releases unnoticed.
+        "resolution",
+        "resolution_reason",
+        # Added when the projection's coverage of `tasks` was made a DECLARED partition:
+        # 23 of 46 columns never reached the tree, and the round-trip gate could not see it
+        # because both sides of its comparison come from this same exporter. These carry
+        # INTENT rather than telemetry — the ticket link an outside reader needs, the models
+        # that opened and closed the task (evidence of separation of duties), a close that
+        # declared it touched no files, and the two budgets that were being dropped while
+        # `call_budget` travelled. The rest of the table is declared non-portable with a
+        # reason in `state_export.NOT_PORTABLE`, and the union must cover the table.
+        "tracker_refs",
+        "started_model_id",
+        "started_model_version",
+        "done_model_id",
+        "done_model_version",
+        "model_mismatch",
+        "no_file_changes_declared",
+        "token_budget",
+        "cost_budget_usd",
     ]
 
 

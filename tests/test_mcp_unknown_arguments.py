@@ -27,6 +27,8 @@ would keep passing after the production schema drifted away from it.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import ast
 import os
 import sys
@@ -186,8 +188,9 @@ def test_a_name_becomes_legal_by_editing_the_schema_alone():
 
 
 def test_the_usage_line_and_the_guard_read_the_same_unfolding():
-    """One answer to "what may this be called with", not two that can disagree."""
-    source = ast.parse(open(_SERVER_PATH, encoding="utf-8").read())
+    """Both read `declared_arguments` — in the one module that holds the guard."""
+    shared = os.path.join(_REPO_ROOT, "scripts", "mcp_arguments.py")
+    source = ast.parse(Path(shared).read_text(encoding="utf-8"))
     readers = {
         fn.name
         for fn in ast.walk(source)
@@ -199,16 +202,23 @@ def test_the_usage_line_and_the_guard_read_the_same_unfolding():
             for n in ast.walk(fn)
         )
     }
-    assert {"_usage_hint", "reject_unknown_arguments"} <= readers, readers
+    assert {"usage_hint", "reject_unknown_arguments"} <= readers, readers
 
 
-# ---------------------------------------------------------------------------
-# AC1 (the "before the handler" half) — asserted on the real dispatcher
-# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "server",
+    ["harness/claude/mcp/project/server.py", "harness/claude/mcp/codebase-rag/rag_server.py"],
+)
+def test_no_server_keeps_its_own_copy_of_the_guard(server):
+    """sibling-mcp-servers-still-drop-unknown-arguments: one rule, imported."""
+    source = Path(os.path.join(_REPO_ROOT, server)).read_text(encoding="utf-8")
+    defined = {n.name for n in ast.walk(ast.parse(source)) if isinstance(n, ast.FunctionDef)}
+    assert not defined & {"declared_arguments", "reject_unknown_arguments", "usage_hint"}
+    assert "reject_unknown_arguments" in source
 
 
 def _call_tool_node() -> ast.AsyncFunctionDef:
-    source = ast.parse(open(_SERVER_PATH, encoding="utf-8").read())
+    source = ast.parse(Path(_SERVER_PATH).read_text(encoding="utf-8"))
     for node in ast.walk(source):
         if isinstance(node, ast.AsyncFunctionDef) and node.name == "call_tool":
             return node

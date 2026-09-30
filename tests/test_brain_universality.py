@@ -191,6 +191,6 @@ def test_format_is_single_line():
 
 def test_detect_never_raises_on_pathological_input():
     # Massive string, weird unicode, control chars — must not crash.
-    weird = "\x00" * 1000 + "JWT" + "​" * 500
+    weird = "\x00" * 1000 + "JWT" + "\u200b" * 500
     topics = bu.detect_universal_patterns(weird)
     assert "jwt" in topics

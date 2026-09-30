@@ -146,7 +146,9 @@ class TestMemoryPolicyReminder:
 
 
 class TestRagFirstReminder:
-    """v1.4 RAG-first nudges — Reminders block must direct the agent at search_code."""
+    """The v1.4 RAG-first reminder is GONE (decision #390): a paired replay
+    measured 0 search_code calls with it and 0 without. The Reminders block
+    must not steer the agent's search tool any more."""
 
     def _setup_mock_tausik(self, tmp_path):
         tausik_dir = tmp_path / ".tausik"
@@ -160,7 +162,7 @@ class TestRagFirstReminder:
             wrapper_path.write_text("#!/bin/sh\necho 'Mock status line'\n")
             os.chmod(wrapper_path, 0o755)
 
-    def test_reminders_block_mentions_search_code_and_rag(self, tmp_path):
+    def test_reminders_block_no_longer_advises_search_code(self, tmp_path):
         self._setup_mock_tausik(tmp_path)
         result = _run_hook(tmp_path)
         assert result.returncode == 0, result.stderr
@@ -169,9 +171,8 @@ class TestRagFirstReminder:
         reminders_idx = ctx.find("**Reminders:**")
         assert reminders_idx != -1
         reminders_section = ctx[reminders_idx:]
-        assert "search_code" in reminders_section
-        assert "RAG" in reminders_section
-        assert "Grep" in reminders_section
+        assert "search_code" not in reminders_section
+        assert "task start" in reminders_section  # the block itself survives
 
 
 class TestSettingsGeneration:

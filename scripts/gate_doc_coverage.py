@@ -55,14 +55,46 @@ _DOCTOR_ALIASES: dict[str, tuple[str, ...]] = {
     "Quality gates": ("gates",),
 }
 
-#: (what ships, where a reader looks, how a mention is recognised). Adding a
-#: pair is how this gate grows — NOT by adding another test file, which is the
+#: The CLI reference is a GROUP of pages, and the group is why it can be one. It used to be
+#: a single 899-line file, and THIS GATE is the reason it stayed one: every declared command
+#: had to be named in one file, so the commands nobody could place were dumped into a section
+#: called "commands not covered by the sections above". Coverage now holds across the group
+#: and the reference is cut by what the reader came for.
+CLI_PAGES_RU: tuple[str, ...] = (
+    "docs/ru/cli.md",
+    "docs/ru/cli-tasks.md",
+    "docs/ru/cli-quality.md",
+    "docs/ru/cli-knowledge.md",
+    "docs/ru/cli-admin.md",
+)
+CLI_PAGES_EN: tuple[str, ...] = tuple(p.replace("/ru/", "/en/") for p in CLI_PAGES_RU)
+
+#: (what ships, where a reader looks, how a mention is recognised). An entry in the middle
+#: slot is either one page or a group of pages covered JOINTLY; the groups stay separate from
+#: each other, because that separation is what once caught a language that had drifted.
+#: Adding a pair is how this gate grows — NOT by adding another test file, which is the
 #: shape it replaced: one hand-written test per kind of thing, each re-deriving
 #: the same idea and each able to go blind on its own.
-COVERED: tuple[tuple[str, tuple[str, ...], str], ...] = (
-    ("cli_commands", ("docs/ru/cli.md", "docs/en/cli.md"), "command"),
+COVERED: tuple[tuple[str, tuple[str | tuple[str, ...], ...], str], ...] = (
+    ("cli_commands", (CLI_PAGES_RU, CLI_PAGES_EN), "command"),
     ("doctor_checks", ("docs/ru/doctor.md", "docs/en/doctor.md"), "phrase"),
 )
+
+
+def cli_reference_text(repo_root: str, lang: str) -> str:
+    """The CLI reference of one language, joined into one text.
+
+    The reference is a group of five pages, and this is how the rest of the tree asks for
+    it. Four tests named `docs/{lang}/cli.md` directly and all four went red the day the
+    899-line file was cut — each for the MOVE, not for the thing it guards. A test that
+    wants to know what the reference says should not also have to know which page says it.
+    """
+    pages = CLI_PAGES_EN if lang == "en" else CLI_PAGES_RU
+    out = []
+    for rel in pages:
+        with open(os.path.join(repo_root, rel), encoding="utf-8") as fh:
+            out.append(fh.read())
+    return "\n".join(out)
 
 
 def _mentions(document: str, name: str) -> bool:
@@ -146,17 +178,27 @@ def find_gaps(repo_root: str) -> list[tuple[str, str]]:
             # the documentation, and reporting "no gaps" would be a lie of the
             # kind this gate exists to catch (decision #334).
             continue
-        for rel in documents:
-            path = os.path.join(repo_root, rel)
-            try:
-                with open(path, encoding="utf-8") as fh:
-                    text = fh.read()
-            except OSError:
-                gaps.append(("<the document itself>", rel))
+        for entry in documents:
+            group = (entry,) if isinstance(entry, str) else entry
+            texts: list[str] = []
+            unreadable = False
+            for rel in group:
+                try:
+                    with open(os.path.join(repo_root, rel), encoding="utf-8") as fh:
+                        texts.append(fh.read())
+                except OSError:
+                    # A page of the group that is not on disk is a GAP, not a smaller group.
+                    # Reading around it would let a page be deleted while the gate stayed
+                    # green on the commands the survivors happen to mention.
+                    gaps.append(("<the document itself>", rel))
+                    unreadable = True
+            if unreadable:
                 continue
+            text = "\n".join(texts)
+            where = group[0] if len(group) == 1 else " + ".join(group)
             for name in sorted(names):
                 if not _named(text, name, style):
-                    gaps.append((name, rel))
+                    gaps.append((name, where))
     return gaps
 
 

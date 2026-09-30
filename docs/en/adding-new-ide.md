@@ -2,6 +2,8 @@
 
 # Adding a New IDE to TAUSIK
 
+<!-- doc-map: reader=maintainer; zone=ide-and-skills -->
+
 TAUSIK supports multiple IDEs through the abstraction in `scripts/ide_utils.py`.
 
 ## Steps for Adding a New IDE
@@ -95,7 +97,7 @@ the context).
 
 ```
 harness/
-├── skills/          # 13 core auto-deployed + 20 vendor opt-in (--include-official)
+├── skills/          # 14 core auto-deployed + 20 vendor opt-in (--include-official)
 ├── roles/           # roles (all IDEs)
 ├── stacks/          # stacks (all IDEs)
 ├── overrides/       # IDE-specific override files

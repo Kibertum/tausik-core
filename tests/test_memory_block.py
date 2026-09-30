@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
@@ -32,9 +33,16 @@ class TestMemoryBlockContent:
 
     def test_includes_decisions_conventions_deadends(self, tmp_path, monkeypatch):
         svc = _fresh_service(tmp_path, monkeypatch)
+        svc.epic_add("e", "E")  # a dead end names a REAL task since 1.10
+        svc.story_add("e", "s", "S")
+        svc.task_add("s", "t1", "T", role="developer", goal="g")
         svc.decide("Use SQLite, not Postgres, for local storage")
         svc.memory_add("convention", "kebab-case slugs", "All task slugs must be kebab-case.")
-        svc.dead_end("Tried mypy with strict-optional", "Too many false positives in legacy code")
+        svc.dead_end(
+            "Tried mypy with strict-optional",
+            "Too many false positives in legacy code",
+            task_slug="t1",
+        )
 
         block = svc.memory_block()
         assert "## TAUSIK Memory Block" in block
@@ -104,7 +112,7 @@ class TestMemoryBlockCli:
         svc.memory_add("convention", "test-convention", "body")
 
         # The CLI uses a different import path; easier to test the handler directly
-        from project_cli_extra import cmd_memory
+        from project_cli_knowledge import cmd_memory
 
         class Args:
             memory_cmd = "block"
@@ -168,7 +176,7 @@ class TestSessionStartIntegration:
         hook_path = os.path.join(
             os.path.dirname(__file__), "..", "scripts", "hooks", "session_start.py"
         )
-        source = open(hook_path, encoding="utf-8").read()
+        source = Path(hook_path).read_text(encoding="utf-8")
         assert '["memory", "block"]' in source
 
 
@@ -177,7 +185,7 @@ class TestSkillsDocumentation:
         path = os.path.join(
             os.path.dirname(__file__), "..", "harness", "skills", "start", "SKILL.md"
         )
-        content = open(path, encoding="utf-8").read()
+        content = Path(path).read_text(encoding="utf-8")
         assert "tausik_memory_block" in content
 
     def test_checkpoint_skill_does_not_call_memory_block(self):
@@ -193,7 +201,7 @@ class TestSkillsDocumentation:
             "checkpoint",
             "SKILL.md",
         )
-        content = open(path, encoding="utf-8").read()
+        content = Path(path).read_text(encoding="utf-8")
         # The skill may still mention memory_block in an explanatory note
         # ("intentionally NOT re-injected"). What we forbid is using it as
         # a runtime tool call in the algorithm. Pin the contract via

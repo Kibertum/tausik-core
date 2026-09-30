@@ -36,6 +36,11 @@ TOTAL_SURFACE_CEILING_BYTES = 65_536
 
 # Domain vocabulary a searchable tool name is expected to contain at least one of.
 _DOMAIN_TOKENS = (
+    # `tool` — поверхность инструментов как предмет: `tausik_tool_schema`
+    # выдаёт схему выгруженного инструмента (смена #275). Домен добавлен
+    # здесь, а не обойдён переименованием: имя ДОЛЖНО подсказывать предмет,
+    # и `tool_schema` подсказывает его точнее любого обходного слова.
+    "tool",
     "task",
     "session",
     "status",

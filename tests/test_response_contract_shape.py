@@ -1,11 +1,20 @@
-"""The response contract lives in two places and must say the same thing.
+"""The response contract lives in ONE place now, and this holds it complete.
 
-`CAVEMAN_DIRECTIVE` (bootstrap/bootstrap_templates.py) is what `output_mode:
-caveman` writes into the rules file; `harness/skills/i-have-adhd/SKILL.md` is
-the same contract as a skill the user turns on by hand. Each names the four
-parts of the shape, the five exceptions and the four pre-send deletions. When
-one of them is edited and the other is not, a fresh agent gets two contracts —
-so this file fails on the first divergence rather than letting the two drift.
+`ANSWER_SHAPE` (bootstrap/bootstrap_templates.py) is what every generated rules file
+carries, whatever `output_mode` says. It used to have a twin: a vendored
+`i-have-adhd` SKILL.md carrying the same contract as a skill the user could invoke, and
+this file was a PARITY test against drift between the two. The vendored copy is gone —
+its ideas are restated in the directive as ours, and a skill nobody invoked was never
+the discipline it looked like. So the subject changed from "the two agree" to "the one
+is complete": every part of the shape, every exception and every pre-send deletion has
+to be named here, because there is no second document to lose it from.
+
+IT USED TO READ `CAVEMAN_DIRECTIVE`, and that made every assertion here
+conditional on a mode that is off by default: with `output_mode: off` the file
+proved the contract of a block nobody was shipped. Measured while it read that
+way — median final answer 522 words against a budget of 200, worse than the 396
+measured before the contract existed at all. The contract moved to the block that
+always ships; the parity check follows it.
 """
 
 from __future__ import annotations
@@ -22,18 +31,19 @@ for _p in (os.path.join(_ROOT, "bootstrap"), os.path.join(_ROOT, "scripts")):
         sys.path.insert(0, _p)
 
 from bootstrap_templates import (  # noqa: E402
-    CAVEMAN_DIRECTIVE,
-    CAVEMAN_DIRECTIVE_MAX_CHARS,
+    ANSWER_SHAPE,
+    ANSWER_SHAPE_MAX_CHARS,
     build_full_body,
 )
 
-CROSSCUTTING_SCOPE = ["bootstrap/", "harness/skills/i-have-adhd/"]
+CROSSCUTTING_SCOPE = ["bootstrap/"]
 
-SKILL_PATH = os.path.join(_ROOT, "harness", "skills", "i-have-adhd", "SKILL.md")
-
-# Each family is a regex both documents must satisfy. The wording differs on
-# purpose (telegraphic in the directive, prose in the skill); the NAME of every
-# part does not.
+# ONE DOCUMENT NOW. This was a PARITY test: the same contract lived in the always-
+# shipped directive and in a vendored `i-have-adhd` SKILL.md, and two copies drift.
+# The vendored copy is gone — its ideas are restated in the directive as ours — so
+# parity has no second side. What survives is the table: every term the contract
+# names has to be IN the directive, because the directive is now the only place a
+# term can be lost from.
 SHAPE_PARTS = {
     "done": r"\bdone\b",
     "verified by": r"verified by",
@@ -73,47 +83,33 @@ NAMED_TERMS = [
 ]
 
 
-def _skill() -> str:
-    with open(SKILL_PATH, encoding="utf-8") as fh:
-        return fh.read()
-
-
-@pytest.fixture(scope="module")
-def skill() -> str:
-    return _skill()
-
-
 @pytest.fixture(scope="module")
 def directive() -> str:
-    return CAVEMAN_DIRECTIVE
+    return ANSWER_SHAPE
 
 
-# --- the same contract in both places -----------------------------------------
+# --- every term of the contract, in the one place that carries it ----------------
 
 
 @pytest.mark.parametrize(
     ("family", "name", "rx"), NAMED_TERMS, ids=[f"{f}:{n}" for f, n, _ in NAMED_TERMS]
 )
-def test_both_documents_carry_the_named_term(family, name, rx, directive, skill):
+def test_the_directive_carries_the_named_term(family, name, rx, directive):
     """Four shape parts, five exceptions, four pre-send deletions and the
-    first/last-line frame: each is named in the directive AND in the skill."""
+    first/last-line frame. Each is named in the block that ships every session —
+    there is no second document to carry it if this one drops it."""
     pattern = re.compile(rx, re.I | re.S)
     assert pattern.search(directive), f"directive lost {family} {name!r}"
-    assert pattern.search(skill), f"SKILL.md lost {family} {name!r}"
 
 
-def test_the_shape_keeps_its_order_in_both(directive, skill):
-    """done → verified by → left → your call: the order is the contract, a
-    reshuffle is a different contract."""
-    for name, text in (("directive", directive), ("SKILL.md", skill)):
-        # the skill's Shape section names the order once; the rules re-use the
-        # words elsewhere, so measure inside the Shape paragraph only
-        body = text.split("## Shape", 1)[1].split("## Rules", 1)[0] if name == "SKILL.md" else text
-        positions = [re.search(SHAPE_PARTS[p], body, re.I).start() for p in SHAPE_PARTS]
-        assert positions == sorted(positions), f"{name}: shape order is {positions}"
+def test_the_shape_keeps_its_order(directive):
+    """done → verified by → left → your call: the order IS the contract, and a
+    reshuffle is a different contract wearing the same words."""
+    positions = [re.search(SHAPE_PARTS[p], directive, re.I).start() for p in SHAPE_PARTS]
+    assert positions == sorted(positions), f"shape order is {positions}"
 
 
-def test_exactly_five_exceptions_in_the_directive(directive):
+def test_exactly_five_exceptions_in_the_shape(directive):
     """Named, not judged: the list is closed. A sixth exception is a decision,
     not an edit; a fourth is a lost exception."""
     line = [ln for ln in directive.splitlines() if ln.startswith("- EXCEPTIONS")]
@@ -125,25 +121,34 @@ def test_exactly_five_exceptions_in_the_directive(directive):
 # --- one lever, not two ---------------------------------------------------------
 
 
-def test_the_contract_rides_the_existing_directive_not_a_second_mode():
-    """Same marker, same injection point, same config value: the shape costs
-    zero new surface. A second `output_mode` value would be a second contract."""
-    from bootstrap_config import OUTPUT_MODE_VALUES
+def test_the_contract_ships_with_the_mode_off():
+    """The point of the split: an agent gets the contract without opting into anything.
 
-    assert set(OUTPUT_MODE_VALUES) == {"off", "caveman"}
-    assert CAVEMAN_DIRECTIVE.startswith("## Output economy (caveman mode)")
-    body = build_full_body("proj", ["python"], "claude", ".claude", output_mode="caveman")
-    assert body.count("## Output economy (caveman mode)") == 1
-    assert "SHAPE" in body and "EXCEPTIONS" in body and "PRE-SEND" in body
+    `output_mode: caveman` still exists and still compresses prose; what it no longer owns
+    is the shape, the record's protection and the exceptions, because those are not an
+    economy measure.
+    """
+    body = build_full_body(
+        project_name="p",
+        stacks=["python"],
+        agent_name="Claude",
+        ide_subdir=".claude",
+        ide="claude",
+        output_mode="off",
+    )
+    assert "## Answer shape" in body
+    assert "done → verified by → left → your call" in body
 
 
-def test_the_ceiling_moved_by_the_measured_amount_only():
-    """888 is what the contract measures, not a round number with headroom:
-    the ceiling is a guard against bloat, so headroom is exactly what it must
-    not have."""
-    assert len(CAVEMAN_DIRECTIVE) == CAVEMAN_DIRECTIVE_MAX_CHARS, (
-        len(CAVEMAN_DIRECTIVE),
-        CAVEMAN_DIRECTIVE_MAX_CHARS,
+def test_the_ceiling_is_the_measured_size_not_a_round_number():
+    """The block is paid for on every session, so its ceiling is where it actually sits.
+
+    A ceiling with headroom is an invitation; this one has to be re-based deliberately,
+    which is the moment somebody asks whether the new line earns its place.
+    """
+    assert len(ANSWER_SHAPE) == ANSWER_SHAPE_MAX_CHARS, (
+        len(ANSWER_SHAPE),
+        ANSWER_SHAPE_MAX_CHARS,
     )
 
 
@@ -165,16 +170,23 @@ def test_the_keep_lists_survived_the_rewrite(directive):
 # --- negatives ------------------------------------------------------------------
 
 
-def test_a_skill_without_the_shape_section_is_caught(tmp_path, monkeypatch):
-    """The parity test must fail on the skill, not only on the directive: an
-    edit that drops `## Shape` from SKILL.md is the drift this file exists for."""
-    stripped = re.sub(r"## Shape.*?(?=## Rules)", "", _skill(), flags=re.S)
+def test_a_directive_missing_a_shape_part_is_caught(directive):
+    """The detector must be able to SEE. With one document left, a table that matched
+    anything would pass for ever while the contract quietly emptied — so a directive
+    with a part cut out has to fail the same table."""
+    stripped = directive.replace("verified by", "").replace("your call", "")
     assert not re.search(SHAPE_PARTS["verified by"], stripped), "the negative is not a negative"
     assert not re.search(SHAPE_PARTS["your call"], stripped)
 
 
-def test_the_directive_names_no_exception_the_skill_lacks(directive, skill):
-    """The exception list is copied by name; an exception that exists in only
-    one place lets an agent argue from the other."""
-    for exc, rx in EXCEPTIONS.items():
-        assert bool(re.search(rx, directive, re.I)) == bool(re.search(rx, skill, re.I)), exc
+def test_the_vendored_twin_is_gone_and_stays_gone(directive):
+    """It was carried under someone else's licence, had to be kept in sync, and gave no
+    discipline because a skill is invoked and nobody invoked it. Its return would bring
+    all three back."""
+    assert (
+        not (_ROOT / "harness" / "skills" / "i-have-adhd").exists()
+        if hasattr(_ROOT, "exists")
+        else not os.path.isdir(os.path.join(_ROOT, "harness", "skills", "i-have-adhd"))
+    )
+    for rx in EXCEPTIONS.values():
+        assert re.search(rx, directive, re.I), "the exceptions survived the removal"

@@ -146,7 +146,7 @@ class Observer:
         # Shared across observers via the module-level cache below.
         self._verdict = _VERDICTS
 
-    def _hook(self, frame, event, arg):  # noqa: ANN001 - the CPython profiler ABI
+    def _hook(self, frame, event, arg):  # ruff-not-enabled: ANN001 - the CPython profiler ABI
         filename = frame.f_code.co_filename
         try:
             rel = self._verdict[filename]

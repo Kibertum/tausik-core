@@ -33,14 +33,14 @@ from conftest import canonical_ddl
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from service_token_metrics import aggregate, format_table  # noqa: E402
-from session_windows import (  # noqa: E402
+from service_token_metrics import aggregate, format_table
+from session_windows import (
     load_session_windows,
     make_session_resolver,
     parse_ts,
     session_for_ts,
 )
-from token_rows import extract_token_rows, rebuild_ledger  # noqa: E402
+from token_rows import extract_token_rows, rebuild_ledger
 
 # Three sessions, back to back, with a deliberate 10-minute gap before the third.
 SESSIONS = [
@@ -556,7 +556,9 @@ class TestTranscriptLocatorMatchesOnEvidence:
         mine = tmp_path / "proj"
         mine.mkdir()
         self._project_transcript(root, "d--fake-mangled-name", str(mine))
-        assert transcript_locator.project_transcript_dirs(str(mine)) == [str(root / "d--fake-mangled-name")]
+        assert transcript_locator.project_transcript_dirs(str(mine)) == [
+            str(root / "d--fake-mangled-name")
+        ]
 
     def test_another_projects_transcript_is_never_returned(self, tmp_path, monkeypatch):
         """THE defect: a foreign, more recently touched transcript used to win."""
@@ -594,7 +596,9 @@ class TestTranscriptLocatorMatchesOnEvidence:
         mine.mkdir()
         d = root / "unknown"
         d.mkdir()
-        (d / "a.jsonl").write_text(json.dumps(_turn("2026-09-06T16:30:00Z", ["Read"])) + "\n", encoding="utf-8")
+        (d / "a.jsonl").write_text(
+            json.dumps(_turn("2026-09-06T16:30:00Z", ["Read"])) + "\n", encoding="utf-8"
+        )
         assert transcript_locator.project_transcript_dirs(str(mine)) == []
 
     def test_separator_and_case_differences_do_not_break_the_match(self, tmp_path, monkeypatch):

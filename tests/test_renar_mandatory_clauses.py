@@ -21,10 +21,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 # (found by review of this very change).
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
-import renar_conformance  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from renar_mandatory_clauses import (  # noqa: E402
+import renar_conformance
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from renar_mandatory_clauses import (
     BASIS_KINDS,
     CLOSED_GATE_IDS,
     QUALITY_GATES_DECLARED,

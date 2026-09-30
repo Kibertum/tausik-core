@@ -64,6 +64,8 @@ for the same reason every time.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import ast
 import io
 import json
@@ -189,7 +191,7 @@ def node_resolves(node_id: str, repo_root: str) -> tuple[bool, str]:
     if not os.path.isfile(path):
         return False, f"no such test file: {rel}"
     try:
-        tree = ast.parse(io.open(path, encoding="utf-8").read())
+        tree = ast.parse(Path(path).read_text(encoding="utf-8"))
     except (OSError, SyntaxError, UnicodeDecodeError) as e:
         return False, f"{rel} is not parseable: {e}"
 

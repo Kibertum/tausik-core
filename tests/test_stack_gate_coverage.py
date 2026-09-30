@@ -37,8 +37,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from default_gates import DEFAULT_GATES  # noqa: E402
-from gate_stack_dispatch import gate_applies_to, infer_stacks_from_files  # noqa: E402
+from default_gates import DEFAULT_GATES
+from gate_stack_dispatch import gate_applies_to, infer_stacks_from_files
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _STACKS_DIR = os.path.join(_ROOT, "stacks")

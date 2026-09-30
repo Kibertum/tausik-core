@@ -2,6 +2,8 @@
 
 # Провайдеры моделей
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 TAUSIK не привязан к конкретной модели. Skills работают с любой LLM, поддерживающей tool use.
 
 ## Поддерживаемые платформы
@@ -67,7 +69,7 @@ TAUSIK не привязан к конкретной модели. Skills раб
 > `hook_event_name`/`permissionDecision`, — поэтому Rule 1 и ACL области там
 > ПРИНУЖДАЮТСЯ, а не просто предписываются, **как только пользователь доверил
 > хуки проекта в Codex**. Это предусловие хоста, а не наше, и оно замерено
-> живьём, а не предположено (смена #251): при сгенерированном, но НЕ доверенном
+> живьём, а не предположено: при сгенерированном, но НЕ доверенном
 > `.codex/hooks.json` ровно та запрещённая операция
 > `Path('outside.txt').write_text(...)` выполнилась до конца — ни один хук не
 > сработал, отказа не было, файл появился. Та же операция под доверенным
@@ -96,8 +98,8 @@ advisory-политика является блокировкой: наприм�
 |----------|-------|-------------------|
 | QG-0 Context Gate | hard | `tausik_task_start` отклоняет неполную задачу через MCP и CLI. |
 | QG-2 Implementation Gate / Verify-First | hard | `tausik_task_done` отказывает в закрытии без свежей подписанной квитанции `tausik_verify`. |
-| Rule 9.2 Session limit | hard | `tausik_task_start` отказывает в работе после лимита active-time. |
-| Rule 1 Task before code | hard | `.codex/hooks.json` подключает `task_gate.py` к Codex `PreToolUse` — **только после того, как пользователь доверил хуки проекта в Codex**; недоверенный профиль не принуждает ничего (замерено живьём, смена #251). |
+| Rule 9.2 Session limit | signal | `tausik_task_start` печатает совет выше порога active-time и не отказывает (1.10). |
+| Rule 1 Task before code | hard | `.codex/hooks.json` подключает `task_gate.py` к Codex `PreToolUse` — **только после того, как пользователь доверил хуки проекта в Codex**; недоверенный профиль не принуждает ничего (замерено живьём). |
 | Rule 2 Scope Boundaries | hard | `.codex/hooks.json` подключает `scope_write_gate.py` и `bash_write_gate.py` к Codex `PreToolUse` — **только после того, как пользователь доверил хуки проекта в Codex**; покрытие shell — объявленный каталог, а не обещание истолковать любую программу. |
 
 `tests/test_codex_support_matrix.py` читает обе языковые таблицы, требует этот

@@ -52,7 +52,7 @@ def _project_root() -> str | None:
     `mcp-config-read-paths`).
     """
     try:
-        from project_config import find_tausik_dir  # noqa: PLC0415
+        from project_config import find_tausik_dir  # ruff-not-enabled: PLC0415
 
         return os.path.dirname(os.path.abspath(find_tausik_dir()))
     except Exception:  # noqa: BLE001 — no project handle is a jurisdiction question, not a crash
@@ -61,7 +61,7 @@ def _project_root() -> str | None:
 
 def _cli() -> str:
     try:
-        from tausik_utils import cli_invocation  # noqa: PLC0415
+        from tausik_utils import cli_invocation  # ruff-not-enabled: PLC0415
 
         return cli_invocation()
     except Exception:  # noqa: BLE001 — the message must render even without the helper
@@ -80,7 +80,7 @@ def scan_tree(root: str, cfg: Any) -> tuple[bool, str]:
             f"or delete it to fall back to the shipped defaults."
         )
 
-    from verify_git_diff import _is_repo_root, uncommitted_changes  # noqa: PLC0415
+    from verify_git_diff import _is_repo_root, uncommitted_changes  # ruff-not-enabled: PLC0415
 
     if shutil.which("git") is None:
         return True, "memory_route: git not on PATH — working-tree scan skipped."
@@ -119,7 +119,7 @@ def run_memory_route_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     if root is None:
         return True, "memory_route: no project root resolved — scan skipped."
     try:
-        from project_config import load_config  # noqa: PLC0415
+        from project_config import load_config  # ruff-not-enabled: PLC0415
 
         cfg = load_config(os.path.join(root, ".tausik"))
     except Exception as e:  # noqa: BLE001 — unreadable config is unknown policy
@@ -144,7 +144,7 @@ def _enabled(cfg: Any) -> bool:
     be blocked at commit time by a second, independent reader.
     """
     try:
-        from gate_registry import GATE_REGISTRY  # noqa: PLC0415
+        from gate_registry import GATE_REGISTRY  # ruff-not-enabled: PLC0415
 
         default = bool(GATE_REGISTRY[_GATE_NAME].default_config.get("enabled", True))
     except Exception:  # noqa: BLE001
@@ -169,7 +169,7 @@ def main() -> int:
             stream.reconfigure(encoding="utf-8", errors="replace")
     root = _project_root() or os.getcwd()
     try:
-        from project_config import load_config  # noqa: PLC0415
+        from project_config import load_config  # ruff-not-enabled: PLC0415
 
         cfg = load_config(os.path.join(root, ".tausik"))
     except Exception:  # noqa: BLE001 — no config: the shipped defaults still apply

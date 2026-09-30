@@ -114,18 +114,18 @@ def _scan(where: str, nodeid: str | None = None) -> None:
             )
 
 
-def pytest_sessionstart(session):  # noqa: ARG001 — хук pytest
+def pytest_sessionstart(session):  # ruff-not-enabled: ARG001 — хук pytest
     _scan("sessionstart")
 
 
-def pytest_collection_finish(session):  # noqa: ARG001 — хук pytest
+def pytest_collection_finish(session):  # ruff-not-enabled: ARG001 — хук pytest
     _scan("collection_finish")
 
 
-def pytest_runtest_teardown(item, nextitem):  # noqa: ARG001 — хук pytest
+def pytest_runtest_teardown(item, nextitem):  # ruff-not-enabled: ARG001 — хук pytest
     _scan("after_test", nodeid=item.nodeid)
 
 
-def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001 — хук pytest
+def pytest_sessionfinish(session, exitstatus):  # ruff-not-enabled: ARG001 — хук pytest
     _scan("sessionfinish")
     _record({"event": "summary", "checks": _checks, "final": dict(_seen)})

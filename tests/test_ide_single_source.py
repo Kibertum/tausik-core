@@ -27,6 +27,7 @@ if _BOOTSTRAP not in sys.path:
     sys.path.insert(0, _BOOTSTRAP)
 
 from bootstrap_config import IDE_DIRS, SCAFFOLD_IDES  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 
 def test_scaffold_ides_subset_of_ide_dirs():
@@ -107,7 +108,7 @@ def test_no_hardcoded_ide_list_literal_in_bootstrap():
     for path in glob.glob(os.path.join(_BOOTSTRAP, "*.py")):
         if os.path.basename(path) == "bootstrap_config.py":
             continue  # the canonical definitions live here
-        text = open(path, encoding="utf-8").read()
+        text = Path(path).read_text(encoding="utf-8")
         for m in pattern.finditer(text):
             offenders.append(f"{os.path.basename(path)}: {m.group(0)}")
     assert not offenders, "hardcoded IDE list reintroduced: " + "; ".join(offenders)

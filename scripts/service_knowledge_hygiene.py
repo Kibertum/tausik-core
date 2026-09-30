@@ -87,7 +87,7 @@ def git_ignore_probe(repo_root: str) -> Callable[[str], bool]:
     def probe(path: str) -> bool:
         if path not in cache:
             try:
-                proc = subprocess.run(  # noqa: S603 - fixed argv, shell=False
+                proc = subprocess.run(  # ruff-not-enabled: S603 - fixed argv, shell=False
                     ["git", "check-ignore", "-q", "--", path],
                     cwd=repo_root,
                     capture_output=True,
@@ -106,16 +106,24 @@ def git_ignore_probe(repo_root: str) -> Callable[[str], bool]:
 def lint_memory(
     be: SQLiteBackend,
     apply: bool = False,
-    n: int = 500,
+    n: int = 0,
     file_exists: Callable[[str], bool] | None = None,
 ) -> dict[str, Any]:
     """Lint the active memory set for contradictions / superseded / stale files.
 
-    Dry-run by default: returns ``{findings, applied:False, archived:0}``. With
-    ``apply=True`` the unambiguous ``superseded`` findings are archived (the
+    Dry-run by default: returns ``{findings, applied:False, archived:0, examined}``.
+    With ``apply=True`` the unambiguous ``superseded`` findings are archived (the
     superseding entry already replaces them); contradictions and stale-file
     hits are advisory-only — they need human judgement, so ``apply`` never
     auto-archives them. ``file_exists`` defaults to repo-relative existence.
+
+    ``n`` DEFAULTS TO THE WHOLE LIVE SET (``n <= 0`` → no limit). It used to
+    default to 500 while 744 memories were live, so the lint reported a clean
+    subject with a third of it unexamined: the ten stale references this default
+    was changed for were all older than the window, and a report of "9 findings"
+    carried nothing saying which rows it had looked at. ``examined`` is returned
+    for the same reason — a count of findings means nothing without the size of
+    what was searched.
 
     A git-IGNORED path is absent by design, so it is not reported as stale; the
     probe is skipped when ``file_exists`` is injected, because a caller that
@@ -123,8 +131,11 @@ def lint_memory(
     """
     from memory_cleanup import find_lint_candidates
 
-    rows = be.memory_list(n=n, include_archived=False)
-    edges = be.edge_list(relation="contradicts", n=n) + be.edge_list(relation="supersedes", n=n)
+    limit = n if n > 0 else -1  # SQLite: LIMIT -1 is no limit
+    rows = be.memory_list(n=limit, include_archived=False)
+    edges = be.edge_list(relation="contradicts", n=limit) + be.edge_list(
+        relation="supersedes", n=limit
+    )
     check = file_exists if file_exists is not None else os.path.exists
     ignored = git_ignore_probe(os.getcwd()) if file_exists is None else None
     findings = find_lint_candidates(rows, edges, check, ignored)
@@ -133,4 +144,10 @@ def lint_memory(
     if apply:
         superseded_ids = sorted({f["id"] for f in findings if f["kind"] == "superseded"})
         archived = be.memory_archive_ids(superseded_ids)
-    return {"findings": findings, "applied": apply, "archived": archived, "count": len(findings)}
+    return {
+        "findings": findings,
+        "applied": apply,
+        "archived": archived,
+        "count": len(findings),
+        "examined": len(rows),
+    }

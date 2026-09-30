@@ -21,10 +21,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from skill_repos import repo_catalog, repo_list_all_skills  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from skill_repos import repo_catalog, repo_list_all_skills
+from tausik_utils import ServiceError
 
 
 MANIFEST = "tausik-skills.json"

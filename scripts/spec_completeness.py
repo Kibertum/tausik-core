@@ -4,7 +4,7 @@ WHY THIS EXISTS. ADR-023 (`spec-coverage-completeness`) is the ONE of the four
 unassessed accepted ADRs that actually BINDS us: its §5 puts into §8.4.1 the
 provision *"the mandatory body describes the subject of the specification
 exhaustively; limiting coverage to a subset of elements by a subjective
-selection criterion is forbidden, in all eleven types and regardless of
+selection criterion is forbidden, in all types and regardless of
 vocabulary"*. Unlike ADR-020 it carries no RENAR-level caveat, so our RENAR-1
 does not cut it off.
 
@@ -60,8 +60,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable
 
-# The standard's eleven, transcribed from §8.3 — NOT derived from our own
-# SPEC_TYPES. Ours matches it in full (v49 / ADR-013), and that agreement is
+# The standard's twelve, transcribed from §8.3 of RENAR 1.1 — NOT derived from
+# our own SPEC_TYPES. Ours matches it in full (v64 / ADR-018), and that agreement is
 # exactly why the literal stays: a denominator computed from the numerator can
 # never report a shortfall, so the next amendment of the standard would move
 # both sides together and go unnoticed. Their agreement is a FACT this module
@@ -78,6 +78,7 @@ STANDARD_SPEC_TYPES: tuple[str, ...] = (
     "OPS",
     "TEST",
     "DOC",
+    "UC",
 )
 
 REGISTRY_NAME = "spec_coverage.json"

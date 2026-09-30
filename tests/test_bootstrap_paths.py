@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
-from bootstrap_paths import portable_path  # noqa: E402
+from bootstrap_paths import portable_path
 
 
 def _abs(*parts: str) -> str:

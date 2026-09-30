@@ -106,7 +106,7 @@ class TestPruneBackups:
     def test_no_backups_returns_empty_lists(self, tmp_path):
         # NEGATIVE: empty workspace returns empty result, not error.
         result = prune_backups(str(tmp_path), keep=3)
-        assert result == {"kept": [], "deleted": [], "errors": []}
+        assert result == {"kept": [], "deleted": [], "errors": [], "unmanaged": []}
 
     def test_negative_keep_clamped_to_zero(self, tmp_path):
         _make_backups(tmp_path, ["tausik.db.bak.v1"])

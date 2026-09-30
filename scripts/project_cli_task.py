@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from project_service import ProjectService
 
 
-
 def _apply_tickets(svc: ProjectService, slug: str, tickets: list[str] | None) -> None:
     """Привязка к тикету, записанная СРАЗУ при заведении задачи.
 
@@ -37,6 +36,7 @@ def _apply_tickets(svc: ProjectService, slug: str, tickets: list[str] | None) ->
     import tracker_ref
 
     svc.task_update(slug, tracker_refs=tracker_ref.dumps(tracker_ref.normalise_all(tickets)))
+
 
 def cmd_task(svc: ProjectService, args: Any) -> None:
     from project_cli import _print_table
@@ -63,8 +63,12 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             )
         )
         rb = getattr(args, "rollback_plan", None)
-        if rb:
-            svc.task_update(slug, rollback_plan=rb)
+        ac = getattr(args, "acceptance_criteria", None)
+        if rb or ac:
+            svc.task_update(
+                slug,
+                **{k: v for k, v in (("rollback_plan", rb), ("acceptance_criteria", ac)) if v},
+            )
         acl = {
             f: getattr(args, f, None)
             for f in ("scope_paths", "scope_tools")
@@ -172,6 +176,16 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 )
             _sys.stderr.flush()
 
+        # --verify closes in ONE call: the check runs here and its handle is presented
+        # below exactly as a hand-driven close presents one. Measured, the separate path
+        # costs four to six calls at ~482 000 tokens of re-sent prefix each.
+        from task_close_inline_verify import handle_for_close, refuse_two_sources
+
+        refuse_two_sources(args)
+        handle = getattr(args, "verify_handle", None)
+        if getattr(args, "verify", False):
+            handle = handle_for_close(svc, args) or None
+
         _print_with_warnings(
             svc.task_done(
                 args.slug,
@@ -183,10 +197,25 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 progress_fn=_stderr_progress,
                 no_file_changes=getattr(args, "no_file_changes", False),
                 no_changelog=getattr(args, "no_changelog", False),
-                verify_handle=getattr(args, "verify_handle", None),
+                verify_handle=handle,
                 zero_gate_ack=bool(getattr(args, "zero_gate_ack", False)),
             )
         )
+        # The verdict a driver used to spend a separate call on. `budget-check` stays — it
+        # answers with an EXIT CODE, which is what a shell chain reads and what a printed
+        # line cannot replace. This is the same answer for the reader who is already here.
+        try:
+            from call_budget_guard import breach
+
+            refusal = breach(svc.task_show(args.slug))
+            if refusal:
+                print(refusal, file=_sys.stderr)
+        except Exception:  # noqa: BLE001,S110 - the close already happened; a note must not undo it
+            pass
+    elif c == "obsolete":
+        from task_obsolete import close_obsolete
+
+        print(close_obsolete(svc, args.slug, args.reason))
     elif c == "block":
         print(svc.task_block(args.slug, args.reason))
     elif c == "unblock":
@@ -195,6 +224,13 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         print(svc.task_review(args.slug))
     elif c == "update":
         import json as _json
+
+        from task_scope_widen import refuse_conflicting_flags, widen
+
+        refuse_conflicting_flags(args)
+        add_paths = getattr(args, "add_scope_paths", None)
+        if add_paths is not None:
+            print(widen(svc, args.slug, list(add_paths)))
 
         fields = {}
         for k in (
@@ -234,7 +270,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             fields["tracker_refs"] = tracker_ref.dumps(tracker_ref.normalise_all(list(tickets)))
         if fields:
             print(svc.task_update(args.slug, **fields))
-        else:
+        elif add_paths is None:
+            # A widening already printed what it did; saying this after one
+            # would read as "nothing happened" over a change that did.
             print("No fields to update.")
     elif c == "delete":
         print(svc.task_delete(args.slug))
@@ -270,8 +308,18 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         print(svc.task_log(args.slug, args.message))
     elif c == "logs":
         print("\n".join(task_logs_lines(svc, args.slug, getattr(args, "phase", None))))
+    elif c == "budget-check":
+        # A driver calls this BETWEEN tasks, so the answer has to be an exit code: a
+        # printed warning is invisible to `&&`. Silent and zero when nothing is wrong,
+        # because a check that speaks on every call gets piped to /dev/null.
+        from call_budget_guard import breach
+
+        refusal = breach(svc.task_show(args.slug))
+        if refusal:
+            print(refusal, file=sys.stderr)
+            raise SystemExit(1)
     else:
-        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, delegate, undelegate, handoff, summary-back, plan, step, quick, next, depends, undepends, move, claim, unclaim, reason-step, replay, log, logs"
+        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, delegate, undelegate, handoff, summary-back, plan, step, quick, next, depends, undepends, move, claim, unclaim, reason-step, replay, log, logs, budget-check"
         if c:
             from difflib import get_close_matches
 
@@ -295,10 +343,10 @@ def _print_with_warnings(result: str) -> None:
 
 
 def _auto_slug(title: str) -> str:
-    """Generate slug from title."""
-    from tausik_utils import slugify
+    """Generate slug from title (transliterated), or refuse — see task_slug_from_title."""
+    from tausik_utils import task_slug_from_title
 
-    return slugify(title)
+    return task_slug_from_title(title)
 
 
 def _print_task_detail(task: dict[str, Any]) -> None:
@@ -306,37 +354,11 @@ def _print_task_detail(task: dict[str, Any]) -> None:
     print(f"Task: {task['slug']}")
     print(f"Title: {task['title']}")
     print(f"Status: {task['status']}")
-    for field in (
-        "story_slug",
-        "epic_slug",
-        "role",
-        "stack",
-        "complexity",
-        "goal",
-        "acceptance_criteria",
-        "scope",
-        "scope_exclude",
-        "scope_paths",
-        "scope_tools",
-        "rollback_plan",
-        "notes",
-        "started_at",
-        "completed_at",
-        "blocked_at",
-        "relevant_files",
-        "tracker_refs",
-        "defect_of",
-        "claimed_by",
-        "attempts",
-        "started_model_id",
-        "started_model_version",
-        "done_model_id",
-        "done_model_version",
-        "model_mismatch",
-    ):
-        val = task.get(field)
-        if val:
-            print(f"{field}: {val}")
+    # One field list for the CLI and the MCP server (task_detail_fields).
+    from task_detail_fields import detail_lines
+
+    for line in detail_lines(task):
+        print(line)
     cost_budget = task.get("cost_budget_usd")
     cost_actual = task.get("cost_actual_usd")
     if cost_budget is not None or cost_actual is not None:

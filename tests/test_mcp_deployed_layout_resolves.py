@@ -58,11 +58,19 @@ def deployed_copies(root: str) -> list[str]:
     """
     found: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+        # Another checkout nested under this one (a Kilo/IDE worktree, a clone)
+        # carries its OWN source `harness/` — it is not a profile deployed into
+        # this project. A `.git` entry marks it; the root's own `.git` is the
+        # starting point and is never a subdirectory of the walk.
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d not in _SKIP_DIRS and not os.path.exists(os.path.join(dirpath, d, ".git"))
+        ]
         if _MODULE not in filenames:
             continue
         rel = os.path.relpath(dirpath, root).replace("\\", "/")
-        if rel.startswith("harness/"):
+        if rel.startswith("harness/") or "/harness/claude/" in f"/{rel}/":
             continue
         found.append(dirpath)
     return sorted(found)
@@ -117,6 +125,17 @@ def test_a_scripts_dir_without_the_needed_module_is_reported(tmp_path):
     found = unresolved_profiles(str(tmp_path))
     assert len(found) == 1
     assert _NEEDED in found[0]
+
+
+def test_a_nested_checkout_is_not_a_deployed_profile(tmp_path):
+    """NEGATIVE: an IDE worktree under a dot-directory carries its own source
+    `harness/` and is somebody else's checkout, not a profile of this project
+    (found live: `.kilo/worktrees/crawling-tangelo`, session #266)."""
+    wt = tmp_path / ".kilo" / "worktrees" / "wt"
+    (wt / "harness" / "claude" / "mcp" / "project").mkdir(parents=True)
+    (wt / "harness" / "claude" / "mcp" / "project" / _MODULE).write_text("", encoding="utf-8")
+    (wt / ".git").write_text("gitdir: elsewhere", encoding="utf-8")
+    assert deployed_copies(str(tmp_path)) == []
 
 
 def test_the_walk_descends_into_dot_directories(tmp_path):

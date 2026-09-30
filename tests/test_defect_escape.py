@@ -14,9 +14,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from conftest import canonical_ddl  # noqa: E402  (canonical tasks schema — no hand DDL)
+from conftest import canonical_ddl
 
-from backend_defect_escape import defect_escape_metrics  # noqa: E402
+from backend_defect_escape import defect_escape_metrics
 
 # verification_runs stays a 2-column FK stub (_STUB_MAX_COLUMNS=2 — allowed by the
 # ddl-parity gate); the metric only reads task_slug. tasks MUST be the canonical

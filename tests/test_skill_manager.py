@@ -382,9 +382,13 @@ class TestCloneRepo:
         url = "https://github.com/Org/my-skills"
 
         def fake_run(cmd, **kwargs):
-            # Simulate git clone by creating the dir
-            repo_dir = cmd[-1]
-            os.makedirs(repo_dir, exist_ok=True)
+            # ONLY the clone creates a directory. This stub replaces `subprocess.run` wholesale,
+            # so it also intercepts the `git config` calls `clone_repo` makes afterwards to pin
+            # the EOL settings — and taking `cmd[-1]` from those created directories named
+            # `false` and `lf` IN THE REPOSITORY ROOT on every run. They were later found by a
+            # repository inventory and mistaken for shell residue; they were this line.
+            if "clone" in cmd:
+                os.makedirs(cmd[-1], exist_ok=True)
             return subprocess.CompletedProcess(cmd, 0)
 
         monkeypatch.setattr(subprocess, "run", fake_run)
@@ -798,7 +802,8 @@ class TestPipFlagsAreRealFlags:
         return subprocess.run(
             [sys.executable, "-m", "pip", "install", *flags, "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=60,
             stdin=subprocess.DEVNULL,
         ).returncode
@@ -1041,7 +1046,13 @@ class TestCloneEolPinning:
 
     def _git(self, cwd, *args, env=None):
         return subprocess.run(
-            ["git", *args], cwd=cwd, capture_output=True, text=True, encoding="utf-8", env=env, timeout=60
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+            timeout=60,
         )
 
     def _origin(self, tmp_path, body: bytes = b"---\nname: s\n---\n# body\n"):

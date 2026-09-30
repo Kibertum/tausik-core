@@ -39,7 +39,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT  # noqa: E402
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT
 
 pytestmark = pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
 

@@ -34,6 +34,8 @@ Run: pytest tests/test_mcp_answers_prompts_list.py -v
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import ast
 import glob
 import os
@@ -44,7 +46,9 @@ _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 # Every MCP server shipped by TAUSIK. Discovered, not hardcoded, so a new server or a
 # new IDE mirror is covered the moment it lands.
-_SERVERS = sorted(glob.glob(os.path.join(_ROOT, "harness", "*", "mcp", "*", "server.py")))
+# The entry point is `server.py` (project) or `rag_server.py` (codebase-rag, renamed
+# in 1.10 so mypy can check both) — match the suffix, not one file name.
+_SERVERS = sorted(glob.glob(os.path.join(_ROOT, "harness", "*", "mcp", "*", "*server.py")))
 
 _REQUIRED_HANDLERS = ("list_prompts", "list_resources")
 
@@ -55,7 +59,7 @@ def _registered_decorators(path: str) -> set[str]:
     Parsed from the AST rather than grepped: a mention inside a comment or a docstring
     must not count as registration.
     """
-    tree = ast.parse(open(path, encoding="utf-8").read())
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
     found: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):

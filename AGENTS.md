@@ -7,7 +7,7 @@ This document tells you what TAUSIK is, why it exists, and how to work with it.
 
 TAUSIK (**T**ask **A**gent **U**nified **S**upervision, **I**nspection & **K**nowledge) is an engineering governance framework for AI agents. It enforces a disciplined workflow so you don't skip planning, lose context between sessions, or close tasks without evidence.
 
-TAUSIK implements [SENAR v1.3 Core](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open methodology for AI-native development. SENAR defines:
+TAUSIK implements [SENAR v1.5 Core](https://senar.tech) ([GitHub](https://github.com/Kibertum/SENAR)) — an open methodology for AI-native development. SENAR defines:
 - **Quality gates** — hard blocks that prevent skipping steps (no code without a task, no completion without evidence)
 - **Workflow rules** — task lifecycle, session management, checkpoints, dead end tracking
 - **Metrics** — throughput, first-pass success rate, defect escape rate, lead time (all automatic)
@@ -42,13 +42,13 @@ Same governance everywhere; only the **wrapper** (hooks vs self-serve) changes. 
 
 | Model / host | Primary TAUSIK surface | Main `tausik_*` tools | Notes |
 |----------------|------------------------|-------------------------------------|------|
-| Claude (Code, VS Code Extension) | MCP `tausik-project` | **146** | Hooks + MCP |
-| Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **146** | Rule 1 self-serve if no hooks |
-| Qwen Code | MCP + skills under `.qwen/skills/` | **146** | Subset of hooks |
-| Codex CLI | MCP `tausik-project` from `.codex/config.toml`; skills `.codex/skills/`; agents `.codex/agents/` | **146** | Hooks via `.codex/hooks.json` once trusted — [enforcement matrix](docs/en/model-providers.md#codex-enforcement-matrix) |
-| Headless agents | Mirror the CLI `.tausik/tausik` | **146** | [docs/en/cli.md](docs/en/cli.md) |
+| Claude (Code, VS Code Extension) | MCP `tausik-project` | **147** | Hooks + MCP |
+| Cursor / Composer / GPT-5.5+ / OpenCode | Same MCP (project MCP config); CLI fallback `.tausik/tausik` | **147** | Rule 1 self-serve if no hooks |
+| Qwen Code | MCP + skills under `.qwen/skills/` | **147** | Subset of hooks |
+| Codex CLI | MCP `tausik-project` from `.codex/config.toml`; skills `.codex/skills/`; agents `.codex/agents/` | **147** | Hooks via `.codex/hooks.json` once trusted — [enforcement matrix](docs/en/model-providers.md#codex-enforcement-matrix) |
+| Headless agents | Mirror the CLI `.tausik/tausik` | **147** | [docs/en/cli.md](docs/en/cli.md) |
 
-**Optional `codebase-rag` server:** +7 tools → **153** total with the main server (not part of the baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
+**Optional `codebase-rag` server:** +7 tools → **154** total with the main server (not part of the baseline). Same numbers as the header in [docs/en/mcp.md](docs/en/mcp.md).
 
 **Operating contract for non-Claude models:**
 
@@ -102,6 +102,8 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 | **MCP tools (146; verify-first contract)** | [docs/en/mcp.md](docs/en/mcp.md) |
 | **Skills reference (13 core skills, 20 official skills opt-in)** | [docs/en/skills.md](docs/en/skills.md) |
 | **Quality gates** | [docs/en/hooks.md](docs/en/hooks.md) |
+| **The agent contract in full (QG-2 mechanics, estimation, Rule 4/7, stacks)** | [docs/en/agent-contract.md](docs/en/agent-contract.md) (EN) / [docs/ru/agent-contract.md](docs/ru/agent-contract.md) (RU) |
+| **What is NOT guaranteed (deliberate gaps with their reason, open defects, out of scope)** | [docs/en/known-limitations.md](docs/en/known-limitations.md) (EN) / [docs/ru/known-limitations.md](docs/ru/known-limitations.md) (RU) |
 | **User-facing docs index** | [docs/README.md](docs/README.md) |
 | **SENAR compliance matrix** | [docs/en/senar-compliance-matrix.md](docs/en/senar-compliance-matrix.md) |
 
@@ -111,11 +113,11 @@ Canonical narrative + branching detail: **[docs/en/workflow.md](docs/en/workflow
 scripts/           Core Python (CLI → Service → Backend)
 docs/              Documentation (en/, ru/, research/)
 harness/           Shared resources for all IDEs (renamed from agents/ in v1.4 to avoid collision with .claude/agents/)
-  skills/          13 core skills auto-deployed + 20 official skills opt-in via --include-official
+  skills/          14 core skills auto-deployed + 20 official skills opt-in via --include-official
   roles/           6 roles (developer, architect, devops, qa, tech-writer, ui-ux)
   stacks/          25 stack guides (python, react, go, rust, ansible, terraform, ...)
   overrides/       IDE-specific overrides (claude/, cursor/, qwen/)
-  claude/mcp/      tausik-project (146) main; optional codebase-rag +7 -> 153 total — see docs/en/mcp.md
+  claude/mcp/      tausik-project (147) main; optional codebase-rag +7 -> 154 total — see docs/en/mcp.md
 bootstrap/         One-command project setup
 tests/             pytest suite (3355 tests)
 .tausik/           Runtime data (DB, config) — gitignored
@@ -147,31 +149,33 @@ Three layers, strict separation: **CLI never touches DB. Service validates. Back
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #264 (active) | Branch: v1-9-wave | TAUSIK: 1.9.0
-Tasks: 1510/1661 done, 1 active, 0 blocked
-Active: release-1-9-0-cut-tag-snapshot
+Session: #279 (active) | Branch: v1-10 | TAUSIK: 1.10.0
+Tasks: 1696/1783 done, 6 obsolete, 2 active, 4 blocked
+Active: reading-code-costs-a-third-of-calls, answer-rules-are-in-every-prompt-not-only-consumers
+Blocked: we-say-discipline-layer-field-says-harness-engineering, memory-tail-by-relevance-not-recency, site-is-rebuilt-from-the-core-docs-of-the-release, github-milestones-follow-the-rebuilt-composition
+Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\2fb2646a-10b7-4fc5-8fb4-be2e70726533.jsonl
 
 ### Memory tail
 Context (5):
-- #712 Трекеры перед тегом 1.9, смена #264: ответы опубликованы в GitLab #5/#6/#14 и GitHub PR #5, ничего н
-- #706 Парный replay rag-first подсказок, смены #261–#263: search_code = 0 в обоих условиях, экономии нет, 
-- #697 Трекеры перед тегом 1.9 (смена #255): 14 GitLab + 2 GitHub + PR #5 — каждому тикету назначено состоя
-- #691 Аудит SENAR 9.5 за смены #243-#250: улики закрытий, когерентность, полный прогон — три находки, ни о
-- #684 Трекеры на момент остановки смены #241: 13 открытых в GitLab, 2 в GitHub
+- #806 Счёт делает КЭШ, а не выход: 94,2% против 5,8%
+- #804 Цена задачи: в долларах упала вдвое, в токенах выросла вдвое — это прайс, а не мы
+- #800 Перетряска документации 1.10: два пункта из пяти отменены замером
+- #798 Цена задачи в ходах выросла впятеро за полгода: медиана 6 → 32, а рычаг — Bash, 87,6% вызовов
+- #746 Расход токенов TAUSIK почти целиком в cache_read: 99,5% входа, и главный рычаг — число ходов
 Decisions (5):
-- #371 ПРОВЕРКА СОРАЗМЕРНА ПРАВКЕ. Владелец, смена #263, сказано не в первый раз и потому записано: «мы превращаем разработку в
-- #370 Состав 1.9 расширен по указанию владельца в смене #258 историей release19-tracker-promises: GitLab #5 (штамп версии), #6
-- #369 Состав 1.9 расширен по указанию владельца в смене #251 историей release19-clean-publication-and-onboarding (решение #368
-- #368 МОДЕЛЬ ПУБЛИКАЦИИ 1.9 УТОЧНЕНА ВЛАДЕЛЬЦЕМ, смена #251. (1) Сайт tausik.tech живёт ТОЛЬКО в отдельном репозитории GitLab 
-- #367 Состав релиза 1.9 пересказан ОДНОЙ строкой, потому что генератор ROADMAP.md читал дополняющее решение #363 как полный со
+- #408 1.10 ПЕРЕСОБРАН под три приоритета владельца (#406), утверждено владельцем в смене #279. Новая история release110-owner-
+- #407 Дисциплина ответа TAUSIK — НАША, а не вендоренная. Принципы (вести с действия, нумеровать многошаговое, потолок пунктов 
+- #406 1.10 ОСТАНОВЛЕН И ПЕРЕСОБИРАЕТСЯ. Указание владельца, смена #278: качество не устраивает. Три приоритета в порядке владе
+- #405 Сайт живёт в ОТДЕЛЬНОМ репозитории tausik-site и ТОЛЬКО на GitLab. Публикации сайта на GitHub нет. Указание владельца, с
+- #404 Код и комментарии пишутся ПО-АНГЛИЙСКИ. Указание владельца, смена #278. Отменяет часть конвенции #745 «докстринг и комме
 Conventions (5):
-- #711 Проверка соразмерна правке: полная лента — CI и релизный гейт, тест — на поведение, порождённое поро
-- #701 Owner forbids external artifacts (claude.ai Artifact pages): reports are answered in the terminal or
-- #698 Текст отказа в документации для агента снимается с живого вызова и удерживается тестом по фразе из к
-- #686 Хост, добавляемый в SCAFFOLD_IDES, проверяется ЗАМЕРОМ БИНАРЯ, а не документацией
-- #682 Мёртвый код ищут по СИМВОЛАМ, а не по модулям, и повторяемо — потому что удаление обнажает следующий
+- #799 Переименовал тест — ответь на цитаты в том же заходе, иначе регистр покраснеет следующей проверкой
+- #792 Потолок без запаса есть запрет: у бюджета контекста должен быть проверяемый остаток, а не только пре
+- #778 Список «к сведению» без владельца переоткрывают, а не закрывают: каждая строка обязана назвать причи
+- #777 Намеренный пробел объявляется тремя строками: что НЕ гарантировано, почему живём, что держит границу
+- #776 Отчёт о прогоне называет и deselected, иначе «11592 passed» скрывает выключенную ленту
 Dead ends (3):
-- #693 Verify review journal with tracked output documents as relevant files
-- #692 Capture Codex PreToolUse JSON through a temporary generated command hook
-- #689 Ограничить parent-tree претензии done-задач условием completed_at >= started_at верифицируемой задач
+- #805 Подготовка берёт корень как root_from_service(svc) or '.'
+- #802 Подготовка перед проверкой прогоняет ruff format по всему дереву
+- #801 Сборщик coherence, разрешающий каждую цитату вида tests/файл.py::имя по всему дереву
 <!-- DYNAMIC:END -->

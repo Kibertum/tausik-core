@@ -15,14 +15,14 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from status_view import (  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from status_view import (
     build_status_view,
     render_status_cli,
     render_status_mcp,
 )
-from tausik_utils import format_status_compact_json  # noqa: E402
+from tausik_utils import format_status_compact_json
 
 
 @pytest.fixture
@@ -32,13 +32,10 @@ def svc(tmp_path):
 
 
 def _make_audit_overdue(svc):
-    """Three sessions since the last recorded audit (mirrors test_project_mcp)."""
-    svc.be.session_start()
-    first_id = svc.be.session_current()["id"]
-    svc.be.meta_set("last_audit_session", str(first_id))
-    svc.be.session_start()
-    svc.be.session_start()
-    svc.be.session_start()
+    """The audit is overdue by the 1.10 clock: closures since the mark."""
+    from audit_cadence_helpers import make_audit_overdue
+
+    make_audit_overdue(svc)
 
 
 class TestSignalSetsMatch:
@@ -109,7 +106,7 @@ class TestCompactParity:
         view = build_status_view(svc, include_rich=False)
         payload = json.loads(format_status_compact_json(view["data"], view["duration_warning"]))
         assert payload["exploration_open"] is True
-        assert payload["audit_overdue_sessions"] >= 3
+        assert payload["audit_overdue_closures"] >= 17
 
     def test_compact_skips_rich_signals(self, svc):
         # include_rich=False must not pay for the rich-only DB/FS work.

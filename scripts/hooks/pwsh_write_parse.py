@@ -38,7 +38,7 @@ if _HOOKS_DIR not in sys.path:
 
 import python_source_writes  # noqa: E402 — shared with the POSIX channel, see `_parse`
 from pwsh_cmd_norm import _MAX_WRAPPER_DEPTH, payloads  # noqa: E402
-from pwsh_cmd_parse import (  # noqa: E402,F401 — `tokenize` re-exported: it is
+from pwsh_cmd_parse import (  # noqa: E402 — `tokenize` re-exported: it is
     # this dialect's entry point in `shell_channel`'s table, alongside
     # `write_targets`. One table, so a consumer cannot pick a dialect by hand.
     _REDIR_TOKEN_RE,

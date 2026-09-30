@@ -43,8 +43,8 @@ class TestGenerateClaudeMd:
             "Max 500 lines per file",
             "Continuous logging",
             "Document dead ends",
-            "Checkpoint every 30-50 tool calls",
-            "Session limit: 180 min",
+            "Checkpoint when the signal says so",
+            "Context pressure is a signal, not a gate",
         ]
         for marker in markers:
             assert marker in text, f"Missing hard constraint: {marker!r}"
@@ -133,7 +133,7 @@ SHARED_HARD_MARKERS = [
     "QG-0 Context Gate",
     "QG-2 Implementation Gate",
     "MCP-first",
-    "Session limit: 180 min",
+    "Context pressure is a signal, not a gate",
     "## SENAR Rules Compliance",
     "<!-- DYNAMIC:START -->",
 ]

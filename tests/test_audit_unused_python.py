@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from audit_unused_python import (  # noqa: E402
+from audit_unused_python import (
     EXEMPT_MODULES,
     SOURCE_EXCLUDES,
     _is_excluded,

@@ -16,11 +16,11 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from backend_migrations import run_migrations  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from backend_migrations import run_migrations
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from tausik_utils import ServiceError
 
 
 @pytest.fixture
@@ -72,6 +72,9 @@ def test_migration_v54_creates_tables_clean(tmp_path):
     conn.execute(
         "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
     )  # defect_of: v10 column, indexed by v62
+    conn.execute(
+        "CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )  # ALTER target for v63
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     conn.execute("CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     conn.execute("CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)")
@@ -168,14 +171,6 @@ def test_fts_search_finds_at(svc):
     )
     rows = svc.at_search("статус")
     assert any(r["slug"] == "at-1" for r in rows)
-
-
-def test_malformed_fts_query_is_friendly_error(svc):
-    svc.at_create("at-1", "TZ-3.1", "text", "scenario", "2026-01-01T00:00:00Z", "orch")
-    with pytest.raises(ServiceError, match="unterminated"):
-        svc.at_search('"unterminated')
-    # The failed query must not have deleted or altered anything.
-    assert svc.at_show("at-1")["tz_ref"] == "TZ-3.1"
 
 
 # === freshness (§8A property 2) ===

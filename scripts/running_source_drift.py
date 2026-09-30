@@ -57,7 +57,9 @@ def snapshot(root: str) -> dict[str, str]:
             path = os.path.join(dirpath, name)
             try:
                 with open(path, "rb") as fh:
-                    digest = hashlib.sha1(fh.read()).hexdigest()  # noqa: S324 — identity, not security
+                    digest = hashlib.sha1(
+                        fh.read()
+                    ).hexdigest()  # ruff-not-enabled: S324 — identity, not security
             except OSError:
                 continue  # vanished between listing and reading: reported by the next take
             out[os.path.relpath(path, root).replace(os.sep, "/")] = digest

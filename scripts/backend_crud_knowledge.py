@@ -51,13 +51,18 @@ class KnowledgeCrudMixin:
     # --- Decisions ---
 
     def decision_add(
-        self, text: str, task_slug: str | None = None, rationale: str | None = None
+        self,
+        text: str,
+        task_slug: str | None = None,
+        rationale: str | None = None,
+        rejected: str | None = None,
     ) -> int:
         now = utcnow_iso()
         return self._add_slugged(
             "decisions",
-            "INSERT INTO decisions(decision,task_slug,rationale,created_at,slug) VALUES(?,?,?,?,?)",
-            lambda s: (text, self._resolve_task_slug(task_slug), rationale, now, s),
+            "INSERT INTO decisions(decision,task_slug,rationale,created_at,slug,rejected) "
+            "VALUES(?,?,?,?,?,?)",
+            lambda s: (text, self._resolve_task_slug(task_slug), rationale, now, s, rejected),
             first_line(text),
             f"decision-{now}",
         )
@@ -86,15 +91,16 @@ class KnowledgeCrudMixin:
         content: str,
         tags: list[str] | None = None,
         task_slug: str | None = None,
+        provenance: str = "inferred",
     ) -> int:
         now = utcnow_iso()
         tags_json = json.dumps(tags) if tags else None
         task = self._resolve_task_slug(task_slug)
         return self._add_slugged(
             "memory",
-            "INSERT INTO memory(type,title,content,tags,task_slug,created_at,updated_at,slug) "
-            "VALUES(?,?,?,?,?,?,?,?)",
-            lambda s: (mem_type, title, content, tags_json, task, now, now, s),
+            "INSERT INTO memory(type,title,content,tags,task_slug,created_at,updated_at,slug,"
+            "provenance) VALUES(?,?,?,?,?,?,?,?,?)",
+            lambda s: (mem_type, title, content, tags_json, task, now, now, s, provenance),
             title,
             f"memory-{now}",
         )

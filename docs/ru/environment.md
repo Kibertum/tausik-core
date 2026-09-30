@@ -4,6 +4,8 @@
 
 # Правила окружения
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 > Полный гайд по shell, virtualenv и Docker — на английском в [environment.md](../en/environment.md).
 
 ## Ключевые принципы

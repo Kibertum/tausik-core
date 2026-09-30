@@ -138,6 +138,28 @@ def _projection_prefixes(svc: Any) -> tuple[str, ...]:
         return ()
 
 
+def roadmap_is_generated(svc: Any, project_root: str) -> bool:
+    """True iff ROADMAP.md is byte-equal to what the generator renders now.
+
+    A status change reissues ROADMAP.md, and a fileless close then saw the file dirty
+    and refused: the framework's own output blocked the close it had just caused. Only
+    an EXACT match is the generator's; a hand edit differs and still counts as work.
+    """
+    try:
+        path = os.path.join(project_root, "ROADMAP.md")
+        with open(path, encoding="utf-8", newline="") as fh:
+            current = fh.read()
+        from state_triggers import _ROADMAP_MARK
+
+        if _ROADMAP_MARK not in current[:512]:
+            return False
+        import release_roadmap
+
+        return release_roadmap.render(svc.be._conn) == current
+    except Exception:  # noqa: BLE001 — unknown is not "generated": the file stays dirty
+        return False
+
+
 def _enforce_no_file_changes(
     svc: Any,
     report: dict[str, Any],
@@ -181,6 +203,9 @@ def _enforce_no_file_changes(
         excluded = _projection_prefixes(svc)
         if excluded:
             dirty = [p for p in dirty if not p.startswith(excluded)]
+        if dirty and "ROADMAP.md" in dirty:
+            if roadmap_is_generated(svc, root):
+                dirty = [p for p in dirty if p != "ROADMAP.md"]
     scope_desc = (
         "declared paths " + ", ".join(relevant_files) if relevant_files else "the working tree"
     )
@@ -281,7 +306,9 @@ def enforce_verify_first(
         _block(
             report,
             "config-load",
-            f"{type(e).__name__}: {e}",
+            __import__("infra_refusal").line(
+                "POLICY_PROFILE_UNAVAILABLE", f"{type(e).__name__}: {e}"
+            ),
             "Verify-First cannot tell which gates to enforce: the config failed "
             "to load. Fix `.tausik/config.json` (`tausik doctor` names the key), "
             "then retry.",
@@ -399,7 +426,7 @@ def enforce_verify_first(
                 "bypass_auto_verify",
                 "auto_verify=true — Verify-First cached-receipt requirement bypassed (inline gates)",
             )
-        except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+        except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
             pass
         try:
             passed, results, _status = run_gates_with_cache(
@@ -448,12 +475,15 @@ def enforce_verify_first(
             )
         return
 
-    # Default v1.4 behavior: refuse to close.
+    # Default v1.4 behavior: refuse to close — saying WHICH of three it is.
+    from verify_refusal_kind import head, last_run_kind
+
+    kind, why = last_run_kind(svc.be, slug)
     gate_names = ", ".join(g.get("name", "?") for g in verify_gates)
     _block(
         report,
         "verify-first",
-        f"QG-2: no fresh `tausik verify` run for this task "
+        f"{head(kind)} QG-2: no fresh `tausik verify` run for this task — {why} "
         f"(verify gates configured: {gate_names}). "
         f"Run `tausik verify --task {slug}` first — it caches; "
         f"then `task done` closes in milliseconds. To opt out "

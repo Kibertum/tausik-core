@@ -40,7 +40,7 @@ def _resolve_venv_python(tausik_dir: str) -> str | None:
     """
     here = os.path.dirname(os.path.abspath(__file__))
     project_dir = os.path.dirname(os.path.abspath(tausik_dir))
-    from tausik_utils import library_source  # noqa: PLC0415
+    from tausik_utils import library_source  # ruff-not-enabled: PLC0415
 
     for cand in (
         library_source(project_dir, "bootstrap") or "",

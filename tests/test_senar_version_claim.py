@@ -29,12 +29,12 @@ from pathlib import Path
 
 import pytest
 
-from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT  # noqa: E402
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from doc_drift_common import _FOREIGN_VERSION_PREFIXES  # noqa: E402
-from senar_version_claim import (  # noqa: E402
+from doc_drift_common import _FOREIGN_VERSION_PREFIXES
+from senar_version_claim import (
     CLAIM_SURFACE_FILES,
     DECLARED_SENAR_VERSION,
     EXEMPT_SURFACES,
@@ -164,7 +164,7 @@ class TestMutation:
         "rel,body,needle",
         [
             # A claim naming another edition, in a file the globs pick up.
-            ("docs/en/whatever.md", "TAUSIK implements SENAR v1.5 Core.\n", "v1.5"),
+            ("docs/en/whatever.md", "TAUSIK implements SENAR v1.4 Core.\n", "v1.4"),
             # The filing's named failure mode: a NEW file naming a NEW edition.
             # A closed registry of known sites would sail straight past this.
             ("docs/ru/brand-new-page.md", "Реализует SENAR v2.0 Core.\n", "v2.0"),

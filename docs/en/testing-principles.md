@@ -2,6 +2,8 @@
 
 # Testing principles
 
+<!-- doc-map: reader=user; zone=quality -->
+
 Guidance for contributors and agents working on TAUSIK core (`scripts/`, MCP handlers, gates, hooks). For command-level verification flow, see [Verify / QG glossary](verify-glossary.md) and [`verify`](cli.md) in the CLI reference.
 
 ## When to add or extend a test
@@ -43,4 +45,4 @@ wrong: `CITED BUT FORM NOT RECOGNISED` or `CITED BUT NOT RESOLVED`.
 
 - [Architecture](architecture.md) — repo layout, gates, testing commands.
 - [Verify / QG glossary](verify-glossary.md) — Verify-First contract, test shim, cache bypass for sensitive files.
-- [CLI — Verification](cli.md#verification) — `verify`, cache TTL, `task done`.
+- [CLI — Verification](cli-quality.md#verification) — `verify`, cache TTL, `task done`.

@@ -97,7 +97,11 @@ def test_all_mandatory_fields_present(svc):
     # §13.3.4 closes the list at ELEVEN (§8.3); the manifest published nine
     # until v49. The literal stays a literal here on purpose — deriving it
     # from SPEC_TYPES would make any future shortfall arithmetically invisible.
-    assert len(manifest["spec-types-supported"]) == 11
+    # Derived, not written (the closed-list guard forbids a literal count):
+    # the manifest must carry every type the project declares, UC included.
+    from service_specs import SPEC_TYPES
+
+    assert manifest["spec-types-supported"] == [f"SPEC-{t}" for t in SPEC_TYPES]
     sc = manifest["substrate-capabilities"]
     for v in ("v1-immutable-history", "v6-author-timestamp"):
         assert v in sc

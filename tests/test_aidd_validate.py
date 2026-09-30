@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_cli_aidd_validate import (  # noqa: E402
+from project_cli_aidd_validate import (
     _extract_code_bullets,
     _parse_claims,
     _verify_lang_version,

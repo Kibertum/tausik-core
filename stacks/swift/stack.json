@@ -12,6 +12,7 @@
       "severity": "block",
       "trigger": ["verify", "commit"],
       "command": "swift build 2>&1 | tail -30",
+      "file_extensions": [".swift"],
       "description": "Compile the SwiftPM package — the compiler is the first static check",
       "stacks": ["swift"],
       "timeout": 300
@@ -30,6 +31,7 @@
       "severity": "block",
       "trigger": ["verify"],
       "command": "swift test 2>&1 | tail -30",
+      "file_extensions": [".swift"],
       "description": "Run the XCTest suite for the SwiftPM package",
       "stacks": ["swift"],
       "timeout": 300

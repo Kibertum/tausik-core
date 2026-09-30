@@ -22,7 +22,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import service_knowledge_aggregates as agg  # noqa: E402
+import service_knowledge_aggregates as agg
+from pathlib import Path
 
 CROSSCUTTING_SCOPE = ["scripts/service_knowledge_aggregates.py"]
 
@@ -53,7 +54,8 @@ def _record_lines(block: str) -> list[str]:
     """Lines the RECORDS produced — i.e. everything the aggregate did not write itself."""
     # NB: no "" in this tuple — `startswith("")` is true for every string, which
     # would filter the whole block away and leave the assertions asserting nothing.
-    known_own = ("## TAUSIK Memory Block", "### Memory tail", "⚠ **Memory Policy**", "**")
+    # The `≈` legend is the block's own line since v65 (memory provenance).
+    known_own = ("## TAUSIK Memory Block", "### Memory tail", "⚠ **Memory Policy**", "**", "`≈`")
     return [ln for ln in block.splitlines() if ln.strip() and not ln.startswith(known_own)]
 
 
@@ -128,7 +130,7 @@ class TestBothAggregatesShareOneImplementation:
 
     def test_neither_aggregate_flattens_inline(self):
         """No leftover private sanitising — the helper must be the only one."""
-        src = open(agg.__file__, encoding="utf-8").read()
+        src = Path(agg.__file__).read_text(encoding="utf-8")
         body = src.split("def flatten_for_injection", 1)[1].split('"""', 2)[2]
         assert '.replace("\\n"' not in body, (
             "an aggregate still strips newlines on its own; that is how the two "

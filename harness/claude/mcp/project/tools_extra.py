@@ -368,4 +368,24 @@ TOOLS_EXTRA = [
         ),
         "inputSchema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "tausik_tool_schema",
+        "description": (
+            "Full input schema of a TAUSIK MCP tool by name, or the matching names "
+            "for a substring. The tool list carries full schemas for the core set "
+            "only; every other tool appears as its name and a 60-character summary "
+            "with no schema — call this before invoking one of those to get its "
+            "arguments. No arguments returns the complete name list."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Exact tool name."},
+                "query": {
+                    "type": "string",
+                    "description": "Substring of a tool name; empty string lists all names.",
+                },
+            },
+        },
+    },
 ]

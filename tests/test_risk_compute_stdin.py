@@ -18,7 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import risk_compute  # noqa: E402
+import risk_compute
 
 _SCRIPTS = pathlib.Path(__file__).resolve().parent.parent / "scripts"
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import sys
@@ -153,9 +155,9 @@ class TestInstallScenarios:
         pub_dir, _ = publisher
         sign_artifact(pub_dir, env["skill_src"])
         # bypass update_config_repo_trust validation to simulate config rot
-        cfg = json.loads(open(env["config"], encoding="utf-8").read())
+        cfg = json.loads(Path(env["config"]).read_text(encoding="utf-8"))
         cfg["skill_repos"]["test-repo"]["pubkey"] = "ed25519:rotten"
-        open(env["config"], "w", encoding="utf-8").write(json.dumps(cfg))
+        Path(env["config"]).write_text(json.dumps(cfg))
         with pytest.raises(SkillManagerError, match="unusable"):
             _install(env)
 

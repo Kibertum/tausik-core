@@ -9,6 +9,7 @@
       "severity": "block",
       "trigger": ["verify", "commit"],
       "command": "dart analyze 2>&1 | tail -30",
+      "file_extensions": [".dart"],
       "description": "Dart static analysis (analyzer + lints from analysis_options.yaml)",
       "stacks": ["flutter"],
       "timeout": 120
@@ -27,6 +28,7 @@
       "severity": "block",
       "trigger": ["verify"],
       "command": "flutter test 2>&1 | tail -30",
+      "file_extensions": [".dart"],
       "description": "Run the Flutter test suite (flutter_test, widget and golden tests)",
       "stacks": ["flutter"],
       "timeout": 300

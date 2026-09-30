@@ -9,6 +9,8 @@ copy-paste away. See gotcha #201.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import sys
@@ -17,7 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "bootstrap"))
 
-from bootstrap_opencode import (  # noqa: E402
+from bootstrap_opencode import (
     generate_opencode_commands,
     generate_opencode_config,
     generate_opencode_plugin,
@@ -29,11 +31,12 @@ CONFIG = "opencode.json"
 
 
 def _mk_servers(target_dir: str, names: tuple[str, ...] = ("project", "codebase-rag")):
-    """Create fake server.py files inside <target_dir>/mcp/<name>/server.py."""
+    """Create fake entry points: mcp/project/server.py, mcp/codebase-rag/rag_server.py."""
     for name in names:
         d = os.path.join(target_dir, "mcp", name)
         os.makedirs(d, exist_ok=True)
-        with open(os.path.join(d, "server.py"), "w", encoding="utf-8") as f:
+        entry = "rag_server.py" if name == "codebase-rag" else "server.py"
+        with open(os.path.join(d, entry), "w", encoding="utf-8") as f:
             f.write("# fake server\n")
 
 
@@ -103,10 +106,9 @@ class TestPathsAreAbsolute:
     def test_no_workspacefolder_anywhere(self, project):
         """OpenCode expands only {env:} and {file:} — ${workspaceFolder} stays literal."""
         project_dir, target_dir = project
-        raw = open(
-            generate_opencode_config(project_dir, target_dir, venv_python="/v/bin/python"),
-            encoding="utf-8",
-        ).read()
+        raw = Path(
+            generate_opencode_config(project_dir, target_dir, venv_python="/v/bin/python")
+        ).read_text(encoding="utf-8")
         assert "${workspaceFolder}" not in raw
 
     def test_command_entries_are_absolute(self, project):
@@ -186,7 +188,7 @@ class TestIdempotence:
             f.write("\n<!-- user edit -->\n")
         again = generate_opencode_rules(project_dir, "proj", ["python"])
         assert again == first
-        assert "<!-- user edit -->" in open(first, encoding="utf-8").read()
+        assert "<!-- user edit -->" in Path(first).read_text(encoding="utf-8")
 
 
 class TestMalformedConfig:
@@ -224,7 +226,7 @@ class TestRulesFile:
         project_dir, _ = project
         path = generate_opencode_rules(project_dir, "myproj", ["python"])
         assert path == os.path.join(project_dir, ".opencode", "tausik-rules.md")
-        body = open(path, encoding="utf-8").read()
+        body = Path(path).read_text(encoding="utf-8")
         assert "myproj" in body
         assert "task start" in body  # hard constraint from the shared template
 
@@ -308,13 +310,13 @@ class TestPluginUpgradeReachesExistingInstalls:
         target = tmp_path / "proj" / ".opencode"
         target.mkdir(parents=True)
         installed = generate_opencode_plugin(str(target), lib_dir=str(lib))
-        assert open(installed, encoding="utf-8").read() == "// v1 gate\n"
+        assert Path(installed).read_text(encoding="utf-8") == "// v1 gate\n"
 
         # TAUSIK is upgraded: the library ships a fixed gate.
         (src_dir / "tausik-qg0.js").write_text("// v2 gate — security fix\n", encoding="utf-8")
         generate_opencode_plugin(str(target), lib_dir=str(lib))
 
-        assert open(installed, encoding="utf-8").read() == "// v2 gate — security fix\n", (
+        assert Path(installed).read_text(encoding="utf-8") == "// v2 gate — security fix\n", (
             "the upgraded plugin never reached the project"
         )
 
@@ -333,7 +335,7 @@ class TestCommandStubs:
         commands = os.path.join(target_dir, "commands")
         assert os.path.isfile(os.path.join(commands, "start.md"))
         assert not os.path.exists(os.path.join(target_dir, "command"))
-        body = open(os.path.join(commands, "start.md"), encoding="utf-8").read()
+        body = Path(os.path.join(commands, "start.md")).read_text(encoding="utf-8")
         assert body.startswith("---\ndescription:")
 
     def test_existing_stub_is_not_overwritten(self, project):
@@ -343,7 +345,7 @@ class TestCommandStubs:
         with open(os.path.join(commands, "start.md"), "w", encoding="utf-8") as f:
             f.write("MY OWN COMMAND\n")
         generate_opencode_commands(target_dir)
-        assert open(os.path.join(commands, "start.md"), encoding="utf-8").read() == (
+        assert Path(os.path.join(commands, "start.md")).read_text(encoding="utf-8") == (
             "MY OWN COMMAND\n"
         )
 

@@ -118,7 +118,7 @@ def _handler_module():
     """
     mcp_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
     sys.path.insert(0, mcp_dir)
-    import handlers_verification  # noqa: PLC0415 — path must be set first
+    import handlers_verification  # ruff-not-enabled: PLC0415 — path must be set first
 
     return handlers_verification
 

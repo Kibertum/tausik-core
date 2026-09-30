@@ -29,7 +29,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from audit_closure_evidence import (
-    ILLUSTRATIVE,  # noqa: E402
+    ILLUSTRATIVE,
     NEVER_EXISTED,
     RESOLVED,
     ROTTED,

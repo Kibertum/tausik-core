@@ -2,6 +2,10 @@
 
 # TAUSIK Architecture Reference
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
+**Where it sits.** The field calls this discipline *harness engineering*: a harness is the agent loop, the tool interface, context management and control mechanisms. TAUSIK is not a harness — the loop and the tools belong to Claude Code, Cursor, Codex and the rest. It is the verification and control layer on top of them: what makes it different is that nothing counts as done without evidence.
+
 ## Architecture: CLI -> Service -> Backend
 
 Three layers with clear boundaries. The Service layer contains business logic,
@@ -88,7 +92,7 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `code_counts.py` | Counts repo state: hooks, stacks, roles, review agents, skills |
 | `mcp_tool_counts.py` | Counts the MCP surface each server advertises |
 | `audit_orphan_files.py` / `audit_stale_docs.py` / `audit_unused_python.py` / `audit_pytest_dedupe.py` | Static audit reports (review-only, v1.5) |
-| `project_cli_hygiene.py` | `tausik hygiene archive` (read-only project hygiene, v1.5) |
+| `project_cli_hygiene.py` | `tausik hygiene archive` / `unarchive` (soft-archive old done tasks and the one path back) |
 | `hooks/check_docs.py` | Pre-commit / CI wrapper for doc-constants drift (v1.5) |
 
 ### Bootstrap (Generation)
@@ -113,7 +117,7 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `harness/claude/mcp/project/handlers_<domain>.py` | Handlers by domain: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Each module exports `<DOMAIN>_HANDLERS`; `handlers.py` merges them into `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Shared list rendering (`render_list`) — an empty result must read as "nothing here", not as an empty string |
 
-Total MCP surface: **146 project tools** (optional
+Total MCP surface: **147 project tools** (optional
 `codebase-rag` adds 7 more; not part of the main count).
 
 **THAT SURFACE IS PAID FOR ON EVERY TURN, AND THE PRICE DIFFERS BY HOST.** The
@@ -172,7 +176,7 @@ own (all of them, today). A per-IDE copy would be a mirror waiting to drift — 
 exist under `harness/cursor/` and was deleted in v1.7.0.
 ```
 harness/
-+-- skills/           # 13 core auto-deployed + 20 in skills-official/ (opt-in via --include-official)
++-- skills/           # 14 core auto-deployed + 20 in skills-official/ (opt-in via --include-official)
 +-- roles/            # 7 roles (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)
@@ -180,7 +184,7 @@ harness/
 +-- opencode/plugins/ # QG-0 enforcement plugin for OpenCode (tool.execute.before)
 ```
 
-#### Runtime (IDE) × Model — two orthogonal axes (Decision #119)
+#### Runtime (IDE) × Model — two orthogonal axes
 
 TAUSIK separates *where* it runs from *which model* answers:
 
@@ -257,7 +261,7 @@ Claude is "missing" OpenCode's plugin is a question with no meaning. The gate do
 NOT demand sameness: Cursor has no extension point at all, so there is nothing for
 it to be equal to. What it demands is that a difference be NAMED, with a reason —
 and a declaration that no longer matches any live difference is refused as loudly
-as an undeclared difference (decision #335). It fires only on host-layer edits
+as an undeclared difference. It fires only on host-layer edits
 (`bootstrap/`, `scripts/hooks/`, `harness/opencode/`): a gate that asks every task
 about cross-model parity is a tax, and a tax gets switched off.
 
@@ -299,8 +303,7 @@ too long to read" are different defects. Counts are a **lower bound** (AST, neve
 classes sit behind a ratchet baseline in `tausik/gates.json` that may only shrink.
 
 **Post-scope gates** — take the close context and edit the QG-2 report:
-`verify_first` (a fresh signed verify green must exist) and `changelog`
-(convention #275). `get_gates_for_trigger` excludes them, so `run_gates` never
+`verify_first` (a fresh signed verify green must exist) and `changelog`. `get_gates_for_trigger` excludes them, so `run_gates` never
 calls one with the wrong signature.
 
 Stack-scoped gates: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `golangci-lint`,
@@ -311,7 +314,7 @@ Stack-scoped gates: `pytest`, `tsc`, `eslint`, `js-test`, `go-vet`, `go-test`, `
 
 TAUSIK is a lightweight, zero-dependency framework, so it adopts [RENAR](https://renar.tech)
 (reasoning/governance standard) **advisory-first** rather than as heavyweight mandatory
-ceremony. Adoption climbs a ladder with explicit entry conditions per rung (Decision #115):
+ceremony. Adoption climbs a ladder with explicit entry conditions per rung:
 
 | Rung | What | Status |
 |---|---|---|

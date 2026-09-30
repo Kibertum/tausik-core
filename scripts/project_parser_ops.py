@@ -83,33 +83,6 @@ def add_audit(sub: argparse._SubParsersAction) -> None:
     )
 
 
-def add_review(sub: argparse._SubParsersAction) -> None:
-    """SENAR Rule 10.15: track L1/L2/L3 review runs + ADR metric."""
-    rev_p = sub.add_parser("review", help="Track L1/L2/L3 review runs (SENAR Rule 10.15)")
-    rev_sub = rev_p.add_subparsers(dest="review_cmd")
-
-    rec = rev_sub.add_parser("record", help="Record a review run")
-    rec.add_argument("--task", required=True, help="Task slug being reviewed")
-    rec.add_argument(
-        "--type",
-        dest="run_type",
-        required=True,
-        choices=["L1", "L2", "L3"],
-        help="L1=author, L2=peer, L3=adversarial/external",
-    )
-    rec.add_argument("--critical", type=int, default=0, help="Number of critical findings")
-    rec.add_argument("--warnings", type=int, default=0, help="Number of warnings")
-    rec.add_argument("--notes", default=None, help="Free-form notes (links, summary)")
-
-    ls = rev_sub.add_parser("list", help="List recent reviews")
-    ls.add_argument("--task", default=None, help="Filter by task slug")
-    ls.add_argument("--type", dest="run_type", default=None, choices=["L1", "L2", "L3"])
-    ls.add_argument("--limit", type=int, default=20)
-    ls.add_argument("--json", action="store_true", help="Output as JSON")
-
-    rev_sub.add_parser("metrics", help="Show ADR metric")
-
-
 def add_run(sub: argparse._SubParsersAction) -> None:
     run_p = sub.add_parser(
         "run",
@@ -278,6 +251,8 @@ def add_skill(sub: argparse._SubParsersAction) -> None:
 
 def add_metrics(sub: argparse._SubParsersAction) -> None:
     """`tausik metrics`, `hud`, `suggest-model` subparsers."""
+    __import__("project_parser_changelog").add(sub)
+
     metrics_p = sub.add_parser("metrics", help="Project metrics and velocity")
     metrics_p.add_argument(
         "--cost",
@@ -285,6 +260,13 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
         help="Show LLM usage/cost rollup by task (same as `metrics cost`)",
     )
     metrics_sub = metrics_p.add_subparsers(dest="metrics_cmd")
+    mt = metrics_sub.add_parser(
+        "target", help="Set a metric target; --basis is required (SENAR §9.4(c))"
+    )
+    mt.add_argument("name", help="fpsr | der | throughput | lead_time | dead_end_rate")
+    mt.add_argument("bound", choices=["min", "max"])
+    mt.add_argument("value", type=float, help="Percent for ratios")
+    mt.add_argument("--basis", required=True, help="What the number rests on")
     mr = metrics_sub.add_parser(
         "record-session",
         help="Record session token/cost metrics (used by hooks/session_metrics.py)",
@@ -314,6 +296,13 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
     )
     mc.add_argument("--since", default=None, help="ISO-8601 lower bound on recorded_at (inclusive)")
     mc.add_argument("--until", default=None, help="ISO-8601 upper bound on recorded_at (inclusive)")
+    metrics_sub.add_parser(
+        "task-cost",
+        help="Tokens per CLOSED task, apportioned from session totals by call share, with "
+        "the monthly trend — the price-neutral answer to whether a task got dearer",
+    )
+    __import__("project_parser_answers").add(metrics_sub)  # metrics answers (story J)
+    __import__("call_mix").add(metrics_sub)  # metrics calls
     mt = metrics_sub.add_parser(
         "tokens",
         help="Per-tool token aggregates (p50/p90) over last N sessions from .tausik/token_metrics.jsonl",
@@ -401,6 +390,26 @@ def add_hygiene(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Stamp archived_at on matching rows (idempotent). Without it, dry-run lists candidates.",
     )
+    # THE OTHER DIRECTION, without which the soft in soft-delete is a claim. A selector is
+    # required rather than defaulted: the recovery is for a batch somebody regrets, and a
+    # bare `unarchive` that unhid everything would be a second mistake in the same shape.
+    h_un = h_sub.add_parser(
+        "unarchive",
+        help="Clear archived_at on archived tasks (by slug or recency); dry-run by default",
+    )
+    h_un.add_argument("--slug", default=None, help="Unhide exactly this task")
+    h_un.add_argument(
+        "--archived-within",
+        type=int,
+        default=None,
+        metavar="DAYS",
+        help="Unhide tasks archived in the last DAYS days — undoes a recent batch",
+    )
+    h_un.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Apply. status and completed_at are never touched, only archived_at.",
+    )
 
 
 def add_redact(sub: argparse._SubParsersAction) -> None:
@@ -467,6 +476,7 @@ def add_ops(sub: argparse._SubParsersAction) -> None:
     from project_parser_config import add_config
     from project_parser_graph import add_graph
     from project_parser_publish import add_publish
+    from project_parser_review import add_review
 
     for add in (
         add_dead_end,

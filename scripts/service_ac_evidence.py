@@ -23,11 +23,17 @@ from dataclasses import dataclass, field
 
 from tausik_utils import ServiceError
 
+from ac_placeholder import strip_placeholders, substance
+
+# A manual or review claim must say what was looked at: `AC-1: ✓ manual` (3
+# words with the prefix) names nothing, `AC-1: ✓ manual: ran init twice` does.
+_MIN_CLAIM_WORDS = 4
+
 # WHAT counts as a marker lives in `ac_evidence_detectors` — split out when this
 # module hit the 400-line gate, and the split is what gives the language-parity
 # registry a home. This module owns HOW lines are segmented and matched to AC
 # items. Re-exported: callers and tests import these names from here.
-from ac_evidence_detectors import (  # noqa: E402,F401 — re-export for callers
+from ac_evidence_detectors import (  # noqa: E402 — re-export for callers
     AC_HEADER_PREFIX_RE,
     AC_ITEM_BOUNDARY_RE,
     AC_NUMBER_PREFIX_RE,
@@ -139,6 +145,19 @@ class AcCoverageReport:
         return "\n".join(lines)
 
 
+_AC_PREFIXED_RE = re.compile(r"(?:^|(?<=[\s;(]))AC-(\d+)\b", re.IGNORECASE)
+
+
+def _sequential(pattern: "re.Pattern[str]", text: str) -> list["re.Match[str]"]:
+    """Boundaries of `pattern` that continue the run 1, 2, 3, … in order."""
+    found, expected = [], 1
+    for m in pattern.finditer(text):
+        if int(m.group(1)) == expected:
+            found.append(m)
+            expected += 1
+    return found
+
+
 def _split_inline_numbered(ac_text: str) -> list[str]:
     """Split a single-line blob like '1. foo 2. bar 3. baz' into item bodies.
 
@@ -147,12 +166,13 @@ def _split_inline_numbered(ac_text: str) -> list[str]:
     neither inflate the count nor mis-split an item. Returns [] when fewer than
     two sequential boundaries are found (caller falls back to line-based parse).
     """
-    boundaries = []
-    expected = 1
-    for m in AC_ITEM_BOUNDARY_RE.finditer(ac_text):
-        if int(m.group(1)) == expected:
-            boundaries.append(m)
-            expected += 1
+    boundaries = _sequential(AC_ITEM_BOUNDARY_RE, ac_text)
+    if len(boundaries) < 2:
+        # 'AC-1 text AC-2 text' — the explicit AC prefix with no separator after
+        # the number. Accepted only WITH the prefix, so prose numbers never split.
+        # Session #241: such AC read as one item, 'AC-2: ✓ tests/…' had no item
+        # to bind to, and the checklist said no criterion named a test.
+        boundaries = _sequential(_AC_PREFIXED_RE, ac_text)
     if len(boundaries) < 2:
         return []
     items: list[str] = []
@@ -228,22 +248,27 @@ def _segment_evidence_line(line: str) -> list[str]:
 
 def _evidence_lines_for_unit(unit: str) -> list[EvidenceLine]:
     """Build EvidenceLine(s) for one text unit (a whole line or a segment)."""
-    has_check = bool(CHECK_MARK_RE.search(unit))
+    # The evidence is read with its placeholders removed, like QG-0 reads the
+    # criteria (scripts/ac_placeholder.py): `AC-2: ✓ manual: TODO` or a
+    # `{{test}}` template is a promise of evidence, not evidence. The AC index
+    # still comes from the unit as written.
+    body = strip_placeholders(unit)
+    has_check = bool(CHECK_MARK_RE.search(body))
     # GitLab #16: token-wise, anchored — the citation as written, which is
     # what the resolver and the gate read; linear in the line, not quadratic.
-    test_refs = find_test_refs(unit)
-    is_manual = bool(MANUAL_RE.search(unit))
-    is_negative = bool(NEGATIVE_RE.search(unit))
-    is_review = bool(REVIEW_RE.search(unit))
-    is_domain = bool(DOMAIN_RE.search(unit))
-    run_m = VERIFICATION_RUN_RE.search(unit)
+    test_refs = find_test_refs(body)
+    is_manual = bool(MANUAL_RE.search(body)) and substance(body) >= _MIN_CLAIM_WORDS
+    is_negative = bool(NEGATIVE_RE.search(body))
+    is_review = bool(REVIEW_RE.search(body)) and substance(body) >= _MIN_CLAIM_WORDS
+    is_domain = bool(DOMAIN_RE.search(body))
+    run_m = VERIFICATION_RUN_RE.search(body)
     measurement_run_id: int | None = None
     if run_m:
         try:
             measurement_run_id = int(run_m.group(1))
         except (TypeError, ValueError):
             measurement_run_id = None
-    is_measurement = bool(run_m) or bool(PYTEST_SUMMARY_RE.search(unit))
+    is_measurement = bool(run_m) or bool(PYTEST_SUMMARY_RE.search(body))
 
     ac_indices: list[int] = []
     # Match the AC number at the START of the unit, tolerating the task_log

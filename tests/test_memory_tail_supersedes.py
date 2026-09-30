@@ -37,8 +37,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from service_knowledge_aggregates import (  # noqa: E402
+from project_backend import SQLiteBackend
+from service_knowledge_aggregates import (
     build_compact_memory_tail,
     build_memory_block,
 )

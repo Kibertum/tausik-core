@@ -1,6 +1,6 @@
 """MCP tool schemas for the codebase-rag server.
 
-Declarations only — no logic. Split out of server.py so the transport
+Declarations only — no logic. Split out of the server (now rag_server.py) so the transport
 module is not 60% wire-format literal, mirroring the sibling package
 harness/claude/mcp/project (tools*.py + handlers_*.py).
 

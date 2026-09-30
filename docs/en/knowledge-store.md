@@ -2,12 +2,14 @@
 
 # The shared knowledge store — what it is, and how it differs from project memory
 
+<!-- doc-map: reader=user; zone=memory-and-store -->
+
 New in 1.8. A local file, `~/.tausik-knowledge/knowledge.db`, one per person
 rather than one per project.
 
 This page answers two questions: **how it works** and **how it differs from the
 project database**. There are two stores and no third: the Notion transport that
-used to mirror this one outward left the framework in 1.9 (decision #358). (The
+used to mirror this one outward left the framework in 1.9. (The
 routing table bootstrap writes into a project names a third DESTINATION — the
 host's own auto-memory — but that one is the host's, not a TAUSIK store.)
 
@@ -143,7 +145,7 @@ tausik knowledge import-brain
 
 Copies the local mirror file the Notion transport left behind
 (`~/.tausik-brain/brain.db`) into the shared store. No network required, and
-nothing to configure: the transport itself is gone since 1.9 (decision #358).
+nothing to configure: the transport itself is gone since 1.9.
 
 **Where is it right now:** `tausik doctor` prints the resolved store path, and
 names the reason when a location is refused.
@@ -188,7 +190,7 @@ and both are chosen by you:
 | `tausik knowledge export --to <dir> --redacted` | a local directory, redacted | only if you carry it |
 
 Nothing routes itself and nothing publishes: the classifier that used to decide
-went in 1.8 (decision #221), the Notion transport in 1.9 (decision #358).
+went in 1.8, the Notion transport in 1.9.
 
 ---
 

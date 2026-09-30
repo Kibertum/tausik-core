@@ -1,7 +1,8 @@
 """SENAR Rule 5 verify CLI handler.
 
-Lives in its own file so project_cli_extra.py stays under the 400-line
-filesize gate. The dispatch in project.py imports `cmd_verify` from here.
+Named after its command. It used to say it lived apart so a residue module could
+stay under the filesize gate; that module is gone, and a home needs no such
+excuse. The dispatch in project.py imports `cmd_verify` from here.
 
 cli-verify-bypasses-cache-guards: this module used to run its own gate cycle
 — `run_gates` + `record_run` called directly — and so carried none of
@@ -15,6 +16,13 @@ would close on it. It is now a presentation layer over
 from __future__ import annotations
 
 from typing import Any
+
+
+def _declared_on_task(svc, slug):
+    """The scope already on the task, for a prepare run that declared none in this call."""
+    from task_close_inline_verify import declared_scope
+
+    return declared_scope(svc, slug) if slug else []
 
 
 def cmd_verify(svc: Any, args: Any) -> None:
@@ -63,6 +71,53 @@ def cmd_verify(svc: Any, args: Any) -> None:
                 "scope already declared on the task. Pass paths to change it."
             )
 
+    # DEFAULT, not a flag. The first version shipped preparation behind `--prepare`, and
+    # nothing — no skill, no CLAUDE.md line, no hint — ever named it. This project has
+    # already measured what a rule that is only asked for is worth: it gets switched off
+    # the same week. A flag is weaker still, because nobody even asks. Opting out is
+    # explicit and says so; `bootstrap_drift` alone was 56 red runs in one month.
+    prepared: list[str] = []
+    if getattr(args, "no_prepare", False):
+        print(
+            "PREPARATION SKIPPED by --no-prepare. `ruff_format` and `bootstrap_drift` are "
+            "judged on the tree exactly as it stands."
+        )
+    elif not task_slug:
+        # Without a task there is no declared scope, so formatting would go tree-wide —
+        # which is how the first version rewrote 90 files. Saying it beats skipping in
+        # silence, which reads as though preparation had run.
+        print(
+            "PREPARATION SKIPPED: no --task, so there is no declared scope to format and "
+            "a tree-wide run would edit files nobody declared."
+        )
+    else:
+        from project_root import root_from_service
+        from verify_prepare import PreparationFailed, run as run_preparation
+
+        # NEVER `or "."`. Preparation WRITES — it formats files and redeploys the profile —
+        # so it must act on the project this service speaks for and on no other. The
+        # fallback to the process's current directory made a verify held by a temporary
+        # service reformat and redeploy the LIVE tree, which the suite's own guard caught
+        # by the config file changing under it. No root, no preparation, and say so.
+        root = root_from_service(svc)
+        if not root:
+            print(
+                "PREPARATION SKIPPED: this service names no project root, and preparation "
+                "writes — formatting and redeploying somewhere else would be worse than "
+                "not preparing at all."
+            )
+            prepared = []
+        try:
+            if root:
+                prepared = run_preparation(root, declared or _declared_on_task(svc, task_slug))
+        except PreparationFailed as exc:
+            # Not a gate failure: nothing was judged. Saying so is the difference
+            # between "the tree is red" and "the tree was never looked at".
+            print(str(exc))
+            raise SystemExit(2) from exc
+        for line in prepared:
+            print(line)
+
     try:
         report = svc.run_verify_for_task(
             task_slug,
@@ -75,6 +130,14 @@ def cmd_verify(svc: Any, args: Any) -> None:
         raise SystemExit(2) from exc
 
     print("\n".join(verify_lines(svc, report, task_slug, scope)))
+
+    # The post-scope gates run only at `task done`, so without this the agent meets them
+    # after the closing ceremony has already been paid for. Advisory, never a refusal.
+    if task_slug:
+        from task_close_inline_verify import post_close_advisory
+
+        for line in post_close_advisory(svc, task_slug):
+            print(line)
 
     if report.get("cache_hit") is not None:
         # A hit with no task means the cache layer changed shape under this

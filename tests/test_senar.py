@@ -304,8 +304,15 @@ class TestSessionDurationEnforcement:
 class TestDeadEnds:
     """SENAR Rule 9.4: Dead end documentation."""
 
+    @pytest.fixture(autouse=True)
+    def _a_real_task(self, svc):
+        """A dead end names a REAL task since 1.10 (dead_end_gate.bind_task)."""
+        svc.epic_add("de-epic", "E")
+        svc.story_add("de-epic", "de-story", "S")
+        svc.task_add("de-story", "t1", "T", role="developer", goal="g")
+
     def test_dead_end_creates_memory(self, svc):
-        msg = svc.dead_end("Tried bcrypt", "Import fails on Python 3.14")
+        msg = svc.dead_end("Tried bcrypt", "Import fails on Python 3.14", task_slug="t1")
         assert "documented" in msg
         memories = svc.memory_list("dead_end")
         assert len(memories) == 1
@@ -314,12 +321,12 @@ class TestDeadEnds:
         assert "Reason:" in memories[0]["content"]
 
     def test_dead_end_with_tags(self, svc):
-        svc.dead_end("Tried X", "Failed", tags=["auth", "security"])
+        svc.dead_end("Tried X", "Failed", tags=["auth", "security"], task_slug="t1")
         memories = svc.memory_list("dead_end")
         assert memories[0]["tags"] is not None
 
     def test_dead_end_searchable(self, svc):
-        svc.dead_end("Tried ChromaDB for RAG", "Too heavy")
+        svc.dead_end("Tried ChromaDB for RAG", "Too heavy", task_slug="t1")
         results = svc.memory_search("ChromaDB")
         assert len(results) > 0
 

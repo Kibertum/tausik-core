@@ -88,9 +88,7 @@ class TestDetectStacks:
         assert "ansible" in stacks
 
     def test_helm_via_chart_yaml(self, tmp_path):
-        (tmp_path / "Chart.yaml").write_text(
-            "apiVersion: v2\nname: my-app\nversion: 0.1.0\n"
-        )
+        (tmp_path / "Chart.yaml").write_text("apiVersion: v2\nname: my-app\nversion: 0.1.0\n")
         stacks = detect_stacks(str(tmp_path))
         assert "helm" in stacks
 
@@ -147,9 +145,7 @@ class TestAutoEnable:
 
     def test_ansible_auto_enables_ansible_lint(self, tmp_path):
         os.makedirs(tmp_path / "roles" / "web" / "tasks")
-        (tmp_path / "roles" / "web" / "tasks" / "main.yml").write_text(
-            "- debug: msg=hi\n"
-        )
+        (tmp_path / "roles" / "web" / "tasks" / "main.yml").write_text("- debug: msg=hi\n")
         from bootstrap_config import detect_stacks
         from project_config import auto_enable_gates_for_stacks
 
@@ -166,9 +162,7 @@ class TestStackGuides:
     @pytest.mark.parametrize("stack", _IAC)
     def test_iac_stack_guide_exists(self, stack):
         # v1.6: stack guides moved to <repo>/stacks/<name>/guide.md.
-        path = os.path.join(
-            os.path.dirname(__file__), "..", "stacks", stack, "guide.md"
-        )
+        path = os.path.join(os.path.dirname(__file__), "..", "stacks", stack, "guide.md")
         assert os.path.isfile(path), f"missing stacks/{stack}/guide.md"
         with open(path, encoding="utf-8") as f:
             content = f.read()

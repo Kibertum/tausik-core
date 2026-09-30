@@ -9,8 +9,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import providers  # noqa: E402
-from providers.base import Provider  # noqa: E402
+import providers
+from providers.base import Provider
 
 
 def test_available_lists_runtime_providers():

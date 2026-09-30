@@ -12,6 +12,7 @@ import subprocess
 import sys
 
 import pytest
+from pathlib import Path
 
 # v14b-pytest-fast-lane: spawns the tausik-project MCP server.
 pytestmark = pytest.mark.slow
@@ -65,7 +66,7 @@ def test_project_server_chdir_is_in_main(tmp_path):
     Reading the source is faster and more deterministic than booting the
     server and inspecting cwd via JSON-RPC.
     """
-    src = open(SERVER, encoding="utf-8").read()
+    src = Path(SERVER).read_text(encoding="utf-8")
     assert "os.chdir(args.project)" in src, (
         "Project MCP server must chdir to --project for parity with brain server"
     )
@@ -77,7 +78,7 @@ def test_project_server_logs_traceback_on_exception():
     White-box: source contains traceback.format_exc() inside call_tool except
     block. We assert the marker is present in the file alongside the import.
     """
-    src = open(SERVER, encoding="utf-8").read()
+    src = Path(SERVER).read_text(encoding="utf-8")
     assert "import traceback" in src
     assert "traceback.format_exc()" in src, (
         "Project MCP server must print traceback on call_tool exceptions"
@@ -100,7 +101,7 @@ def test_project_server_minimal_text_reply_on_exception():
     not the promise. So CALL the thing instead — the reply is built from the
     exception message, and the traceback goes to stderr only.
     """
-    src = open(SERVER, encoding="utf-8").read()
+    src = Path(SERVER).read_text(encoding="utf-8")
 
     import importlib.util
 

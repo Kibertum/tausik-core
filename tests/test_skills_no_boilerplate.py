@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import glob
 import os
+from pathlib import Path
 
 
 _SKILLS_DIR = os.path.join(os.path.dirname(__file__), "..", "harness", "skills")
@@ -23,14 +24,11 @@ def test_no_redundant_language_instruction():
     """Remove 'Always respond in the user's language' from skills; CLAUDE.md covers it."""
     offenders = []
     for path in sorted(glob.glob(os.path.join(_SKILLS_DIR, "*", "SKILL.md"))):
-        content = open(path, encoding="utf-8").read().lower()
+        content = Path(path).read_text(encoding="utf-8").lower()
         for phrase in REDUNDANT_PHRASES:
             if phrase in content:
-                offenders.append(
-                    f"{os.path.relpath(path, _SKILLS_DIR)}: contains '{phrase}'"
-                )
+                offenders.append(f"{os.path.relpath(path, _SKILLS_DIR)}: contains '{phrase}'")
                 break
     assert not offenders, (
-        "The following SKILL.md files duplicate CLAUDE.md language rule:\n"
-        + "\n".join(offenders)
+        "The following SKILL.md files duplicate CLAUDE.md language rule:\n" + "\n".join(offenders)
     )

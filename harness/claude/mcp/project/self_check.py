@@ -131,7 +131,7 @@ def _loaded_our_module_paths(roots: tuple[str, ...] | None = None) -> dict[str, 
             continue
         try:
             path = os.path.abspath(f)
-        except Exception:  # noqa: BLE001 — a broken __file__ must not crash the diagnostic
+        except Exception:  # noqa: BLE001,S112 — a broken __file__ must not crash the diagnostic
             continue
         if _is_under_roots(path, roots):
             out[name] = path
@@ -143,7 +143,7 @@ def _snapshot_module_mtimes() -> dict[str, float]:
     for _name, path in _loaded_our_module_paths().items():
         try:
             out[path] = os.path.getmtime(path)
-        except Exception:  # noqa: BLE001 — deleted/racing file must not abort the snapshot
+        except Exception:  # noqa: BLE001,S112 — deleted/racing file must not abort the snapshot
             continue
     return out
 
@@ -163,7 +163,7 @@ def _eager_import_watch_list() -> None:
     for name in _EAGER_IMPORT_MODULES:
         try:
             __import__(name)
-        except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
+        except Exception:  # noqa: BLE001,S112 — best-effort: MCP handler must not crash the server on a tool call
             # Stale modules are best-effort; skip failures silently.
             continue
 

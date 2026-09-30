@@ -8,7 +8,7 @@ context: inline
 # /checkpoint — Context Snapshot (SENAR-aligned)
 
 Quick context save without ending the session.
-**When to use:** After completing a task or step, before large operations, every 30-50 tool calls.
+**When to use:** After completing a task or step, before large operations, and when the checkpoint signal appears in a tool response (the count is derived from the ledger; the threshold is `checkpoint_calls`).
 
 **vs /end:** No session end, no commit prompt. ~4 tool calls vs ~8.
 
@@ -28,23 +28,23 @@ Run in parallel (prefer MCP tools, CLI as fallback):
 > per call without adding new information. Use `tausik_memory_search` if you
 > need a targeted lookup mid-session.
 
-**SENAR Rule 9.2:** If `status` shows a session duration warning — tell the user prominently:
-> "Session has been running for X min (limit: Y min). Consider wrapping up with /end."
+**Session time is a signal, not a gate** (decision #376): if `status` shows the advisory, mention it once; nothing is refused.
+
+**Slow lane** — only where `.tausik/slow_lane.json` exists (the project's test suite records it): run `pytest -q -m slow` once, in the background, while you do step 2. The default `pytest -q` deselects it and CI does not run on an unpushed branch, so this is the only place it runs. The handoff reads the record itself and says `NOT RUN` or `RED` in `slow_lane`; relay a red lane to the user, do not re-type it.
 
 ### 2. Save handoff
 
-Build handoff JSON and save via `tausik_session_handoff` with `handoff={...}`:
+Call `tausik_session_handoff` (CLI: `tausik session handoff`). The handoff is
+**generated from the journal** — completed tasks, active tasks with their last
+log line, verify receipts, decisions, memory, dead ends, open exploration. Do
+not re-type what the records already say. Pass only your judgement, if any:
 
 ```json
-{
-  "completed": ["task-slug-1: brief description"],
-  "in_progress": [{"slug": "task-slug-2", "state": "step 3 of 5"}],
-  "key_files": ["scripts/file1.py"],
-  "dead_ends": [],
-  "next_steps": ["Continue task-slug-2"],
-  "warnings": ["Note for next checkpoint"]
-}
+{"next_steps": ["Continue task-slug-2"], "warnings": ["MCP server needs restart"],
+ "in_progress": [{"slug": "task-slug-2", "state": "step 3 of 5"}]}
 ```
+
+These land on top, marked in `authored_fields`.
 
 ### 3. Update CLAUDE.md
 
@@ -53,7 +53,6 @@ Use `tausik_update_claudemd` MCP tool to refresh the dynamic section.
 ### 4. Confirm
 
 Tell the user: "Checkpoint saved. Context preserved for session continuity."
-If session duration warning was shown, reiterate it.
 
 **Suggest next:** "Continue with current task, or `/end` to wrap up the session."
 
@@ -61,6 +60,6 @@ If session duration warning was shown, reiterate it.
 
 ## Gotchas
 
-- **Handoff JSON must be valid JSON** — unescaped quotes in values will break the command.
+- **Authored JSON must be valid JSON** — unescaped quotes in values will break the command. With no authored fields, call it without arguments.
 - **Checkpoint does NOT commit** — code changes are only in working tree.
-- **Session duration** — if over limit, warn at every checkpoint. This is the agent's obligation (SENAR Rule 9.2).
+- **Session duration** — an advisory, not a limit (decision #376): mention it, do not stop work for it.

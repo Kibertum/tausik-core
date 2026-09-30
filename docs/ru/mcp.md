@@ -2,13 +2,15 @@
 
 # TAUSIK MCP — Справочник инструментов
 
-**146 инструмента** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+<!-- doc-map: reader=user; zone=core-surface -->
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 153 инструментов.
+**147 инструмента** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 154 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (146): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (147): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
 
@@ -90,11 +92,11 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 |---|---|---|
 | `tausik_session_start` | Начать сессию | — |
 | `tausik_session_end` | Завершить сессию | — |
-| `tausik_session_extend` | Продлить active-time лимит сверх 180 мин | — |
+| `tausik_session_extend` | Поднять порог совета по active-time (совет, не ворота) | — |
 | `tausik_session_current` | Текущая активная сессия | — |
 | `tausik_session_list` | Список сессий | — |
 | `tausik_session_handoff` | Сохранить handoff data | `handoff` (object) |
-| `tausik_session_last_handoff` | Получить handoff из предыдущей сессии | — |
+| `tausik_session_last_handoff` | Живой handoff или handoff сессии `session_id` | `session_id` (опц.) |
 | `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked задачи + self_check в одном envelope. Питает Phase 1 в `/start`. Секции `session` и `self_check` спроецированы только до рендерящихся полей (без `watched_modules`/`current_mtimes`, без дубля хендоффа) — полная телеметрия через `tausik_self_check`. | — |
 
 Лимит сессии — gap-based **active time** (паузится после 10-min idle gap), не wall clock. См. `session-active-time.md`.
@@ -123,7 +125,7 @@ RENAR-подложка: формальные требования (**SPEC**) и 
 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
-| `tausik_spec_add` | Создать SPEC-артефакт. `type` — закрытый список 11 (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC); новый тип = поправка к стандарту, не free-text | `slug`, `type`, `title`, `version` |
+| `tausik_spec_add` | Создать SPEC-артефакт. `type` — закрытый список (ARCH/API/DATA/INT/PROC/UI/AI/SEC/OPS/TEST/DOC/UC; UC требует тела с `role` и ссылкой на утверждение в каждом шаге); новый тип = поправка к стандарту, не free-text | `slug`, `type`, `title`, `version` |
 | `tausik_spec_list` | Список SPEC, опц. фильтр по типу (JSON) | — |
 | `tausik_spec_show` | SPEC + связанные задачи (JSON) | `slug` |
 | `tausik_spec_update` | Патч изменяемых полей (title/version/content_ref/status); `type`+`slug` иммутабельны | `slug` |
@@ -208,7 +210,7 @@ read-only проекции над подписанными пунктами ни
 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
-| `tausik_memory_add` | Сохранить в проектную память | `type`, `title`, `content` |
+| `tausik_memory_add` | Сохранить в проектную память; `provenance` observed / inferred (по умолчанию) / told | `type`, `title`, `content` |
 | `tausik_memory_search` | Полнотекстовый поиск | `query` |
 | `tausik_memory_list` | Список (фильтр по типу) | — |
 | `tausik_memory_show` | Показать запись по ID | `id` |
@@ -217,7 +219,7 @@ read-only проекции над подписанными пунктами ни
 | `tausik_memory_compact` | Aggregate recent task_logs (phases + top words + top files) | — |
 | `tausik_memory_archive` (v1.5) | Soft-archive памяти старше duration (90d / 12w / 2m / 1y). Dry-run если нет `confirm: true`. | `before` (string), `confirm` (bool, опционально) |
 | `tausik_memory_dedupe` (v1.5) | Список near-duplicate memory-пар выше порога similarity (read-only). | `threshold` (float, опц.), `limit` (int, опц.) |
-| `tausik_decide` | Записать архитектурное решение | `decision` |
+| `tausik_decide` | Записать решение; необязательные `rejected` (список «вариант :: почему») и `supersedes` (id, причина в `rationale`) | `decision` |
 | `tausik_decisions_list` | Список решений | — |
 
 Типы памяти: `pattern`, `gotcha`, `convention`, `context`, `dead_end`.
@@ -331,7 +333,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 146 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 147 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Область tool-поверхности (`mcp.scope_tools_exposure`)
 
@@ -352,7 +354,7 @@ Rule 2) и всегда-безопасного ядра — целиком се�
 write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
 `list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
 
-**Замер стоимости.** Полная авторская поверхность — 146 тула ~ 62 КБ определений
+**Замер стоимости.** Полная авторская поверхность — 147 тула ~ 62 КБ определений
 (~15.9k оценочных токенов; `tests/test_mcp_tool_token_cost.py` фиксирует это и
 держит храповиком). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
 эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой
@@ -363,3 +365,20 @@ write-гейт не тронут. Область пересчитывается 
 ## Запуск Tausik MCP-сервера
 
 Bootstrap-шаг генерирует IDE-specific MCP-launchers под `harness/<ide>/mcp/`. Claude Code читает `.claude/settings.json` (auto-generated). Для регенерации запустите `python .tausik-lib/bootstrap/bootstrap.py --refresh`.
+
+## Экономия контекста: схемы по требованию
+
+`mcp.compact_tool_list` в `.tausik/config.json` (по умолчанию **выключено**).
+Включённый, он оставляет полные схемы только у ядра из 21 инструмента, а
+остальным 126 — имя и первые 60 символов описания. Схема любого из них
+добирается одним вызовом `tausik_tool_schema(name=...)`; `query` ищет по
+подстроке, пустой аргумент отдаёт перечень имён.
+
+ЗАМЕР, смена #275: список падает с 14 337 до 8 600 токенов, то есть на 40%, и
+эта цена платится в КАЖДОМ запросе. Выбор «60 символов» тоже замер, а не вкус:
+первая строка целиком даёт −27%, только имя — −52%, но «только имя» лишает
+модель признака, по которому выбирают, чью схему просить, и экономия уходит на
+лишний ход.
+
+Выключено по умолчанию намеренно: цена ошибки — лишний ход в каждом разговоре, и
+платит её потребитель. Включайте, сверив у себя число ходов на задачу.

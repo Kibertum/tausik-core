@@ -1,5 +1,7 @@
 # `tausik symbol` — the definition, not the address
 
+<!-- doc-map: reader=maintainer; zone=core-surface -->
+
 The usual route to somebody else's function costs two calls: `grep` to find it,
 then a file read to look at it. `tausik symbol <name>` answers in one: path and
 line, the body of the definition, and who calls it.

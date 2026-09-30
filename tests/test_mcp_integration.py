@@ -97,6 +97,15 @@ mcp_available = _check_mcp_available()
 skip_no_mcp = pytest.mark.skipif(not mcp_available, reason="mcp package not installed")
 
 
+def _protocol_version() -> str:
+    """The SDK's own latest revision, not a pinned 2024-11-05: a pinned date
+    silently turned the main startup test into a legacy-path test
+    (mcp-tools-list-caching-conflicts-with-scope-hiding)."""
+    from mcp.types import LATEST_PROTOCOL_VERSION
+
+    return LATEST_PROTOCOL_VERSION
+
+
 @skip_no_mcp
 class TestMCPServerStartup:
     def test_server_starts_and_accepts_initialize(self, project_dir):
@@ -116,7 +125,7 @@ class TestMCPServerStartup:
             init_msg = _jsonrpc(
                 "initialize",
                 {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": _protocol_version(),
                     "capabilities": {},
                     "clientInfo": {"name": "test", "version": "1.0"},
                 },
@@ -135,17 +144,82 @@ class TestMCPServerStartup:
             # Timeout is acceptable — server might be waiting for more input
             pass
 
-    def test_server_rejects_missing_project(self):
-        """Server should fail without --project flag."""
-        result = subprocess.run(
+    def test_server_without_project_still_answers_the_host(self, tmp_path):
+        """Without --project the project is resolved per request (a4219bdf), so a launch
+        outside any project must still list tools and answer a call with the way out —
+        a host that cannot list tools reads the server as dead. The old contract, a
+        refusal at startup, was withdrawn; a bad --project is still refused
+        (tests/test_mcp_project_server.py::test_project_server_rejects_missing_dir)."""
+        messages = [
+            _jsonrpc(
+                "initialize",
+                {
+                    "protocolVersion": _protocol_version(),
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1.0"},
+                },
+                req_id=1,
+            ),
+            json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+            _jsonrpc("tools/list", {}, req_id=2),
+            _jsonrpc("tools/call", {"name": "tausik_status", "arguments": {}}, req_id=3),
+        ]
+        env = os.environ.copy()
+        env.pop("TAUSIK_DIR", None)
+        proc = subprocess.Popen(
             [PYTHON, SERVER],
-            capture_output=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
-            timeout=5,
+            errors="replace",
+            cwd=str(tmp_path),
+            env=env,
         )
-        assert result.returncode != 0
-        assert "required" in result.stderr.lower() or "error" in result.stderr.lower()
+        # stdin stays OPEN until the tools/call reply is in: at EOF the server shuts down,
+        # and on Linux it did so before the threaded call answered.
+        import threading
+
+        lines: list[str] = []
+        done = threading.Event()
+
+        def _read() -> None:
+            for line in proc.stdout:
+                lines.append(line)
+                if '"id":3' in line.replace(" ", ""):
+                    done.set()
+                    return
+
+        err_lines: list[str] = []
+        err_reader = threading.Thread(target=lambda: err_lines.extend(proc.stderr), daemon=True)
+        err_reader.start()  # an unread stderr pipe fills up and stalls the server
+        reader = threading.Thread(target=_read, daemon=True)
+        reader.start()
+        proc.stdin.write("\n".join(messages) + "\n")
+        proc.stdin.flush()
+        done.wait(timeout=20)
+        # Not communicate(): after a manual stdin.close() it flushes the closed stdin and
+        # raises ValueError on Linux (see the startup test above).
+        proc.stdin.close()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        reader.join(timeout=5)
+        err_reader.join(timeout=5)
+        stderr = "".join(err_lines)
+        stdout = "".join(lines)
+        replies = {r.get("id"): r for r in map(json.loads, filter(None, stdout.splitlines()))}
+
+        assert "result" in replies.get(2, {}), f"no tools/list reply: {stdout!r} {stderr!r}"
+        assert len(replies[2]["result"]["tools"]) >= 26
+        call = replies.get(3, {}).get("result", {})
+        text = " ".join(c.get("text", "") for c in call.get("content", []))
+        assert text, f"no tools/call reply: {stdout!r} {stderr!r}"
+        assert "Traceback" not in text and "Traceback" not in stderr
+        assert "--project" in text
 
 
 class TestMCPToolsListing:
@@ -230,7 +304,7 @@ class TestMCPHandlerDispatch:
                 result = handle_tool(svc, tool["name"], {})
             except (KeyError, TypeError):
                 continue  # handler exists; it just wants arguments we deliberately withheld
-            except Exception:  # noqa: BLE001 — any other error still proves dispatch happened
+            except Exception:  # noqa: BLE001,S112 — any other error still proves dispatch happened
                 continue
             if "Unknown tool" in result:
                 unhandled.append(tool["name"])
@@ -261,8 +335,21 @@ class TestMCPNewToolHandlers:
         be.close()
 
     def test_dead_end_handler(self, svc):
+        """A dead end names the task it came from, and the handler passes that through.
+
+        `task_slug: None` used to stand here and the assertion still passed, because
+        nothing had to name a task yet. 1.10 made the slug mandatory -- half of the
+        dead ends recorded before it said nowhere where they came from -- and this
+        test then failed for a whole release without anyone seeing it: the file sits
+        behind `pytestmark = pytest.mark.slow`, and the default `-m 'not slow'`
+        deselects it. So the slug is supplied here AND the refusal is covered below,
+        because a handler that accepted None would be the actual regression.
+        """
         from handlers import handle_tool
 
+        svc.epic_add("e", "Epic")
+        svc.story_add("e", "s", "Story")
+        svc.task_add("s", "crypto-choice", "Pick a hash")
         result = handle_tool(
             svc,
             "tausik_dead_end",
@@ -270,10 +357,26 @@ class TestMCPNewToolHandlers:
                 "approach": "Tried bcrypt",
                 "reason": "Not compatible with Python 3.14",
                 "tags": ["crypto"],
-                "task_slug": None,
+                "task_slug": "crypto-choice",
             },
         )
         assert "dead_end" in result.lower() or "memory" in result.lower() or "#" in result
+
+    def test_dead_end_handler_refuses_without_a_task(self, svc):
+        """NEGATIVE: the rule the test above was silently violating.
+
+        Without this, supplying the slug above would only make the red go away. The
+        refusal is the behaviour worth pinning: a dead end with no task is a note
+        nobody can trace back.
+        """
+        from handlers import handle_tool
+
+        with pytest.raises((ValueError, Exception), match="must name its task"):
+            handle_tool(
+                svc,
+                "tausik_dead_end",
+                {"approach": "Tried bcrypt", "reason": "No", "tags": [], "task_slug": None},
+            )
 
     def test_gates_status_handler(self, svc):
         from handlers import handle_tool

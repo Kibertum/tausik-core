@@ -62,7 +62,7 @@ def mcp_tools() -> frozenset[str]:
     if str(mcp_dir) not in sys.path:
         sys.path.insert(0, str(mcp_dir))
     try:
-        import handlers  # noqa: PLC0415 - optional, resolved at call time
+        import handlers  # ruff-not-enabled: PLC0415 - optional, resolved at call time
 
         table = getattr(handlers, "_DISPATCH", None)
         return frozenset(table) if isinstance(table, dict) else frozenset()

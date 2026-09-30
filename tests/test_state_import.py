@@ -18,18 +18,18 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from state_export import ENTITY_DIRS, build_tree  # noqa: E402
-from state_import import import_tree  # noqa: E402
-from state_parse import (  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from state_export import ENTITY_DIRS, build_tree
+from state_import import import_tree
+from state_parse import (
     ParseError,
     parse_frontmatter,
     parse_journal,
     parse_sections,
     split_file,
 )
-from state_serialize import write_tree  # noqa: E402
+from state_serialize import write_tree
 
 
 def _svc(path):

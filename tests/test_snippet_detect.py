@@ -14,9 +14,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import ast  # noqa: E402
+import ast
 
-from snippet_detect import (  # noqa: E402
+from snippet_detect import (
     detect_clones,
     iter_python_files,
     signature,

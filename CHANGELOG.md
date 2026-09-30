@@ -9,7 +9,2974 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+## [1.10.0] — 2026-09-30
+
+### Fixed — a reissued ROADMAP.md no longer refuses a close without files
+
+A status change rewrites ROADMAP.md, and `task done --no-file-changes` then refused because
+git saw the file modified — the framework's own output blocked the close it had just
+caused. The file is now excused only when it is byte-equal to what the generator renders;
+a hand edit still counts as work and still refuses.
+
+### Documented — where TAUSIK sits in harness engineering
+
+The README and the architecture page now say it in the field's terms: a harness is the
+agent loop, the tool interface, context management and control mechanisms; TAUSIK is not
+one — the loop and the tools belong to Claude Code, Cursor, Codex and the rest — but the
+verification and control layer on top of them.
+
+### Changed — the answer discipline is ours, and the vendored skill is gone
+
+TAUSIK carried `harness/skills/i-have-adhd/` — another project's SKILL.md with its MIT
+LICENSE — and got the worst of both: an upstream to keep in sync AND no discipline at
+all, because a skill is invoked and nobody invoked it. The word "adhd" appeared **zero**
+times in the generated rules file.
+
+The principles are now stated in our own words in the block that ships every session,
+whether or not anyone asks: multi-step work is numbered and ends with an action the
+reader can take in under two minutes; five items per visible group; one tangent, once,
+never mid-answer; estimates in minutes rather than adjectives. The four-part shape, the
+five exceptions and the pre-send check were already there.
+
+**THE RULES COST 8 CHARACTERS, NOT 455.** It is re-sent on every call as cache read, and the
+generated rules file has its own budgets (180 lines, a body-size cap). The first version
+added the four rules as +455 characters and broke both. The block now carries the same
+terms in 776 characters, against 768 before the rules were added.
+
+**THE EVIDENCE BOUNDARY SURVIVED THE FILE THAT CARRIED IT.** Brevity is a rule about
+PRESENTATION: code, tool output, acceptance-criteria evidence, decisions and journals are
+never shortened. The test that used to assert this of the vendored skill now asserts it
+of the shipped block, and a second test fails if the vendored copy ever returns.
+
+Where the ideas came from is recorded in a decision, not carried as a file.
+
+### Changed — the answer budget counts the retelling, not the proof
+
+The answer measure counted every word, so quoting a failing test or a table of
+measurements pushed an answer over budget — the rule said the budget is on the
+retelling, and the measure did the opposite. Words inside closed fenced blocks and
+markdown table rows now count as evidence (`evidence_words_median`) and are left out of
+`final_words`. An unclosed fence exempts nothing. The ratchet baseline is declared anew
+on the new measure: median 162, p90 365.
+
+### Fixed — `metrics answers` and its ratchet read the oldest transcripts, not the newest
+
+The transcript list is oldest-first and both readers took its first N entries, so the
+"last ten transcripts" were the project's first ten, and the measure could never move.
+On the newest ten: 238 answers, median 198 words, p90 453 (the frozen window said 430
+and 1325). The ratchet baseline is re-measured on the corrected window.
+
+### Changed — the answer rules arrive before every answer
+
+The answer rules shipped only into a generated consumer CLAUDE.md, and the prompt hook
+spoke only after an answer had already run over budget. The UserPromptSubmit hook now
+injects the full rules on every human prompt, before the answer is written; a test holds
+the injected text byte-equal to the shipped block.
+
+### Documented — `/rewind` is not a safety net, and the changing context comes last
+
+Known limitations now state two facts nothing recorded: Claude Code's `/rewind` restores
+only edits made by its own file tools, so anything done through the shell is not rolled
+back and git is the only safety net; and the changing part of the rules file (session
+state, memory tail) sits in one block at the very end so it does not invalidate the
+cached prefix. A test holds that order for the generated rules file and this repository.
+
+### Added — `tausik demo`: watch a false "tests pass" get caught
+
+`tausik demo` runs a scripted scenario in a throwaway sandbox, in about ten seconds, with
+no network and no LLM key: the agent claims the tests are green without running them,
+the close is refused, the real check runs red, and only an actual fix closes the task
+with a signed receipt. Every line it prints is the real CLI's output. The README now
+opens with it, above the install steps.
+
+### Fixed — three gates located "the project" from their own file
+
+Found by running the demo from the framework's own tree. `ruff_format` refused a
+project on another drive ("path is on mount 'C:', start on mount 'D:'"), `test_dedupe`
+measured the framework's tests inside another project's close, and
+`cross_model_parity` crashed from the deployed copy because it looked for the bootstrap
+sources under `.claude/`. All three now find the project from its `.tausik/` directory;
+parity reports "not applicable" where there is no bootstrap source.
+
+### Added — one changelog file per task instead of every task editing the same two lines
+
+The continuous-changelog gate asks each closing task for an added line in `CHANGELOG.md`
+AND `CHANGELOG.ru.md`, and every entry goes to the head of the same `[Unreleased]`
+section. With parallel lanes that is a conflict on EVERY closed task in both languages —
+not occasionally, but always, because everyone writes into the first lines of one section.
+Of the three shared files a lane touches this is the only one that conflicts every time.
+
+A task now writes `changelog.d/<slug>.md`, named after itself, which cannot collide by
+construction. `tausik changelog assemble --apply` folds every fragment into both files in
+slug order and removes them. Stdlib only, no new dependency.
+
+**BOTH LANGUAGES IN ONE FILE.** The project ships a pair and half a pair is not an entry,
+so the fragment carries `<!-- lang: en -->` and `<!-- lang: ru -->` and is refused without
+either. Two files per task would let one language be forgotten in exactly the way the
+parity test exists to catch.
+
+**THE GATE DID NOT GET WEAKER.** It accepts a second proof, not a smaller one: a fragment
+that is missing, empty, half-written or unparseable falls through to the git check that
+was there before, and a task with neither route is refused exactly as it always was.
+Assembly reads every fragment before writing anything, so a malformed one stops the fold
+instead of leaving some folded and others deleted with nothing to show for them.
+
+### Changed — the quick-start's first run no longer carries a settings reference
+
+Step 7 of the quick-start held six callouts, one of them a single 350-word paragraph,
+about settings a first-time user does not need. They moved to "Settings met in the
+quick-start" in the configuration page; the quick-start keeps one sentence and a link.
+Two statements were wrong and are corrected there: `task_done.auto_verify` does not
+"restore the legacy behavior", it closes without a signed receipt and is treated as a
+weakening; and SENAR stands for "Supervised Engineering & Normative AI Regulation", as
+the standard itself says.
+
+### Changed — the README is a path: install, check it worked, first task
+
+A fresh reader who had never seen TAUSIK was asked to read the README and report where
+they stalled. They met about 27 undefined terms before the install section, an internal
+decision number and five standard section references on the front page, and a wall of
+release notes. The README now leads with three install commands (including the
+`.gitignore` step), a status check for both POSIX and Windows shells, and the first task.
+Terms are defined where they first appear; release detail lives in "What's new".
+Re-read by a second fresh agent: confidence 8/10, no internal numbers, 1–2 undefined
+terms before install, 1400 words instead of 2513.
+
+### BREAKING — a task closes only with a verify run, in every project
+
+Until 1.10 a project with no test gate skipped Verify-First entirely, so
+`task done --ac-verified` closed a task on the agent's word. The static gates now also run
+on `verify`, so every project has a verify gate and a close without a verify run is
+refused. Close with `task done <slug> --ac-verified --relevant-files <files> --verify`, or
+run `tausik verify --task <slug>` first; a task that changed no file closes with
+`--no-file-changes` on a clean tree. Release notes: breaking change 6 in "What's new 1.10".
+
+### Added — the handoff says what colour the slow lane is
+
+`pytest -q` deselects `-m slow`, and CI does not run on a branch that may not be pushed,
+so a red slow test could live a whole session unseen. A whole-tree slow run
+(`pytest -m slow` or `-m ''`) now leaves its verdict in `.tausik/slow_lane.json`. The
+generated handoff reads it and carries `slow_lane`: `green`, `RED` with counts, or
+`NOT RUN this session`. A project that records no lane gets no field. `/checkpoint` runs
+the lane once, in the background, where the record exists. Under xdist the run summary
+now also names the deselected count, which pytest's own summary line omits there.
+
+### Fixed — `test_dedupe` no longer measures the framework inside your project
+
+Run from the framework's own tree, the duplicate-test gate counted TAUSIK's tests
+instead of the project's, so a project could be refused a close for debt that was not
+its own. It now measures the project whose `.tausik/` it runs for; a project without a
+baseline gets "NOT ADOPTED", as before.
+
+### Fixed — the cost model was blind to 94% of the bill
+
+Rates lived in two places that could not answer together. `cost_pricing` ships a table
+of input and output, prices no cache at all, and is what writes `usage_events.cost_usd`.
+`token_price` understands cache but read rates only from a config nobody had filled, so
+the cache-aware report printed UNPRICED. One path counted the small stream; the other
+could see the large one and had no rate for it.
+
+Measured over the last ten sessions: **3,044,531,708 cached tokens read against
+3,922,523 of output — 776 times as many.** Priced, that is **cache 94.2% of the bill,
+output 5.8%**.
+
+`token_price` now falls back to the shipped table, deriving the cache rates from the
+input rate by the published multipliers (read 0.1x, write 1.25x) rather than carrying a
+second table that would drift. A project's own `token_price` entry still overrides it
+whole, so the config predicts the bill from what is written in it.
+
+**A DATE SUFFIX NO LONGER UNPRICES A MODEL.** `claude-haiku-4-5-20251001` is the id this
+host reports and the table is keyed without the date, so the canonical Haiku went
+unpriced; trailing numeric segments are now dropped until something matches. That alone
+brought 984 previously uncounted calls into the total.
+
+The report states the cache share in one line, because reading the rows alone is what
+led this project's own author to announce that output was the bill.
+
+### Fixed — two slow-lane tests were red, and nothing ran them
+
+`pytest -q` deselects `-m slow`, and CI, which runs the full lane, does not run on a branch
+that may not be pushed. Two tests therefore stayed red unseen. Both were broken by
+intentional changes in the same release, not earlier, as `git bisect` shows:
+
+- `test_mcp_integration` expected the MCP server to refuse a launch without `--project`.
+  Since the server resolves the project per request (a4219bdf), that refusal is gone by
+  design. The test now checks the new contract end to end: launched outside any project,
+  the server still lists its tools and answers a call with the way out.
+- `test_tausik_cli::test_full_lifecycle` closed a task without a verify run. Since the
+  static gates also run on `verify` (2d192942), **QG-2 applies to every project, including
+  one with no test gate**. Before that change, a project with no verify-trigger gate
+  skipped Verify-First entirely. The test now closes the way a user does,
+  `task done --ac-verified --relevant-files ... --verify`, and asserts that a fileless
+  close without verify is refused. It no longer switches off each verify gate by name.
+
+### Changed — preparation before a check is the default now, not a flag
+
+`verify --prepare` removed `bootstrap_drift` — 56 red runs in September, 25.3% of every
+red. But it stayed a FLAG that nothing ever named: no skill, no CLAUDE.md line, no hint.
+This project has already measured what a rule that is only ASKED for is worth — switched
+off the same week. A flag is weaker still, because nobody even asks.
+
+`verify --task <slug>` now prepares the tree with no flag at all. Opting out is explicit:
+`--no-prepare`. The old `--prepare` is still accepted and breaks nothing.
+
+**EVERY SKIP SAYS ITSELF.** Silence about a skip reads exactly like "it ran", and the
+whole value of the default is that the reader knows WHICH tree was judged. So
+`--no-prepare` prints that the gates judge the tree as it stands, and a run without
+`--task` prints that there is no declared scope and a tree-wide format would edit files
+nobody declared — which is how the first version rewrote 90 files.
+
+### Added — the 500-line cap warns at write time instead of reddening at verify
+
+Of 285 red `verify` runs, `filesize` is 16.1%, and it is not history: 20 fell in
+September alone, second only to `bootstrap_drift`. A red run is expensive — a task with
+none costs a median 51k tokens, one red 78k, two 123k — and this red is arithmetic: the
+cap is a number, the file is on disk, and the write that crosses it is in the author's
+hand at that moment.
+
+The warning now arrives in the same turn, through the write hook's
+`additionalContext`: the file, the resulting line count, the cap. For `Write` the result
+comes from the content; for `Edit` from the `old_string`/`new_string` delta applied to
+the file on disk.
+
+**IT WARNS AND NEVER BLOCKS.** A refusal mid-task leaves a half-applied change and a
+thought with no end; splitting a file is a decision about structure, not a reflex at the
+moment of typing. Every path out returns 0.
+
+**IT IS SILENT WHEREVER THE ANSWER IS NOT KNOWN.** `replace_all` does not carry the
+occurrence count, so the delta is a lower bound — better to say nothing than to name a
+figure that is wrong whenever the string repeats. The same for an unreadable file, a
+payload it cannot compute from, and a tool whose result is not derivable. An author who
+learns these lines are sometimes wrong stops reading them, and then the measurement
+above returns.
+
+The exemption predicate is EXTRACTED from `run_filesize_gate`: the forecast asks the
+gate its own question, and no second copy of the rules exists to drift.
+
+### Fixed — the cost trend was blended while the task mix moved underneath it
+
+`metrics task-cost` printed one median per month, and the first person it misled was
+its own author. The mix moved over the same span: May closed 50 simple / 43 medium /
+11 complex, September 25 / 73 / 33. The blended line 41k -> 79k (1.9x) reads as the
+framework getting dearer, while within each class the answer differs: **simple
+27k -> 22k (17% cheaper), medium 52k -> 88k (+70%), complex 68k -> 130k (+92%)**. Part
+of the rise is heavier work; part is medium and complex tasks genuinely costing more.
+
+Each month now carries the task count and the median for every class, and the blended
+line stays with a warning attached: people quote it, so it has to say for itself that
+it mixes "the work got heavier" with "the work got dearer" and cannot tell them apart.
+
+A class with fewer than eight tasks prints NO median but still prints its count: a
+median over three is not a trend, and hiding the count would read as though the class
+was never worked. A task that declared no complexity gets its own line rather than
+joining a class it never claimed, where it would move that median on a guess.
+
+### Added — `tausik metrics task-cost`: what a task cost, in a unit the price list cannot move
+
+`cost_actual_usd` was filled on ZERO tasks of 1675 and `tokens_actual` on 27. The
+cause: the hook records the CALL and not the tokens (120 of 67 081 rows carry a token
+count), while the session-level rows carry tokens and no task slug. The rollup joins on
+the slug, finds nothing and writes NULL — correctly. So "is a task getting dearer" went
+unanswered for five releases although both halves of the answer sat in the database.
+
+Session tokens are now apportioned across a session's tasks by each task's share of its
+calls, and the result is CALLED an apportioned estimate everywhere it appears.
+
+**THE MEASUREMENT THIS PRODUCED INVERTS THE ANSWER.** In dollars, cost per closed task
+fell 61%: $3.04 in May to $1.19 in September. But the price per million tokens moved
+$74.43 -> $10.32 -> $15.76 over the same span, so the falling bill is the price list,
+not us. In tokens, where the price cannot reach, the median per task ROSE from **41k in
+May to 79k in September — 1.9x** — and p90 from 184k to 410k. August was worse than
+September (122k), so autumn improved on itself without recovering May.
+
+Coverage is a number: 665 closed tasks of 1684 (39%); a further 195 were worked in
+sessions that recorded no tokens and are declared ABSENT rather than zero, because a
+zero would drag every median containing it towards free.
+
+### Added — `tausik gates ratchets`: a moved ratchet in 23 seconds instead of five minutes
+
+Fifteen ratchets live in `tausik/gates.json`, each guarded by its own test, and the
+only way to learn you moved one was the full lane — 12 441 tests, five minutes, plus a
+call to work out whose failure it was. In the session that filed this, ratchets went
+red on the author's own work about ten times. The same guards — 25 files, 549 tests —
+run in 21 seconds.
+
+**THE SET IS DERIVED, NOT LISTED.** A file belongs when it names the baseline in a
+string OR imports a module under `scripts/` that does. The second half is not optional:
+the first version stopped at the first and missed `test_gate_ruff_format.py`, which
+reads the baseline through `gate_ruff_format.legacy_unformatted()` — the very ratchet
+that had gone red that morning. A hand-kept list goes blind the first time someone adds
+a ratchet and forgets to register it.
+
+**AN EMPTY SET IS A REFUSAL, NOT A GREEN.** If no test reaches the baseline, the
+command says so and exits 2: reporting "all green" for a check that never ran is the
+silent error this project has no tolerance for. And the output states plainly that this
+is NOT the full lane — a ratchet held says nothing about the behaviour around it.
+
+### Changed — the preparation a check needs now runs inside the check
+
+Two gates went red for reasons known IN ADVANCE and fixed by a fixed command:
+`ruff_format` until `ruff format` has run, and `bootstrap_drift` after any edit
+under `scripts/` until the profile is redeployed. Neither is a judgement, and each
+cost its own call — about a million tokens per task at the measured 482 000 tokens
+of prefix re-sent per call, against roughly 400 closures a month.
+
+`tausik verify --task <slug> --prepare` does both in the same call, before the
+gates, and prints that preparation ran and what it said.
+
+**THIS IS NOT A GATE HEALING ITSELF.** `bootstrap_drift` still refuses to rebuild
+the copies it evaluates, and rightly: a gate that mutates the state it judges
+certifies its own repair. Here it is the AGENT that asks, by name, before the gates
+have looked at anything.
+
+**GREEN DID NOT COME TO MEAN LESS.** A failed preparation STOPS the run with its own
+text — going on would judge a tree the caller believes was prepared and was not, and
+that green says the opposite of what it seems to. The step list is closed and
+declared as data: formatting and redeployment, two operations whose result does not
+depend on what the code means. A third kind would be a decision laundered through a
+flag, and a test fails on one.
+
+### Changed — widening a scope costs one short call instead of two long ones
+
+A task's scope is declared BEFORE the work reveals which files it will touch, so the
+ACL refuses in almost every non-trivial task: seven refusals across three consecutive
+tasks in the session that filed this — the last one on the very module that fixes it,
+which could not have been named in a declaration written before it existed. Each
+refusal cost two calls: the refusal, then a `task update --scope-paths` restating the
+WHOLE list.
+
+`task update <slug> --add-scope-paths <paths>` adds while keeping what was declared.
+Both hooks now print exactly that command, with exactly the paths they refused — there
+is nothing to retype, and retyping was also where a path went missing.
+
+**RULE 2 IS NOT WEAKENED.** Widening stays an explicit act by the agent, path by path,
+and nothing is added that was not asked for. An empty list is refused rather than read
+as a revocation: an empty list is almost always a shell glob that matched nothing.
+`--scope-paths` together with `--add-scope-paths` is refused, because which one won
+would not be visible in the output.
+
+### Changed — closing a task costs one call instead of four
+
+The ceremony ran: `verify`, then `task done`, then a refusal from a gate that only
+fires at close, then `verify` again, then `task done` again. At the measured
+482 000 tokens of prefix re-sent on EVERY call, an extra call costs about half a
+million tokens, and closing is the most frequent ceremony in the framework — 1240
+closures carry a recorded call count.
+
+`task done <slug> --ac-verified --verify` now runs the check itself and closes with
+the same single-use handle the separate path would have minted. This is NOT a way
+around QG-2: the run is the same one, the receipt is the same, and a red run refuses
+the close and leaves the task open — the red run's receipt stays, because a run that
+happened is evidence whichever way it went.
+
+**THE ONE CALL REFUSES EXACTLY WHAT THE FOUR REFUSED.** Two sources of verification
+in one call (`--verify` alongside `--verify-handle`) is a refusal: only one is
+redeemed and the output does not say which. An undeclared scope is a refusal: a
+verify over one skips the scoped gates and still signs a receipt, so the single call
+would become a cheaper way to certify nothing. `--no-file-changes` remains the honest
+way to say a task changed no files, and it is accepted.
+
+**THE CLOSING GATES ANNOUNCE THEMSELVES EARLY.** `changelog` lived only at
+`task done`, so an agent met it after the ceremony had already been paid for.
+`verify` now asks the REAL gate and prints its verdict as an "AT CLOSE, NOT NOW"
+line — advice, not a refusal: mid-task the entry legitimately does not exist yet,
+and a gate that goes red on the normal case is one people learn to skip.
+
+### Changed — the CLI reference is cut by measured use
+
+`cli.md` was 899 lines in which all 54 commands weigh the same. This project's database
+records **6930 calls** into the surface across 74 distinct tools, and **twelve commands are
+81%** of them, twenty-eight are 95%. Those twelve now open the page as a table with their
+shares, and the rest moved onto four pages named for what the reader came for: `cli-tasks`,
+`cli-quality`, `cli-knowledge`, `cli-admin`. The entry page is 60 lines instead of 905. The
+measurement describes this work rather than predicting anyone else's, and the page says so.
+
+**THE GATE WAS THE REASON.** `doc_coverage` demanded that every declared command be named in
+ONE file, which is why the reference carried a 57-line section called "commands not covered
+by the sections above". The gate now checks a GROUP of pages per language, and the languages
+still do not cover for each other: a command documented only in Russian stays a gap in the
+English group. A group is exactly the shape that can make a coverage gate green by
+construction, so three red proofs are written against it — a command on no page, a page of
+the group missing from disk, and one language standing in for the other.
+### Changed -- record numbers came off the pages written for the user
+
+A reader running TAUSIK on their own project has no row #404. The number resolves to nothing
+for them, and the sentence around it asks them to take it on faith. Measured across the pages
+marked `reader=user`: **123** such references. Now **52**, and the rest come off as pages are
+touched — a ratchet holds the number down.
+
+**WHAT WENT IS THE ADDRESS, NOT THE FACT.** "...left the framework in 1.9 (decision #358)"
+became "...left the framework in 1.9". Deleting the clause would have taken the fact with it.
+
+**MAINTAINER AND AGENT PAGES ARE UNTOUCHED**, and that is the point of counting per reader:
+there the number is an address the reader CAN follow, because they have the database and
+`decisions_list` answers. External references like `github#51` stay everywhere — they address
+something anyone can open.
+
+**THE REMAINING 52 ARE PROSE, AND THEY STAY UNTIL SOMEBODY READS THEM.** The pass that landed
+only touches bracket-bounded forms, because a bracket is a boundary the text itself declares.
+A first version also rewrote prose and broke a sentence — the reference sat behind a
+preposition and removing it left the preposition with nothing after it. That is dead end #784,
+a bulk regex over prose, for the second time in one day; the rule was narrowed rather than
+patched.
+
+**AND IT TOOK THE PARENTHESES OFF FUNCTION NAMES.** A cleanup rule for parentheticals emptied
+by the pass matched `run_command_gate()` in a diagram. Caught by reading the diff, reverted,
+and the rule deleted rather than refined: the pass cannot leave an empty pair, so nothing
+needed cleaning up after it.
+
+### Added -- a glossary, because the vocabulary was a wall with no door
+
+Counted across the 88 pages marked `reader=user`: `gate` appears **715** times, `slug` 467,
+`stack` 350, `QG-2` 74, `QG-0` 66 — and the tree held no `glossary.md`, `terms.md`,
+`concepts.md` or `faq.md`. A reader met the words and had nowhere to go.
+
+**THE LIST WAS MEASURED, NOT IMAGINED.** Every entry is a word counted on those pages, and
+the page says so; a glossary padded with words nobody uses teaches the reader to skim it.
+Eighteen terms, grouped from what you meet in the first hour to what you need later, each one
+sentence of definition plus where it applies.
+
+**AND IT CANNOT GO STALE QUIETLY.** The test reads the PAGES, not the page: a measured term
+used on a user page and missing from the glossary goes red. A second check refuses an internal
+reference number inside a definition — a reader handed `decision #404` has been handed a dead
+end, because the number addresses a record they cannot open.
+
+`start-here-user.md` now names the glossary in its first line of links, in both languages.
+
+Two of this project's own checks caught the new file on the way in: it walks the docs tree
+without declaring the scope that selects it, and its regex spelled two Russian words out,
+adding a line to the very count `prose_language` guards. Both fixed; the second is the third
+time this trap has sprung, and the pattern is now built from code points like the counter's
+own.
+
+### Fixed -- the 1.9 upgrade crash reported from a consumer project, pinned by its own route
+
+Reported: `1.7 -> 1.9` died on `duplicate column name: declared_scope_status`, stamp 37, table
+`verification_runs`, and the reporter's plan was a cold rebuild — a fresh database at the cost
+of the task and decision history.
+
+**That is not necessary: the defect is github#51 and 1.10 already carries the fix.**
+Reproduced both ways before anything was written — v38's statements run directly against that
+state raise the reported message verbatim, and the guarded chain walks stamp 37 to the current
+schema version.
+
+**THE ROUTE, THOUGH, IS A SECOND ONE, and it now has its own test.** The existing regression
+comes in through `actz_points`, a table `init_schema` builds at install. `verification_runs`
+is created LAZILY, on the first `tausik verify`, and therefore in the CURRENT shape while the
+stamp still names an old version — the same hybrid state through a different door. A paired
+negative runs the same statements with the guard bypassed and requires the exact reported
+error, so the pair proves the guard is what carries the upgrade rather than resting on a chain
+that never had a defect to survive.
+
+### Changed -- two calls per task removed, and the two that stay are the ones a driver reads
+
+`task add` could not set acceptance criteria while QG-0 refuses a start without them, so every
+creation was followed by a `task update` supplying the one field the next step requires — nine
+tasks in one shift, nine extra calls. And `budget-check` was a second call after every close.
+At roughly 482,000 tokens of re-sent prefix per call, ceremony is not a rounding error: the
+median task went from 6 calls in April to 32 in September.
+
+`task add --acceptance-criteria` makes a task startable after one command, routed through the
+follow-up update that already carried the rollback plan. `task done` now prints the budget
+verdict it already knows how to compute.
+
+**`budget-check` STAYS, and that is the point of the change rather than an oversight.** It
+answers with an EXIT CODE, which is what a shell chain reads and what a printed line cannot
+replace. What the closure prints is the same verdict for the reader already looking at the
+output — the call is saved, the command is not taken away.
+
+**THE DRIFT GATE STILL REFUSES TO FIX ITSELF.** Auto-redeploying would have saved another
+call per task and was refused: a gate that rebuilt the copies it evaluates would mutate the
+state it judges, which is the defect class this project already caught in a toggle declared a
+check and executed as a write. A test holds both the stated reason and the absence of any
+subprocess in the gate's body.
+
+### Changed -- model routing became a mechanism, by delegating instead of switching
+
+Of 218 closed tasks carrying a model id, **195 ran on the premium tier** — 47 of them rated
+`simple`, 90 rated `medium`, where the recommendation pointed at a cheaper model. The banner
+printed at every `task start` and was followed almost never.
+
+It could only ask, and the reason was real: the host does not switch a running session's
+model, which is why decision #183 settled that the adherence metric is calibration rather
+than compliance. **A subagent is started on a model the caller picks** — that is the one
+programmatic choice available, and it moves both multipliers of the price at once. The
+cheaper tier is the visible half; the larger half is that a subagent begins with a FRESH
+context while the session spawning it re-sends about 500,000 tokens of prefix on every call,
+against roughly 42,000 at a session's start. Twelve times the prefix, per call, for the rest
+of the session.
+
+`task start` now prints a `DELEGATE` line for simple work on a premium session, naming both
+halves. `/run` no longer forbids delegation outright — a rule written before anything
+measured how often the cheaper model was actually used — and instead delegates exactly what
+the banner marks.
+
+**THE CLOSURE IS NOT DELEGATED.** The subagent does the work and reports; verification, the
+evidence lines and `task done` stay with the agent that owns the task. A receipt signed by a
+worker nobody reviewed is the failure QG-2 exists to prevent, and a test holds that sentence
+in the skill.
+
+Complex work is never delegated: its recommendation points UP, and buying tokens with the
+result is the trade this project does not make. The skill paid for the new rule by dropping a
+gotcha that repeated step 2 almost verbatim.
+
+### Changed -- cheap gates run first, and the expensive one is not paid for a run already lost
+
+Five static gates -- `test_dedupe`, `filesize`, `class_surface`, `bootstrap_drift`,
+`doc_coverage` -- fired only at `task done`, which is AFTER the full lane and after the scoped
+verify: the last possible moment, at the highest possible price. They are all static. Measured
+on this project: ruff plus the duplicate-test audit plus the prose audit answer in **3.5
+seconds** against about **four minutes** for the lane, and in one shift a static gate failed
+after the lane fifteen times -- each costing the lane again plus two or three calls. That is
+where the median task went from 6 calls in April to 32 in September.
+
+A gate now declares its COST, the runner sorts cheap-first, and the two phases have different
+rules. **Between** phases a blocking failure stops the run: nothing the expensive half could
+say survives the fix the cheap half just demanded. **Within** a phase nothing stops -- three
+defects have to come back in one report, because stopping at the first would turn one round
+into three, which is the cost this change exists to remove.
+
+**A SKIPPED TEST GATE IS `COULD_NOT_RUN`, NOT A PASS.** It applies and produced no evidence,
+and SENAR §8.6(e) is explicit that an absent verdict cannot certify; recording it as a pass
+would let a green report mean "the tests never ran".
+
+The slow set is declared by name in one place, and a test requires that union to cover every
+gate whose command runs tests or builds -- a list that could silently miss the next one would
+put a four-minute gate back in the phase that promises seconds. Nothing was weakened: every
+gate kept its severity and its `task-done` trigger.
+
+### Changed -- code and comments are written in English, and the rule now exists
+
+The owner had asked repeatedly. The rule existed nowhere: not in this project's CLAUDE.md, not
+in the agent contract, and the shipped `CODE_STYLE` template said the opposite in as many
+words — "docstrings, comments and test descriptions take any language". Decision #404
+supersedes that half of convention #745; identifiers were already ASCII.
+
+**THE REMAINDER IS MEASURED AND RATCHETED, NOT TRANSLATED IN ONE PASS.** 5,348 lines of
+non-English prose across 287 files (scripts 1,406, tests 3,740, bootstrap 127, harness 75).
+Rewriting them in a single edit is exactly the size of change this project refuses to make
+without a task per unit of meaning; the ratchet lets the number fall as files are touched for
+their own reasons and refuses to let it rise.
+
+**TWO NUMBERS, BECAUSE THEY CARRY DIFFERENT PRICES.** 269 Cyrillic identifiers, all in
+`tests/`, stay: 83 evidence citations in 21 closed tasks point at Cyrillic pytest node ids,
+journals are append-only, and renaming would turn live evidence into unresolvable references.
+That price was measured before the exemption was declared, and the counts are kept apart so it
+cannot quietly grow into the prose number.
+
+**THE RULE STOPS AT THE FILE.** Answers to the user stay in the user's language; a test holds
+that boundary, because a rule about source that leaked into replies would be a different and
+worse rule.
+
+**THE DETECTOR COUNTED ITSELF ON THE FIRST RUN.** `ruff format` collapsed the escaped
+character range into literal characters, so the pattern line became a finding. It is built
+with `chr()` now, and the test that reads this project's own rule builds its needle the same
+way — it had added a line to the number it guards.
+
+### Added -- what a finished task costs, counted in turns, and the number is five times worse
+
+The token question had been answered in the wrong unit. Across 5,964 telemetry rows the input
+side is **99.5% `cache_read`** — 2,876,911,173 tokens against 22,099 of fresh input. The prefix
+is re-sent whole on every call, so an extra CALL costs about **482,000 tokens** while
+shortening a request saves hundreds. An edit that trims the request and adds a round-trip loses
+by roughly a hundred to one.
+
+`scripts/turn_economy.py` prices the thing that is actually bought — a finished task — and the
+answer is not flattering. Over 1,230 closures carrying a call count: **median 20 turns, p90 78,
+max 1,900**. By month, **2026-04 median 6 → 2026-09 median 32**, p90 35 → 114. Five times more
+turns per task in six months. In tokens: 9.6M for the median task, 37.6M at p90.
+
+**WHERE THEY GO:** `Bash` is **87.6%** of 8,195 measured calls and 3.64 of 4.07 billion
+`cache_read`. `Write` 7.7%, `Edit` 2.7%, everything else together under 2%.
+
+**SO THE LEVER IS FEWER, LARGER TURNS — NOT SHORTER ONES**, and the report says so in the same
+breath as the numbers, because the opposite advice is the intuitive one and it is wrong here by
+two orders of magnitude. A test holds that sentence against the constant it spends: a report
+that recommended trimming requests would contradict the figure printed two lines above it.
+
+Both halves are local — the call count lives in this project's database, the sidecar is written
+by a hook on this machine — so a fresh clone gets the absence in words instead of a zero.
+
+### Added -- a ratchet on answer length, because measuring it was not enough
+
+`tausik metrics answers` produced a number from 1.10 and nothing compared it to anything.
+Story J closed as delivered while the median final answer went from 396 words to 522 against
+a budget of 200. A number nobody compares only records the drift it was built to stop.
+
+The baseline lives in `tausik/gates.json` and is a MEASUREMENT: median 522.5, p90 923 over 10
+transcripts and 52 answers. It is deliberately not the 200-word budget — a threshold ordinary
+work crosses on day one is one somebody switches off, which this project paid for once with a
+telemetry window. It may only shrink, and an improvement passes while printing the lower
+number to record.
+
+**IT IS LOCAL, AND THEREFORE IT NEVER FAILS A BUILD FOR WANT OF DATA.** Host transcripts live
+on the machine that wrote them and do not travel — the property `red_history` already
+declares. Absence is reported as absence three separate ways, because each is a different
+fact: no transcripts, too few answers for a median to describe a habit rather than a sample,
+and no baseline recorded yet. A check that fails on missing data is one people learn to pass a
+flag to.
+
+A `doctor` row carries it, and the warning points at the rules file rather than at the number:
+a ratchet that only says "bigger" invites raising the baseline, and the fix is to follow the
+shape.
+
+### Changed -- the answer contract ships unconditionally instead of behind two opt-ins
+
+The shape (`done → verified by → left → your call`), the carve-outs that protect the record
+and the five named exceptions lived in `CAVEMAN_DIRECTIVE`, which `output_mode` leaves OFF by
+default, and in the `/i-have-adhd` skill, which has to be invoked. Measured on this project's
+own transcripts while both existed: **median final answer 522 words against a budget of 200,
+p90 923** — worse than the 396/915 measured before either. A rule an agent must remember to
+switch on is a rule that is off.
+
+`ANSWER_SHAPE` now ships in every generated rules file in both tiers. `output_mode: caveman`
+keeps only what it is actually for — compressing the prose inside the shape — and its cap
+follows it down from 888 to its measured 358.
+
+**IT WAS PAID FOR, AND THEN THE BOUND MOVED BY THE REMAINDER.** The generated body has a
+180-line and a 15,178-character budget whose convention is that a new rule TRADES against an
+existing one. Traded out: three workflow bullets restating what each skill does, the
+model-selection paragraph `task start` already prints, the code fence around a one-line
+pipeline, and the `## Response Language` section whose one sentence is now a bullet of the
+shape. That covered 700 of 750 characters; the last 50 re-based the ceiling, recorded with the
+reason in the test that holds it.
+
+**THE CONTRACT SHIPS WHOLE.** A first pass compressed it to fit and silently dropped three of
+its elements — `first line = next action`, `last line = current state`, and one of the five
+exceptions. `test_response_contract_shape` caught all three, and that test now reads the
+always-shipped block instead of the opt-in one: while it read the directive, every assertion
+in it was conditional on a mode that is off.
+
+**A BLOCKING `Stop` HOOK WAS REJECTED AS THE LEVER.** It is the obvious way to enforce a
+length, and this project already measured what it costs: the harness renders a blocked Stop as
+a hook error and the turn dies with no output. For a long answer that is strictly worse than
+the disease — the reader gets nothing instead of too much. Recorded as a dead end.
+
+### Changed -- the tree says 1.10.0, and the README says what 1.10 is
+
+`pyproject.toml` and `scripts/tausik_version.py` carried 1.9.0 while 1.10 was being released.
+They are the single source, so `constants.json` and everything generated from it read 1.8's
+successor as the current version.
+
+The bump reddened exactly what it should: the version mentions in both READMEs. Each was
+settled on its merits and none was silenced — historical ones stay historical (Codex
+first-class since 1.9, the arc from 1.8, the link to the 1.9 notes), and the narrative section
+was rewritten for 1.10 in both languages.
+
+**THE CHANGELOG CUT AND THE TAG ARE NOT DONE HERE.** `[Unreleased]` stays as it is: the cut
+carries a DATE and pairs with the tag, and the tag is the owner's act. The 1.9 release kept
+these as two commits five days apart for the same reason.
+
+Two guards fired on the new prose and both were right. The claim about token saving must sit
+within 120 characters of "on this pair" — a generalisation is exactly what one reading cannot
+support — so the sentence uses the scoped wording. And a bare count of breaking changes in the
+README collided with the guard that keeps 1.8's four hand-written copies of that number in
+agreement; the count belongs in the whats-new page, and the README now points at it without
+restating it.
+
+**A CALIBRATION TEST STOPPED DEPENDING ON A DEFECT SURVIVING.** With the register of rotted
+citations driven to zero, the test asserting the lens still sees that class went red for the
+RIGHT repository state. It now PLANTS a citation instead — and a second test plants an
+obviously illustrative one and requires silence, which is the filter that made the first
+planting attempt fail.
+
+### Fixed -- an `EVIDENCE-MOVED` answer was silently not counted when the address ended a sentence
+
+Found by using the mechanism for the first time. A journal line is prose: the author finishes
+the thought with a full stop, the parser took the reference as `\S+` and swallowed the stop
+into the address, the address stopped resolving, and the answer did not count -- with nothing
+said about it. The register stayed red and the reason was invisible, which is the class this
+project calls zero tolerance.
+
+Sentence punctuation is now trimmed from the TAIL of an address, and only there: a dot inside
+`tests/x.py::test_y` is load-bearing, so trimming by character class rather than by position
+would have eaten the extension. Both the old and the new address are trimmed, since both are
+read out of the same prose.
+
+**A REASON KEEPS ITS OWN FULL STOP.** It is free text, and trimming there would edit what
+somebody wrote. A reference that is nothing but punctuation is left alone too, because reducing
+it to an empty string would produce a finding nobody can name back to its author.
+
+### Fixed -- the register of rotted citations was not empty after all, and the release notes said it was
+
+The coherence lens raised it as HIGH before the tag: two closure citations named a test that no
+longer exists, against a declared remainder of zero. The 1.10 notes claim the register is
+empty, so shipping like that would have made the release lie in its own release notes.
+
+Both were answered in the journals of the tasks that made them, because those journals are
+append-only and rewriting them would forge the evidence this project exists to keep honest:
+
+* `test_brain_config.py` -- RETIRED in all five citing tasks, with the commit that removed it
+  (`77703c4a`, the Notion transport). The file went WITH ITS SUBJECT; there is no successor and
+  there cannot be one.
+* `test_verify_first_contract.py::test_fallback_skipped_when_no_verify_row` -- MOVED. The
+  name-similarity candidate was REJECTED by reading it: it covers security-sensitive paths,
+  which is a different check. The real successor is named in its own docstring.
+
+**AND THE MECHANISM PROVED ITSELF ON THE WAY.** The first MOVED answer was silently not
+counted: the address was followed by a full stop, and the parser swallowed it into the address,
+which then stopped resolving. A correcting line in the same journal fixed it without rewriting
+anything -- the append-only contract working. The swallowed full stop is filed as its own
+defect.
+
+### Added -- release notes for 1.10 in both languages, which the release procedure requires
+
+`tausik publish notes` refuses a release body without both pages, a rule this project put in
+place for 1.10 and had not yet satisfied for 1.10 itself. The pages exist now, so the tag is
+not blocked on paperwork.
+
+They are written from this CHANGELOG rather than composed: every claim on the page is an entry
+below. Five breaking changes are named with what to do about each -- the user tier's new
+address, the withdrawn `task start --force`, the RAG server's entry point, the session
+becoming the host's, and the retirement of `TODO.md`.
+
+**AND A SECTION FOR WHAT IS NOT IN THE RELEASE**, because a reader who finds the gap later
+trusts the rest less: tausik.tech is not rebuilt and why, there is still no measured token
+saving and the 1.9 measurement stands as the last word, and the host's answer about roots is
+recorded as unverified rather than assumed.
+
+### Changed -- the MCP server can resolve its project per request, and `--project` still wins
+
+`--project` was required and pinned one service for the life of the process. It is now
+optional: with it the server behaves exactly as before, and without it each request resolves
+its own project and gets a `ProjectService` cached by directory.
+
+**MEASURED FIRST, BUILT SECOND.** The spike counted seven `claude.exe` hosts against six
+`tausik-project` servers with six DISTINCT parents -- one stdio process per window, so today
+the cache holds one entry. What changes that is a transport where the process is not tied to a
+window, and the 2026-07-28 spec removed the handshake and the session header precisely so any
+request may land in any instance. The seam costs a module now and would cost the migration
+later.
+
+**A DEAD PROJECT DIRECTORY IS REFUSED RATHER THAN ADOPTED**, which is the dangerous case:
+`SQLiteBackend` creates the file it is pointed at, so an unresolvable or vanished path would
+not raise — it would succeed at serving an empty project next to nothing. The registry checks
+for `.tausik/` before it constructs anything.
+
+**AN UNRESOLVED PROJECT IS AN ANSWER, NOT A TRACEBACK.** Smoke-tested against the real server
+with no `--project`: from inside the project, 147 tools and a live `tausik_status`; from an
+unrelated directory, still 147 tools and a message naming both ways out — `tausik init` here,
+or open the project. The tool list keeps answering because a host that cannot list tools reads
+as a dead server rather than as an unopened project.
+
+**THE COST OF TENANCY ON A PROCESS-GLOBAL IS STATED, NOT LEFT AS A RACE.** Several handlers
+resolve paths against the working directory, which is process-wide, so per-request mode holds
+it under a lock for the duration of a call and overlapping calls serialise. A test asserts
+that, and another asserts the lock is released when the directory move fails. Pinned mode
+takes no lock at all: the common path pays nothing for a capability it is not using.
+
+### Fixed -- the spike document carried absolute developer paths and reddened the publication gate
+
+Found by a check nobody aimed at it: the public-snapshot leak scan named
+`docs/ru/research/global-mcp-spike.md` under "dev-machine path". A raw log is evidence, and an
+absolute path from the machine that produced it is a leak class regardless.
+
+Only the PREFIXES were replaced, with `<PROJECT>` and `<OTHER-PROJECT>`, and the document says
+so in a box above its own summary rather than leaving the reason in a commit message. Every
+conclusion the logs support still stands in them: `cwd` equals the project root (now marked in
+the log itself), one server's `--project` is relative while another's is absolute and names a
+DIFFERENT project, and `CLAUDE_PROJECT_DIR` is empty.
+
+### Added -- `resolve_project()`: one chain, three links, and the first one is a parameter
+
+The chain used to begin at MCP roots. The spec of 2026-07-28 deprecates them (SEP-2577), so
+the first link is now whatever mechanism the host actually supports -- supplied by the caller
+rather than decided inside the module. A roots value still flows through the same parameter as
+a `file://` URI, which is what makes the transitional path free: if it is ever needed, the
+module does not change. A test feeds it exactly that shape.
+
+Order: host signal, then the machine's active pointer, then a walk up from the given `cwd`.
+Every link is checked for being a REAL project directory before it is accepted, because a dead
+`project_dir` is worse than None -- the caller would take it for a working project and fail
+somewhere the pointer is never mentioned.
+
+**THE POINTER FAILS IN FOUR DISTINGUISHABLE WAYS**, each with its own reason and its own test:
+an empty file, invalid JSON, valid JSON that is not an object, and valid JSON with no entry for
+this session, pid or default. None of them raises; a pointer that cannot be read is a link
+skipped, with a note saying so, because "no project here" and "your pointer is broken" must not
+be the same answer.
+
+**ONE ANSWER TO "WHERE IS THE PROJECT".** The walk-up is not written a second time:
+`find_tausik_dir()` was split into a pure `tausik_dir_from(cwd, env)` and a thin wrapper, and
+the resolver calls the pure one. Two implementations would disagree silently, and the
+disagreement would surface far from where it was introduced.
+
+The pointer lives at `~/.config/tausik/active-project.json`, in the 1.10 user tier -- not in
+`~/.tausik`, the place 1.10 moved away from because a directory of that name makes the home
+folder look like a project to the very walk-up that ends this chain.
+
+### Documented -- how an MCP server actually learns which project it serves
+
+A spike, no production code: `docs/ru/research/global-mcp-spike.md` with the raw logs. The
+premise had been rewritten once already because SEP-2577 deprecates roots, so the subject was
+the three NON-deprecated mechanisms the spec names.
+
+* **Tool parameter** — works at protocol level; a probe server received the absolute path
+  verbatim. But none of the 147 tools declares one, and an undeclared argument is refused by
+  name, so it is work rather than a property. Worth doing only under an HTTP transport.
+* **Resource URI** — the host supports resources (`ListMcpResourcesTool` answers with a clean
+  empty list) and the probe served `resources/list` and `resources/read`. It still does not
+  solve the problem, and the reason is a circle: a resource is published BY the server, so the
+  server has to know the project already.
+* **Server config** — the mechanism actually in production, and a fact came out wrong along
+  the way. `.mcp.json` declares `${CLAUDE_PROJECT_DIR:-.}`, but the probe read
+  `CLAUDE_PROJECT_DIR: null` inside the MCP process: **the host does not export it.** The
+  resolution is really the `.` fallback plus the cwd the host sets to the workspace root. The
+  documentation that names the variable describes something that does not happen.
+
+**LAUNCH MODEL, MEASURED: one stdio process per window, not shared.** Seven `claude.exe` hosts
+under VS Code windows, six `tausik-project` servers, six DISTINCT parents. So a multi-tenant
+cache is not needed — the process already serves one root, pinned at spawn. One host was found
+holding servers for DIFFERENT projects at once, which puts multi-project life at the host level
+rather than inside a server.
+
+**WHAT WAS NOT PROBED IS RECORDED AS SUCH.** Asking the host about `session.list_roots()` needs
+a server registered in the config and a host restart, which a running session cannot do. Dead
+end filed with the reason and a review date of 2027-07-28, since SEP-2577 guarantees at least
+twelve months from 2026-07-28. The probe's own crash at shutdown is in the document too: a
+`LookupError` on `request_context`, which is a defect of the probe rather than of the protocol,
+and the finding it carries is that a client's capabilities cannot be read outside a request.
+
+### Added -- semantic re-rank over FTS5, gated by the evidence and off until it pays
+
+The plan for this was pure local embeddings. The published record turned it around, and the
+numbers are the argument: Cursor's online A/B (2025-11-06) got +12.5% on offline retrieval
+accuracy and **+0.3%** on the metric that pays -- code actually kept -- rising to +2.6% only
+past a thousand files; Sourcegraph REMOVED embeddings in favour of BM25F over a code graph;
+short keyword queries, the dominant shape an agent sends, take semantic retrieval to nDCG@10
+near zero; CORE-Bench (June 2026) says the hybrid wins and no method dominates.
+
+So the keyword path stays the spine -- `bm25(fts_memory, 10.0, 1.0, 3.0)` already weights
+title over tags over content, which was the cheapest win and was already taken -- and the new
+layer only REORDERS candidates FTS5 already returned. It cannot introduce a row FTS5 missed,
+and it cannot remove one it found.
+
+**THREE GATES, EACH FROM ONE OF THOSE MEASUREMENTS.** `no-provider` (default off is the
+zero-dependency promise), `small-corpus` (under 1000 live rows the effect does not exist),
+`keyword-query` (under four words or no glue word). A closed gate keeps the candidate window
+at the page size, never contacts a provider, and returns a result identical to a checkout
+without the module -- which is what the negative tests pin.
+
+**A PROVIDER THAT IS DOWN, SLOW, OR ANSWERING NONSENSE IS THE SAME AS NO PROVIDER.** Wrong
+shape, wrong count, non-numeric vectors and an unreachable endpoint all degrade to the keyword
+order rather than being guessed at, because guessing what the numbers meant would reorder a
+search by noise. Over the configured timeout, the keyword order comes back too.
+
+Orders are combined with Reciprocal Rank Fusion rather than a weighted sum: BM25 and cosine
+are not on the same scale, and calibrating them needs labelled data this project does not
+have. Ties resolve to the keyword order.
+
+**MEASURED ON OUR OWN TRAFFIC, because the vendor benchmarks are not trustworthy here**
+(LoCoMo was discredited when a no-memory baseline beat Mem0 73:68). The shared store holds 45
+live rows against a threshold of 1000 -- 4.5% of it -- and no provider is configured, so both
+query shapes meet a closed gate and the activation rate is zero. That is the finding rather
+than a gap. Keyword-path latency over 20 live searches: median 6.3 ms, p95 46.2 ms against a
+2 s budget. `--probe` and `--report` answer both questions from the machine you are on.
+
+**THE QUERY TEXT IS NEVER RECORDED.** A search string can carry a secret; the sidecar holds
+the gate, corpus size, candidate count, whether the top page changed, and elapsed
+milliseconds. Its lifetime is declared with the other sidecars.
+
+### Changed -- CLAUDE.md's cap became a budget again, and the admission rule is written down
+
+**MEASURED: 13 bytes free of 4096.** The static portion stood at 4083, then 4088 -- less than
+one pointer line -- and every test was green. A cap with no room left does not refuse an
+addition, it just has nowhere to put it, so the next author would have learned about the wall
+from a failing test rather than from the file.
+
+The rule that gave the room back is now stated in the file it governs, because a rule kept
+away from its subject is an excuse nobody re-reads: **a line earns a place in CLAUDE.md only
+if the agent would do the wrong thing without it.** Reference prose does not change
+behaviour -- `--help` and error messages carry it, read at the moment of use. The one
+exception is a declaration a standard requires where readers look: the SENAR conformance
+claim stays, kept by its own test.
+
+Removed under that rule, 246 bytes, headroom 13 -> 254:
+
+| What | Why it had no place |
+|---|---|
+| the stack line | every clause of it is stated where it is used |
+| the memory type list | a closed enum the CLI validates and names in its own error |
+| the five-command crib | four of its lines repeated a constraint stated above; the fifth is in the CLI reference, where the rule against guessing arguments already sends the agent |
+| a second address for the contract | one address, named once -- the full description is under Reference |
+
+**NOTHING HARD WAS DROPPED**, and that is checked rather than asserted: nineteen bold rules
+before, nineteen after. Three new tests keep the result -- the headroom is a number with a
+message that says to trim rather than raise the cap, the admission rule has to be present in
+CLAUDE.md itself, and no documentation address may be named twice.
+
+The guide the file points at now carries the measurement in both languages, and its structure
+template no longer invites a command crib: commands belong there only where `--help` would
+send the reader the wrong way.
+
+### Added -- the state projection's cost is measured, and the measurement refuted the plan
+
+A hygiene story planned on soft-archiving old done tasks to cut a projection "occupying 69%
+of the tree". Both halves of that were wrong, and `scripts/projection_census.py` is how
+anyone can see it in one command.
+
+**ARCHIVAL DOES NOT TOUCH THE PROJECTION.** `state_export` selects `FROM tasks` with no
+`archived_at` filter. Archiving hides a task from `task list`; the file stays where it was.
+
+**THE REACHABLE CEILING IS 19%, NOT 69%.** 917 task files match "done and older than 90
+days" -- 2.7 MB, 19.0% of tracked paths. A filter that removed every one of them would leave
+the projection at half the tree.
+
+**AND REMOVING THEM IS NOT ON THE TABLE**, because of the fact the plan was missing:
+`.tausik/tausik.db` is gitignored, so the Markdown tree is the only carrier of state between
+machines. A row dropped from the tree is a row a fresh clone never sees. Hiding a task from
+a listing and deleting its record are different acts, and archival was built for the first.
+
+So the verdict is "stays" for all six kinds, each with its number in
+`docs/{en,ru}/state-projection-cost.md`: tasks (39.1% of tree bytes), memory (4.8%, and it
+already filters `archived_at` on export), decisions (2.1%), stories (0.3%), epics (0.1%),
+graph-snapshots (0.5%, one gzipped file per release).
+
+**THE LEVER THAT EXISTS IS PER-ENTRY LENGTH.** Journals are 47.8% of task-file bytes, and
+the journal budget already advises at the point of writing -- a habit with a brake, which is
+a different mechanism from a threshold on the total. There is deliberately **no ratchet** on
+the projection's share: every closed task adds a file, so ordinary work would cross it, and
+a threshold ordinary work crosses gets switched off along with the measurement.
+
+### Added -- `hygiene unarchive`, so that the soft in soft-delete is true
+
+The archive spec called task archival a soft-delete and a task's Rollback line called it
+"reversible by command". A grep for a path that clears `archived_at` across `scripts/`,
+`harness/` and `docs/` returned ZERO: 25 live mentions, every one a read
+(`WHERE archived_at IS NULL`) or the stamp itself. Applying the pass to the 877 eligible
+rows would have been irreversible except through raw SQL, which this project forbids. The
+CLI reference even said so out loud -- "IRREVERSIBLE: no command clears archived_at" --
+two lines below prose promising the opposite.
+
+`tausik hygiene unarchive` is that missing command. Dry-run by default, like its
+counterpart, and shaped by what recovery actually needs:
+
+* **A selector is required** (`--slug` or `--archived-within DAYS`). A bare `unarchive`
+  would unhide the whole archive, which is not a recovery but a second mistake.
+* **`--archived-within`, not "older than".** What needs undoing is the batch somebody ran
+  minutes ago. Selecting the oldest archived rows would restore exactly the tasks meant to
+  stay hidden and leave the fresh mistake in place.
+* **Only `archived_at` moves.** `status` and `completed_at` are untouched -- archiving
+  never changed them, so lifting the flag unhides a row rather than reviving work. A
+  command that also reopened the task would be editing history under the name of recovery.
+* **Not gated on `task_archive.enabled`.** The config gates the operation that HIDES rows;
+  a recovery path that switched off with it would be unavailable exactly when it is needed.
+
+**MEMORY STILL HAS NO WAY BACK, and the spec now says why** rather than leaving it to look
+like an omission: archiving a memory row stamps `valid_to` on its graph edges, and clearing
+the flag would not bring them back. A task carries no such edges.
+
+**THE PROMISE IS NOW CHECKED, not just written.** The false comfort was a sentence nobody
+verified, so `tests/test_hygiene_unarchive.py` reads the spec's own reversal claim and
+requires the named command to parse -- the sentence cannot outlive the code again.
+
+### BREAKING — Removed -- TODO.md, a hand-written direction map that had drifted two releases behind
+
+The file called itself the map of the project's direction and said "v1.7.0 released, v1.8 in
+flight" while 1.9.0 was out and 1.10 was in composition. Nobody had read it in two releases, and
+nothing broke -- which is the finding: its work is done by the GENERATED `ROADMAP.md`, built from
+the task database, so the hand-written copy was a second source of truth that could only ever be
+wrong about the same subject.
+
+**NOTHING WAS LOST.** Its 2.0 content -- global-MCP, request-time DB routing, the standalone
+package -- lives in the decision that established it and in the two active epics that carry the
+work. Retiring the file removed a stale restatement, not a plan.
+
+**THE RULE WENT WITH THE FILE.** `TODO.md` appeared in the public-snapshot exclusion list, in both
+publishing guides, and in four tests. A rule that excludes a path which no longer exists is the
+same rot moved from a document into a check, so every reference was removed in the same change and
+the exclusion-list test now pins the NARROWED tuple: a silent return of the rule fails a test.
+
+### Added — directories git cannot see became a finding instead of an inventory surprise
+
+Git tracks FILES. An empty directory has none, so `git status` is silent, `.gitignore` has nothing
+to say about it, and every gate looks straight through it. That is how three artefacts lived in the
+tree for 24 to 46 days: a directory named after an unexpanded shell variable and two named after
+fragments of a `git config` command that became redirect targets.
+
+THE DETECTOR TOOK THREE DRAFTS, and the numbers say why the first was not good enough:
+
+* **543 findings** with a hand-written exception list of two entries. The deployed profile trees are
+  gitignored wholesale, so every directory inside them counted — true, and useless.
+* **197** after reading the project's registries of generated trees. Still leaking: there are FOUR
+  registries of deployed layouts and `.agents` was in neither of the two consulted.
+* **5** once the question was put to GIT: is the DIRECTORY ITSELF ignored? That needs no registry at
+  all — every machine-written tree here is ignored as a directory, and the three artefacts are not.
+
+A detector printing 543 lines teaches the reader to skim them, which is the same death the artefacts
+already survived once; the second draft would have been that death again.
+
+**THE CHECK FOUND THE REAL CAUSE, and the inventory had guessed wrong.** `false` and `lf` are not
+shell residue. They are CREATED by a stub in `test_skill_manager`: it replaces `subprocess.run`
+wholesale and calls `makedirs(cmd[-1])` for EVERY intercepted call. After the clone, `clone_repo`
+pins `core.autocrlf false` and `core.eol lf` — so the stub made a directory per value, IN THE
+REPOSITORY ROOT, on every run. Deleting the artefacts did not fix them: they were back within a
+minute. The stub now creates a directory only for the clone. This is the argument for a detector
+rather than a cleanup: the cleanup removes a symptom that returns every run.
+
+THE CHECK FAILS CLOSED: if git cannot answer, the directory is NOT treated as machine territory, so
+a broken git widens the report rather than switching the check off. The artefacts were removed —
+zero files inside, so provably nobody's — and the ratchet threshold was taken AFTER the cleanup:
+zero findings.
+
+### Added — append-only telemetry has a lifetime, and the window follows the READER
+
+MEASURED BEFORE: `.tausik` holds THREE sidecars totalling 19 MiB, not the two the task estimated:
+`routing_adherence` at 46,192 lines, `observed_coverage` at 54,000 with no entry for twenty days,
+`token_metrics` at 8,216. Not one line had ever been removed from any of them — while the DB backups
+beside them do get pruned. That asymmetry is what gave the omission away.
+
+THE LIFETIME FOLLOWS THE READER rather than a round number, because the only honest question is how
+much of the tail anybody consumes. `token_metrics` is read over a last-N-sessions window, so lines
+older than it are weight nobody reads. `routing_adherence` is aggregated into a single rate, and a
+LIFETIME rate cannot show change: it dilutes every recent shift into a months-long average, which
+makes an unbounded file WORSE than a bounded one rather than richer.
+
+THE THIRD FILE IS NOT TRIMMED BY AGE AT ALL, and that is the main negative check: the whole of
+`observed_coverage` IS the measurement — which test touched which file. A single retention rule
+applied to all three would have destroyed a measurement in order to tidy a directory. It is
+regenerated by a run, and the honest action on a stale one is to regenerate rather than truncate.
+
+THE TAIL IS KEPT, NOT THE HEAD: telemetry is append-only, so the newest lines are the ones every
+reader wants. Trimming the other end would leave a file that looks healthy while answering about a
+past nobody asked about.
+
+`tausik db telemetry` prints the declared lifetimes beside the action and writes nothing by default;
+`doctor` gained a `Telemetry` line beside the one about backups. After the cleanup: 11 MiB, with the
+readers still working — the adherence rate aggregates over the records that were kept.
+
+### Added — `memory edit`: a record is rewritten by a command, not around it through the projection
+
+The project's doctrine says to REWRITE a record whose reference rotted but whose claim is still
+true, while the CLI offered only `delete` and `supersede`. So sixteen corrections in one sweep went
+through editing the git projection and `state import`. That path is declared and it works, but a
+workaround standing in for a command is what the next person copies.
+
+THE RECORD KEEPS ITS IDENTITY: id, slug and `created_at` do not move. It is the SAME record with a
+corrected claim; a supersede chain would assert the old text was a different fact, when in truth one
+sentence in it was wrong.
+
+WHAT IT REFUSES: an empty title or body (a rewrite that empties the record is a delete under another
+name, and `delete` already exists) and an archived record (editing one would quietly undo a decision
+already taken). A rewrite identical to the current text writes nothing: a projection that churns on
+a no-op makes every reader wonder what changed.
+
+A module function rather than a class method: both god classes are capped by the class-surface
+ratchet, which may only shrink, and a single caller is not an argument for a public member.
+
+### Added — an owner's instruction is read at the point of action, not filed without a reader
+
+THE MEASUREMENT: the owner said CI was not wanted until the release approached. Twenty-three
+commits followed, each with a push and therefore a pipeline. Twenty-three to nothing in favour of
+the ritual.
+
+THE CAUSE IS STRUCTURAL, NOT MOTIVATIONAL, which is why trying harder does not touch it. The
+framework's rules are GATED: verify blocks a close, the changelog blocks a close, push-ok is built
+into the commit ritual. An owner's instruction blocks nothing and is read by nothing. When the two
+diverge, the one that stops things wins. The instruction does not evaporate because it was
+rejected; it evaporates because it has no surface where anyone meets it.
+
+THE MARKER IS EXACT, NOT GUESSED. Over 399 decisions a prose search returns five matches of which
+THREE are about something else — a rule's hard floor, a command scanner, a story being added to a
+release. Forty percent precision is a coin, and a detector that cries wolf teaches the reader to
+switch the signal off, dying the same death the instruction already died. So a decision declares
+itself with `ЗАПРЕТ ВЛАДЕЛЬЦА [tags]` or `OWNER BAN [tags]`, and nothing else counts.
+
+THE READING IS CHEAP: a LIKE over two prefixes in SQL, with the action point asking for its own
+tag. Parsing 399 decisions on every action would be a price paid per call, and a check that costs
+something every time is a check somebody eventually removes.
+
+A SIGNAL, NOT A GATE: the owner's word created the constraint and the owner lifts it; a block would
+be argued with and then switched off. Retirement is read from the `supersedes` edge, the way this
+project records a reversal — otherwise a lifted ban would print forever and become noise.
+
+`push-ok` prints a constraint in force BEFORE it spends its round trip.
+
+### Added — the autonomy promise became a number: closures per owner message
+
+"The agent works autonomously through your plan" is words, and a user learns their price on their
+own project. The checkable form is two figures computed from the transcript on disk: CLOSURES PER
+OWNER MESSAGE and STOPS PER CLOSURE.
+
+A STOP IS DEFINED NARROWLY, and that is the whole design: a message from the owner whose only
+content is a request to carry on — the owner paying a message to restart an agent that froze. A
+message carrying a NEW instruction is not counted however it is worded: otherwise the metric would
+punish conversation, and the first real discussion about plans would ruin it. The owner is allowed
+to talk; the agent is not allowed to freeze.
+
+SEPARATING THE OWNER'S WORDS FROM THE MACHINERY is not a detail: in the session #277 transcript, 68
+real messages sit among 5644 tool results and 43 harness notifications. A count that skipped the
+separation would be wrong by two orders of magnitude.
+
+MEASURED ON SESSION #277: 68 owner messages of which three were bare nudges, 44 closures — 0.65
+closures per message and 0.07 stops per closure, against 0.32 before the driver existed. Both
+figures are DESCRIPTIVE, like risk and calibration in this project: they say what happened and
+promise nothing about the next run, and the command's own output says so.
+
+No autonomy promise turned out to exist in either README — it lives in the `/run` skill
+description, so the number went where the promise is. Adding a claim to the README in order to
+measure it would have been inventing a promise to fit the metric.
+
+### Added — the run watches its capacity and hands off cleanly instead of dying mid-task
+
+THE MEASUREMENT CAME FIRST and its answer was NO: not one stored signal predicts the end of
+context. Tokens per call run from 562 to 10,958 with a median near 2,200 — a twentyfold spread, so
+a call count converts to context only to within an order of magnitude. Tokens were recorded for 183
+of 231 sessions. Time is ruled out by decision #376, and the sweep of sessions #196-#265 found none
+of seventy that reached the 180-minute advisory.
+
+THE LESSON IS WIDER THAN THE TASK: the instrument was being built to derive a figure the host
+states outright. An agent is told what remains of its context, so the check takes that number as an
+argument and spends the project's own measurements on the THRESHOLD (what a task costs) and on the
+caveat (how often the data is missing).
+
+`scripts/run_capacity.py` answers one question: is there room to finish another task AND hand off.
+The threshold is derived rather than chosen — about 2,200 tokens per call and about sixty calls per
+closed task, plus a third of a task for the tail: the journal, the AC evidence, verify, the close
+and the handoff.
+
+BOTH DIRECTIONS ARE FAILURES AND THE SECOND ONE HIDES. Hitting the wall mid-task leaves edits
+nobody can account for. Stopping early abandons half the composition while the context was fine — a
+polite refusal of autonomy, and precisely the behaviour this skill was written against. So the
+capacity step became a COMMAND with an exit code: silent while there is room, speaking only when it
+changes what happens next.
+
+AN ABSENT READING IS NOT A MEASUREMENT OF THE LIMIT: 48 sessions carry no telemetry at all, and a
+mechanism that stopped on missing data would stop hardest exactly where it knows least.
+
+### Fixed — the tree dropped 23 of 46 columns, and the round-trip gate could not see it
+
+WHY THE GATE WAS BLIND BY CONSTRUCTION: it re-serialises the database and compares the result with
+the tree byte for byte, but BOTH sides of that comparison come from the same exporter. A column it
+never selects cannot appear on either side — the gate is green for any number of forgotten fields
+and always will be. It is not a weak check; it is one that structurally cannot see this class of
+defect.
+
+THE MEASUREMENT CAME OUT THREE TIMES WORSE THAN THE ESTIMATE: `tasks` has 46 columns, not 34, and
+23 of them never reached the tree rather than "at least tracker_refs". A clone lost the ticket
+link, the models that opened and closed the task together with the mismatch flag (SENAR evidence
+of separation of duties), the declaration that a close touched no files, and two of the three
+budgets while the third travelled.
+
+THE CURE IS NOT "ADD THE FIELDS" BUT A DECLARED PARTITION. Every column is either carried by the
+tree or declared non-portable WITH ITS REASON, and a test requires the union to cover the table:
+46 = 32 + 16, with nothing uncovered. The next new column fails that test until its side is
+decided, instead of being forgotten as quietly as these were.
+
+THE DEFINITION MATTERED MORE THAN THE LIST, and the test itself found that: "carried by the tree"
+means "written into the DOCUMENT", not "named in the SELECT". The first attempt conflated them, and
+`id` and `story_id` landed on both sides of the partition — they are fetched as machinery and never
+reach the frontmatter.
+
+Round trip after the widening: zero added, zero updated.
+
+### Fixed — four FTS searches accept a query written the way this project writes names
+
+`spec search`, `at search`, `adapt search` and `actz search` passed the query to FTS5 MATCH raw, so
+an ordinary hyphen made SQLite read `foo-bar` as a column reference and the command answered
+`Invalid search query 'foo-bar': no such column: bar`. Names in this project are written exactly
+like that: `release-1.10`, `github#124`, `tausik.tech`.
+
+THE CONSEQUENCE COST MORE THAN THE REFUSAL: the message points at the SYNTAX, so the reader retries
+in another form instead of learning that the query was fine.
+
+THE SITE-BY-SITE CHECK CHANGED THE SIZE OF THE FIX. The task named six unsanitised sites; two were
+already safe and were left alone. `memory_relevance` builds its query itself from keywords,
+stripping specials and quoting each term; `snippet_storage` quotes on the way in. A second layer
+there would escape an already-escaped string and break a search that works. The fix is four sites,
+not six, and the test pins both halves.
+
+OUR OWN NEGATIVE TEST FOUND A SECOND DEFECT: a query of only operators sanitises to an empty
+string, and an empty MATCH is itself a syntax error — so the fix would have swapped one error for
+another. The guard the three working searches already carry was added: an empty sanitiser result
+returns an empty list. That is the honest answer; a match-all would be worse than the refusal it
+replaced, because the reader would take the whole table for hits.
+
+### Fixed — a citation without its directory is no longer charged with fabrication
+
+The evidence audit resolved paths LITERALLY, so a citation written as a bare filename matched
+nothing in git history and earned the verdict `never_existed` — an accusation that a past
+closure INVENTED its evidence. Measured: of 39 such findings, 27 named files git had.
+
+ERRING IN THAT DIRECTION COSTS MORE THAN MISSING ONE. An undeserved charge devalues the whole
+register, and a reader wrong-footed once starts skimming all of it — the very mechanism that
+forced this release to declare a remainder instead of carrying a standing HIGH.
+
+THE MEASUREMENT DECIDED WHERE THE FIX GOES, which the task required: 718 bare occurrences across
+276 tasks against 6682 with a directory. At that spread the RESOLVER is what is wrong, not the
+citations; and the journal is append-only, so rewriting them was never available.
+
+The resolver now asks which directories git ever held a file of that name in. Exactly one → the
+verdict is `rotted`. None → `never_existed` stands, and that is the main negative check: a
+widening that resolved everything would read as a clean register while checking nothing. More
+than one → a new verdict `ambiguous_name`, because picking a directory means printing a confirmed
+citation the reader cannot check. `conftest.py` has lived in SIX directories in this repository.
+
+A path written out in full is never widened: checking it literally is a decision, and resolving
+`tests/nope.py` by its basename would erase the difference between a wrong directory and a
+missing file.
+
+### Changed — SIM115 reached zero and joined select: an unclosed handle will not survive a commit
+
+MEASURED BEFORE: 129 sites, not the 125 the task statement named. Only two are in the PRODUCT,
+both of the shape `ast.parse(open(...).read())` where the handle is lost immediately; the other
+127 are in tests — 84 one-line reads and writes, 34 assigned handles and one `json.load(open(...))`.
+
+The product sites were rewritten to `Path.read_text` rather than annotated: an unclosed handle in
+the product lives as long as the process, and on Windows it keeps the file undeletable. The
+one-liners in tests went the same way — the form is SHORTER than the original and it closes the
+file, which makes it an improvement rather than a suppression. Fifteen multi-line sites were done
+one at a time. The single assigned handle left with a suppression is a FALSE POSITIVE with its
+reason declared: it is closed by a `with` two lines below, and the `open` sits in its own `try` so
+an unreadable transcript continues the loop; a context manager around the `open` cannot express
+that, because the failure has to be caught BEFORE the block.
+
+THE BULK EDIT PRODUCED A REAL DEFECT, named here because the suite caught it by accident:
+`open(path, "rb").read()` became `read_text()`, so a binary read turned into a decoded string and
+`sha256` would have hashed text instead of bytes. Every rewrite was then audited for a dropped
+positional argument: four, of which three `"w"` cases are faithful and the fourth was this one. The
+same nature struck twice: the regex edited a `read_text()` inside a fixture's string LITERAL and
+broke its quoting. The lesson for the next bulk edit is to work on the AST, or to check every
+dropped argument against the diff; a green suite is not obliged to find this.
+
+### Changed — S110 and S112 joined ruff's select: a seventy-third swallow cannot arrive silently
+
+THE MEASUREMENT BEFORE refuted the premise twice. The count is not 79 but 72 in the product plus
+7 in the tests. And more importantly, 69 of those 72 ALREADY carried a stated reason beside the
+broad catch — the judgement had been made long ago, just not in a form a linter can see. Three
+were bare, with no reason at all.
+
+Those three were judged on their substance rather than annotated. Two in `cost_pricing` were
+NARROWED to the exceptions that can actually fire there: in one the body only reads a mapping and
+strips strings, so the single real failure is a `config` that is not a mapping; in the other the
+module may be absent (a consumer install without delegation), the private constant may be gone, or
+it may be empty — three facts rather than three unknowns. The third, inside a hook, was left BROAD
+with its policy named: a hook must fail open on an unreadable config, and the default window is a
+working answer, unlike a traceback in the middle of someone else's call.
+
+The rules are selected even though 79 sites carry a suppression, and that is not a contradiction:
+the suppression is not the outcome, the REASON beside it is, and `RUF100` already refuses a
+suppression that suppresses nothing. What it buys is exactly one thing — the seventy-third site. A
+new `except: pass` now fails the lint instead of joining a list nobody re-reads.
+
+### Added — a documentation map: every page names its reader, its zone and the test that holds it
+
+MEASURED BEFORE: 64 English pages and 63 Russian ones, about 21 thousand lines; 17 English and 23
+Russian of them belonged to no navigation section at all, and NOT ONE said who it was for. A user
+of the framework, an agent executing it and someone maintaining the core were handed the same
+undifferentiated list, while the reading order lived only in the hub.
+
+**The record is declared IN THE PAGE ITSELF** — `<!-- doc-map: reader=…; zone=… -->` with closed
+lists of readers (user, agent, maintainer) and zones — and `docs/_generated/doc-map.md` is
+generated from those declarations. A separate registry has twice carried a false reason in this
+project, so the record lives where the next person to open the file will read it. 127 pages are
+marked, with zero undeclared and zero conflicts between halves.
+
+A page with no declaration is a FINDING, not a default: guessing a reader would produce a map that
+looks complete and answers the wrong question. The generated file is checked for freshness, or an
+added page gets discovered by a reader instead of a check. The axis is asserted non-empty in all
+three values: if every page turned out to be `user`, the axis would be decoration.
+
+**Three entry pages**, one per reader, in both languages, with the hub leading to them in the
+first line of its opening section. Each names the reading order AND what to skip — the second half
+matters more, because a list without "do not read this" becomes undifferentiated again.
+
+**Cross-cutting claims** are declared as a list in the map, each naming the test that holds it,
+and a claim whose checker does not exist is refused. The premise about 13 pages mentioning Notion
+was REFUTED: every mention was already historical or an example of an external store, and one was
+the English word "notion" — which the first draft of the check duly flagged.
+
+### Added — the agent contract in English: a reader of the English branch is no longer without one
+
+`CLAUDE.md` calls `agent-contract.md` the agent's FULL contract, and the document existed in
+Russian only — 527 lines. That was not a deliberate gap but a product defect: an agent working
+from the English branch of the documentation had no full contract at all, while the localization
+policy claimed everything was localized.
+
+The English half is written and structurally matches the Russian one: 19 headings, 10 code
+blocks, 7 tables on both sides, with the parity detector green and no skip marker. The normative
+parts carried over as NORMS rather than paraphrase: the QG-2 mechanics with all their boundaries
+(subtracting a task's own export from coverage, the projection exclusion, the three states of a
+scope), estimation in tool calls, Rule 4 with its separation of duties, Rule 7 with its closed
+category list, the cap on the output of a command of unknown size, and every measurement with
+its numbers and its caveats about what it does NOT claim.
+
+`hooks-events.md` followed, because it was waiting on exactly that contract — its
+residual-boundary section defers to an anchor INSIDE it, and an English half would previously
+have pointed into a Russian document. ONE one-language document remains, permanent by its
+declared reason (an agent-facing spec with no user-facing mirror).
+
+The localization policy stopped contradicting its own diagram: a line of it admitted a RU-only
+file that no longer exists.
+
+### Fixed — a one-language doc must name its reason, or it is a finding
+
+The task statement named five drifted document pairs; the measurement found ZERO structural
+drift on paired mirrors — the pairs had converged earlier, and `brain-db-schema.md` from the
+statement no longer exists at all. What remained was what the report printed as information:
+three documents in one language. Information with no owner gets rediscovered rather than
+resolved — those three sat in the list across successive reviews, each review spending its
+time relearning the same three names.
+
+A one-language doc must now declare its REASON through a machine-readable
+`<!-- audit-translation-drift: unpaired: <reason or task slug> -->`, and an undeclared one
+reddens `--check`. What is checked is the TEXT after the colon, not the presence of the
+marker: a bare marker would let the list be emptied silently — the same failure with a
+tidier report.
+
+Three decisions are named. `at-generation-procedure.md` is permanently EN-only as an
+agent-facing spec, and is now listed in the `docs/README.md` registry it already pointed at.
+`agent-contract.md` is not a deliberate gap but a product defect: CLAUDE.md calls it the
+agent's FULL contract, so a reader of the English branch has no contract at all; its 527
+lines are filed as their own task. `hooks-events.md` waits on that same translation — its
+residual-boundary section defers to an anchor INSIDE `agent-contract.md`, so an English half
+would point into a Russian document, trading one gap for another.
+
+The localization policy stopped contradicting itself: a bullet claimed FULL localization
+while the diagram two paragraphs below admitted a RU-only file.
+
+### Added — a register of deliberate gaps: what is NOT guaranteed, with a reason on every line
+
+Before this page three different things looked identical, which is to say invisible: "we
+decided not to do this", "we have not finished this" and "this is broken". The gaps WERE
+declared, but each in its own place: the two limits of the knowledge-routing gate in its
+docstring, second-granularity timestamps in a memory record, the MCP server holding old
+code until the IDE restarts in the `/start` skill. A reader of the documentation saw none
+of them, and a guard whose blind spot is undocumented reads as total.
+
+Ten gaps are collected in `docs/{ru,en}/known-limitations.md`. Each carries three required
+lines: **what exactly is not guaranteed** (not "works partially", but what gets through and
+in which case), **why living with it is cheaper than closing it now**, and **what holds the
+boundary** — a test, a docstring or a decision. The reason is required for a hard purpose:
+an entry without one is a defect, and a section that does not demand it becomes a bin for
+defects nobody wants to fix, laundering them as decisions.
+
+Open defects are NOT listed by hand, and that is a decision: a hand-maintained list falls
+behind silently — exactly how a root document calling itself the map of the project's
+direction ended up asserting a state two releases old, with a link to a file that no longer
+existed. The commands that read the live database are named instead.
+
+`CLAUDE.md`, `AGENTS.md` and the documentation index carry a POINTER, not a copy, and that
+is asserted: the gap markers may appear on the page and nowhere else. A pointer cannot
+disagree with the page; a copied gap can, and then the reader has two answers and no way to
+tell which is current.
+
+### Fixed — a ratchet in the lane nobody runs, and a signal instead of silence about backups
+
+**A check deselected by default is a check switched off.** `addopts` in pyproject carries
+`-m 'not slow'`, and the dead-symbol ratchet sat under that mark. So "the full suite is
+green" has meant, all release, the suite WITHOUT 157 tests in 17 files — among them that
+ratchet, all of bootstrap, the MCP integration and the CLI. What makes the mark
+meaningful was measured: 128s for one stress test and 290s for skills coverage against
+6.5s for the whole ratchet file. The mark is gone from it; the slow lane was run
+separately and is green.
+
+**The lifetime of a backup now has a signal.** The previous change gave the rule and the
+command, but someone who never runs `db prune` still never heard the word "backup":
+`doctor` said nothing. A `DB backups` line now names the count, the total size and how
+many copies are UNMANAGED, and goes yellow on an unmanaged one or a surplus managed one.
+It reads the same code the prune does — a second source of truth here would give two
+different answers.
+
+**The filesize exemption argues by SHARE, not by count.** The reason for
+`harness/claude/mcp/project/tools.py` cited 988 lines while the file reached 1076: a
+number inside a justification goes stale while the argument stays true. Recounted by AST:
+1052 of 1076 lines (97%) are two module-level literals, with zero functions and zero
+classes.
+
+**A rule instead of the agent's memory.** The deselected-ratchet finding now has a
+guard: a test that reads THIS repository's `tausik/gates.json` may not carry the `slow`
+mark. A ratchet is identified by WHAT it reads rather than by its name — fifteen test
+files read that baseline. The single exception is declared with its reason: the
+consumer-first-close scenario writes its own `gates.json` into a temporary project and
+reads no baseline of ours. A planted file that both carries the mark and reads the
+baseline must be found; without that, the rule would outlive a break in its own regex —
+which is exactly how the original mark survived.
+
+**On archiving tasks, the story's premise was wrong** and 877 rows were left alone.
+`state_export` selects `FROM tasks` with no `archived_at` filter (memory has one), so
+archiving removes no file from the tree — it hides a task from `task list`, and the
+projection stays the same 69% of the tree. Second: nothing can clear `archived_at` — no
+command exists anywhere, while the Rollback promised reversibility. An irreversible
+change to 877 rows is not applied on a false premise about undo; both findings were filed
+as tasks, and the second was declared a precondition of the first.
+
+### Fixed — memory and tree hygiene: the window of a check, a citation of history, the lifetime of a backup
+
+MEASURED BEFORE: `memory lint` nine findings, `audit_orphan_files` one, `audit_unused_python`
+one, six DB backups holding 508 MiB. MEASURED AFTER: zero, zero, zero, three backups holding
+254 MiB. THREE of those four axes turned out to be detector blindness rather than a wrong record.
+
+**The window of a check.** `memory lint` defaulted to 500 rows while 744 memories were live.
+Ten stale references sat OUTSIDE that window — including the one the task statement named among
+six findings measured half a year earlier: it had disappeared not because anyone fixed it but
+because the ids moved on. The real count was sixteen, not six. `n` now defaults to the whole
+live set, and the verdict prints the size of what it examined next to the number of findings —
+"clean" without the size of the subset is not a fact but an invitation to believe.
+
+**A citation of history.** A record that says "X was deleted" cannot stop naming X, so every
+correct removal reopened the register. An exact marker was introduced: the path, then the commit
+sha in parentheses. Only the SHAPE of the sha is checked, never `git cat-file` — asking git would
+let a broken git turn the detector off silently. A bare "(removed)" does not pass: a claim about
+a removal is worth the commit a reader can open.
+
+**Dynamic import.** `audit_orphan_files` walked the AST and could not see an import by
+name-as-string, so a live CLI module reached only that way from two places was counted an orphan.
+A name built by an expression stays invisible on purpose: it names no single module, and guessing
+one would trade this false positive for a false negative.
+
+**The lifetime of a backup** is now declared by kind. A managed one (`.bak.v<N>`) is written by
+the migration path and pruned by it to three, so it lives for the next three migrations. A
+hand-made one lives for its operation and does not survive `db prune`. Half the weight sat
+outside every rule, the oldest file was thirteen days old, and two were taken BEFORE a secret
+redaction, outliving the redaction together with what it removed. `db prune` meanwhile ranked all
+backups by mtime and kept the newest, which are the hand-made ones: a command whose docstring
+promises to tidy migration leftovers deleted exactly those. `--dry-run` was added, so the one CLI
+command that destroys hundreds of megabytes can be asked first.
+
+**The ratchet** `repo_hygiene` in `tausik/gates.json`: zero stale refs, zero orphans, zero
+unmanaged backups, three managed. The thresholds were taken AFTER the sweep — on the numbers
+before it the ratchet would have frozen the rubbish. Every measure is derived from git-tracked
+material so the threshold means the same thing on a fresh clone, and every measure is paired with
+a proof that the detector still goes red: a threshold over a blind detector is a zero that means
+nothing.
+
+### Fixed — an edge whose target left is now invalidated, so the orphan sweep converges
+
+MEASURED BEFORE, on 2000 memory rows with 40 orphaned edges, three consecutive sweeps:
+`returned=40`, then `0`, then `0`, while each one re-serialized 40 files and left 40 orphans
+behind. Forty serializations that changed nothing. The sweep asks which live edges point
+outside the projection and re-serializes their SOURCES, which never touches `memory_edges`
+— so the predicate never cleared and every future departure paid the same bill, growing
+with archived memory.
+
+The edge is now soft-invalidated where the departure happens: `memory_archive_ids`,
+`memory_archive_apply` (whose ids must be read BEFORE the update, since afterwards
+`archived_at IS NULL` no longer selects them) and the shared delete path, which ends the
+edges before removing the row for the same reason it reads the slug first. NOT from the
+projection trigger — that is fail-open and downstream of the write, so a database mutation
+there would come from something whose contract is never to raise.
+
+Soft, not deleted: the row stays with `valid_to` stamped, because a link that existed and
+ended is a different fact from one that never was. Invalidation is one-way, and that is safe
+only because nothing in the project un-archives a memory row — checked, not assumed. If such
+a path is ever added it has to decide what happens to edges stamped here.
+
+MEASURED AFTER, same shape: orphans reach 0 on the first departure and stay there. The sweep
+remains as a safety net for an edge orphaned by a path nobody routed through the
+invalidation; the set it works on is now normally empty.
+
+
+### Fixed — the budget-guard tests read the live database and failed in CI
+
+Two of the new tests named real closures of this repository — 106 calls against a budget of
+40, and 124 against 70 — and read them from the live database. Green here, red in CI, where
+the database is a different one.
+
+THE SAME DEFECT WAS FIXED EARLIER THE SAME DAY in the response-size tests, which read the
+live service and compared "No results." with itself on a fresh clone. The lesson was written
+down and then repeated a few hours later in a new file, which says something worth recording:
+writing the lesson does not prevent the repeat. What prevents it is asking, before the test is
+written, where the test gets its data — and building it when the answer is "from whatever is
+already in the project".
+
+The fixture now builds its own project in a temporary directory with the same two measured
+shapes, so the numbers stay real and the data belongs to the test. Proved still able to catch
+a breach rather than merely green: armed and over the ceiling exits 1, unarmed exits 0, armed
+and inside the ceiling exits 0.
+
+
+### Added — `/run`, the driver that makes autonomy a mechanism instead of a request
+
+TAUSIK promised autonomous execution and implemented it as an INSTRUCTION: CLAUDE.md asked
+the agent to keep going. The project's own doctrine says what that is worth — a rule that
+is only asked for gets switched off the same week — and the measurement agrees: 22 tasks
+closed in one session, 4 of them from the plan that existed beforehand, with the owner
+asking four times not to stop.
+
+The mechanism turned out to exist already, in a project built on an older TAUSIK, as a
+skill that walks a plan file and closes tasks in one turn. Three things are done
+differently here. The source of truth is the release composition IN THE DATABASE, not a
+`plan.md` — `task next` already orders by release and declared order, and a file would be a
+second truth. The plan is asked BEFORE EVERY task rather than once, because closing one can
+auto-close a story, unblock a dependant or surface a defect that outranks what looked next.
+And the limit is not five tasks but "while the composition offers one", which is the
+difference between a batch and autonomy.
+
+It arms the call ceiling for the run and reads it after every close through
+`task budget-check`, hard-stops on the first failure without retrying, writes one handoff
+per run, and prints one line between tasks — prose between tasks ends the turn, and ending
+the turn is exactly what it exists to avoid.
+
+Half of its contract is refusals, and they are held by a test rather than by taste: it does
+not choose tasks, does not skip gates, never passes `--force`, is forbidden for work that
+needs the owner's judgement, and does not start the findings it makes — filing one is free,
+starting it is the departure that produced 82% self-filed closures. If that sentence ever
+leaves the text, the build fails.
+
+
+### Added — the call budget becomes a ceiling in an unattended run, and stays advice otherwise
+
+Interactively an overrun is information: the author sees the warning at close and
+recalibrates. Unattended it is a hazard — a driver walking a release composition spends a
+whole session on one task and stops by exhaustion rather than by plan, and the owner finds
+out in the morning. In this session alone the budget was passed three times: 106 calls
+against 40, 124 against 70, 139 against 90, each reported only after the close.
+
+THE MULTIPLIER IS MEASURED, not borrowed. Over 651 closures carrying both a budget and an
+actual: median ratio 0.58 — the usual task lands under two thirds of its estimate — p75
+0.93, p90 1.60, p99 5.80, worst 47.5. Past 1.5x sits 11% of closures, past 2x 8%, past 2.5x
+4%, past 3x 3%. So the warning keeps 1.5x and the refusal takes 2x, where an overrun stops
+being calibration noise.
+
+`tausik task budget-check <slug>` answers with an exit code, because a printed warning is
+invisible to `&&` — a driver asks between tasks and stops on non-zero. It is armed by an
+environment flag rather than a config key: the mode belongs to THIS run, not to the
+project, and the same repository is worked both ways.
+
+Unarmed, nothing here can refuse anything at any overrun, and `=0` or `=false` do not arm —
+a flag that armed on the string "false" would be a trap in a shell script. A task with no
+declared budget cannot breach either: absence of a budget is not a budget of zero, and
+treating it as one would refuse every task nobody estimated.
+
+
+### Added — the journal has a budget, and only the retelling half of it does
+
+MEASURED first, and the split set the numbers: 292 entries across 25 closed tasks, 99,335
+characters (~24,800 tokens). Evidence of closure — an AC with a tick, a structured root
+cause, a domain or negative line — is 158 entries and 48,400 characters. The other 134
+entries and 50,935 characters, **51% of the journal**, retell the work. Median entry 319,
+p90 520, longest 1,355.
+
+A journal entry is written once and READ many times: by `task show`, by the compaction
+carry-over, by the session-start memory tail, by every fresh agent opening the task. A
+release whose subject is token economy cannot have its own record be the largest producer
+of tokens in it.
+
+So `task log` names the number when a RETELLING entry passes 520 characters — the measured
+p90, above every ordinary entry and below the handful that narrate a session — and a close
+reports the per-task total against a ratchet of 2,037, the measured mean. Evidence is
+exempt at ANY length: squeezing proof would trade the expensive thing for the cheap one,
+and a refusal would teach agents to close in silence, which is the failure this project
+was built against.
+
+**The CHANGELOG got no limit, and the measurement is why.** Its `[Unreleased]` section is
+105,067 characters over 103 entries, and its twelve-word overlap with the task journals is
+12 shingles out of 16,700 — **0%**. It is not duplication but independent prose for a
+different reader, read once per release rather than on every task read. A cap there would
+cut content, so none was added.
+
+### Changed — the CLI family has no residue drawer
+
+`project_cli_ops.py` said it itself: "NOT a domain. This module is the residue of repeated
+bleeding to satisfy the filesize gate." It and `project_cli_extra.py` were the only two of
+33 modules named after what would not fit; three others carried the same confession in
+their headers.
+
+Their 13 commands now live in seven homes named after their subject — session, search,
+knowledge, explore, doc, run, gates — and the family is 38 modules with zero residue
+names. Function bodies were copied by source span rather than re-emitted, so the split
+cannot change behaviour, and all 13 commands were checked by RUNNING them: an import that
+resolves is not a command that works.
+
+Three joins are worth naming: a dead end went to memory because a dead end IS a memory of
+a particular type; `update-claudemd` went to `doc` because both produce a tracked document
+from the live database; `fts` went to `search` because they are two commands over one
+store. `cmd_skill` and `cmd_stack`, which the residue only re-exported, now come from their
+real modules — a passthrough through a drawer is the same defect, better hidden.
+
+A test holds the shape so the drawer cannot come back: every module in the family is
+checked against a vocabulary of leftover names and against a docstring that lists instead
+of naming, with mutations proving both halves bite.
+
+
+### Added — a close names what the plan offers next, so the finding and the plan stand side by side
+
+The start-time advisory shipped in the same release arrives too late: by `task start` the
+choice is already made. Drift is born at the CLOSE. `task done` prints findings — closure
+notes, ratchets that fired, ticket reminders, gate output — and that list is the only
+thing on screen when an agent decides what to do next. The plan is not in it, so the
+finding wins by being the only candidate.
+
+So the close now ends by naming the task the composition offers, with the basis of the
+choice. One line, and the budget is a number rather than a feeling: at most 200
+characters, asserted by a test, because this is framework code that ships to every
+project on TAUSIK and is paid for on EVERY close.
+
+Found while checking rather than designed: a BLOCKED close prints no such line, because
+its message is never assembled at all. That is correct — when a close is blocked the next
+action is to clear the block, not to pick another task — and it is now written down in
+the test and in the agent contract instead of being an accident.
+
+Silent when the composition offers nothing, in all three ways (empty, everything blocked,
+everything claimed), and silent on any internal fault: a close that failed over a hint
+would be a gate nobody asked for.
+
+The rule itself went into the Russian agent contract with the measurement that produced
+it — 22 closes in a session, 4 from the plan, 18 filed and closed inside it — and with the
+three-step mechanism, including why step two (filing the finding) stays free: forbidding
+it would bring back the silent errors this project exists against. The English contract
+does not exist; that file is unpaired and tracked by its own task, so the rule is
+recorded in the language that has a contract rather than half-written into one that does
+not.
+
+
+### Added — starting a task that is not the plan's next one is said out loud
+
+MEASURED on the session that filed this, from git rather than from memory: 22 tasks
+closed, 4 of them from the plan that existed beforehand, 18 filed AND closed inside the
+same session. Nine of the eighteen were the owner's own instructions. The other nine
+were findings chased because the context was warm — four of which the owner then named
+as work he did not want before a release.
+
+THE MECHANISM IS IN THE CYCLE, not in anyone's discipline. `task done` prints a finding;
+the first principle says file it, and that step is right; then the agent STARTS it,
+because starting is cheap right now. Step three is the defect: "cheap right now" is not
+"next in the plan", and repeating it walks a defect tree depth-first and never returns.
+`task next` already chooses correctly — release first, then declared order — and was
+called zero times across the session.
+
+So this moves knowledge rather than adding it. `task start` now compares the task being
+started against what the backlog would have offered, and when they differ it prints one
+line naming the displaced task, the basis of the choice, and the command that goes back.
+A reproach without an address is not an action.
+
+A signal, never a gate. Filing a finding stays free — forbidding it would bring back the
+silent errors this project exists against — and the wording says so in as many words,
+which a test asserts: what the line asks for is DEFERRAL. It is silent when the started
+task is the offered one, silent when the backlog offers nothing (all three ways: empty,
+every task blocked, every task claimed), and silent on any internal fault, because an
+advisory that can break `task start` is a gate with extra steps.
+
+### Removed — 483 noqa comments that suppressed nothing, and RUF100 joined the rule set
+
+MEASURED, and the split decided the scope: 557 `RUF100` findings, of which 483 name a
+rule that IS enforced and does not fire — stale, safe to drop — and 74 name a rule this
+project does not select. Deleting those 74 would have pre-empted a decision `pyproject`
+explicitly defers: whether to adopt ruff's newer defaults, a task that reads its 1539
+findings and rules on each. So they became plain `# ruff-not-enabled:` comments across
+35 files, keeping the rule name and the rationale where grep finds them.
+
+RUF100 then joined `select`, which is only safe in that order — as `noqa` those 74 would
+have kept it permanently red. Proved by mutation in both directions: a fresh useless
+`noqa` reddens, a needed one still suppresses. A measurement trap worth recording:
+`ruff check --select RUF100` reports 1617 instead of 557, because with one rule enabled
+every suppression for the others looks unused. `--extend-select` is the one that keeps
+the project's own rule set.
+
+Removing the suppressions shifted six lines enough that they diverged from the
+formatter; per decision #386 new divergence is FORMATTED rather than added to the frozen
+list, so the list stayed at 101 and shrank by nothing it had not earned.
+
+
+### Fixed — a forged receipt no longer verifies, and the offline path is documented and enforced
+
+README promised a receipt can be verified offline. The path existed and worked. What
+did not exist was any way for a reader to check that claim — `docs/en/no-sdk-verify.md`
+documented only the HTTP service and did not contain the word "offline" — and, far
+worse, the verdict the command printed was wrong about what it had proven.
+
+MEASURED, and it is the finding of this task: a receipt for a task nobody ran, signed
+with a key generated three lines earlier and embedded in the artifact, came back
+`VALID ed25519 signature` with **exit code 0**. `verify_export` fell back to the key
+inside the file. A key that travels with what it certifies is not a root of trust.
+
+THE PROJECT ALREADY KNEW, in three places, none of which reached the person running the
+command: the module docstring ("trust anchoring is deliberately out of scope"), the
+trust-model section of the docs ("never trust a fingerprint embedded in the same
+artifact you are verifying"), and a comment in the test itself ("self-consistent forge:
+valid"). The doctrine was right. The verdict was wrong.
+
+`verify_export` now returns a third value, `trusted_key`, true only when the key came
+from the CALLER. It describes the key's provenance rather than the outcome, so an
+explicit key with a bad signature stays a decided question instead of being reported as
+unchecked. The default verdict reads INTEGRITY ONLY and says what that does and does not
+prove.
+
+**Breaking, deliberately: three exit codes instead of two.** `0` verified against your
+key, `1` bad signature, `3` integrity without origin, `2` not an artifact. Exit `3` is
+the point — `tausik receipt verify r.json && deploy` now fails closed instead of
+deploying on a forgery. A message a human can read is not a gate; the exit code is.
+`POST /receipt/verify` carries the same field in its answer.
+
+Offline is enforced by an import-graph walk rather than asserted: from four entry points
+across every in-repo import, including function-local ones, looking for eighteen
+transports. Five modules in the graph, zero transports — and ed25519 is implemented here
+on `hashlib` alone, so there is no dependency that could reach the network on its behalf.
+Six mutations prove the guard has teeth, including a transport planted two hops away,
+which is why it is a graph and not a grep.
+
+Both READMEs now distinguish integrity from origin, and both no-SDK pages gained an
+offline section ahead of the HTTP one, with the exit-code table and the reason exit `3`
+exists.
+
+
+### Fixed — the release branch's CI was red for seventeen hours, and none of it was a code defect
+
+MEASURED: nine of the last ten pipelines on the working branch had failed — every push
+of the session — with nine test failures in the `tests` job. Not one of them was a
+defect in the code. Every single one was a test that depended on something CI does not
+have, or has differently.
+
+AND THAT RED HID A WHOLE CLASS. Stages run in order, so `tests-full` — the only job
+that reaches slow-marked tests — sat SKIPPED behind the failing stage on all of them.
+That is how two deterministically broken tests survived a release: deselected locally,
+never reached in CI. One unread failure blocked the lane that would have caught them.
+
+THE SPLIT, and it explains the platform disagreement. Four were platform or encoding:
+the frozen `ruff_format` list, the user-config path, the doctor's markers, and a
+subprocess teardown. Two were machine data — my own response-size tests read the LIVE
+database, which on a fresh clone answers "No results.", so an assertion compared eleven
+characters with eleven. One was an artefact untracked by design.
+
+THE FROZEN LIST EXPLAINED ALL OF IT. Nine files had MIXED line endings in the working
+copy — CRLF plus stray LF — and ruff calls mixed endings unformatted, so locally they
+legitimately sat in the list and the gate was green. Git normalises on commit, so in CI
+the file is uniform and formatted, and the list was nine entries stale. The stray LFs
+came from tooling writing with `newline=""` into a CRLF tree: tool damage, not
+authorship. Endings normalised, list shrunk 110 → 101 as decision #386 requires.
+
+Nothing was disabled to get green. The path test became three tests driving HOME
+themselves, and the old one had passed only because this machine happens to hold a
+legacy config. The marker test now reads `GREEN`/`YELLOW` from the module instead of
+spelling one platform's rendering, since doctor prints "✓"/"!" where the console takes
+UTF-8 and "OK"/"WARN" where it does not. The teardown stopped calling `communicate()`
+after closing stdin by hand, which on Linux raises and REPLACES the real failure. The
+size tests build their own sixty rows, and the headroom check now compares the ceiling
+with the measurement recorded beside it — because headroom is a property of that pair,
+not of whatever database the machine holds. Where no measurement was recorded, its
+absence is declared rather than invented.
+
+Full local suite: 11491 passed, 22 skipped, 0 failed with `-m ''`.
+
+
+### Added — the lane that actually gates the work is read at the push chokepoint
+
+`push-ok` already reported the PUBLISHED lane, and it was telling the truth about the
+wrong thing. MEASURED over session #277: it answered "published lane Tests is GREEN"
+ten times in a row while naming a pipeline thirteen days old, because the published
+lane had not moved. Over the same hours, nine of the last ten pipelines on the working
+branch were RED — every push of the session — and no checkpoint said so.
+
+WHAT THE SILENCE COST, exactly. Stages run in order, so a red test stage never lets
+the full-battery stage start: the job carrying `-m ''` was SKIPPED on all of them. Two
+deterministically broken tests therefore survived a whole release — deselected by the
+local default lane, never reached by the only lane that runs them. One unread failure
+hid an entire class, and the release branch is where that class lives.
+
+So the branch's own lane is now reported BESIDE the published one, never instead of
+it: they answer different questions, and conflating them is how this happened. The
+message names the failing job and, when the full battery did not run, says so — that
+caveat is the most valuable part, because a colour that never ran the tests must not
+be read as a colour about them.
+
+THE CAVEAT NEARLY SHIPPED AS DEAD CODE. The first version read job statuses out of the
+pipeline listing, and the listing carries no jobs field at all — measured against the
+live client rather than assumed. The warning would have been permanently silent. It
+now costs a second call, taken only when the pipeline is not green, and a test refuses
+that call on the green path so the common case cannot quietly grow a round trip.
+
+Four distinct reasons for "not checked" — no client, the client's own error, an answer
+that did not parse, no pipeline at all — plus an unrecognised status reported as
+unread, plus a timeout as an answer rather than an exception. Every route is walked by
+a test that requires a non-empty message: one silent route would turn this reader back
+into the thing it replaced. It reports and never blocks; publishing over a red lane
+stays the owner's call, now an informed one.
+
+The reader and its test stay on the development line — tooling for a host the public
+repository has no relationship with. The caller imports it optionally, and a test
+asserts the published tree prints nothing at all when the module is absent.
+
+
+### Fixed — two tests were broken for a release, hidden by a marker, and misreported which step failed
+
+The full suite reported them as parallel-run flakiness. It was neither parallel nor
+flaky. MEASURED by making the test say which step failed: `task start` was refused by
+QG-0 — "the goal has 1 word(s) of substance (need 3)", because the test passed a
+one-word goal — and the `dead_end` handler was refused by the 1.10 rule that a dead end
+must name its task, because the test passed `task_slug: None`. Both deterministic, both
+green in isolation for the worst possible reason: the files sit behind `pytestmark =
+pytest.mark.slow`, and the default `-m 'not slow'` deselects them, so "green in
+isolation" meant "never executed".
+
+THE FIRST FIX WAS THE DIAGNOSIS. Three steps of the consumer path ran without checking
+their return code, so when `task start` failed the test failed later, on the close, with
+"task was never started" — pointing at the step that had worked correctly. A helper now
+runs each step and fails on it with its own output. The very first run after that named
+the real cause.
+
+Fixed by removing the cause, not the red: no marker, no xfail. The consumer path gets a
+real goal; the handler test supplies a real task slug AND gains the negative it was
+silently violating — a handler that accepted `None` would be the actual regression.
+
+Ten consecutive runs of a 42-second reproduction recipe are green, replacing an
+eight-minute suite as the way to check this class.
+
+Filed separately: the lane that would have caught both runs `-m ''` on every branch,
+but nothing surfaces its verdict — the published-lane reader looks at GitHub `main`, and
+during this session it reported a pipeline from two weeks earlier while all the work was
+on the release branch. That is this module's own thesis turned on itself.
+
+
+### Changed — the duplicate-test ratchet now measures duplication instead of similarity
+
+The detector had grouped tests by AST shape for three releases and the number was
+read as copy-paste debt. MEASURED, and the premise does not hold: of 286 groups, 284
+(99.3%) differ in exactly the parts the signature erases — names, strings, numbers.
+That is one contract exercised on different inputs, which is what a test suite is
+supposed to look like. Two groups held literally the same code.
+
+So the threshold moved rather than the test suite, which is the outcome this task's
+own AC-7 asked for at anything above 80% parallels. `tausik/gates.json` gained a
+`copies` key — members that are the same code once formatting, comments and the
+function's own name are set aside — and that is the number that reddens. The shape
+counts stay as a declared remainder about similarity, no longer dressed as
+duplication. A baseline predating the key reads `copies` as zero, so an older project
+gains the check instead of losing one.
+
+THE DANGEROUS CATEGORY WAS MEASURED AND IS EMPTY. Of 7829 test functions, none is
+unable to fail: no empty body, no assertion on a constant, no test without any call.
+That zero is now held by a gate rather than written in a report, and the scanner that
+produces it has a positive half — four shapes of hollow test it must recognise —
+because a scanner returning "none found" while recognising nothing is the same bug one
+level up.
+
+THE TWO LITERAL COPIES TURNED OUT TO BE ONE DEFECT, and not the one the task
+expected: in both, the test's NAME promised a property its body never checked.
+`test_unreadable_transcript_yields_unknown` passed a path that did not exist, making
+it byte-identical to the missing-path test in another file — so "present but
+unreadable" was never covered at all. `test_fallback_skipped_when_no_verify_row`
+could not differ from the enforcement test it duplicated, because with no verify row
+"no row" and "fallback skipped" are indistinguishable by construction.
+
+Both were fixed by ADDING coverage rather than deleting a test: the first now passes a
+directory, the portable way to make an existing path unreadable; the second was renamed
+and now records a green verify row belonging to ANOTHER task, so the fallback is
+entered and its rejection is asserted. Zero tests removed, so the coverage proof AC-5
+demands is arithmetic rather than a run.
+
+Badge: 10146 → 11472, the number pytest actually collects, repaired by
+`gen_doc_constants.py --write` across README.md, README.ru.md and AGENTS.md. The drift
+scan had been honestly green — `test_count` is a lower bound by decision #182 and only
+an overclaim is drift — so the badge was not a lie, merely 1326 behind and useless as a
+measure of scale.
+
+
+### Fixed — a standard's name can no longer launder a project date
+
+Found by an adversarial review of the commit that added the spec-date rule, and it
+was the rule's own subject: the first version checked only that a standard's name
+preceded a date within 24 characters, with ANY prose allowed in between. So
+"MCP support added on 2026-09-26" — name used perfectly correctly, date plainly
+ours — had its date erased. A detector that silences its own subject is worse than
+none.
+
+Two corrections. The gap between name and date now admits a version and nothing
+else: separator characters and at most one version token. And the names are matched
+in UPPER CASE, because `sep` and `iso` are everyday vocabulary here — `os.sep`,
+`sep=` and `ISO-8601` appear dozens of times across scripts, tests and harness — so
+a case-insensitive match let any of them launder a date out of an ordinary sentence.
+
+A SECOND HOLE WAS FOUND BY MEASUREMENT, not by review, and the number was the tell.
+Tightening a rule can only raise the count of references it reports, because fewer
+dates get masked. The count fell by one instead. Cause: the first correction admitted
+a bare period so a dotted version would fit, and a period also ends a sentence — a
+standard named in one sentence was masking a date belonging to the next. A dot now
+reaches the gap only between digits, and the version token cannot end in one, since a
+trailing dot swallowed exactly that sentence boundary.
+
+Why the first negative half missed all of it: it asked two questions — reverse order,
+and a name too far away — and never the third, what happens when the name is used
+correctly and the date is still ours. The regression now covers all twelve names
+rather than the one that was reported, so a name added to the list later arrives with
+coverage.
+
+One earlier test asserted that `iso 2026-03-01` was a spec citation. It was wrong and
+is kept under a name that says so, because the correction is the lesson.
+
+Also from the review: a duplicated assertion removed from the FTS sanitizer tests, and
+the `test_dedupe` baseline move now carries its reason beside the number — it fell to
+286/677 as a side effect of rewriting four tests from string assertions to meaning
+assertions, not from any deliberate weeding. Notes ratchet: 235 → 234.
+
+
+### Added — the question "is any code needed" is asked at task start, and the refusal now survives
+
+The project had a hard "no code without a task" and nothing about "no code without a
+need". MEASURED BEFORE ANYTHING WAS BUILT, and the measurement changed the design:
+the share of closures that record a refusal ran at 3.0%, 2.7%, 3.1%, 0.0% from March
+to June 2026, then 10.8% in July, 27.5% in August, 23.3% in September. The discipline
+grew roughly eightfold in three months with no mechanism at all, so a mechanism was
+not what was missing — and a seventh gate would have been filled without looking.
+
+What ships is one line of text at `task start`, printed beside the capacity advisory
+because it is the same kind of thing: a signal, never a refusal. The order is the
+content — is code needed at all, then is it already in the standard library or a
+native capability, only then write your own — and it is checked by position, not by
+presence, because a text carrying all three ideas in the wrong order teaches the
+wrong habit.
+
+It stays silent on simple tasks, and that condition was measured too: refusal rate is
+6.9% on simple (35/508), 12.4% on medium (92/741), 14.4% on complex (25/174), and
+15.1% for the architect role. Medium and complex hold 72% of all recorded refusals.
+A note printed on every start is read on none of them.
+
+THE REFUSAL OUTCOME WAS BEING LOST, which is the defect this task uncovered.
+`task obsolete --reason` has existed since schema v67 and already demands a reason, so
+nothing needed inventing — but `state_export` never selected `resolution` or
+`resolution_reason`. The database held 1617 delivered plus 3 obsolete; all 1620 task
+files in the tracked tree said `done` with no trace of the difference, and the reason
+disappeared entirely on an export/import round trip. Both fields now travel, in both
+directions, and three tests hold it — including one that imports the tree back and
+reads the reason out of a fresh database.
+
+The round-trip gate stayed green throughout and could not have done otherwise: it
+re-serializes the database and byte-compares the result to the tree, so both sides of
+the comparison come from the same exporter. A column it never selects cannot appear on
+either side. That structural blind spot is filed as its own defect, along with
+`tracker_refs`, which the tree also drops.
+
+Attempted and refused: writing the rule into the generated hard constraints. The
+180-line budget on that file rejected it, correctly — the file is at its ceiling, so a
+new rule is now a trade against an existing one rather than an addition.
+
+
+### Fixed — the detector no longer carries a note of its own
+
+Closing the previous task, the ratchet flagged a comment in the detector itself:
+the sentence explaining why the spec-date rule is one-directional illustrated it
+with a real date, and the detector read the illustration as a note belonging in
+memory. It was right by its own rule and wrong about the intent — the same shape
+as quoting a test reference in a journal and thereby filing a citation.
+
+MEASURED FIRST: exactly 1 of 236 references in the remainder was a quoted example,
+and it was this one. So no ILLUSTRATIVE class was added. The measurement also
+priced that class, and the price is why: a rule keyed on quotation marks misfires
+on English possessives — `task's defect` followed by a backquoted literal already
+reads as a quoted span — and this tree is full of English prose.
+
+A LIMITATION SURFACED BY THE SAME MEASUREMENT and it is now pinned rather than
+promised: a quotation that wraps is invisible to the detector. The opening mark sat
+on one line and the closing mark on the next, and comments are read one line at a
+time. Seeing it would mean joining consecutive comment lines into blocks, which
+would change the file-and-line report the closure note prints.
+
+So the one case was removed where it arose: the rule's shape is now described in
+words instead of shown with a date, which loses nothing — the date was a choice,
+not a necessity. Two tests hold the result: the detector's own source must contain
+no reference at all, and the wrapped-quotation limitation fails loudly if anyone
+later changes how comments are read.
+
+Ratchet: 236 → 235 references, 148 → 147 files.
+
+
+### Fixed — `memory search` no longer crashes on half of all two-word queries
+
+`memory search "bootstrap_drift редеплой"` raised an uncaught
+`sqlite3.OperationalError: fts5: syntax error near "OR"` — a twelve-frame
+traceback where a message belonged. The cause is general rather than about one
+word: the morphology feature expands a Russian word into a parenthesised group
+(`(редеплой OR редепл*)`), and the sanitizer joined its parts with a space. FTS5
+reads `a b` as an implicit AND between two tokens, but there is no implicit
+operator between a token and a parenthesised group. MEASURED against a real
+table: `a b` parses, `(x OR y*)` parses, `bootstrap (x OR y*)` does not.
+
+So any query where one word expanded and another token stood beside it failed —
+most Russian two-word queries. A single-word query parses, which is why the defect
+survived.
+
+Parts are now joined with an explicit `AND`, which means the same thing for bare
+tokens and is the only spelling that parses for every combination. Four tests that
+had pinned the space spelling were rewritten to assert the meaning: the user's own
+`OR`, `NOT` and `NEAR` still do not survive, and every term is conjoined whatever
+was typed between them.
+
+THE REASON IT SHIPPED is worth more than the fix. An end-to-end test against a
+real FTS5 table already existed and was the right shape — but every query in its
+corpus was Latin or a single word, and the expander only touches Cyrillic tokens
+of five letters or more. The combination the feature created was unreachable from
+the corpus that was supposed to catch it. The corpus now carries Cyrillic pairs,
+and a pairwise property test asks the question exhaustively over 16 query atoms.
+A one-off run over triples and quadruples — 8676 combinations — found zero
+remaining syntax errors.
+
+Filed while fixing: six other FTS call sites never sanitize at all, so `spec
+search foo-bar` refuses an ordinary query with "no such column: bar".
+
+
+### Fixed — a specification's version date is no longer read as a project event
+
+The comment-note detector counted every ISO date as a record of something that
+happened here, so `MCP 2026-07-28 CacheableResult` — the revision of the protocol
+the cache header answers to — was reported as a note belonging in memory. It does
+not: without the date the reader cannot tell whether the code still matches the
+standard.
+
+MEASURED FIRST, and the number argued against changing anything: 2 of 237 comment
+references, both the same MCP date. Two cases could have been declared a subset.
+The fix was made for the reason stated when the task was filed — the class grows
+with every standard the project reads, and a finding nobody can act on teaches
+everyone to skip its whole category. That is the price of a false positive, known
+in advance rather than forecast.
+
+The rule is declared rather than buried in a regular expression:
+`comment_history_refs._EXTERNAL_STANDARDS` lists the twelve names, and it says why
+SENAR and RENAR are among them although the project implements them — a dated
+version number is a property of *their* document. It is deliberately narrow: the
+name must come *before* the date and within a short reach, because the reverse
+direction would also swallow "2026-09-26, measured against MCP", a project date
+that merely mentions a standard.
+
+The negative half is pinned first: a date without a standard's name still counts,
+a line carrying both a spec version and a project date keeps the reference, and
+the other four kinds of reference read the unmasked text — a comment naming a
+session still reports that session even when it also dates a standard. The two
+real lines are checked by reading the files from disk, so rewording a comment
+cannot fake a pass.
+
+Ratchet lowered by measurement: 239 → 236 references, 151 → 148 files. Two of the
+three came from the new rule; the third was this module's own comment, which had
+carried a measurement marker and the count — exactly the note the module exists to
+discourage. The number moved to the task journal.
+
+
+### Fixed — the rotted-citation register is empty: 108 and 39 went to zero
+
+The audit had reported the same list for three sessions and nothing retired a
+finding, so every coherence pass reopened it. The amendment grammar built last
+session was applied: rotted 108 → 38, never_existed 39 → **0**, with 87 retired and
+22 unproven. The declared remainder drops from 99/36 to 38/0.
+
+95 retirements were applied mechanically and none of their reasons was invented:
+each names the commit that deleted the file, read out of git. Four commits account
+for all of them, the largest being 77703c4a, the Notion removal.
+
+THE FINDING THAT MATTERS MOST IS ABOUT THE AUDIT ITSELF. Of the 39 citations marked
+`never_existed` — "git never had this" — 27 were accusations with nothing behind
+them. The audit resolves a path literally, and a citation written as
+`test_brain_config.py` rather than `tests/test_brain_config.py` matches no git path,
+although the file existed and was deleted by that same commit. A `never_existed`
+verdict accuses a past closure of FABRICATING its evidence, and being wrong in that
+direction costs more than missing a real invention: an undeserved accusation
+devalues the whole register, and the reader starts skipping the category. Filed as
+`audit-calls-a-bare-basename-invented`.
+
+38 remain, and they are deliberately not marked. Their file still exists and the
+member was renamed; the successor is proposed by name similarity, and recording it
+as an outcome would assert coverage nobody read — which the audit itself says in as
+many words. That is reading work, not script work.
+
+One test had to change with it: the remainder test required a baseline strictly
+greater than zero, written when the remainder was non-zero. Zero is now accepted as
+a legitimate and in fact the strongest declared value — it means the class was
+triaged, not that it stopped being counted.
+
+
+The register closed completely rather than partly: 24 reconciled (a MOVED whose new
+ref RESOLVES), 102 retired, 22 unproven, and 16 illustrative left in their own bucket
+as examples quoted in prose. The declared remainder is 0/0, so any growth from here
+is high with nothing left to explain.
+
+Three of the audit's successor suggestions were REFUSED by reading, and that is the
+substance of the work rather than a footnote: `TestAppendTokenRows` →
+`TestExtractTokenRows` is append versus extract, `test_mirror_partner_protected` →
+`test_no_partner_for_root` is a partner's protection versus its absence, and
+`test_confirm_fails_fast` → `test_confirm_idempotent` is a different property
+entirely. Accepting them wholesale would have moved three citations onto tests that
+do not cover them.
+
+The mechanism also caught the author: one MOVED pointed at a member that lives at
+module level, not inside the class the citation named, so the ref did not resolve and
+the finding stayed open until it was corrected — by appending, since the journal is
+append-only and the last outcome for a ref wins. Three more citations carried a
+pytest parameter suffix (`[en]`), which can never resolve as an AST member and had to
+move to the member without it.
+
+### Changed — a flaky assertion now says what it got, because its cause is unmeasured
+
+`test_unknown_path_is_404` failed once in a full parallel run and 0 times in 24
+isolated ones. The readiness hypothesis was rejected by reading rather than by
+running: `_wait_until_serving` is already a deadline with a condition, catches both
+exception families, and fails loudly — its own docstring records an earlier
+measurement of that very race. The observed failure was an ASSERTION failure, so the
+wait was not involved.
+
+Nothing was fixed on a guess. What changed is that the next occurrence will be
+evidence: a bare `== 404` turned the observation into a dead end, so the assertion
+now prints the status it got, the response body and the server port — the only
+things that distinguish "the server answered something else" from "a different
+server answered". Recorded as dead end #752.
+
+The acceptance criterion asking for zero failures after the fix is unmeetable as
+written and says so: the loop was already zero before, so zero after proves nothing.
+
+
+### Fixed — a long-lived task was charged for everyone else's month
+
+Reported from a consumer project: a task opened on 24.08 was still open a month
+later and could not be closed. The refusal in `verify_scope_honesty` reads "changed
+since task start", and that window had swallowed the rest of the team's landed work
+— billing, payments, files the task never touched. Being security-sensitive by
+pattern, they tripped the block, and there was no remedy: declaring another team's
+files as this task's scope is a lie, and not declaring them is a refusal with no way
+out. The owner left the task open and said he was not going to spend time on it,
+which is how a gate stops being read — and it takes the real finding with it.
+
+The same root as the session-capacity defect: a quantity measured over the task's
+whole LIFETIME charged to the task as its own. There, a call counter; here, a list
+of changed files.
+
+The block now asks about the UNCOMMITTED subset. A committed change already passed
+the commit hook — the secret scan, the shell firewall, the memory-route gate. What
+the scoped gates would genuinely never see is a change still in the working tree at
+closing time, and that is what the refusal is for. The wide window stays in the
+record as `security_undeclared`, so the divergence is still reported; only the
+refusal narrowed. Git that cannot answer keeps every candidate: this is the one
+check whose silence must not read as permission.
+
+The commit-message signal was measured and rejected by number: of the last 400
+commits, 50 name a task slug — 12% — so "commits belonging to this task" cannot be
+derived from what a commit says.
+
+Four existing tests had been green for the wrong reason. Their `_runner` stub
+answered `git log` and `git diff` but not `git status`, because until now there was
+no second seam to answer; the helper gained a `dirty` parameter whose default
+reproduces the old assumption, which could not even be expressed before.
+
+
+### Removed — two dead symbols, one of them shipped hours earlier
+
+`senar_claim.disclosure_section` and `token_price.cost_of_row` each had exactly one
+reference in the tree: their own definition. No string-based call either — a grep
+over `.py`, `.json` and `.md` across scripts, harness, docs, tests and bootstrap
+found nothing else.
+
+The second was written in this same session and never called: `breakdown` computes
+the same figures inline. It reached a pushed commit and the next review run found
+it, which is the argument for running the symbol sweep repeatably rather than once
+(convention #682 — deletion uncovers the next layer, so the sweep was re-run after
+these two and reports nothing new).
+
+`disclosure_section` only assembled a dict out of constants in its own module, all
+of which remain reachable directly, so nothing is lost. `claim_sentence` and
+`missing_disclosures` are untouched.
+
+
+### Added — the compaction contract says where everything it dropped still is
+
+The task asked for the session history to be saved to a searchable file. Measuring
+first replaced the plan: it already is. The host writes a transcript — 36 MB for one
+session of this project, 37 files in all — and `transcript_locator` finds the current
+one BY PROOF rather than by guessing a directory name, the name being the project
+path mangled, which is the defect that locator exists to fix.
+
+Nothing needed saving. What was missing is that nobody told the agent. The contract
+listed six things to carry verbatim and said nothing about the seventh question a
+reader has: where is everything else? Current State now carries the transcript's
+path, and the contract's item 7 points at it with "grep it rather than re-derive" —
+re-deriving a dropped measurement costs the run that produced it, which is why item
+3 exists at all.
+
+The path sits in the VOLATILE half of the block, which is rewritten every session
+anyway, so the invariant half of the instructions did not get more expensive; a test
+checks the line did not leak across the marker. A broken locator returns nothing
+rather than raising: a hint must not cost a fresh agent its door into the project.
+
+And the line was paid for, not appended. The generated file stood at 179 of its
+180-line budget, so the contract gained exactly one line and no blank — 180 on the
+nose, following the precedent set when 1.9 added this contract in the first place.
+
+
+### Changed — the shipped instructions describe rather than command
+
+The task was filed claiming the generated instructions were built on caps and
+imperatives. Measuring first corrected that: the body carried seven markers across
+159 lines — one `MUST`, four `Always`/`Never`, one `non-negotiable`, one `strictly`
+— and is English throughout. The caps-and-`ЖЁСТКИЕ` description fits this
+repository's own hand-written CLAUDE.md, which ships to nobody. Cursor's "cut two
+thirds of the system prompt" does not transfer to a body already this dense.
+
+So the work was seven edits, each with its reason recorded, not a rewrite. Two
+deletions: "Follow these instructions strictly" (a capable model follows what it is
+given) and "Always request user confirmation" (it repeated "ask before
+commit/push"). Five rewrites, of which the useful shape is "Never raw SQLite" →
+"MCP tools and the CLI keep the projections and the audit trail in step; raw SQLite
+writes go past both": the imperative became its consequence, and a reader who knows
+why looks for no way round.
+
+"Always respond in the user's language" was kept, as a statement rather than a
+command. Deleting it would have been one line cheaper and wrong — that a model
+defaults to the user's language cannot be shown from here, and the cost of being
+wrong is answers in the wrong language.
+
+15,013 → 14,998 characters at the same 159 lines: quieter and no longer, which was
+the only direction this edit was allowed to move. A test now holds the body at zero
+emphasis markers and scans it for twelve phrasings of "spend less" — that second
+half matters more, because a harness asking for thrift gets an agent reluctant to
+take on ambitious work, and that is paid on exactly the tasks worth doing.
+
+
+### Changed — search returns 11% less text, and the spill-to-file idea was refuted by measurement
+
+A read tool's response is paid for on every later turn, so its size is a cost
+question. With cache_read at 99.5% of all input (~482,000 tokens per call), N extra
+response tokens cost N x turns-remaining, while an extra TURN to fetch a spilled
+file costs one full context re-read. Spilling therefore pays only above roughly
+2,500-10,000 tokens.
+
+Measured on this surface: `tausik_search` 21,189 characters (~5,297 tokens),
+`tausik_roadmap` 16,507, `tausik_task_list` 13,840, `tausik_memory_list` 7,881, and
+everything else under 2,000 tokens. Nothing clears that band with confidence, so no
+spill-to-file was built — it would have added a turn to save less than the turn
+costs. Recorded as dead end #749; the technique is sound for harnesses whose
+responses run to tens of thousands of tokens, not for ours.
+
+The response was made smaller instead. In a live query 27 of 60 snippets were
+byte-identical to the title once the `>>>`/`<<<` markers were stripped: the fattest
+response in the surface printed one line of text twice. The snippet is not dropped —
+when it only repeats the title, the HIGHLIGHTED form takes the title's place, so the
+reader still sees which word matched. 21,189 -> 18,906 characters, nothing lost.
+
+`tausik_search` also gained `limit` in its schema. The handler had honoured it all
+along while the schema omitted it, so no caller could set it; a parameter that
+cannot be passed is not a parameter.
+
+Six read tools now carry declared character ceilings, checked against the live
+project and set within a tenth of the measurement — headroom is how a ratchet stops
+ratcheting.
+
+
+### Measured — the instruction half of CLAUDE.md is already byte-stable; the rest needs the host
+
+With cache_read at 99.5% of all input, which bytes move when project state is
+written is a cost question rather than a tidiness one. The DYNAMIC block is 3320 of
+6377 characters in CLAUDE.md (52%) and 2231 of 14901 in AGENTS.md (14%), and the
+file changes on nearly every commit.
+
+The measurement narrowed the work rather than confirming it: running
+`update-claudemd` after a state change leaves every byte before and after the
+markers identical by sha256, in both files. The separation exists. A test now pins
+it, so a future edit cannot start rewriting whole files and silently turn every
+session into a cold prefix.
+
+What does NOT exist is any way for a project file to tell the host where to place
+the volatile half relative to a cache boundary — Claude Code offers a project
+neither an import directive nor a boundary declaration. Moving the block to a
+sibling file would cost a fresh agent its state and guarantee nothing about the
+cache, since the host decides where a file lands in the request. Recorded as dead
+end #748 rather than attempted.
+
+
+### Added — cost weighted by billing kind, and the measurement that reorders the rest
+
+`tausik metrics tokens` now reports the four billing kinds separately — output,
+uncached input, cache_create, cache_read — and, when rates are configured, the
+price of each, in total and PER TASK with the turn count and cache-hit share.
+
+THE NUMBER THAT MATTERS MOST CAME OUT OF THIS. Over 5964 recorded calls,
+cache_read is 2,876,911,173 tokens against output 4,414,827, input 22,099 and
+cache_create 11,736,217 — **99.5% of all input is the cached prefix being re-sent**,
+about half a million tokens per call. So shrinking the prefix lowers the price of
+every turn and is worth doing, but an EXTRA TURN costs roughly that half million,
+and a change that saves request tokens at the price of one more turn loses by about
+two orders of magnitude. Cost is therefore reported per COMPLETED TASK, not per
+request.
+
+No default rates ship, deliberately: a rate is an external fact with a date and a
+contract behind it — list prices move, agreements differ, the same model costs
+differently through different providers — so a number baked in would be right for
+nobody and would rot without a sound. Rates go in `.tausik/config.json` under
+`token_price`, keyed by a model-name prefix. A model with no entry is reported
+UNPRICED rather than zero, and the count of calls left out is part of the answer: a
+total computed over half the rows looks like a small bill.
+
+Two defects were found by measuring rather than by review. `task_list('done',
+limit=400)` returns the OLDEST done tasks — on this tree those closed in March and
+April, while telemetry starts on 7 September — so per-task attribution produced an
+honest zero for the wrong reason. And the database holds two spellings of UTC,
+`+00:00` and `Z`; comparing them as plain strings is wrong because `+` sorts before
+`Z`, so an older window never contained a newer call. Both are pinned by tests.
+
+One acceptance criterion could not be built as written, and that is recorded rather
+than quietly dropped: cost share BY SOURCE (tool schemas, instructions, skill
+descriptions, tool output, history) needs a transcript-level parser — the session
+hook sees a call's total usage, not the composition of the request. The docstring of
+`service_token_metrics` already said so, citing decision #201.
+
+
+### Added — the instructions a consumer receives now state both code-style rules
+
+Measured before anything was written: `bootstrap_templates.py` and its tiers
+module contained zero mentions of identifier language or of where a working note
+belongs. The owner's observation about Russian variable names in consumer projects
+had nothing in the shipped instructions to contradict it.
+
+Two rules, in a section of their own rather than under Hard Constraints, because
+neither refuses anything: the first is a `doctor` row, the second a line printed
+at closure. Filing them with the non-negotiables would be the kind of small
+untruth this project spends its tests preventing.
+
+Both are written as descriptions carrying their reason, and a test asserts the
+reason sits in the SAME bullet as its rule — a why parked at the end of a section
+belongs to no rule in particular. A second test scans the whole generated
+instruction set for ten phrasings of "use fewer tokens" and requires none: a
+harness that asks for thrift gets an agent reluctant to take on ambitious work,
+which costs more than the prose saves.
+
+THE SECTION WAS PAID FOR, NOT APPENDED. The generated body sits under an 80–180
+line budget and stood at exactly 180. Following the precedent set when 1.9 added
+the compaction contract, the lines came from compressing prose — three paragraphs
+merged in Quality Gates and Tool Routing, the new section written at four lines
+instead of sixteen — with no rule dropped. The body now measures 179.
+
+
+### Added — a note about what happened is offered to memory, not left in a comment
+
+The owner observed agents using comments as memory notes. Two kinds of prose were
+separated before anything was built:
+
+* An INVARIANT — why the code is the way it is — belongs in the docstring. It is
+  read by whoever changes the code next, and it is this project's strongest habit.
+  Nothing touches it.
+* An EVENT — what happened, when, in which session — belongs in project memory,
+  where it is searchable, datable and supersedable. In a comment it is paid for on
+  every read of the file, never updated, and found only by someone who already
+  opened that file.
+
+The marker is a REFERENCE, not a tone: "session #241", "decision #350",
+"2026-09-07", "ЗАМЕР" are addresses into the project's own record, which a check
+can hold, unlike a judgement about style.
+
+The measurement narrowed the target rather than confirming it. Of 2584 history
+references across 642 files, only 239 in 151 files are in COMMENTS; the rest are in
+docstrings, where "this literal is frozen because of decision #646" IS the reason
+the code is that way. A check aimed at 2584 would have been aimed at the habit
+worth keeping.
+
+Closing a task now names the event references THAT TASK added — read from
+`git diff`, so a note someone else wrote is never dragged in — and prints the
+`memory add` that files it, while the author still remembers what it meant. It
+does not block: a gate that refused a close over prose would be switched off the
+same week and would take the reasoning with it. The 239 already here are a
+declared remainder that may only shrink, because editing history to look tidier is
+the harm rather than the fix.
+
+Its own test found the bug worth recording: the first version accepted only lines
+BEGINNING with a hash and so missed the commonest shape of a note, a tail on a
+line of code. Fixing that by splitting on the first hash would have introduced the
+opposite error — a hash lives inside string literals, and `"github#7"` is a real
+ticket reference this repository stores.
+
+
+### Added — identifiers are ASCII, and `doctor` says so
+
+A name is an interface. Traces, `grep`, pytest node ids, coverage reports and
+people without a Cyrillic keyboard all read it, and a non-ASCII one breaks
+quietly: on console encoding, on a regex over `\w`, on a backslash in `sh`. Prose
+is not the subject — a docstring or comment in any language passes, because the
+check reads the AST rather than the text.
+
+The owner reported consumer projects declaring Russian variable names. Two numbers
+name the mechanism: the product trees (`scripts`, `bootstrap`, `harness`) hold
+ZERO such identifiers, while `tests` holds 271 across 20 files. There was nothing
+in the product code to copy, so the house style an agent imitates is the one it
+sees in the tests.
+
+The product trees are now held at zero by a ratchet. The 271 test names are a
+DECLARED REMAINDER, and that is a measurement rather than an indulgence: 83
+evidence citations across 21 tasks point at Cyrillic pytest node ids, and the task
+journal is append-only. Renaming would turn working evidence into unresolvable
+references — the exact harm this project keeps a citation-rot detector for. The
+remainder may only shrink.
+
+`doctor` gained an `Identifier style` row that scans a project's own code, not our
+directory names: a consumer has no `scripts` or `harness`, so a check that knew
+only ours would report zero on any tree, and a zero obtained by looking nowhere is
+the worst kind of green.
+
+
+### Added — MCP tool schemas load on demand (`mcp.compact_tool_list`, off by default)
+
+The advertised tool list is a per-request tax: 147 tools serialize to 14,337
+tokens, resent on every turn whether or not a single one is called. Measured
+against real usage in `.tausik/token_metrics.jsonl` — the only source that
+records a tool NAME, since `events.action='tool_use'` stores none — 75 of 5,782
+calls were MCP at all (1.3%), against 4,977 Bash calls (86%), and six distinct
+MCP tools were ever invoked.
+
+With the flag on, full schemas stay with a 21-tool core and the other 126 appear
+as a name plus the first 60 characters of their description. Any of those schemas
+is one `tausik_tool_schema(name=…)` call away. The list drops to 8,600 tokens,
+−40%.
+
+The 60-character cut is a measurement, not a preference: the full first line
+saves 27%, name-only saves 52%, and name-only was rejected because it removes the
+cue an agent uses to decide whose schema to ask for — the saving goes back out as
+an extra turn. A second measurement fell out of the same pass: repeating the
+pointer sentence in all 126 descriptions cost about 1,260 tokens of pure
+repetition, so it is stated once, in the fetching tool's own description.
+
+Off by default deliberately. The cost of being wrong is an extra turn in every
+conversation, and the consumer pays it, so this is enabled after checking
+turns-per-task in your own logs.
+
+The core set is not the six measured tools. It also carries what a first turn
+needs and what the gates depend on — `task_start`, `task_done`, `verify` — because
+a saving paid for with an extra turn is not a saving, and an agent that cannot
+reach the tool that lifts a refusal is worse off than one paying for schemas.
+
+The surface ratchet moved 146 → 147 tools with the raise argued in the ratchet
+itself: this one tool is what makes the other 126 cheap.
+
+
+### Fixed — an L3 review record proves separation of duties or is refused (github#157)
+
+`review record --type L3` stored free notes only, so a reviewer on the author's own model closed the review gate like any other; the invitation named the author's family at best. Now an L3 record takes `--reviewer-model` and `--author-model` (default: the running session's model), stores both in notes and is refused when they are the same family or either is unknown. The L3 delegation line carries the author's exact model id; `/review` records L2 when its agents ran on the author's model.
+
+### Fixed — `tools/list` is never cached while it depends on the task's scope (github#91)
+
+MCP 2026-07-28 (SEP-2549) lets a client cache `tools/list` for `ttlMs`, while scope hiding (`mcp.scope_tools_exposure`) changes the list when the active task's `scope_tools` changes — a cached copy would show a surface that is no longer there. The project server now answers with `ttlMs: 0` and `cacheScope: "private"`. Held by a real stdio run that changes the scope between two calls in one session. The MCP SDK stays at 1.27; the 2026-07-28 SDK line is in beta.
+
+### Fixed — infrastructure refusals carry their own code; an unsigned receipt turns the run red (github#109)
+
+Fail-closed covered policy verdicts, not the environment. When a project key was configured but the receipt could not be signed, verify printed a WARNING and the run stayed green and closable. Now it is red with `INFRASTRUCTURE: SIGNER_UNAVAILABLE`; a failed run write says `RECEIPT_PERSISTENCE_UNAVAILABLE`, an unreadable gate configuration `POLICY_PROFILE_UNAVAILABLE`. A project without a key is unaffected. Codes live in `scripts/infra_refusal.py`.
+
+### Fixed — search finds a word in any case and number (github#124)
+
+The FTS tables have no stemming and the sanitizer stripped `*`, so each word form found only itself: «задача» 565 records, «задачам» 27. A trailing `*` is now kept (`гейт*`), and a Cyrillic word of five letters or more is searched together with its stem (`(form OR stem*)`) — «задача», «задачи» and «задачам» all find 900. Stars elsewhere, unpaired quotes and operators are still neutralised. The technique is in the agent contract.
+
+### BREAKING — Changed — the user tier moves to `~/.config/tausik/config.json` (github#104)
+
+`~/.tausik/config.json` recreated the `~/.tausik` directory that 1.8 had moved the shared store out of — the directory that makes a home folder look like a project. The user tier now lives in `~/.config/tausik/config.json`. An existing `~/.tausik/config.json` is still read when it is the only one, so no setting is lost, and `tausik doctor` asks to move it; when both exist the new one wins and doctor says the legacy one is ignored. Project discovery already refused to treat the home `~/.tausik` as a project; a test now pins it for a home with a config-only `.tausik`.
+
+### Fixed — a swallowed tool call can no longer land inside entity text (github#75)
+
+When a host parser misread where a parameter ended, the rest of the call — the next parameter, the closing of the invocation, sometimes a second call — was written into the text field: 64 entities and 23 journal lines of this project carried it, and four tasks had silently lost their complexity. Every write now passes one boundary (`_run_write` in the backend) that refuses a closing tag followed by another parameter or invocation and names the field; prose that quotes the syntax is not matched (on the live data, the one card describing this defect passed). The existing damage was repaired entry by entry from a database snapshot: tails cut, journal entries around them kept, and the four lost complexities recovered from the swallowed text.
+
+### Fixed — the complexity check no longer counts the state projection as work (github#76)
+
+`COMPLEXITY UNDERSTATED` counted generated `tausik/` projection files as behaviour: two real closes showed 9 of 10 and 23 of 26 declared files that the exporter had written, so the more diligently a task journaled, the more understated it looked — and each false detection went to the supervision log that feeds calibration. The generated directories now have one source, `scripts/derived_trees.py`, which the exporters themselves read; the check reads it too. Thresholds are unchanged, and nine real code files still warn.
+
+### Fixed — the calibration coefficient is the median of the last 30 closures, printed with its spread (github#77)
+
+The mean of the last 10 closures moved 0.71 → 0.49 within one session on the same backlog and fed release forecasts that differed by two sessions. A backtest over 580 forecast points (predicting the next 20 closures) chose the median of the last 30: error 0.364 against 0.463, and six times steadier. `status` and `metrics` now print the median with its p25–p75 spread and n — today `0.48 (0.34–0.99), n=30`.
+
+### Added — `path_artifact`: a guarded path moves its artifact in the same commit (github#90)
+
+A commit gate driven by a map in config — `gates.path_artifact.map`, a list of `{"paths": [globs], "artifacts": [files]}`: a staged change under a mapped path requires a substantive staged change to each artifact bound to it; a whitespace-only touch does not count. Unlike the changelog gate (bound to a task at `task done`), it is bound to paths, whoever commits. The default map is empty — another repository's paths are not ours — and the gate reports that out loud instead of passing; a staged set it cannot read blocks. Idea from check-feature-memory.mjs of unicorn-hub (MIT).
+
+### Fixed — `task next` offers the release first (github#142)
+
+`task next` ranked the whole backlog by score, so it suggested a task of no release (brainh-semantic-search) while 1.10 had 27 offerable tasks — the declared release was decoration for multi-agent work. It now ranks tasks of the release composition in force (read from decisions, as the roadmap does) first, then declared order and score; the reason line names the release. With no declared release, or nothing offerable in it, the old order applies.
+
+### Changed — RAG is the route to code by mechanism: every Grep brings the index's hits (story D, decision #391)
+
+Telling the agent to search RAG first changed nothing (0 `search_code` calls in 62 in a paired replay), so the index is now consulted for it: a PostToolUse hook on Grep searches `.tausik/rag/rag.db` for the identifiers of the pattern and adds the top three chunks (path:lines and the first lines) next to the Grep result. Read-only; an absent index or no hit adds nothing. Skills and the host routing template name RAG again as the route to code. This replaces the removal of the rag-first texts earlier in 1.10.
+
+### Added — an answer budget the agent sees on the next prompt (story J)
+
+The 1.9 answer rules were text; measured on this repository the final answer still ran a median 396 words (p90 915). On every human prompt the UserPromptSubmit hook now scores the answer that was just read and, when it is over `answer_budget_words` (default 200) or does not open with a verdict, adds one line naming the numbers and the shape to use. It never blocks and never rewrites; a Stop hook was not used because a blocked Stop swallows the turn's output. Effect: pending a re-measurement with `tausik metrics answers` against the 396-word baseline.
+
+### Added — `tausik metrics answers`: the shape of the agent's answers, measured (story J)
+
+The 1.9 answer rules were text, and answers stayed long. `tausik metrics answers --last N` reads the host transcripts of this project and reports the final answer of each turn — median and p90 words, share that states a verdict in the first line, list share, filler phrases — plus the interim text between tool calls. Baseline on this repository, last 10 sessions: median 396 words, p90 915, verdict first 95%, filler 0.08 per answer, interim 52 words per turn. Length, not filler, is the problem; the mechanism that acts on it is the next task. A transcript that cannot be read is reported as skipped, never as zero.
+
+### Fixed — the scope gate measures a task from a git anchor, not from its start time (github#25, Sortula #49 / core#10)
+
+The scope-honesty check counted every commit since `started_at` plus every uncommitted change in the tree, so a long-lived task inherited other people's work — 576 files at the consumer, 2,690 here — and in a shared dirty tree every task inherited the whole tree. A task now takes a git snapshot of the working tree when it starts (`git stash create`, kept by `refs/tausik/baseline/<slug>`, never pushed by default), and "what changed" is the diff from that snapshot. Resuming a blocked task retakes the snapshot and writes a BASELINE line in the journal; closing it drops the ref. A file the task itself changes is still caught, committed or not; outside git the old time-based measure applies unchanged. The consumer's session-floor patch was not adopted: sessions are optional since 1.10.
+
+### Removed — the rag-first nudges (github#27, decision #390)
+
+Six places told the agent to search the RAG index before Grep/Read: the session-start RAG line and reminder, a UserPromptSubmit nudge on "where is X" prompts, the output-truncation nudge, the start/task/debug/explore skills with two model variants, and the host routing template. A paired replay measured 0 `search_code` calls in 62 with every text delivered and 0 in 76 without, so the texts were cost without effect and are gone. The RAG server and its tools stay; the skills now say it is available with no measured edge. A test freezes the list of files allowed to name `search_code` and refuses any that advise searching it first.
+
+### Fixed — doctor stops warning forever about a Verify-First profile chosen on purpose (github#18)
+
+With `task_done.auto_verify=true`, `tausik doctor` warned on every run, and no correct action could clear it — the setting is legitimate where verification never caches, and switching it off would weaken enforcement for a quiet report. Recording why next to it (`task_done._auto_verify_reason`, the convention `tausik/policy.json` already uses) turns the warning into an OK line that prints the reason; without a reason it still warns, and the warning now says how to acknowledge it.
+
+### Fixed — `task done` no longer closes a task that was never started
+
+A task in `planning` could be closed as delivered: QG-0 never ran and `started_at` stayed empty, so cycle time broke — 52 of 1,571 done tasks had closed that way by session #269, six of them in September. `task done` (CLI and MCP) now refuses it and names both ways forward: `task start` and do the work, or `task obsolete` when time resolved it. The historical rows are left as they are.
+
+### Added — `task obsolete`: close a task that time resolved, without pretending it shipped (github#165)
+
+The lifecycle had three exits and none fit a task whose premise stopped being true: `task done` demands evidence per criterion, `task delete` erases the record, and leaving it open lies to the roadmap. `tausik task obsolete <slug> --reason "..."` closes it from planning, active or blocked: the record and journal stay, the reason is required, QG-2 is not run, and the story closes as with `task done`. A closed finding is not a shipped one: FPSR, DER, cycle and lead time, tier calibration, defect escape, root-cause coverage and RENAR drift leave it out, and the status line reports it apart (`N done, M obsolete`). Schema v67 adds `tasks.resolution` and `tasks.resolution_reason`. CLI-only by design (decision #390).
+
+### Fixed — `tausik_task_show` shows the fields the agent is judged by (github#121)
+
+Over MCP, `task_show` printed six fields; the CLI printed twenty-six. The missing ones included `scope_paths` — the ACL the scope gate refuses writes by — and `rollback_plan` (SENAR Rule 6), so an agent following MCP-first met limits it had never been shown. Both now read one field list (`scripts/task_detail_fields.py`); empty fields still print nothing. Measured on three real tasks, the reply grows by 7.4% (about 500 characters per task).
+
+### Fixed — Qwen gets the same hooks as Claude and Codex, from one declaration (github#164)
+
+The Qwen profile built its hooks from a hand-kept copy of the list, and it had drifted in fifteen PostToolUse registrations: catch-all matchers where Claude has specific ones, no registrations for external MCP write tools, and a different `task_done_verify` matcher. The parity test compared script names only, so nothing was red. Qwen now builds from `build_hooks_dict` like Claude and Codex (only its command line is its own), and a test compares every host's events and matchers against the declaration. The unification also restores the shell matcher on `task_done_verify` for Claude and Codex: the evidence audit now runs after a `tausik task done` in the terminal, not only after the MCP call.
+
+### Fixed — the RAG server refuses an argument its tool never declared (github#141)
+
+The project MCP server has refused undeclared arguments since 1.9; the codebase-rag server passed them through, so `search_code(query=..., qurey=...)` looked like a call that simply found nothing. The guard now lives once, in `scripts/mcp_arguments.py`, and both servers call it before the handler: the reply names the unknown key, the nearest declared one and the usage line. (The third server the defect named, brain, was removed with the Notion transport.)
+
+### BREAKING — Changed — the RAG server's entry point is `rag_server.py`, and mypy now checks it (github#72)
+
+`harness/claude/mcp/codebase-rag/server.py` shared its file name with the project server's `server.py`, and mypy aborts on two modules of one name before checking anything, so the whole RAG package stayed out of the type check. It is now `rag_server.py`; every launch point follows (bootstrap for Claude, Cursor, Qwen, Kilo, OpenCode and Codex, the session-start probe, the pre-commit hook, the environment docs), and `harness/claude/mcp/codebase-rag` joins `[tool.mypy] files` with zero errors. Re-run bootstrap after updating: host configs written by an older version still name `server.py`.
+
+### Changed — ruff's 0.16 defaults ruled on, rule by rule (github#85, decision #388)
+
+The 58 rules ruff 0.16 enables by default were counted under this project's config and each got a ruling. Five that catch defects rather than restyle code are adopted, with their findings fixed: invisible and bidi characters in source (now written as escapes), `x != x` (now `math.isnan`), eight tests that asserted a blind `Exception` (now the real error), and an `__exit__` annotation. Cosmetic rules are rejected, for the same reason a mass format was (#386). Three that need a judgment per finding — try/except/pass, open() without a context manager, stale noqa — are split into their own tasks.
+
+### Fixed — a fresh database carries the same indexes as an upgraded one (github#81)
+
+Twelve indexes (brain_events, memory.archived_at, redactions, reviews, sessions.model_id, task_deps, usage_events) were created only inside their migrations, so every freshly initialised database lacked them. They are now part of the post-migration index block, and the parity test compares the full index sets and their definitions on both paths — an index stated only in a migration, or dropped by a table rebuild, turns it red. A database already at the current schema version picks them up at the next version bump; the effect is query speed, not correctness.
+
+### Fixed — CI tools are pinned, so a lane's verdict is this repository's (github#87)
+
+GitHub and GitLab CI installed ruff, mypy and bandit with no version, so a lane could turn red or green on the night's release — ruff 0.15 and 0.16 already disagree about formatting on one machine. ruff was not pinned either, contrary to the task's title. They are now pinned in one file, `ci-constraints.txt` (ruff 0.16.5, mypy 1.20.2, bandit 1.9.4 — what the local gates run), and every CI install and the contributor guide go through it with `pip install -c`. A test refuses a bare install.
+
+### Fixed — a project-wide PASS no longer certifies files it never looked at (github#14)
+
+A verify in which every gate scoped to the declared files skipped, and only a gate with no file scope ran, was green, signed and closable — measured before the fix on a temp project: pytest skipped for want of a mapped test, a custom command passed, and `task done --verify-handle` closed the task. Such a run now takes the all-skipped branch: it blocks as `no-test-mapped` and names the project-wide gates, or, under `--no-tests-expected`, is recorded `no_tests_declared=1` and closes only with `--gates-not-applicable`. A config made only of project-wide gates is unaffected. The test and build gates of the go, rust, javascript, typescript, php, swift, flutter, java and terraform stacks now declare `file_extensions`, so they count for a change in their language — and, like pytest, skip a change outside it.
+
+### Changed — QG-0 measures what the criteria say, not that they exist
+
+`task start` refused only an EMPTY goal or criteria, so a template passed: one closed task here carries the criterion `$(cat /tmp/ac.txt)` verbatim, because the shell meant to expand it never ran. Template brackets (`<...>`, `[UPPER]`, `{{...}}`), an unexpanded `$(...)`/`${...}`, TODO/TBD/FIXME and their Russian equivalents, an empty markdown table and a vague claim that names no check ("works as expected", «работает корректно») are now removed before counting; fewer than 3 words of goal or 5 of criteria is refused, with the counts named. Measured on the 1,451 tasks of this repository: that one task is refused and no other. The families are borrowed from check-context-budget.mjs of unicorn-hub (MIT).
+
+### Fixed — the checklist note no longer denies evidence that is in the journal
+
+Acceptance criteria written inline as `AC-1 … AC-2 …`, with no `.` after the number, were read as one criterion. The journal line `AC-2: ✓ tests/…::test_…` then had no criterion to bind to, and the close printed "no acceptance criterion names a test" over evidence that was there. The `AC-N` form now splits, only with its explicit prefix so prose numbers never do; a task with no evidence is still warned.
+
+### Changed — a refusal to close says whether the evidence is stale, failed or missing
+
+Every refusal of the verify handle, of its receipt and of a close without a handle now starts with one of three words and a next step: STALE (the evidence was valid; the tree, gates or clock moved; re-run verify), FAILED (the check did not prove the close; fix the cause), NOT FOUND (no evidence for this task; run verify). A close without a handle also says why: no run was ever recorded, the last run failed, or the last green run is out of date. STALE is still a refusal. The distinction is borrowed from ai-review-gate.mjs of unicorn-hub (MIT).
+
+### Added — the formatter has a verdict that blocks (decision #386)
+
+`ruff format` was configured and its verdict was wired to nothing: 86 files diverged in session #155 and 117 by 1.10. The new `ruff_format` gate (block, on verify and commit) checks the task's Python files. The 116 files that diverged when it landed are a frozen list in `tausik/gates.json` that only shrinks: a test refuses a listed file that is now formatted and an unformatted file that is not listed. A mass-formatting commit was rejected for now, because it would mix with the release's content changes. Because the gate runs at `verify`, a project that had switched its other verify gates off now has one again, and Verify-First applies to its closes.
+
+### Fixed — the write gate sees what a Python heredoc actually writes (github#162)
+
+A heredoc fed to Python is a program, but its writes went unchecked in the ordinary shapes of an edit script. Measured over this project's own transcripts: of 1,085 interpreter heredocs that wrote a file, the gate saw no target in 917. It now follows a path bound to a name (`p = "x"`, `p = Path("x")`), a path passed to a helper's parameter (`def rep(p, …)` with `rep("x", …)`), a loop over a literal list, and headers that start with `cd x;` or `VAR=1` or carry a pipe after `<<`. After the fix 74 remain, all built in shell variables or loops over names. Heredocs not fed to an interpreter (commit messages, notes, SQL) are still not read as programs.
+
+### Fixed — findings of the adversarial reviews of this release's own code
+
+Two reviewer agents read the 1.10 changes adversarially before any commit. Every finding they verified is fixed:
+
+- A failed schema-version re-read after `BEGIN IMMEDIATE` left the write lock held; the whole migration step now releases it on any error.
+- A read-only backend no longer runs a WAL checkpoint on close, which logged a false "disk I/O error" whenever another session was writing.
+- `decisions --task/--status/--rejected` read the supersession graph with one query instead of one per decision, and a decision is written together with its supersedes edge in one transaction.
+- A `rag.boundaries` regex with nested quantifiers (like `(a+)+`) is refused at load, and a boundary regex sees at most 400 characters of a line, so a config entry cannot hang the indexer.
+- `dead-end --task` with a task that does not exist is refused instead of storing the dead end without a task.
+- A metric target with a basis but no `min` or `max` is not used and is named; the methods block of `tausik metrics` degrades instead of crashing the report; a failing escalation is printed instead of swallowed.
+
+### Fixed — the RAG language knob reads the config path from the shared helper
+
+`rag_languages` built `.tausik/config.json` by hand, which the repository forbids so the path has one owner. It now uses `tausik_utils.tausik_config_path`, found both in the deployed layout and in the source tree, including in the background reindex; if the helper cannot be found, `rag_status` says so.
+
+### Fixed — a task created without `--slug` gets a slug that reads like its title
+
+The auto-slug of `task add` and `task quick` dropped every Cyrillic letter, so a Russian title kept only the English words it happened to contain (`gates-json`, `heredoc`), and an all-Cyrillic title became `task`. Titles are now transliterated (`Гейт рамок не видит…` becomes `geyt-ramok-ne-vidit-…`), and a title that yields nothing usable is refused with a request for `--slug`. Existing slugs are not renamed: they are addresses in journals, commits and closure evidence.
+
+### Fixed — a check that reads the project database no longer migrates it, and two processes can upgrade one database
+
+- The CLAUDE.md state gate opened `.tausik/tausik.db` through the migrating backend; a test run migrated the developer's live database, and the deployed code then refused it until bootstrap. The gate now opens it read-only (`SQLiteBackend(path, read_only=True)`, `mode=ro`) and refuses a schema mismatch instead of fixing it.
+- Two processes opening an old database at once no longer fail with `database is locked`: each migration step takes the write lock up front (`BEGIN IMMEDIATE`) and re-reads the schema version under it, so the second process skips what the first applied.
+
+### Changed — a multi-line argument through `tausik.cmd` is refused out loud, and a test holds it
+
+`cmd.exe` ends a command line at a newline, so the second line of an argument cannot reach the CLI through the Windows wrapper. The wrapper already refuses such a call and names what was lost; a test now pins the newline case for every free-text field. Multi-line values go through the POSIX wrapper `.tausik/tausik` or MCP.
+
+### Changed — a test pins that the firewall reads heredoc text and quoted arguments as data
+
+Session #160 saw a handoff blocked because its text quoted a dangerous command. Measured again in 1.10, the statement scanner already reads heredoc bodies and quoted arguments as data, while the dangerous commands themselves stay blocked. A test now holds both halves.
+
+### Fixed — an annotated `CROSSCUTTING_SCOPE` is read as the declaration it is
+
+`CROSSCUTTING_SCOPE: list[str] = [...]` is an annotated assignment, and the reader matched only plain ones, so the test read as undeclared: the registry test blamed a forgotten declaration, and the scoped pytest gate silently left the test out. Both forms now read the same; an annotation without a value, or a computed value, still reads as undeclared.
+
+### Changed — CLI commands absent from MCP on purpose are listed with the reason
+
+`scripts/mcp_cli_only.py` names each CLI command that is deliberately not an MCP tool, with its reason and decision. `redact` is the first entry (decision #385): its `--apply` rewrites the knowledge history irreversibly and belongs in a terminal, and the rarely-run dry run does not pay for a tool on the ratcheted MCP surface. A test refuses an entry without a reason and an entry whose command has since become an MCP tool.
+
+### Fixed — a duplicate slug is a one-line refusal, not a traceback
+
+`epic add`, `story add` and `task add` with a slug that already exists printed a full traceback ending in `UNIQUE constraint failed`. They now answer `Error: Story 'x' already exists — pick another slug` with exit code 1 and change nothing. A missing parent epic keeps its own message.
+
+### Added — an existing memory or decision can be shared without typing it again
+
+`tausik knowledge promote --memory ID` (or `--decision ID`) copies a project record to the shared store `~/.tausik-knowledge`. It first prints the whole text, the tags and the origin, and warns that the shared store is not redacted; it writes only with `--yes`. The shared row keeps the project label and the record's slug, and promoting the same record twice is refused. Nothing is promoted automatically: the universality hint on `memory add` now names the promote command with the new record's id instead of asking to retype it with `--global`.
+
+### Added — a decision records what it turned down and what later replaced it (schema v66)
+
+In session #267, 384 decisions named rejected alternatives only in prose (about 100 of them), reversed earlier ones only in prose (33), and carried one supersedes edge. A reversed decision stayed a live instruction forever.
+
+- `decide --rejected "option :: why"` (repeatable, optional) stores alternatives in `decisions.rejected`; `decisions --rejected QUERY` finds them.
+- `decide --supersedes N --because TEXT` writes a `supersedes` edge in the existing `memory_edges`; a missing reason or a missing N is refused before anything is written.
+- `decisions --status active|superseded|all` and `--task`. A superseded decision is never deleted: it leaves `active` and the memory block and shows who replaced it. The MCP `tausik_decide` takes `rejected` and `supersedes`.
+
+### Added — a memory record says where its claim came from (schema v65)
+
+- Every memory record carries `provenance`: `observed`, `inferred` or `told`. `memory add --provenance` and the MCP `tausik_memory_add` take it; the default is `inferred`, the weak claim.
+- `observed` is earned: the record must name a test (`tests/...py::test_x`), a verify run (`verify #N`) or a task with a journal. Otherwise it is written as `inferred`, and the reply says it was downgraded.
+- Migration v65 marks every existing record `inferred`, because observation cannot be proven after the fact. On this project all 711 records survived byte for byte.
+- The memory block marks inferred records with `≈`, and `memory lint` counts them as provenance debt.
+
+### Changed — a task that saw a failure closes with what was learned from it
+
+Session #189 measured 67 closed tasks with a red verify and not one dead end among them; `dead-end` was voluntary. Now `task done` asks when the framework itself saw a failure on the task: a red verify run, a block, or a second attempt. The close needs a dead end linked to the task, or one journal line `NO-DEAD-END: <why there is none>` for a typo or a flaky run. Measured on this project's history, the question fires on 185 of 1,547 closes (12%), and only 4 of those had a dead end. A new dead end must also name its task: without `--task` it binds to the single active task, and it is refused when none or several are active.
+
+### Fixed — code search no longer returns files that do not exist
+
+The incremental reindex read `git diff --name-status` one field short: a rename line (`R100<TAB>old<TAB>new`) never deleted the old path and read "old<TAB>new" as one path. That is how `agents/` outlived its rename to `harness/` and came first in `search_code` results. Renames now delete the old path and index the new one, and every incremental pass drops indexed paths that no longer exist on disk, from both `rag_chunks` and `fts_code`. On this project's index the first pass pruned 123 dead paths out of 3,645. `reindex` reports the count as `files_pruned`.
+
+### Fixed — session tokens are counted once per message, not once per content block
+
+Claude Code writes an assistant message with N content blocks as N transcript entries sharing one `message.id` and one usage. `session_metrics.parse_transcript` and the per-tool ledger added that usage N times; on the replay transcript of session #263 the meter recorded 57,135 tokens where the messages carried 31,613. Usage is now kept per message id (the last one seen wins) and counted once, and the per-tool ledger splits one message's usage across all its tool calls. Rows recorded before 1.10 stay as they are and are declared overstated (decision #384, `docs/en/cost-telemetry.md`).
+
+### Fixed — a new session no longer inherits a task's spent budget as its capacity (github#24, gitlab#8)
+
+The session counter itself was fixed in 1.9.0: `used` counts the session's own calls. The second layer remained: `planned` reserved each active task's full budget, so a task that spent 140 of its 150 calls in an earlier session reserved 150 in every new one. It now reserves only the unspent part, and calls made this session are counted once, in `used`. The calibration line in `status` now says it is descriptive, not a forecast.
+
+### Added — code search reads Godot, and a project can add its own languages (github#26, gitlab#11)
+
+- RAG now indexes `.gd`, `.gdshader`, `.tscn`, `.tres` and `.godot`, and cuts GDScript at its functions, so `search_code` finds a Godot game's code, not only its docs.
+- `rag.extra_extensions` and `rag.boundaries` in `.tausik/config.json` add file types and chunk boundaries for any other stack; bootstrap never overwrites them. A built-in entry cannot be overridden.
+- A bad entry (an extension without its dot, an empty language, a regex that does not compile, a block that is not a mapping) is skipped, indexing goes on, and `rag_status` names it under `language_config.problems`.
+
+### Added — TAUSIK tells you when a newer release exists (owner's decision #372)
+
+- At most once a day, SessionStart runs `tausik update-check` detached. It sends one anonymous GET to GitHub's `releases/latest` of Kibertum/tausik-core and caches the answer in `.tausik/update_check.json`. `tausik status`, and with it the session context, then names the newer release and links it.
+- The request carries no project name, path, schema version, TAUSIK version or user; a test checks the intercepted request. No session waits on it: the REST call measured about 1.1 s, `git ls-remote` about 1.4 s.
+- No network, a GitHub error or a garbage answer records the reason and keeps the last good answer. The check never claims "up to date" from a failed request, and `tausik doctor` shows its state.
+- `"updates": {"check": false}` turns it off. README no longer promises "0 phone-home calls"; it says what the one call sends. Mechanism and default are recorded in decision #383, which awaits the owner's confirmation.
+
+### Added — the SENAR claim is one sentence in four places, carries its disclosures, and a release waits for the edition to be public
+
+- "TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23" (the SENAR 1.5 §13.1 form) now stands verbatim in README (EN/RU), CLAUDE.md and the agent contract. `scripts/senar_claim.py` builds it from the one declared edition, and a test checks it against the editions the configured SENAR corpus has released.
+- Next to the claim, the READMEs disclose what §13.1(c) and (e) require: no SHALL is handled under §13.5, and Core carries no SHOULD. A record added to either register that the READMEs do not carry is a red test.
+- `tausik publish senar-check` is a new release step. It asks GitHub Kibertum/SENAR for the claimed edition's tag and exits 1 when the tag is missing, 2 when it could not ask. It prints both versions and the SENAR releases link. Today it refuses, because GitHub carries only v1.3; development and CI never run it.
+
+### Added — every change of RENAR 1.1 is done, declared inapplicable or deferred, never silent (github#185)
+
+- `docs/en/renar-11-deltas.md` (and RU) gives each of the 20 rows of the standard's migration guide one status: 4 implemented, 5 inapplicable, 10 deferred, 1 needing no action. A test reads the row count from the guide itself.
+- `RENAR-CONFORMANCE.yaml` publishes a `renar-11-deltas` block: each inapplicable row with its premise and the function that watches it, each deferred row with its release and decision.
+- A row marked implemented must name a mechanism that imports; one that does not is a red test. Each inapplicability premise is checked on the fresh schema, so a manual-walkthrough class, a `uses[]` edge, a `screens` column or an AR class appearing breaks the test.
+- The description-set model (rows 1, 2, 4, 11, 12, 13, 15, 17, 21) moves to 2.0 by decision #382, which awaits the owner's confirmation.
+
+### Fixed — the conformance manifest named SENAR 1.3 after the claim moved to 1.5
+
+`RENAR-CONFORMANCE.yaml` carried `senar-version: '1.3'` from its own constant. The manifest now takes the edition from the one SENAR declaration, and a test holds the two together.
+
+### Added — the release procedure states where the notes live in each language, and checks it
+
+The GitHub Release body is written in English and links `docs/en/whats-new-X.Y.md` and `docs/ru/whats-new-X.Y.md`, which carry the full text. `docs/*/publishing.md` says so in one step. `tausik publish notes --version X.Y.Z --body-file <file>` refuses a body that misses either page. The rule applies from 1.10; published tags are not re-cut.
+
+### Changed — direct modification has one recognized case, and the list is dated (SENAR 1.5 §4.1)
+
+SENAR 1.4 named five legitimate cases for editing a task artifact around its gates. SENAR 1.5 recognizes one: an environment in which no agent can be run and there is nothing to switch to. The list is dated to the 2026-09-07 revision and is re-read under §10.13 when the model generation changes. The refusal of `events emit-supervision --vector direct_edit` without `--rationale`, the `cli.md` section and the `gate_bypass_record` docstring now say so. Every case is still recorded, and the edit itself is never refused.
+
+### Added — the severity scale of review findings is documented, and CRITICAL carries its reason (SENAR 1.5 §10.15(f))
+
+- `docs/en/severity-scale.md` (and RU) defines CRITICAL, HIGH, MEDIUM and LOW for this project, who proposes and who decides, and how finding severity differs from change risk (§8.7) and the checklist tier.
+- The `/review` skill, `tausik-reviewer` and `tausik-external-reviewer` classify by that page.
+- `tausik review record --critical N` with N above zero is refused without `--reason`. The reason is stored with the record and printed by `tausik review list`.
+
+### Fixed — a fixture declared as a relevant file no longer makes the pytest gate run nothing
+
+A `.sql` fixture under `tests/`, declared in `--relevant-files`, was handed to pytest as a test path. Pytest then collected nothing from any file in that run, and the gate answered CANNOT-RUN. Only `.py` files under `tests/` are now passed as test paths; the fixture still counts toward the receipt's file hash.
+
+### Added — the metrics report says how each figure is computed, and a target carries its basis (SENAR 1.5 §9.4)
+
+- `tausik metrics` (and the MCP tool) print the formula, population and period of every SENAR figure, and name the figures built from self-made records (FPSR from `attempts`, DER from `defect_of`, the dead-end rate from memory rows).
+- A ratio over an empty denominator prints `no population` instead of `0%`.
+- FPSR ≥ 85% and DER ≤ 5% are printed with their basis. A project override in `metric_targets` without a basis is ignored, and the report says so.
+- `tausik metrics target NAME min|max VALUE --basis "..."` sets a target and refuses one without a basis.
+- The first observation of a crossed target writes one `metric_target_crossed` event; recovery clears the mark. DER on this project is above its target, and the report now says `CROSSED`.
+- The end skill quotes the targets from the report instead of carrying its own numbers.
+- `tausik status` warns about every crossed target until it recovers. Its audit warning now counts task closures, as the 1.10 cadence does, instead of saying "sessions".
+
+### Changed — the docs and skills describe sessions as they work under autonomy
+
+38 lines across docs, skills, CLAUDE.md and the consumer template still said
+"hard block after 180 minutes", a capacity gate that refuses a start, and
+checkpoints "every 30–50 calls". Each now says what 1.10 does: session time,
+capacity, the checkpoint count and journal freshness are signals with
+configurable thresholds (`session_max_minutes`, `session_capacity_calls`,
+`checkpoint_calls`, `journal_freshness_calls`, `audit_every_closures`, 0 = off)
+that never refuse; no threshold number is typed into prose. The checkpoint and
+task skills point at the signal in tool responses instead of a fixed interval.
+`tests/test_docs_describe_sessions_as_signals.py` fails on a page that promises
+a session refusal. Task `docs-and-skills-describe-sessions-under-autonomy`,
+story E of 1.10.
+
+### Changed — TAUSIK claims SENAR v1.5 Core, and the compliance matrix follows that edition
+
+By the owner's decision #376 TAUSIK claims SENAR v1.5 Core (released
+2026-09-07) in the §13.1 form; the constant every claim site is checked
+against is `1.5`, and README, CLAUDE.md, AGENTS.md, CONTRIBUTING.md, QWEN.md
+and the consumer templates say so. The compliance matrices were assessed on
+2026-06-13 against a moving draft and listed Standard rules 9.2, 9.3 and 9.5
+under "Core", which has none of them. They are rewritten against SENAR 1.5
+Core: 8 rules, the Start and Done Gates, the three gate properties Core
+requires (a, c, e) and the two Core metrics — each row citing the code that
+implements it — and a separate "beyond Core, not claimed" table for what TAUSIK
+implements of Foundation. `tests/test_senar_compliance_matrix.py` counts every
+section against the corpus. Task
+`compliance-matrix-is-rewritten-against-senar-15-core`, story F of 1.10.
+
+### Added — SENAR corpus drift is detected by machine, like RENAR's
+
+TAUSIK learned of SENAR 1.4 and 1.5 from its owner weeks after they were cut.
+`senar_standard_drift` reads the corpus (`senar_standard_corpus`, e.g.
+`standards/senar/standard-src`): the top released version in its CHANGELOG
+(an "unreleased" heading is skipped), the Core rule count and gate names, the
+§8.6 property letters — and compares them with the edition README claims and
+the Core shape the compliance matrix assumes. On the live corpus it reports
+exactly "TAUSIK claims SENAR v1.3 Core; the corpus has released v1.5, v1.4
+since". Three states as in RENAR: not checked, unreadable (the missing file is
+named), findings. `tausik drift --detector senar` (and `all`) and a `doctor`
+line. `tests/test_senar_standard_drift.py`. Task
+`senar-corpus-drift-is-detected-like-renar`, story F of 1.10.
+
+### Fixed — `status=git-mismatch` is now `scope-narrower-than-diff`, and the report says what it means (github#12)
+
+The verify status read as a cache miss — "run it again" — while it meant the
+declared scope is narrower than what git says changed; retrying changed
+nothing. The status is renamed and the report header adds one sentence: the run
+happened, the cache was refused because N changed files are not declared,
+declare them with `--relevant-files`. Consistent scopes (`miss`, `hit`) get no
+sentence. `tests/test_verify_status_explained.py`. Task
+`verify-cache-miss-reads-as-git-mismatch-instead-of-a-reason`, story A of 1.10.
+
+### Fixed — upgrading a 1.8 database no longer crashes at v53 or strands the version at 44 (github#51, gitlab#18)
+
+On an existing database `init_schema` runs the cumulative creation scripts
+before the migration chain, so `actz_points` was created in its current shape
+and v53's `ADD COLUMN tz_ref` died on "duplicate column name"; the version was
+stamped only after the whole chain, so v45–v52 stayed committed under a stamp
+of 44. The chain now skips an `ADD COLUMN` whose column the table already has
+(a missing table still fails) and stamps `schema_version` inside every
+migration's own transaction, so an interrupted upgrade resumes where it
+stopped. Tested on the real thing: `tests/fixtures/schema_v44_tausik_1_8_0.sql`
+is the DDL the v1.8.0 tag's own `init_schema` produces, upgraded through
+`init_schema`, compared column by column with a fresh install; a database the
+1.9.0 upgrade already broke (v45–v52 in, stamp 44) is carried up too.
+`tests/test_upgrade_from_1_8.py`. Task
+`upgrade-from-1-8-crashes-at-v53-and-leaves-the-version-at-44`, story B of 1.10.
+
+### Added — the session opens and closes on every host that has the events, and the others are named
+
+Measured on the binaries, not the documentation (convention #686): Codex
+0.153.4 lists SessionStart and SessionEnd among its hook events (session #241
+had not found SessionEnd), and its profile already takes both from the shared
+declaration; OpenCode 1.1.42 publishes `session.created` / `session.deleted`
+to plugins, and `tausik-qg0.js` now opens and closes the TAUSIK session by
+OpenCode's session id — best-effort, an event without an id opens nothing and a
+failing CLI never throws into the editor. Kilo and Cursor have no session
+event in their profiles and get no dead hook; the table in
+`docs/{ru,en}/hooks.md` names them `cli` and says what is lost.
+`tests/test_opencode_session_events.py`, `tests/test_host_session_table.py`
+(reads the profiles). Task
+`session-ceremonies-are-hooks-on-every-host-or-an-honest-gap`, story E of 1.10.
+
+### Added — context pressure is a measured signal with a stated basis (SENAR 1.5 §9.4)
+
+`session recompute` ends with a `SUMMARY` line — median, p90 and maximum active
+minutes and how many sessions sit above the advisory threshold — so the basis
+of the self-set number is a command's output (§9.4(c)); the pages cite it with
+a date. Crossing the threshold records a `session_threshold_crossed` event once
+per session (§9.4(d)); recording is best-effort and never costs the advice.
+`checkpoint_calls` (40) and `journal_freshness_calls` (40) join the config, and
+0 switches any of the thresholds off. No signal refuses anything.
+`tests/test_session_pressure.py`. Task
+`context-pressure-is-a-measured-signal-with-a-basis`, story E of 1.10.
+
+### Added — journal freshness is a signal, per task
+
+"Log after every step" was a rule the agent had to remember. Measured first
+(80 recent closures, 218 gaps between log entries, calls from `usage_events`
+per task): median 0, p90 2, 3 gaps of 40 or more, maximum 209 — logging is
+usually immediate, the tail is real. An active task with 40 or more calls since
+its last entry now gets advice in the MCP response, once per ten calls, with or
+without an open session (`journal_freshness.py`). The task's proposed refusal
+of `task done` at twice the threshold was not built: hygiene is a signal
+(decision #376), and a refusal would teach an empty log line before closing.
+`tests/test_journal_freshness.py`. Task `journal-freshness-is-a-signal-not-a-rule`,
+story E of 1.10.
+
+### Changed — the SENAR 9.3 checkpoint counter is derived from the ledger
+
+`meta.tool_call_count` was a second copy of a number the ledger already holds:
+the MCP server incremented it on MCP calls only (not shell or file tools) and a
+handoff zeroed it. The count of calls since the last checkpoint is now the
+session's `usage_events` minus the `calls_at_write` its last handoff recorded
+(`checkpoint_signal.py`); writing a handoff is the reset, as a recorded fact.
+Only the ten-call warning bucket is stored, so the advice fires once per ten
+calls past the threshold instead of on every call; without an open session
+the count is named unmeasured, never a silent zero. Capacity and active time
+were already queries over the ledger. `tests/test_checkpoint_counter_is_derived.py`.
+Task `counters-are-derived-from-events-not-maintained`, story E of 1.10.
+
+### Changed — the SENAR 9.5 audit cadence counts closures, not sessions
+
+The cadence was "3 sessions since the last audit" — the last quality rule on a
+ritual: opening and closing sessions advanced or dodged it, and without
+sessions it never arrived. It now counts tasks closed since the last mark
+(`last_audit_at`), threshold `audit_every_closures`, default 17 with its basis
+stated (3 sessions × 5.72 closures per session, measured in session #266). A
+mark made under the old clock (`last_audit_session`) is read through that
+session's start, not reset. `audit mark` no longer needs an open session. The
+compact status key is `audit_overdue_closures`.
+`tests/test_audit_cadence_closures.py`. Task
+`cadence-clocks-count-closures-not-sessions`, story E of 1.10.
+
+### Changed — the handoff is generated from the journal; `session end` writes one when none was
+
+SENAR 1.5 §3.45/§7.3 require a handoff of every session, and until now it
+existed only when the agent hand-wrote a JSON in `/checkpoint` or `/end` — a
+session closed by its host had none (#252–#260). `handoff_generate` projects
+the records of the session's window: completed tasks (status `done` only),
+active tasks with their last log line, tasks in review and blocked, verify
+receipts, decisions, memory, dead ends, the open exploration; an empty window
+says so in words. `session handoff` takes the JSON as optional authored
+judgement: `next_steps`, `warnings`, `in_progress[].state` and keys the
+generator does not produce land on top and are listed in `authored_fields`; a
+key it does produce stays with the records and the authored version is kept
+under `authored`. `session end` generates the handoff when none was written,
+best-effort with a `handoff_generate_failed` event on failure; `--host-id`
+writes into the host's own session. The checkpoint and end skills call the
+generator instead of teaching a JSON template. `tests/test_handoff_generated.py`.
+Task `handoff-is-generated-from-the-journal`, story E of 1.10.
+
+### Fixed — the live handoff is the one written last, with a recorded supersedes edge (github#126)
+
+With two host sessions open at once (schema v63), the live handoff was the one
+on the highest session id; when the older session wrote last, `last-handoff`
+returned the stale document. A handoff now carries `written_at` (microseconds)
+and `supersedes` (the session whose handoff it took over), and the live holder
+is ordered by write time — pre-1.10 handoffs fall back to the session start.
+A rewrite in the same session is an update, not an edge to itself; the
+previous holder stays readable with `--session N`. Measured first, as the task
+required: 239 of 266 sessions carry a handoff, and the ambiguity exists only
+since sessions can overlap. `tests/test_live_handoff_slot.py`. Task
+`one-live-handoff-slot-supersedes-the-previous`, story E of 1.10.
+
+### Fixed — a failed gate's report names the failing tests (github#11)
+
+`format_results` printed the first five lines of a failed gate's output, and a
+batched pytest run starts with "bringing up nodes..." and progress dots: the
+FAILED names and the "N failed" summary stand at the end, so `verify` showed
+`[FAIL] pytest (block)` over dots and nothing else — three times in session
+#263 and again in #266, where the red test was found only by re-running the
+selection by hand. The report now carries `failure_excerpt`: the head, every
+FAILED/ERROR line and pytest summary line wherever it stands, and the tail,
+with gaps marked. Output of other tools keeps its head and tail.
+`tests/test_gate_output_keeps_failures.py`. Task
+`pytest-gate-drops-the-failing-test-names`, story A of 1.10.
+
+### Added — SPEC-UC is the twelfth SPEC type (RENAR 1.1 §8.3, ADR-018; schema v64)
+
+RENAR 1.1 closes the SPEC type list at twelve. `SPEC_TYPES` carries `UC`; the
+`specs.type` CHECK is widened by a guarded rebuild (`maybe_widen_spec_types_v64`,
+same shape as v49: skips a partial fixture and a table that already admits
+UC, keeps every row). `spec add --type UC` refuses a body without a `role:
+human | agent` line or with a step that carries no statement ref `<id>#n`
+(§8.5.12.1, `scripts/spec_uc.py`). The conformance manifest lists twelve types
+(manifest-version 24), `spec_completeness` reports 12 of 12, and the live-corpus
+drift test is green. `tests/test_spec_uc.py`. Task
+`spec-uc-is-the-twelfth-spec-type`, story G of 1.10.
+
+### Fixed — the RENAR drift detector read the site repository, not the standard
+
+`renar_standard_corpus` and the citation test pointed at `standards/renar`,
+which became the site repository when the standard moved to
+`standards/renar-standart`: the path resolved, carried no `standard/`
+chapters, and the detector could only answer "unreadable" while
+`tests/test_renar_citations_resolve.py` failed with a missing directory. The
+test now resolves the corpus through the same config key as the detector
+(fallback: the standard's own repository), and `doctor` prints a `RENAR
+corpus` line that tells apart not configured, missing, not-the-standard and
+the version with its chapter count (`corpus_health`). Pointed at the source,
+the detector reported exactly one finding — SPEC-UC — and none after it.
+`tests/test_renar_corpus_status.py`. Task
+`renar-drift-detector-reads-the-site-repo-not-the-standard`, story G of 1.10.
+
+### Added — the handoff of any past session is readable (github#137)
+
+`session last-handoff --session N` and `tausik_session_last_handoff` with
+`session_id` return session N's handoff; without it the live one, as before. A
+missing session and a session without a handoff are refused with different
+words, never answered with another session's handoff. `session list` gains a
+handoff column. In session #181 a table recorded in session #179's handoff had
+to be recovered from the IDE transcript, because nothing read an older one.
+`tests/test_past_handoff_is_readable.py`. Task
+`handoff-of-any-past-session-is-unreadable`, story E of 1.10.
+
+### BREAKING — Changed — the TAUSIK session is the host session: hooks open and close it (schema v63)
+
+A session used to be a ritual: `/start` opened it, `/end` closed it, and an
+autonomous agent performs neither — session #265 stayed open nine days at 76
+active minutes, and one Claude Code transcript spanned several TAUSIK
+sessions. Schema v63 adds `sessions.host_session_id`. The SessionStart hook
+runs `session start --host-id <payload session_id>` (idempotent: a resume or a
+compaction re-fires with the same id and opens nothing new); the SessionEnd
+hook reads the transcript path from its payload, records the metrics into
+that host's session and then runs `session end --host-id`, in one process so
+the close cannot beat the metrics (Claude Code runs the hooks of one event in
+parallel). Two host sessions are two open TAUSIK sessions and ending one
+leaves the other open; an unknown host id closes nothing. Without a host id
+the CLI and MCP keep the old contract. The index lives in the post-migration
+set so an upgraded database never meets it before the column (the v53 trap,
+memory #716). The 1.9 release-notes test now pins the schema tag v1.9.0
+shipped (62) instead of the live tree. `tests/test_session_host_binding.py`.
+Task `session-is-the-host-session-not-a-ritual`, story E of 1.10.
+
+### BREAKING — Changed — session time and call capacity are signals, not gates; `task start --force` is retired (decision #376)
+
+QG-0 used to refuse a task start on two conditions that say nothing about
+the task record it examines: the session's active time over 180 minutes and
+a task budget over the remaining 200-call capacity (`--force` bypassed the
+second with an audit event). Measured over 70 sessions (#196–#265): one
+crossed 180 active minutes (#241, 246) and was refused its next task start
+there, `session extend` was never called, 13 session
+summaries name capacity as the reason the session stopped, and sessions
+#252–#260 were nine restarts in a row to reset the counter. Neither check
+has a declared prevented effect on the system or on the task record (SENAR
+1.5 §8.6(a)), so neither was a Quality Gate; SENAR Core, the edition TAUSIK
+claims, does not govern sessions at all, and Foundation (10.2) leaves the
+maximum to the organization with a documented basis (§9.4(c)).
+
+Both are advice now: `gate_qg0_check` passes the overrun through as a
+`SESSION:` warning and starts the task; `service_recording.session_capacity_advisory`
+replaces `check_session_capacity` and prints an `ⓘ` line with the numbers
+(an absent session is still named — unmeasured capacity, not unlimited —
+and `tausik session start` is still the answer, as decision #223 required);
+`task unblock` gets the same line. `--force` is refused with the reason
+rather than silently accepted, the `capacity_force_start` event is gone,
+the Stop hook and `status` name the configured threshold as advisory, and
+the basis of the numbers is recorded in `docs/{ru,en}/session-active-time.md`
+until `context-pressure-is-a-measured-signal-with-a-basis` computes it.
+This is the recorded SENAR 1.5 §10.13 review of a capability-dependent
+provision after a change of model generation. CLAUDE.md and the consumer
+template say the same sentence; `tests/test_session_signal_not_gate.py`.
+Task `qg0-does-not-refuse-work-for-session-time-or-capacity`, story E of
+1.10.
+
+### Fixed — QG-0 asks a negative scenario only from work that changes behaviour
+
+The rule shipped in 1.9 (`HARD_CONSTRAINTS`, decision #371) says prose-only
+work need not name a negative scenario; the gate still refused the first
+such task after the release — a logo and README change — with "AC has no
+negative scenario". `gate_qg0_check` now skips that refusal when
+`scope_paths` is declared and every path is prose or an asset (`.md`, `.txt`,
+`.rst`, images, anything under `docs/`), with test files allowed beside them;
+an undeclared scope, any code path, or a scope of tests alone keeps the
+refusal, text unchanged. `tests/test_qg0_prose_only_scope.py`. Task
+`qg0-negative-scenario-only-for-behaviour`.
+
+### Changed — the monoline mark is the logo; the colour rendering is kept as `-full`
+
+`docs/assets/tausik-logo.png` is now the one-stroke orange mark (the former
+`tausik-mark.png`, byte-identical) and sits on `README.md`, `README.ru.md` and
+the docs index alike; the former full-colour `tausik-logo.png` is kept as
+`tausik-logo-full.png` and placed on no page. `docs/assets/README.md` says
+which is which; `tests/test_readme_logo.py` holds the placement. Owner's
+decision of 2026-09-14. Task `monoline-mark-becomes-the-main-logo`.
 
 ## [1.9.0] — 2026-09-14
 

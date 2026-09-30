@@ -43,16 +43,13 @@ Read-only, and non-blocking BY DESIGN: renaming a test is a legitimate
 operation. The point is that decay becomes VISIBLE, not that refactoring
 becomes punished.
 
-KNOWN LIMITATION, STATED RATHER THAN HIDDEN. Reconciling a finding does not
-retire it. The cure for a rotted citation is an APPENDED note naming the
-current address — the original receipt line is never rewritten, because a
-closure receipt is a historical record. The stale citation therefore stays in
-the corpus and keeps being reported: after the first reconciliation pass of
-session #186, ``resolved`` rose from 945 to 950 while ROTTED stayed at 16.
-So these counts are a FLOOR, not a health bar; what carries signal is the
-DELTA between runs. Making a reconciled finding retire itself would need the
-audit to read a task's later notes as an amendment of its earlier ones, which
-is a separate design question and deliberately not answered here.
+A FINDING IS RETIRED BY AN OUTCOME, NOT BY A REWRITE. Until 1.10 an appended
+reconciliation note did not retire anything, so the same list came back on
+every pass and nobody acted on it (closure-citations-rot-is-detected-but-never-
+acted-on). A task's later journal lines are now read as outcomes of its earlier
+citations — MOVED / RETIRED / UNPROVEN, grammar in ``closure_amendments`` — and
+a finding every citing task has answered leaves ROTTED / NEVER_EXISTED for its
+own counted bucket. The receipt line itself is never rewritten.
 
 Public API:
     audit_closure_evidence(repo_root, tasks, ...) -> dict
@@ -75,6 +72,12 @@ RESOLVED: Final[str] = "resolved"
 ROTTED: Final[str] = "rotted"
 NEVER_EXISTED: Final[str] = "never_existed"
 UNKNOWN_HISTORY: Final[str] = "unknown_history"
+# A citation written as a BARE FILENAME whose name history held in more than one
+# directory. Its own verdict, because the alternative is guessing: "something
+# similar was found" instead of "this matched" turns evidence checking into
+# divination, and a wrong pick reads as a confirmed citation. One basename in this
+# repository has lived in six directories at once, so the case is not theoretical.
+AMBIGUOUS_NAME: Final[str] = "ambiguous_name"
 # A citation that is an EXAMPLE being quoted, not a file being cited — see
 # `illustrative_paths`. Its own bucket rather than a silent drop: measured, 13
 # of the 25 refs in NEVER_EXISTED were examples belonging to tasks whose very
@@ -82,6 +85,11 @@ UNKNOWN_HISTORY: Final[str] = "unknown_history"
 # by a factor of two. Hiding them would fix the number and lose the evidence
 # that the number was ever wrong.
 ILLUSTRATIVE: Final[str] = "illustrative"
+# Outcomes appended to the journal (closure_amendments): a finding that every
+# citing task has answered is moved out of ROTTED / NEVER_EXISTED into these.
+RECONCILED: Final[str] = "reconciled"
+RETIRED: Final[str] = "retired"
+UNPROVEN: Final[str] = "unproven"
 
 _DEFAULT_TEST_ROOTS: Final[tuple[str, ...]] = ("tests",)
 # difflib cutoff. 0.6 is the stdlib default and was measured on this corpus: it
@@ -212,7 +220,7 @@ def missing_in_chain(tree: ast.Module, segments: list[str]) -> list[str]:
 
 def _git(repo_root: str, argv: list[str]) -> str | None:
     try:
-        proc = subprocess.run(  # noqa: S603 - fixed argv, shell=False
+        proc = subprocess.run(  # ruff-not-enabled: S603 - fixed argv, shell=False
             ["git", *argv],
             cwd=repo_root,
             capture_output=True,
@@ -245,6 +253,40 @@ def git_ever_had_file(repo_root: str, rel: str) -> bool | None:
     return bool(out.strip())
 
 
+def git_dirs_that_ever_held(repo_root: str, basename: str) -> list[str] | None:
+    """Directories git ever held a file of this BASENAME in. None when git cannot answer.
+
+    A citation resolved LITERALLY turns a missing directory into NEVER_EXISTED, which accuses a
+    past closure of FABRICATING its evidence. Most bare citations in the journal name files git
+    has had, and the journal is append-only, so the resolver is what had to widen.
+
+    Erring towards the accusation is the expensive direction: an undeserved charge devalues the
+    whole register and teaches the reader to skim it. Missing a real invention costs less.
+    """
+    out = _git(
+        repo_root,
+        [
+            "log",
+            "--all",
+            "--diff-filter=A",
+            "--format=",
+            "--name-only",
+            "--",
+            f"*/{basename}",
+            basename,
+        ],
+    )
+    if out is None:
+        return None
+    dirs = set()
+    for line in out.splitlines():
+        line = line.strip()
+        if not line or os.path.basename(line) != basename:
+            continue
+        dirs.add(os.path.dirname(line))
+    return sorted(dirs)
+
+
 def git_ever_had_name(repo_root: str, rel: str, name: str) -> bool | None:
     """Did this identifier ever appear in this file? None when git cannot answer."""
     out = _git(repo_root, ["log", "--all", "--oneline", f"-S{name}", "--", rel])
@@ -268,12 +310,29 @@ def _history_verdict(probe: GitProbe | None, repo_root: str, rel: str, member: s
     ever = probe(repo_root, rel, member)
     if ever is None:
         return UNKNOWN_HISTORY
-    return ROTTED if ever else NEVER_EXISTED
+    if ever:
+        return ROTTED
+    # Before calling a citation invented, ask whether it was merely written without its
+    # directory. The literal path found nothing; the NAME may still be one git has had.
+    if "/" not in rel.replace(os.sep, "/"):
+        dirs = git_dirs_that_ever_held(repo_root, os.path.basename(rel))
+        if dirs is None:
+            return UNKNOWN_HISTORY
+        if len(dirs) == 1:
+            return ROTTED
+        if len(dirs) > 1:
+            return AMBIGUOUS_NAME
+    return NEVER_EXISTED
 
 
 # Worse first: a name history never held is a citation that was wrong when
 # written; a name history once held has merely rotted since.
-_VERDICT_RANK: Final[dict[str, int]] = {NEVER_EXISTED: 2, ROTTED: 1, UNKNOWN_HISTORY: 0}
+_VERDICT_RANK: Final[dict[str, int]] = {
+    NEVER_EXISTED: 3,
+    AMBIGUOUS_NAME: 2,
+    ROTTED: 1,
+    UNKNOWN_HISTORY: 0,
+}
 
 
 def _classify(
@@ -327,7 +386,48 @@ def _classify(
     names = _flat_names(tree)
     near = difflib.get_close_matches(lost, sorted(names), n=1, cutoff=_SUCCESSOR_CUTOFF)
     finding["successor_candidate"] = near[0] if near else None
+    finding["lost_segment"] = lost
     return finding
+
+
+def successor_ref(finding: dict[str, Any]) -> str | None:
+    """The candidate as a full citation: the lost segment swapped for its successor."""
+    near, lost, path = (
+        finding.get("successor_candidate"),
+        finding.get("lost_segment"),
+        finding.get("path"),
+    )
+    if not (near and lost and path):
+        return None
+    member = str(finding["ref"]).partition("::")[2]
+    return f"{path}::{member.replace(lost, near, 1)}"
+
+
+def _apply_outcomes(
+    repo_root: str,
+    findings: list[dict[str, Any]],
+    outcomes: dict[str, dict[str, tuple[str, str]]],
+    index: dict[str, list[str]],
+    name_cache: dict[str, ast.Module | None],
+    probe: GitProbe | None,
+) -> None:
+    """Move a finding every citing task has answered into its outcome bucket."""
+    import closure_amendments as ca
+
+    if not outcomes:
+        return
+    targets = {v for per in outcomes.values() for k, v in per.values() if k == ca.MOVED}
+    resolves = {
+        t: _classify(repo_root, t, index, name_cache, probe)["verdict"] == RESOLVED for t in targets
+    }
+    bucket = {ca.MOVED: RECONCILED, ca.RETIRED: RETIRED, ca.UNPROVEN: UNPROVEN}
+    for f in findings:
+        if f["verdict"] not in (ROTTED, NEVER_EXISTED, UNKNOWN_HISTORY):
+            continue
+        got = ca.outcome_for(f["ref"], f.get("tasks") or [], outcomes, resolves)
+        if got:
+            f["was"] = f["verdict"]
+            f["verdict"] = bucket[got]
 
 
 def audit_closure_evidence(
@@ -344,13 +444,19 @@ def audit_closure_evidence(
     ``probe=None`` disables the git question: every unresolved citation then
     lands in UNKNOWN_HISTORY instead of being guessed at.
     """
+    import closure_amendments
+
     index = index_test_files(repo_root, test_roots)
     name_cache: dict[str, ast.Module | None] = {}
     per_ref: dict[str, dict[str, Any]] = {}
+    outcomes: dict[str, dict[str, tuple[str, str]]] = {}
     scanned = with_refs = total = 0
 
     for task in tasks:
         scanned += 1
+        amended = closure_amendments.parse(task.get("notes") or "")
+        if amended:
+            outcomes[task.get("slug") or "?"] = amended
         refs = extract_refs(task.get("notes") or "")
         if refs:
             with_refs += 1
@@ -366,11 +472,14 @@ def audit_closure_evidence(
                 entry["tasks"].append(slug)
 
     findings = [e for e in per_ref.values() if e["verdict"] != RESOLVED]
+    _apply_outcomes(repo_root, findings, outcomes, index, name_cache, probe)
     findings.sort(key=lambda e: (e["verdict"], e["ref"]))
     counts = {
         verdict: sum(1 for e in findings if e["verdict"] == verdict)
-        for verdict in (ROTTED, NEVER_EXISTED, UNKNOWN_HISTORY, ILLUSTRATIVE)
-    }
+        for verdict in (
+            ROTTED, NEVER_EXISTED, UNKNOWN_HISTORY, ILLUSTRATIVE, RECONCILED, RETIRED, UNPROVEN,
+        )
+    }  # fmt: skip
     return {
         "tasks_scanned": scanned,
         "tasks_with_refs": with_refs,

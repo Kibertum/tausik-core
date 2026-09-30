@@ -16,6 +16,7 @@ import sys
 import tomllib
 
 import pytest
+from pathlib import Path
 
 # This module reads the canonical Claude-agent source and exercises the bootstrap
 # converter.  A change elsewhere in scripts/ is not its subject.
@@ -74,7 +75,7 @@ def _parse_frontmatter(text: str) -> dict[str, str]:
 
 
 def test_subagent_frontmatter_contract():
-    text = open(SUBAGENT_PATH, encoding="utf-8").read()
+    text = Path(SUBAGENT_PATH).read_text(encoding="utf-8")
     fm = _parse_frontmatter(text)
     assert fm.get("name") == "tausik-reviewer"
     assert fm.get("model") == "sonnet", (
@@ -94,7 +95,7 @@ def test_subagent_frontmatter_contract():
 
 
 def test_subagent_cites_runtime_docs_not_embeds():
-    text = open(SUBAGENT_PATH, encoding="utf-8").read()
+    text = Path(SUBAGENT_PATH).read_text(encoding="utf-8")
     for path in EXPECTED_DOC_REFS:
         assert path in text, (
             f"Sub-agent must cite '{path}' (read-from-docs at runtime). "
@@ -104,7 +105,7 @@ def test_subagent_cites_runtime_docs_not_embeds():
 
 def test_subagent_returns_structured_json():
     """AC #5: sub-agent returns {critical, high, medium, low} structured output."""
-    text = open(SUBAGENT_PATH, encoding="utf-8").read()
+    text = Path(SUBAGENT_PATH).read_text(encoding="utf-8")
     for sev in ("critical", "high", "medium", "low"):
         assert sev in text, f"JSON schema must define '{sev}' bucket"
 
@@ -147,7 +148,9 @@ def test_copy_subagents_converts_canonical_source_for_codex(lib_dir_with_subagen
     target = tmp_path / "target_codex"
     target.mkdir()
     assert copy_subagents(lib_dir_with_subagent, str(target), "codex") == 1
-    converted = tomllib.loads((target / "agents" / "tausik-reviewer.toml").read_text(encoding="utf-8"))
+    converted = tomllib.loads(
+        (target / "agents" / "tausik-reviewer.toml").read_text(encoding="utf-8")
+    )
     assert converted["name"] == "tausik-reviewer"
     assert converted["description"]
     assert converted["developer_instructions"] == "body"
@@ -161,13 +164,15 @@ def test_copy_subagents_for_codex_preserves_all_canonical_agents_and_instruction
     target = tmp_path / "target_codex"
     target.mkdir()
     source_dir = os.path.join(REPO, "harness", "claude", "subagents")
-    source_names = sorted(os.path.splitext(entry)[0] for entry in os.listdir(source_dir) if entry.endswith(".md"))
+    source_names = sorted(
+        os.path.splitext(entry)[0] for entry in os.listdir(source_dir) if entry.endswith(".md")
+    )
     assert copy_subagents(REPO, str(target), "codex") == len(source_names)
     deployed_dir = target / "agents"
     deployed_names = sorted(path.stem for path in deployed_dir.glob("*.toml"))
     assert deployed_names == source_names
     for name in source_names:
-        source = open(os.path.join(source_dir, f"{name}.md"), encoding="utf-8").read()
+        source = Path(os.path.join(source_dir, f"{name}.md")).read_text(encoding="utf-8")
         frontmatter, _, instructions = source[4:].partition("\n---\n")
         fields = dict(line.split(":", 1) for line in frontmatter.splitlines() if ":" in line)
         deployed = tomllib.loads((deployed_dir / f"{name}.toml").read_text(encoding="utf-8"))

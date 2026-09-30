@@ -25,7 +25,7 @@ def _advisory_enabled() -> bool:
         renar = load_config().get("renar", {})
         if isinstance(renar, dict):
             return bool(renar.get("qg0_advisory", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 

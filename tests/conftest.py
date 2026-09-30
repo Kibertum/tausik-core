@@ -43,6 +43,27 @@ def _mock_run_gates():
 
 
 @pytest.fixture(autouse=True)
+def _qg0_substance_compat_shim(request, monkeypatch):
+    """Legacy fixtures start tasks with goal="g" and a five-word criterion.
+
+    QG-0 measures SUBSTANCE since 1.10 (scripts/ac_placeholder.py): 3 words of
+    goal, 5 of criteria, placeholders removed. Rewriting hundreds of fixtures
+    would test the fixtures, not the rule, so the thresholds are 0 here unless a
+    test opts in with ``@pytest.mark.qg0_substance`` — the same shape as the
+    Verify-First shim below.
+    """
+    if request.node.get_closest_marker("qg0_substance") is None:
+        try:
+            import ac_placeholder
+
+            monkeypatch.setattr(ac_placeholder, "MIN_AC_WORDS", 0)
+            monkeypatch.setattr(ac_placeholder, "MIN_GOAL_WORDS", 0)
+        except Exception:  # noqa: BLE001,S110 — a test that cannot import it has no QG-0
+            pass
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _verify_first_autouse_compat_shim(request, monkeypatch):
     """Bridge legacy tests into v1.4 Verify-First without rewriting the suite.
 
@@ -90,7 +111,7 @@ def _verify_first_autouse_compat_shim(request, monkeypatch):
             return None
 
         monkeypatch.setattr(GatesMixin, "_enforce_changelog", _noop_changelog)
-    except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+    except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
         pass
     yield
 
@@ -237,7 +258,7 @@ IS_PUBLIC_SNAPSHOT = not os.path.isdir(
 )
 DORMANT_ON_PUBLIC_SNAPSHOT = (
     "this checkout is the PUBLIC SNAPSHOT (decision #368): the state projection, "
-    "TODO.md, TAUSIK-plan-1.9.md and .gitlab-ci.yml stay on the development line, "
+    "TAUSIK-plan-1.9.md and .gitlab-ci.yml stay on the development line, "
     "so this control — whose subject is one of them — is DORMANT here, not passing."
 )
 
@@ -410,12 +431,76 @@ def _hang_guard_breach(config) -> str | None:
     return headroom_breach(timeout, nodeid, seconds)
 
 
+# Under xdist the summary line names no deselected count at all: every worker collects
+# and deselects on its own and the controller never hears of it. So `12534 passed` read
+# as the whole suite while the slow lane (addopts `-m 'not slow'`) did not run, and two
+# red slow tests lived a release unseen. Each worker deselects the SAME set, so the
+# controller takes the max, not the sum.
+_deselected_here = 0
+_deselected_by_workers = 0
+
+
+def pytest_deselected(items):
+    global _deselected_here
+    _deselected_here += len(items)
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node, error):
+    global _deselected_by_workers
+    got = getattr(node, "workeroutput", {}).get("deselected", 0)
+    _deselected_by_workers = max(_deselected_by_workers, got)
+
+
 @pytest.hookimpl(trylast=True)
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     breach = _hang_guard_breach(config)
     if breach is not None:
         terminalreporter.section("hang guard headroom", sep="=", red=True, bold=True)
         terminalreporter.write_line(breach)
+    if _deselected_by_workers:
+        terminalreporter.write_line(
+            f"{_deselected_by_workers} deselected (not run) -- "
+            f"markexpr {config.option.markexpr!r}; the slow lane is `pytest -m slow`",
+            yellow=True,
+            bold=True,
+        )
+    _record_slow_lane(terminalreporter, exitstatus, config)
+
+
+def _record_slow_lane(terminalreporter, exitstatus, config) -> None:
+    """Leave the slow lane's verdict where the handoff reads it (.tausik/slow_lane.json).
+
+    CI runs this lane but does not run while push is forbidden, so the handoff is the
+    only place its colour can surface. Only a WHOLE-TREE run that selects the slow tests
+    counts: `-m slow` or `-m ''` with no narrower path — one test green is not a lane green.
+    """
+    if hasattr(config, "workerinput"):
+        return
+    if config.option.markexpr.strip() not in ("slow", ""):
+        return
+    tests_dir = os.path.dirname(os.path.abspath(__file__))
+    if any(os.path.abspath(str(a)) != tests_dir for a in config.args):
+        return
+    tausik_dir = os.path.join(os.path.dirname(tests_dir), ".tausik")
+    if not os.path.isdir(tausik_dir):
+        return
+    import datetime
+    import json
+
+    stats = terminalreporter.stats
+    record = {
+        "ran_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "markexpr": config.option.markexpr,
+        "exit_status": int(exitstatus),
+        "passed": len(stats.get("passed", [])),
+        "failed": len(stats.get("failed", [])) + len(stats.get("error", [])),
+    }
+    try:
+        with open(os.path.join(tausik_dir, "slow_lane.json"), "w", encoding="utf-8") as f:
+            json.dump(record, f)
+    except OSError as e:
+        terminalreporter.write_line(f"slow lane verdict NOT recorded: {e}", red=True)
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -427,6 +512,8 @@ def pytest_sessionfinish(session, exitstatus):
     """
     if session.exitstatus == 0 and _hang_guard_breach(session.config) is not None:
         session.exitstatus = 1
+    if hasattr(session.config, "workeroutput"):
+        session.config.workeroutput["deselected"] = _deselected_here
     _red_history_plugin().pytest_sessionfinish(session, exitstatus)
 
 

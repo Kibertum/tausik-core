@@ -1,11 +1,18 @@
-"""A direct edit of a task artifact is a RECORDED gate bypass (SENAR 1.4 §8.6(j)).
+"""A direct edit of a task artifact is a RECORDED gate bypass (SENAR 1.5 §8.6(j)).
 
 Editing a task's artifact by a route no gate stands in front of — including a
 direct edit by the supervisor — admits the effect QG-0 declared without a
 positive verdict. §8.6(h) already classifies that as a bypass regardless of
-intent. The standard does NOT forbid it: it is a REGULATED EXCEPTION, and the
-legitimate cases stay open (an incident while agent capacity is unavailable, an
-environment where the agent does not run). What it requires is a record.
+intent. The standard does NOT forbid it: it is a REGULATED EXCEPTION, and it
+stays available. What it requires is a record — for every case.
+
+ONE RECOGNIZED CASE, DATED. SENAR 1.4 listed five legitimate cases. SENAR 1.5
+§4.1 recognizes one (`RECOGNIZED_CASE`) and dates the list
+(`RECOGNIZED_AS_OF`): an agent stuck, an agent most of the way there, a fix
+cheaper than preparing context, a deadline hotfix are addressable by agent means
+where an agent environment exists. The list is capability-dependent, so it is
+re-read under §10.13 when the model generation changes. Whether a case falls
+under it is decided by the senior who approves the bypass (§8.6(h)).
 
 NO NEW ENTITY. The standard is explicit that the record rides the Gate Bypass
 (3.13) we already have, and we already have the machinery: `hook_supervision`
@@ -37,6 +44,14 @@ from __future__ import annotations
 
 import json
 from typing import Any
+
+#: SENAR 1.5 §4.1 — the one case recognized as substantive, and its date.
+#: `docs/*/cli.md` quotes both; tests/test_direct_edit_recognized_case.py holds
+#: the quote to the refusal the CLI actually prints.
+RECOGNIZED_CASE = "an environment in which no agent can be run and there is nothing to switch to"
+RECOGNIZED_AS_OF = (
+    "SENAR 1.5 §4.1, revision of 2026-09-07; re-read under §10.13 when the model generation changes"
+)
 
 #: The §8.6(j) vector, joining the seven that already exist. Named here so the
 #: metrics can single it out: bypass frequency (§8.6(i)) and metric 8 are NESTED
@@ -123,9 +138,9 @@ def build(task_slug: str | None, **fields: str) -> str:
         raise BypassRecordRefused(
             f"a bypass record needs a {REQUIRED_FIELD}: Gate Bypass (3.13) is a "
             "regulated exception, and a record without a reason is the form "
-            "filled in without looking. Legitimate cases exist — an incident "
-            "while agent capacity is unavailable, an environment where the agent "
-            "does not run — and naming one takes a sentence."
+            f"filled in without looking. The one recognized case is {RECOGNIZED_CASE} "
+            f"({RECOGNIZED_AS_OF}); any other case is recorded all the same, and "
+            "naming it takes a sentence."
         )
     return encode(fields)
 

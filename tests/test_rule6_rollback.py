@@ -14,10 +14,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_qg0_check import check_qg0_start  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from gate_qg0_check import check_qg0_start
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from tausik_utils import ServiceError
 
 
 @pytest.fixture

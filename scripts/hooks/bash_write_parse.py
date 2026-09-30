@@ -104,10 +104,17 @@ def _python_stdin_heredoc_writes(command: str) -> list[str]:
     """Literal writes in a heredoc that `python -` actually executes."""
     targets: list[str] = []
     for header, body in heredoc_bodies(command):
+        # The header is the whole line up to `<<`: `cd x; python - <<EOF` feeds
+        # the body to the LAST statement, not to `cd`.
+        segments = re.split(r";|&&|\|\||\|", header)
+        header = next((seg for seg in segments if "<<" in seg), segments[-1])
         header_tokens = tokenize(header)
         if header_tokens is None:
             continue
         _redirects, command_tokens = split_redirections(header_tokens)
+        # `PYTHONUTF8=1 python -`: a bare leading assignment is not the command.
+        while command_tokens and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", command_tokens[0]):
+            command_tokens = command_tokens[1:]
         command_tokens = _strip_prefixes(command_tokens)
         if not command_tokens:
             continue
@@ -235,7 +242,7 @@ def _sed_files(args: list[str]) -> list[str]:
 
 # The "what command is this really" layer lives in bash_cmd_norm (filesize cap).
 # Re-exported so a future reader of this module still finds the names it uses.
-from bash_cmd_norm import (  # noqa: E402,F401 — re-exported
+from bash_cmd_norm import (  # noqa: E402 — re-exported
     _MAX_WRAPPER_DEPTH,
     _shell_payloads,
     _strip_prefixes,
@@ -345,7 +352,7 @@ def _writers_in(sub: list[str], base_dir: str | None = None) -> list[str]:
 # dialect parsers report in these terms, so a consumer can weigh a PowerShell
 # answer exactly as it weighs a Bash one. Re-exported: callers have always
 # imported these two names from this module.
-from write_confidence import (  # noqa: E402,F401 — re-exported
+from write_confidence import (  # noqa: E402 — re-exported
     CONFIDENCE_PARSED,
     CONFIDENCE_REGEX_FALLBACK,
 )

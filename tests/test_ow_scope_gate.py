@@ -8,8 +8,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from scope_write_gate import _delegated_slugs, delegated_missing_scope  # noqa: E402
+from project_backend import SQLiteBackend
+from scope_write_gate import _delegated_slugs, delegated_missing_scope
 
 
 class TestDelegatedMissingScope:

@@ -2,6 +2,7 @@
 
 import json
 import os
+import sqlite3
 import sys
 
 import pytest
@@ -212,7 +213,7 @@ class TestEpics:
 
     def test_unique_slug(self, db):
         db.epic_add("v1", "V1")
-        with pytest.raises(Exception):  # IntegrityError
+        with pytest.raises(sqlite3.IntegrityError):  # IntegrityError
             db.epic_add("v1", "Duplicate")
 
 
@@ -361,7 +362,7 @@ class TestTasks:
     def test_unique_slug(self, db):
         self._setup(db)
         db.task_add("s1", "t1", "T1")
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             db.task_add("s1", "t1", "Duplicate")
 
 

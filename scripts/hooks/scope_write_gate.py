@@ -30,6 +30,7 @@ sys.path.insert(0, _HOOKS_DIR)
 sys.path.insert(1, os.path.dirname(_HOOKS_DIR))  # scripts/ — for scope_acl
 
 from _common import is_tausik_project  # noqa: E402
+from task_scope_widen import widen_command  # noqa: E402
 from hook_policy import (  # noqa: E402
     classify_target,
     fail_open_on_db_error,
@@ -158,6 +159,36 @@ def scope_allows(rel: str, acls: list[tuple[str, str | None]]) -> bool:
     return False
 
 
+def _allow_with_forecast(project_dir: str, payload: dict) -> int:
+    """Let the write through, and say what the line cap will make of it.
+
+    On the ALLOW path only. `filesize` is 16.1% of red verify runs and 20 of them fell in
+    one month, although the cap is arithmetic the caller could have had at this moment.
+    It is a note, never a refusal: splitting a file is a decision about structure, and
+    forcing one at the moment of typing leaves a half-applied change behind.
+    """
+    try:
+        from filesize_forecast import forecast
+
+        tool = str(payload.get("tool_name") or "")
+        tool_input = payload.get("tool_input")
+        note = forecast(tool, tool_input if isinstance(tool_input, dict) else {}, project_dir)
+    except Exception:  # noqa: BLE001 - a note must never decide whether a write happens
+        return 0
+    if note:
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "additionalContext": note,
+                    }
+                }
+            )
+        )
+    return 0
+
+
 def main() -> int:
     # hook-stderr-encoding-locale-dependent: this hook's messages contain
     # non-ASCII, and their readability must not depend on how it was
@@ -245,11 +276,11 @@ def main() -> int:
     # nullified by an unrelated undeclared sibling, or by keeping one active
     # on purpose).
     if not acls or not has_declared_scope(acls):
-        return 0  # no active task, or nobody declared a scope — legacy freedom
+        return _allow_with_forecast(project_dir, event)  # legacy freedom
 
     outside = [rel for rel in rels if not scope_allows(rel, acls)]
     if not outside:
-        return 0
+        return _allow_with_forecast(project_dir, event)
     rel = outside[0]
 
     declared = declared_acls(acls)
@@ -259,8 +290,7 @@ def main() -> int:
     print(
         f"BLOCKED: '{rel}' is outside the declared scope of the active task(s) "
         f"(SENAR Rule 2 scope enforcement).\n{acl_lines}\n"
-        f"Options: extend the ACL — `tausik task update {first_slug} "
-        f"--scope-paths <existing...> {rel}` (overwrites prior list), or "
+        f"Options: extend the ACL — `{widen_command(first_slug, [rel])}`, or "
         "reconsider whether this file belongs to the task.",
         file=sys.stderr,
     )

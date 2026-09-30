@@ -14,11 +14,11 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from backend_migrations import run_migrations  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from backend_migrations import run_migrations
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from tausik_utils import ServiceError
 
 KINDS = ("intent", "premise", "action", "verification")
 
@@ -59,6 +59,7 @@ def test_migration_v32_creates_table_triggers_clean(tmp_path):
     conn.execute(
         "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
     )  # defect_of: v10 column, indexed by v62  # FK target
+    conn.execute("CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)")  # ALTER target for v63
     # events exists in the v1 baseline on every real DB; v34 ALTERs it.
     # ddl-parity: historical — форма v31 до migration v34, канон уже содержит
     # entry_hash/prev_hash, которые этот прогон только собирается добавить.

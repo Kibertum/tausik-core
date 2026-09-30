@@ -18,7 +18,7 @@ ADAPTATION_GUIDE = "docs/{lang}/skill-adaptation.md"
 
 # Re-exported: git helpers and dependency installation live in sibling modules
 # (filesize cap). Public names keep working for callers and tests.
-from skill_git import (  # noqa: E402,F401
+from skill_git import (  # noqa: E402
     EOL_PINS as _EOL_PINS,
     eol_is_pinned as _eol_is_pinned,
     pin_eol_config as _pin_eol_config,

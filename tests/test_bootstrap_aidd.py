@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from bootstrap_copy import copy_aidd_templates  # noqa: E402
+from bootstrap_copy import copy_aidd_templates
 
 
 def _make_lib(tmp_path):

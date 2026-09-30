@@ -2,6 +2,8 @@
 
 # Doctor — Health Check
 
+<!-- doc-map: reader=user; zone=quality -->
+
 `doctor` is a single command that checks the moving parts of a TAUSIK install — venv, DB, MCP servers, skills, deployment drift, config, gates, session, and backlog hygiene. It does **not** auto-fix: it tells you what is wrong and how to fix it.
 
 Some checks only run when the thing they check is installed (the Kilo and OpenCode config checks), so the number of lines you see depends on your setup. The table below lists every check that can appear.
@@ -37,9 +39,16 @@ Or via MCP: `tausik_doctor` (no parameters). The MCP variant returns the same da
 | **Hooks** | Enforcement coverage | Per host, the real-time mechanism bootstrap ACTUALLY deployed into its profile — hook commands in `settings.json`, plugins under `plugins/` — counted from disk, never from a table of which rules ought to be enforced where. Measured in session #230: claude and qwen 23 hook commands each, opencode 1 plugin, cursor and kilo none. The gap is NOT a warning: it is declared, and each host's rules file now opens by saying whether the rules below are checks or instructions. The WARN is a CONTRADICTION — a rules file claiming automatic enforcement while its profile holds no mechanism (every file generated before v1.9 carries that claim, and they are preserve-if-exists so bootstrap will not replace them), or a file denying enforcement the profile does have. A file that says nothing either way is not a red: silence is not a false statement. |
 | **Session** | Session model | Which model is running the open session, and WHICH SOURCE said so. Resolved as a chain: `TAUSIK_AGENT_MODEL` → host variables (`CLAUDE_MODEL`, `ANTHROPIC_MODEL`, `OPENAI_MODEL`, `CURSOR_MODEL`) → the host's provider (`get_active_model`, which reads the transcript on Claude Code) → absence. Measured in session #231, this had never once succeeded: 0 of 231 sessions carried a model id and 0 of 1560 tasks carried a pin, because the environment was the ONLY source consulted and Claude Code exports none of those variables — so model pinning (RENAR 10.13), per-model cost and per-model metrics were all empty. WARN when the open session has no model, naming `TAUSIK_AGENT_MODEL` as the way to declare one; a second wording covers the session that opened before a source existed. The model is NEVER inferred from the host's name: Claude Code pointed at another endpoint is running that endpoint's model. |
 | **Session** | Agent route | How the framework was reached this session: calls through the MCP tools versus calls through the shell, with the MCP share as a percentage. Measured before this line existed (session #233, 4,011 shell commands): 1,216 of 1,530 CLI invocations HAD an MCP twin and used the shell anyway — 79.5% — while `MCP-first` is stated as a hard constraint and nothing counted it. NO THRESHOLD is applied, deliberately: 20.5% of CLI invocations have no MCP twin, chaining (`verify && task done`) cannot be expressed on the MCP surface, and a long multi-line argument is genuinely easier through `"$(cat file)"`. A warning that fired on those would be one the reader learns to skip, and a skipped warning costs the attention the next real one needs. The line reports; the reader judges. |
+| **Standards** | RENAR corpus | The corpus the RENAR drift detector reads (`renar_standard_corpus`): not configured (OK, dormant — a consumer project needs none), path missing (WARN), a path without `standard/` chapters (WARN — not the standard's repository; the site repository was configured here until 1.10), or the path with its version banner and chapter count (OK). |
+| **Standards** | SENAR corpus | The SENAR corpus (`senar_standard_corpus`, e.g. `standards/senar/standard-src`): not configured (OK, dormant), path missing (WARN), no `core/en/senar-core.md` (WARN — not the standard's source), or the path with the latest released version from the corpus CHANGELOG (OK). Findings: `tausik drift --detector senar`. |
+| **Standards** | Update check | `updates.check`: off (OK), on and never checked yet (WARN), last check FAILED with the reason and the last good answer kept (WARN), or on with the last check time and the latest release (OK). Refresh: `tausik update-check --now`. |
+| **Hygiene** | DB backups | DB backups in .tausik: the count, the total size and how many are UNMANAGED. A managed one (.bak.v<N>) is written and pruned by the migration path; a hand-made one belongs to no mechanism and its lifetime is the operation it was taken for. WARN when an unmanaged one exists or managed ones exceed the keep. Tidy: tausik db prune --keep N (--dry-run first). |
+| **Hygiene** | Telemetry | Append-only sidecars in .tausik: how many, their total size, and which are past their declared window. The window follows the READER: token_metrics and routing_adherence are read over a window and are trimmed at the tail, while observed_coverage is not trimmed by age at all — the whole file is the measurement and is regenerated by a run. Trim: tausik db telemetry --apply. |
+| **Hygiene** | Answer shape | The median and p90 word count of the agent's final answers on THIS machine, against the baseline in `tausik/gates.json`. Local by nature: host transcripts never travel, so a fresh clone reports absence rather than zero, and the row never fails a build for want of data. Growth is the signal — the shape is in the rules file, so a rising median says it is not being followed. The baseline may only shrink. |
 | **Drift** | CLAUDE.md drift | Sections your `CLAUDE.md` carries under the template's **own** heading still match the template. A heading the file does not carry is customisation, not drift — translating, renaming or dropping a section is a deliberate choice. A missing section still counts as drift when the file otherwise *is* the template's document (more than half its sections present), so a project whose config asks for a directive its `CLAUDE.md` lacks is still caught. The remediation names the diverging sections; it never tells you to re-run bootstrap, which would overwrite hand-written content. |
 | **Config** | Trust tier | Distinguishes THREE states, not two. Nothing weakens enforcement — OK. A project-scope key TRIED to weaken it and was dropped on read — WARN, naming the key and the value applied instead. A key a TRUSTED tier (`~/.tausik/config.json`, `$TAUSIK_MANAGED_CONFIG`) holds weaker than the framework default — WARN, naming the tier, the file and the reason recorded beside it. The third state used to print as the first: the resolver measures a candidate against the trusted tiers, so a tier is never weaker than itself, and the OK line read as "nothing is weakened" while the user tier bypassed the signed QG-2 receipt in every project on the machine. WARN and never FAIL — a trusted tier is the operator's word, and doctor owes visibility here, not a verdict. See [config-trust-tiers.md](config-trust-tiers.md). |
-| **Config** | Verify-First profile | `auto_verify` is not silently enabling itself on an interactive machine. |
+| **Config** | User tier | Printed only when something is off: the user tier is read from the legacy `~/.tausik/config.json` (move it to `~/.config/tausik/config.json` and delete `~/.tausik`), or both files exist and the legacy one is ignored. |
+| **Config** | Verify-First profile | `auto_verify` is not silently enabling itself on an interactive machine. Kept on purpose, it is acknowledged by a reason next to it — `"task_done": {"auto_verify": true, "_auto_verify_reason": "..."}` — and the WARN becomes an OK line that prints the reason. |
 | **IDE** | Kilo / OpenCode config | Present only when that IDE profile is installed: the config parses and its `tausik-project` MCP stanza resolves. |
 
 ## Sample Output
@@ -94,3 +103,20 @@ The exit code reflects the worst level: `0` for OK/WARN, `1` for FAIL.
 - **[CLI Commands](cli.md)** — full command reference
 - **[Configuration](configuration.md)** — config knobs the doctor checks
 - **[Troubleshooting](troubleshooting.md)** — deeper recovery steps
+
+### Identifier style
+
+Identifiers in a project's product code are ASCII. A name is an interface: traces,
+`grep`, pytest node ids, coverage reports and people without a Cyrillic keyboard
+all read it, and a non-ASCII one breaks quietly — on console encoding, on a regex
+over `\w`, on a backslash in `sh`. Prose is not the subject at all: a docstring or
+comment in any language passes, because the check reads the AST, not the text.
+
+Level `warn`, not `fail`: this is a style debt, not a breakage, and failing a
+health check over it is how a health check stops being read. The message names the
+file, the line and the name itself — a warning with no place to fix is
+indistinguishable from silence.
+
+Tests are excluded: they carry their own declared baseline under
+`ascii_identifiers` in `tausik/gates.json`, with the reason recorded next to the
+number.

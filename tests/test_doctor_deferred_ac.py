@@ -28,7 +28,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from service_doctor_backlog import (  # noqa: E402
+from service_doctor_backlog import (
     check_deferred_acs,
     find_deferred_acs_in_live_work,
 )

@@ -74,7 +74,7 @@ class TestStackList:
 class TestCliStack:
     def test_info_output_smoke(self, svc, capsys):
         from argparse import Namespace
-        from project_cli_extra import cmd_stack
+        from project_cli_stack import cmd_stack
 
         cmd_stack(svc, Namespace(stack_cmd="info", stack="python"))
         out = capsys.readouterr().out
@@ -83,7 +83,7 @@ class TestCliStack:
 
     def test_list_output_smoke(self, svc, capsys):
         from argparse import Namespace
-        from project_cli_extra import cmd_stack
+        from project_cli_stack import cmd_stack
 
         cmd_stack(svc, Namespace(stack_cmd="list"))
         out = capsys.readouterr().out

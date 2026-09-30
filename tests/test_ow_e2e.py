@@ -15,10 +15,10 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService, ServiceError  # noqa: E402
-from scope_acl import match_path  # noqa: E402
-from scope_write_gate import delegated_missing_scope  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService, ServiceError
+from scope_acl import match_path
+from scope_write_gate import delegated_missing_scope
 
 
 @pytest.fixture

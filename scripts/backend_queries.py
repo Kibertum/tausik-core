@@ -48,6 +48,20 @@ def _sanitize_fts5(query: str) -> str:
 
     # Extract "quoted phrases" before stripping
     remaining = re.sub(r'"([^"]*)"', _extract_phrase, query)
+    # A trailing `*` is a prefix query the agent may type (`гейт*`); every other
+    # star is stripped below (search-has-no-morphology-and-strips-the-wildcard).
+    from fts_morphology import expand, keep_trailing_star
+
+    stars: list[str] = []
+
+    def _keep_star(m: re.Match) -> str:
+        kept = keep_trailing_star(m.group(0))
+        if kept:
+            stars.append(kept)
+            return " "
+        return m.group(0)
+
+    remaining = re.sub(r"\w+\*(?=\s|$)", _keep_star, remaining)
     # Strip FTS5 operators, special chars, AND leftover unpaired quotes
     remaining = re.sub(r'["\(\)\*\:\^]', " ", remaining)
     # Remove FTS5 boolean/proximity operators as whole words
@@ -61,9 +75,15 @@ def _sanitize_fts5(query: str) -> str:
             if clean:
                 wrapped.append(f'"{clean}"')
         else:
-            wrapped.append(tok)
-    parts = wrapped + phrases
-    return " ".join(parts) if parts else ""
+            wrapped.append(expand(tok))  # word forms: `(form OR stem*)`
+    parts = wrapped + stars + phrases
+    # Joined with an EXPLICIT `AND`, not a space. FTS5 reads `a b` as an implicit
+    # AND between two tokens, but there is no implicit operator between a token
+    # and a parenthesised group, so the moment `expand` turned one word into
+    # `(form OR stem*)` a space-joined query became `syntax error near "OR"`.
+    # Explicit AND means the same thing for bare tokens and is the only spelling
+    # that parses for every combination the parts can take.
+    return " AND ".join(parts) if parts else ""
 
 
 class BackendQueriesMixin(
@@ -103,13 +123,26 @@ class BackendQueriesMixin(
         from tausik_utils import utcnow_iso
 
         now = utcnow_iso()
+        # The ids are read BEFORE the update, because afterwards `archived_at IS NULL` no
+        # longer selects them and there is nothing left to point the invalidation at.
+        leaving = [
+            int(r["id"])
+            for r in self._q(
+                "SELECT id FROM memory WHERE created_at < ? AND archived_at IS NULL",
+                (before_iso,),
+            )
+        ]
         cur = self._conn.execute(
             "UPDATE memory SET archived_at=?, updated_at=? "
             "WHERE created_at < ? AND archived_at IS NULL",
             (now, now, before_iso),
         )
+        archived = cur.rowcount or 0
+        if leaving:
+            # Same reason as the by-id path: the departure is here, so the edges end here.
+            self._edges_invalidate_to("memory", leaving)
         self._conn.commit()
-        return cur.rowcount or 0
+        return archived
 
     def memory_archive_candidates(self, before_iso: str) -> list[dict[str, Any]]:
         """Memory rows older than ``before_iso`` and not yet archived."""

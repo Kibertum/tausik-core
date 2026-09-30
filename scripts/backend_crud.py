@@ -140,7 +140,7 @@ class BackendCrudMixin:
 
     # --- Sessions ---
 
-    def session_start(self) -> int:
+    def session_start(self, host_session_id: str | None = None) -> int:
         """Open a session, recording which model is running it (RENAR 10.13).
 
         The environment-only version of this read NEVER ONCE succeeded: measured
@@ -158,8 +158,9 @@ class BackendCrudMixin:
 
         resolved = resolve()
         return self._ins(
-            "INSERT INTO sessions(started_at, model_id, model_version) VALUES(?, ?, ?)",
-            (utcnow_iso(), resolved["model_id"], resolved["model_version"]),
+            "INSERT INTO sessions(started_at, model_id, model_version, host_session_id) "
+            "VALUES(?, ?, ?, ?)",
+            (utcnow_iso(), resolved["model_id"], resolved["model_version"], host_session_id),
         )
 
     def session_end(self, sid: int, summary: str | None = None) -> None:
@@ -168,7 +169,18 @@ class BackendCrudMixin:
             (utcnow_iso(), summary, sid),
         )
 
-    def session_current(self) -> dict[str, Any] | None:
+    def session_current(self, host_session_id: str | None = None) -> dict[str, Any] | None:
+        """The newest open session; with a host id, the open session of THAT host.
+
+        The host-scoped form (decision #376) is a parameter, not a new method:
+        SQLiteBackend's public surface is a ratchet that only turns down.
+        """
+        if host_session_id:
+            return self._q1(
+                "SELECT * FROM sessions WHERE host_session_id=? AND ended_at IS NULL "
+                "ORDER BY id DESC LIMIT 1",
+                (host_session_id,),
+            )
         return self._q1("SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1")
 
     def session_list(self, n: int = 10) -> list[dict[str, Any]]:
@@ -177,8 +189,25 @@ class BackendCrudMixin:
     def session_update_handoff(self, sid: int, handoff: dict[str, Any]) -> None:
         self._ex("UPDATE sessions SET handoff=? WHERE id=?", (json.dumps(handoff), sid))
 
-    def session_last_handoff(self) -> dict[str, Any] | None:
-        return self._q1("SELECT * FROM sessions WHERE handoff IS NOT NULL ORDER BY id DESC LIMIT 1")
+    def session_last_handoff(self, session_id: int | None = None) -> dict[str, Any] | None:
+        """The live handoff, or — with `session_id` — the row of that session.
+
+        The by-id form returns the row whether or not it carries a handoff, so
+        the caller can tell "no such session" from "no handoff written"
+        (handoff-of-any-past-session-is-unreadable). A parameter, not a new
+        method: SQLiteBackend's public surface is a ratchet.
+        """
+        if session_id is not None:
+            return self._q1("SELECT * FROM sessions WHERE id=?", (session_id,))
+        # The live holder is the handoff WRITTEN last, not the one on the
+        # highest session id: since v63 two host sessions can be open at once,
+        # and the older one may write after the newer (one-live-handoff-slot).
+        # Handoffs written before 1.10 carry no `written_at`; they fall back to
+        # the session start and keep their old order among themselves.
+        return self._q1(
+            "SELECT * FROM sessions WHERE handoff IS NOT NULL ORDER BY "
+            "COALESCE(json_extract(handoff, '$.written_at'), started_at) DESC, id DESC LIMIT 1"
+        )
 
     # --- Decisions + Memory (stable-slug entities) moved to
     #     backend_crud_knowledge.KnowledgeCrudMixin (filesize cap; co-locates the

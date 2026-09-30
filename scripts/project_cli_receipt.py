@@ -184,7 +184,7 @@ def _cmd_verify_file(args) -> None:
             sys.exit(2)
 
     try:
-        valid, detail = verify_export(data, public=public)
+        valid, detail, trusted_key = verify_export(data, public=public)
     except ExportError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(2)
@@ -193,11 +193,18 @@ def _cmd_verify_file(args) -> None:
         f"task: {receipt.get('task_slug', '?')}  passed: {receipt.get('passed')}  "
         f"ran_at: {receipt.get('ran_at', '?')}  git_sha: {str(receipt.get('git_sha') or '-')[:10]}"
     )
-    if valid:
-        print(f"Signature: {detail}")
-    else:
+    if not valid:
         print(f"Signature: {detail}", file=sys.stderr)
         sys.exit(1)
+    if trusted_key:
+        print(f"Signature: {detail}")
+        return
+    # THREE exits, not two. Integrity without origin is a real answer and not a pass:
+    # a pipeline gating on exit 0 would otherwise accept a receipt forged with its own
+    # embedded key, which is what this command did before. Exit 3 names the third
+    # state so `&& deploy` fails closed while the message says how to get a verdict.
+    print(f"Signature: {detail}", file=sys.stderr)
+    sys.exit(3)
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests

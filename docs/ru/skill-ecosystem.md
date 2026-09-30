@@ -2,7 +2,9 @@
 
 # Экосистема скиллов — карта на одной странице
 
-Точка входа для **внешних / репозиторных** скиллов (не 13 core slash-скиллов в `harness/skills/` — они в **[Навыки](skills.md)**).
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
+Точка входа для **внешних / репозиторных** скиллов (не 14 core slash-скиллов в `harness/skills/` — они в **[Навыки](skills.md)**).
 
 ## Поток (установка)
 
@@ -14,7 +16,7 @@ flowchart TD
   I --> V[kеш vendor]
 ```
 
-**Шаги CLI** (как в [CLI — Навыки](cli.md#навыки); вызов через `.tausik/tausik`):
+**Шаги CLI** (как в [CLI — Навыки](cli-admin.md#навыки); вызов через `.tausik/tausik`):
 
 1. **`skill repo add <url>`** — зарегистрировать repo с `tausik-skills.json` (или legacy `skills.json`).
 2. **`skill install <name>`** — при необходимости clone, копирование, pip-зависимости.

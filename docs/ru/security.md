@@ -2,6 +2,8 @@
 
 # Правила безопасности
 
+<!-- doc-map: reader=user; zone=security -->
+
 См. также: [security-checklist.md](../en/security-checklist.md) — OWASP Top 10 чек-лист.
 
 ## Основные принципы

@@ -146,11 +146,31 @@ def build_status_view(
         data["exploration"] = exploration
     audit_overdue = 0
     try:
-        audit_overdue = int(svc.audit_overdue_sessions())
+        audit_overdue = int(svc.audit_overdue_closures())
     except Exception:  # noqa: BLE001 — never fail status on metric calc (incl. sqlite errors)
         audit_overdue = 0
     if audit_overdue:
-        data["audit_overdue_sessions"] = audit_overdue
+        data["audit_overdue_closures"] = audit_overdue
+    # SENAR 1.5 §9.4(d): a crossed metric target is escalated until it recovers.
+    try:
+        from metric_methods import open_crossings
+
+        crossings = open_crossings(svc.be)
+    except Exception:  # noqa: BLE001 — never fail status on metric calc
+        crossings = []
+    if crossings:
+        data["metric_targets_crossed"] = crossings
+    update_line = None
+    try:
+        from tausik_version import __version__
+        from update_check import enabled, notice, read_cache
+
+        if td and enabled(cfg):
+            update_line = notice(read_cache(td), __version__)
+    except Exception:  # noqa: BLE001 — never fail status on the update notice
+        update_line = None
+    if update_line:
+        data["update_available"] = update_line
 
     if not include_rich:
         # Compact hot path: `data` is enriched (counts, session minutes,
@@ -174,6 +194,8 @@ def build_status_view(
             "skill_warning": None,
             "exploration": exploration,
             "audit_overdue": audit_overdue,
+            "metric_crossings": crossings,
+            "update_line": update_line,
         }
 
     # Rich-only closure risk — only when scored rows exist.
@@ -236,6 +258,8 @@ def build_status_view(
         "skill_warning": skill_warning,
         "exploration": exploration,
         "audit_overdue": audit_overdue,
+        "metric_crossings": crossings,
+        "update_line": update_line,
     }
 
 
@@ -244,7 +268,7 @@ def _tasks_line(data: dict[str, Any]) -> str:
     total = sum(counts.values())
     done = counts.get("done", 0)
     parts = [f"Tasks: {done}/{total} done"]
-    for st in ("planning", "active", "blocked", "review"):
+    for st in ("obsolete", "planning", "active", "blocked", "review"):
         if counts.get(st):
             parts.append(f"{counts[st]} {st}")
     return parts[0] + (", " + ", ".join(parts[1:]) if len(parts) > 1 else "")
@@ -279,7 +303,9 @@ def status_primary_lines(view: dict[str, Any]) -> list[str]:
     if drift:
         lines.append(
             f"Calibration: {drift['label']} "
-            f"(actual/budget={drift['avg_ratio']}, n={drift['samples']})"
+            f"(median actual/budget={drift['avg_ratio']}, p25-p75 "
+            f"{drift.get('p25')}-{drift.get('p75')}, n={drift['samples']}) "
+            "— descriptive, not a forecast"
         )
     cap = view["capacity"]
     if cap:
@@ -305,11 +331,19 @@ def status_warning_lines(view: dict[str, Any]) -> list[str]:
         )
     if view["audit_overdue"]:
         warnings.append(
-            f"SENAR Rule 9.5: {view['audit_overdue']} sessions since last audit. "
+            f"SENAR Rule 9.5: {view['audit_overdue']} task closures since last audit. "
             "Run /review then audit mark."
+        )
+    if view.get("metric_crossings"):
+        warnings.append(
+            "Metric target crossed (SENAR §9.4(d)): "
+            + ", ".join(view["metric_crossings"])
+            + " — see `tausik metrics`; escalate, do not move the target."
         )
     if view["skill_warning"]:
         warnings.append(view["skill_warning"])
+    if view.get("update_line"):
+        warnings.append(view["update_line"])
     return warnings
 
 

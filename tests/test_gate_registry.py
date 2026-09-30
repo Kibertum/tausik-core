@@ -31,6 +31,8 @@ What these tests defend, per AC:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import sqlite3
@@ -41,15 +43,15 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import gate_registry as reg  # noqa: E402
-import gate_runner  # noqa: E402
-from backend_schema_gate_runs import GATE_RUNS_SQL  # noqa: E402
-from gate_post_scope import run_post_scope_gates  # noqa: E402
+import gate_registry as reg
+import gate_runner
+from backend_schema_gate_runs import GATE_RUNS_SQL
+from gate_post_scope import run_post_scope_gates
 
 # Bound at import, before conftest's autouse `_mock_run_gates` replaces the
 # module attribute with a stub — the same escape `tests/test_gates.py` uses.
 # Calling `gate_runner.run_gates` here would test the mock.
-from gate_runner import gate_verdict, run_gates  # noqa: E402
+from gate_runner import gate_verdict, run_gates
 
 
 # --- AC1: the derived metadata equals the literal it replaced ---------------
@@ -93,7 +95,7 @@ _UNIVERSAL_GATES_BEFORE = {
     "filesize": {
         "enabled": True,
         "severity": "block",
-        "trigger": ["task-done", "commit"],
+        "trigger": ["task-done", "commit", "verify"],
         "command": None,
         "description": "Warn if files exceed max_lines threshold",
         "max_lines": 500,  # interim cap raised 400→500 (decision #190)
@@ -115,7 +117,7 @@ _UNIVERSAL_GATES_BEFORE = {
     "bootstrap_drift": {
         "enabled": True,
         "severity": "block",
-        "trigger": ["task-done"],
+        "trigger": ["task-done", "verify"],
         "command": None,
         "description": "Fail if deployed IDE profiles drift from scripts/ source",
     },
@@ -139,6 +141,12 @@ _UNIVERSAL_GATES_BEFORE = {
 class TestDerivedMetadata:
     def test_universal_gates_unchanged_by_the_refactor(self):
         """Every gate that predated the registry still has its exact config.
+
+        Updated once, deliberately: five static gates gained the `verify` trigger in 1.10
+        so they answer BEFORE the four-minute lane rather than after it. That is a change of
+        WHEN, not of what — severity and implementation are untouched, and the task-done
+        trigger stayed — so the snapshot moves with it rather than the change being bent to
+        fit the snapshot.
 
         Subset, not equality: the snapshot's job is to catch a "refactor" that
         quietly changes a severity or a trigger, and a MISSING key still fails
@@ -493,17 +501,15 @@ class TestBuiltinIsDeclared:
 class TestNoDispatchChainLeftBehind:
     def test_gate_runner_holds_no_gate_name_branches(self):
         """The chain this task deleted must not grow back one `elif` at a time."""
-        src = open(
-            os.path.join(os.path.dirname(__file__), "..", "scripts", "gate_runner.py"),
-            encoding="utf-8",
-        ).read()
+        src = Path(os.path.dirname(__file__), "..", "scripts", "gate_runner.py").read_text(
+            encoding="utf-8"
+        )
         for name in ("filesize", "tdd_order", "bootstrap_drift"):
             assert f'name == "{name}"' not in src
 
     def test_service_gates_holds_no_hardcoded_post_scope_calls(self):
-        src = open(
-            os.path.join(os.path.dirname(__file__), "..", "scripts", "service_gates.py"),
-            encoding="utf-8",
-        ).read()
+        src = Path(os.path.dirname(__file__), "..", "scripts", "service_gates.py").read_text(
+            encoding="utf-8"
+        )
         assert "self._enforce_verify_first(" not in src
         assert "self._enforce_changelog(" not in src

@@ -9,6 +9,14 @@ Cap is enforced on the STATIC portion only (everything outside the
 ``<!-- DYNAMIC:START --> ... <!-- DYNAMIC:END -->`` block). The dynamic
 block is rewritten by ``tausik update-claudemd`` and grows naturally
 with task counts; capping it would punish having more tasks tracked.
+
+A CAP WITH NO ROOM LEFT IS A BAN, and nothing said so. Measured in session #277: 13 bytes
+free, which is less than one pointer line. The file had stopped accepting additions while
+still passing, and the next author would have learned that from a failing test rather than
+from the file. The headroom check below states the room as a number, and the admission rule
+it enforces -- a line earns its place only if the agent would do the wrong thing without it,
+plus a declaration a standard requires -- is written in the file it governs, because a rule
+kept away from its subject is an excuse nobody re-reads.
 """
 
 from __future__ import annotations
@@ -68,3 +76,48 @@ def test_claude_md_keeps_dynamic_block() -> None:
     content = CLAUDE_MD.read_text(encoding="utf-8")
     assert "<!-- DYNAMIC:START -->" in content
     assert "<!-- DYNAMIC:END -->" in content
+
+
+#: One pointer line in this project's CLAUDE.md is about 45 bytes ("Что НЕ гарантировано:
+#: `docs/ru/known-limitations.md`."). Room for four of them is the smallest headroom that
+#: makes the cap a budget instead of a wall, and it is deliberately not a second cap: the
+#: number exists so a trim happens BEFORE an addition, not after a red test.
+MIN_HEADROOM_BYTES = 180
+
+
+def test_the_cap_leaves_room_for_the_next_pointer() -> None:
+    """THE FAILURE THIS FILE MISSED: 4088 of 4096 used, and every test green."""
+    static = _static_size(CLAUDE_MD.read_text(encoding="utf-8"))
+    free = MAX_STATIC_BYTES - static
+    assert free >= MIN_HEADROOM_BYTES, (
+        f"CLAUDE.md static portion is {static}B, leaving {free}B free — under the "
+        f"{MIN_HEADROOM_BYTES}B a next pointer needs. Trim reference prose rather than "
+        f"raising the cap: a line belongs here only if the agent would do the wrong thing "
+        f"without it. Guide: docs/ru/claude-md-guide.md"
+    )
+
+
+def test_the_admission_rule_is_stated_in_the_file_it_governs() -> None:
+    """A rule kept only in the guide is a rule the next author edits the file without."""
+    content = CLAUDE_MD.read_text(encoding="utf-8")
+    assert "Что имеет право стоять здесь" in content
+    assert "claude-md-guide.md" in content, "and it names where the reasoning lives"
+
+
+def test_no_documentation_address_is_named_twice() -> None:
+    """One address, named once. A second mention is a second thing to keep in step, and
+    the bytes it costs are bytes the next pointer does not have."""
+    import collections
+    import re
+
+    static = DYNAMIC_BLOCK.sub("", CLAUDE_MD.read_text(encoding="utf-8"))
+    counts = collections.Counter(re.findall(r"docs/(?:ru|en)/[a-z0-9-]+\.md", static))
+    twice = {a: n for a, n in counts.items() if n > 1}
+    assert not twice, f"named more than once in CLAUDE.md: {twice}"
+
+
+def test_the_guide_carries_the_measurement_that_set_the_rule() -> None:
+    """Both languages, because an agent reading either must get the same rule."""
+    for rel in ("docs/ru/claude-md-guide.md", "docs/en/claude-md-guide.md"):
+        text = (REPO_ROOT / rel).read_text(encoding="utf-8")
+        assert "4096" in text and "13" in text, rel

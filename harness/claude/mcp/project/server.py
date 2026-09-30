@@ -7,10 +7,32 @@ Tools defined in tools.py, handlers in handlers.py.
 from __future__ import annotations
 
 import argparse
-import difflib
 import os
 import sys
 import traceback
+
+# The argument guard is shared with the codebase-rag server and lives in
+# scripts/ (sibling-mcp-servers-still-drop-unknown-arguments): one list of
+# rules, not one per server. scripts/ must be importable before main() runs,
+# from the deployed profile (.claude/mcp/project -> .claude/scripts) and from the
+# source tree (harness/claude/mcp/project -> scripts) alike.
+for _hops in (2, 4):
+    _cand = os.path.normpath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * _hops, "scripts")
+    )
+    if os.path.isfile(os.path.join(_cand, "mcp_arguments.py")):
+        if _cand not in sys.path:
+            sys.path.insert(0, _cand)
+        break
+
+from mcp_arguments import (  # noqa: E402
+    declared_arguments,
+    reject_unknown_arguments,
+)
+from mcp_arguments import error_reply as _error_reply  # noqa: E402
+from mcp_arguments import usage_hint as _usage_hint  # noqa: E402
+
+__all__ = ["declared_arguments", "reject_unknown_arguments", "_error_reply", "_usage_hint"]
 
 
 def _get_service(project_dir: str):
@@ -27,89 +49,6 @@ def _get_service(project_dir: str):
     return ProjectService(be)
 
 
-def declared_arguments(tools: list[dict], name: str) -> tuple[dict, set] | None:
-    """The (properties, required) a tool's inputSchema declares, or None if unknown.
-
-    The single unfolding of a tool schema in this module. Both the usage line
-    and the unknown-argument check read it, so there is exactly one answer to
-    "what may this tool be called with" — a second list of names next to the
-    first is a future divergence, not a check.
-
-    None means the schema knows nothing about `name`. That is not the same as
-    "declares no arguments" ({}, set()), and the two callers below act on the
-    distinction rather than collapsing it.
-    """
-    tool = next((t for t in tools if t.get("name") == name), None)
-    if not tool:
-        return None
-    schema = tool.get("inputSchema") or {}
-    return (schema.get("properties") or {}), set(schema.get("required") or [])
-
-
-def _usage_hint(tools: list[dict], name: str) -> str:
-    """Compact usage line generated from the tool's inputSchema.
-
-    v15p-self-correcting-cli: appended to error replies so the agent can
-    correct the call in one retry instead of guessing argument names.
-    """
-    declared = declared_arguments(tools, name)
-    if declared is None:
-        return ""
-    props, required = declared
-    if not props:
-        return ""
-    parts = [
-        f"{key}{'*' if key in required else ''}:{spec.get('type', 'any')}"
-        for key, spec in props.items()
-    ]
-    return f"usage: {name}({', '.join(parts)}) — * = required"
-
-
-def _error_reply(tools: list[dict], name: str, exc: BaseException) -> str:
-    """The one shape every refusal takes: the reason, then how to call it right.
-
-    Both refusal paths in call_tool go through here so a rejected argument name
-    and a handler that raised are answered identically. An agent that learns to
-    read one reply can read the other.
-    """
-    reply = f"Error: {exc}"
-    hint = _usage_hint(tools, name)
-    return f"{reply}\n{hint}" if hint else reply
-
-
-def reject_unknown_arguments(tools: list[dict], name: str, arguments: dict | None) -> None:
-    """Raise ValueError when the call carries a name the tool never declared.
-
-    mcp-server-drops-unknown-arguments-silently: an undeclared argument used to
-    be dropped on the floor, so a typo in a parameter name was indistinguishable
-    from success. `story` passed where the schema says `story_slug` created seven
-    tasks with no story attached; nothing anywhere said a word, and the release
-    count read them as missing. The CLI answers the same slip with a loud
-    refusal, so the two surfaces disagreed about whether it was an error at all.
-
-    Undeclared names only. Values of DECLARED arguments are already validated by
-    the service below and refuse loudly (a 70-character slug against the limit of
-    64 names itself and prints usage) — checking them again here would duplicate
-    a working check in a second place.
-
-    An unknown TOOL raises nothing: that is the dispatcher's refusal to make, and
-    complaining about its arguments would name the wrong problem.
-    """
-    declared = declared_arguments(tools, name)
-    if declared is None:
-        return
-    props, _ = declared
-    unknown = [key for key in (arguments or {}) if key not in props]
-    if not unknown:
-        return
-    parts = []
-    for key in unknown:
-        near = difflib.get_close_matches(key, list(props), n=1, cutoff=0.6)
-        parts.append(f"{key!r} (did you mean {near[0]!r}?)" if near else repr(key))
-    tail = f" {name} declares no arguments." if not props else ""
-    raise ValueError(f"{name} does not declare {', '.join(parts)}.{tail}")
-
-
 def main():
     # UTF-8 stdio before any output — MCP servers launch directly (not via the
     # CLI wrapper); a Windows cp1251 host crashes on Cyrillic paths/messages.
@@ -122,7 +61,7 @@ def main():
         from tausik_utils import fix_stdio_encoding
 
         fix_stdio_encoding()
-    except Exception:  # noqa: BLE001 — never let stdio setup crash the server
+    except Exception:  # noqa: BLE001,S110 — never let stdio setup crash the server
         pass
 
     # Pin the moment this process started, for the bootstrap_drift gate's
@@ -135,11 +74,19 @@ def main():
         import running_source_drift
 
         running_source_drift.record_start(os.path.dirname(os.path.abspath(__file__)))
-    except Exception:  # noqa: BLE001 — see above
+    except Exception:  # noqa: BLE001,S110 - a server that cannot snapshot must still serve
         pass
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project", required=True, help="Project root directory")
+    # OPTIONAL SINCE THE MULTI-TENANT SEAM. With it the server is pinned and behaves exactly
+    # as before — that is how the host launches it today and how a cron job says what it
+    # means. Without it the project is resolved per request; see `tenancy.py` for what that
+    # costs and why the cost is only paid in that mode.
+    parser.add_argument(
+        "--project",
+        default=None,
+        help="Project root directory. Omit to resolve per request.",
+    )
     args = parser.parse_args()
 
     # Pin cwd to --project so handlers that resolve paths relative to cwd
@@ -147,18 +94,19 @@ def main():
     # the user-override path in handlers_stack.py) read the right project
     # regardless of the host's launch directory. Mirrors tausik-brain
     # server.py behavior — keeps the two MCP servers symmetric.
-    if not os.path.isdir(args.project):
-        print(
-            f"Error: --project {args.project!r} is not a directory.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-    os.chdir(args.project)
+    if args.project is not None:
+        if not os.path.isdir(args.project):
+            print(
+                f"Error: --project {args.project!r} is not a directory.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        os.chdir(args.project)
 
     try:
         from mcp.server import Server
         from mcp.server.stdio import stdio_server
-        from mcp.types import TextContent, Tool
+        from mcp.types import ListToolsResult, TextContent, Tool
     except ImportError:
         print("Error: mcp package not installed. Run: pip install mcp", file=sys.stderr)
         sys.exit(1)
@@ -174,7 +122,14 @@ def main():
     import self_check  # noqa: F401
 
     server = Server("tausik-project")
-    svc = _get_service(args.project)
+    from tenancy import ProjectUnresolved, ServiceRegistry
+
+    registry = ServiceRegistry(args.project, _get_service)
+    # The listing needs A service to read the active task's scope ACL from. Pinned, that is
+    # the one project; per request, it is whichever project the working directory resolves to
+    # at the moment the host asks — and if none does, the listing must still answer, because a
+    # host that cannot list tools reads as a dead server rather than as an unopened project.
+    svc = registry.service(registry.pinned) if registry.pinned else None
 
     # state-roundtrip-regression-sync-corrupts: warm the git-native projection off
     # the request path. session_open's `sync_suggested` section is watchdog-bounded,
@@ -186,7 +141,8 @@ def main():
 
     from state_triggers import prewarm
 
-    threading.Thread(target=prewarm, args=(svc,), name="state-prewarm", daemon=True).start()
+    if svc is not None:
+        threading.Thread(target=prewarm, args=(svc,), name="state-prewarm", daemon=True).start()
 
     # mcp-scope-tools-exposure: expose only the tools the active task's
     # scope_tools ACL allows (∪ always-safe-core). Fail-open by construction —
@@ -194,18 +150,35 @@ def main():
     # all tools. Hiding is a UX+token optimization, NOT the security barrier:
     # call_tool and the write-gate are untouched, so a hidden tool called
     # directly still passes existing enforcement.
-    from mcp_tool_scope import expose_tools
+    # The list depends on that state, so it carries ttlMs=0 / cacheScope=private
+    # (MCP 2026-07-28 CacheableResult): a client must not reuse a stale surface.
+    # Два фильтра, и порядок важен: `expose_tools` решает, КАКИЕ инструменты
+    # видны (ACL области задачи), `apply_tiers` — насколько подробно. Сперва
+    # состав, потом подробность: урезать схему у инструмента, который всё
+    # равно скрыт, значило бы платить указателем за невидимое.
+    from mcp_tool_scope import LIST_CACHE_HINT, expose_tools
+    from mcp_tool_tiers import apply_tiers
+
+    def _listing_service():
+        """A service for the ACL read, or None. Never raises: see the comment above `svc`."""
+        if svc is not None:
+            return svc
+        try:
+            return registry.for_call()
+        except Exception:  # noqa: BLE001 - an unopened project still gets the full tool list
+            return None
 
     @server.list_tools()
     async def list_tools():
-        return [
+        tools = [
             Tool(
                 name=t["name"],
                 description=t["description"],
                 inputSchema=t["inputSchema"],
             )
-            for t in expose_tools(TOOLS, svc)
+            for t in apply_tiers(expose_tools(TOOLS, _listing_service()))
         ]
+        return ListToolsResult.model_validate({"tools": tools, **LIST_CACHE_HINT})
 
     # TAUSIK exposes no prompts and no resources — only tools. Some hosts (OpenCode)
     # request prompts/list and resources/list unconditionally, without consulting the
@@ -236,7 +209,20 @@ def main():
         except ValueError as e:
             return [TextContent(type="text", text=_error_reply(TOOLS, name, e))]
         try:
-            result = await asyncio.to_thread(handle_tool, svc, name, arguments)
+            project_dir = registry.resolve()
+            call_svc = registry.service(project_dir)
+        except ProjectUnresolved as e:
+            # NOT a traceback and NOT a crash: the server is healthy, the request simply has
+            # no project. The agent gets the two ways out, which is the difference between an
+            # error it can act on and one it reports to a human.
+            return [TextContent(type="text", text=str(e))]
+
+        def _run_tool():
+            with registry.call_context(project_dir):
+                return handle_tool(call_svc, name, arguments)
+
+        try:
+            result = await asyncio.to_thread(_run_tool)
             return [TextContent(type="text", text=result)]
         except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
             # Full traceback to host stderr for diagnostics, mirroring

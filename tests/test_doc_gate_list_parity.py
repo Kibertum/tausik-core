@@ -22,7 +22,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_registry import GATE_REGISTRY  # noqa: E402
+from gate_registry import GATE_REGISTRY
 
 CROSSCUTTING_SCOPE = ["docs/", "scripts/"]
 

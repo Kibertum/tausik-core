@@ -2,6 +2,8 @@
 
 # Verify / QG terminology — glossary
 
+<!-- doc-map: reader=user; zone=quality -->
+
 Single source of truth for words that recur in CLI, MCP, hooks, and tests. Use these terms consistently in docs and agent instructions.
 
 ## Core terms
@@ -12,6 +14,7 @@ Single source of truth for words that recur in CLI, MCP, hooks, and tests. Use t
 | **Supported opt-out** | Documented knob that changes *where* checks run or *optional* behaviours, still within the framework contract. Not a synonym for skipping evidence or QG-2. | Yes, when intentional |
 | **Bypass (policy)** | Circumventing a **mandatory** rule (especially QG-0 / QG-2). In TAUSIK docs, reserve this word for methodology gaps — not for cache behaviour. | No for QG-2 closure |
 | **Verify cache bypass** | Security-sensitive paths (e.g. hooks, auth, payment) **never reuse** a cached verify result; gates still run — only the optimisation is skipped. | Yes — strengthens checks |
+| **`scope-narrower-than-diff`** | The run happened, but its cache was refused: files changed since the task's git anchor are not in `--relevant-files` (the anchor is a snapshot of the tree taken at the task's start and retaken on resume, so work already in progress elsewhere does not count). Retrying changes nothing; declare the files or confirm they are not this task's. Called `git-mismatch` before 1.10. | Yes — a reason, not an error |
 | **Test shim** | Pytest machinery (see `tests/conftest.py`) that **disables** `_enforce_verify_first` in most tests so the suite stays fast and stable. Not a production setting. | Tests only |
 
 ## Supported opt-outs (examples)
@@ -19,7 +22,7 @@ Single source of truth for words that recur in CLI, MCP, hooks, and tests. Use t
 | Mechanism | What it does | What it does *not* do |
 |-----------|----------------|------------------------|
 | `{"task_done": {"auto_verify": true}}` in `.tausik/config.json` | Runs heavy verify gates **inside** `task done` (v1.3-style single step). | Does not remove AC evidence or `--ac-verified`. |
-| `task start --force` | Bypasses **session capacity** gate with audit trail. | Does not bypass QG-0 content requirements or QG-2. |
+| `task start --force` | Retired in 1.10: session time and capacity are signals, not gates, so there is nothing to bypass and the flag is refused. | — |
 | `git commit --no-verify` | Skips **git** `pre-commit` hook only. | Does not change TAUSIK DB gates or `tausik verify`. |
 | `TAUSIK_SKIP_PUSH_HOOK=1` | Documented debug bypass for **push** gate (see `environment.md`). | Not a general QG-2 opt-out. |
 | `task done --no-knowledge` | Confirms no knowledge capture; suppresses related warning. | Does not skip verify / AC. |
@@ -49,7 +52,7 @@ When changing verify / QG / cache text:
 ## See also
 
 - [Testing principles](testing-principles.md) — when to add tests; anti-pattern: duplicate tests without new behaviour.
-- [CLI — Verification](cli.md#verification)
+- [CLI — Verification](cli-quality.md#verification)
 - [MCP — Verify-First Contract](mcp.md#verify-first-contract-v14)
 - [Hooks — Disable / bypass](hooks.md#disable--bypass)
 
@@ -65,7 +68,7 @@ Measured in session #235: of 135 under-declared runs in the last 300, **26 (19%)
 consisted of nothing but framework output**, and another 39 (29%) were mixed.
 
 They are now subtracted, on the same principle that already subtracts a task's
-own export (convention #409, decision #283): a check whose subject is "what did
+own export (convention #409): a check whose subject is "what did
 the AGENT change" does not count what it wrote itself.
 
 **The decision is taken by the DIFF, never by the name.** `CLAUDE.md` and

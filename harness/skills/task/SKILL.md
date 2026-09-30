@@ -148,15 +148,11 @@ Prefer MCP tools over CLI bash calls. Exact parameter names:
 ## Auto-checkpoint (SENAR Rule 9.3)
 
 After approximately 45 tool calls during a task, remind the user:
-"Consider `/checkpoint` to save context — SENAR recommends checkpoints every 30-50 tool calls."
+"Consider `/checkpoint` to save context — the checkpoint signal in the tool response says when."
 
 ## Code search hierarchy
 
-When investigating code for a task, prefer the cheapest tool that fits:
-
-1. **`mcp__codebase-rag__search_code`** — first choice for symbols, patterns, "where is X used", "how does Y work". Returns ranked chunks, not full files. Cheapest token-wise.
-2. **`Grep`** — only when you already know which file(s) to search in, or when RAG is empty/stale.
-3. **`Read`** — only when you have an exact path. Don't `Read` unfamiliar code — use `search_code` first to locate the relevant chunks.
+When investigating code for a task, narrow before you read: `Grep` with a `path`/`glob`, `Read` with `offset`/`limit`. RAG is the route to code: after every `Grep` a hook adds the index's top chunks for the same identifiers, and `mcp__codebase-rag__search_code` answers questions by concept ("where is X handled") that a regex cannot.
 
 ## Gotchas
 

@@ -41,6 +41,17 @@ def _session_warn_min(project_dir: str) -> int:
 SESSION_WARN_MIN = 150  # legacy fallback when project_dir unknown
 
 
+def _session_max_min(project_dir: str) -> int:
+    """The advisory threshold the text names — read from config, never typed."""
+    try:
+        cfg = load_effective_config(project_dir)
+        v = cfg.get("session_max_minutes", 180)
+        n = int(v) if isinstance(v, (int, float)) else 180
+        return max(1, n)
+    except (OSError, ValueError, TypeError):
+        return 180
+
+
 def _run(cmd: str, args: list[str], project_dir: str, timeout: int = 4) -> str:
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
     try:
@@ -122,8 +133,9 @@ def build_warnings(project_dir: str) -> list[str]:
     minutes = _session_overrun_minutes(status_out, _session_warn_min(project_dir))
     if minutes:
         warnings.append(
-            f"- **Session running {minutes} min** (limit 180). "
-            "Run `/checkpoint` now to save state, or `/end` to close cleanly."
+            f"- **Session active {minutes} min** (advisory threshold "
+            f"{_session_max_min(project_dir)} min — a signal, not a gate). "
+            "Save state with `/checkpoint` or hand off with `/end`; nothing refuses work here."
         )
 
     return warnings

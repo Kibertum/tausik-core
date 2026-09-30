@@ -62,8 +62,12 @@ def reviewer_hint(author_model: str | None) -> str:
     author_disp = (
         _DISPLAY.get(author_family, "the author model") if author_family else "the author model"
     )
+    # github#157: the invitation carries the author's exact id, so the reviewer
+    # compares instead of reconstructing it from commit trailers.
+    author_id = author_model or "unknown — pass --author-model"
     return (
         f"Delegate to the @tausik-external-reviewer subagent on {display} "
         f"(a different model than {author_disp} — SENAR Rule 4 separation of "
-        f"duties; the reviewer is read-only)."
+        f"duties; the reviewer is read-only). Author model: {author_id}. Record with "
+        f"--author-model and --reviewer-model: a same-family L3 is refused."
     )

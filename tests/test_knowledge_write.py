@@ -17,9 +17,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import knowledge_db  # noqa: E402
-import knowledge_write  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+import knowledge_db
+import knowledge_write
+from tausik_utils import ServiceError
 
 CROSSCUTTING_SCOPE = ["scripts/knowledge_write.py", "scripts/service_decide.py"]
 
@@ -136,7 +136,7 @@ class TestNoPromptAndNoClassifier:
         monkeypatch.setattr(
             brain_universality,
             "emit_universality_hint",
-            lambda text: called.append(text),
+            lambda text, **_kw: called.append(text),
         )
         svc.memory_add("pattern", "локальная", "тело")
         assert len(called) == 1

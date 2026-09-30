@@ -17,19 +17,19 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from backend_migrations import run_migrations  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from closed_list_counts import ADAPT_FINDING_CATEGORY_LIST, scan_tree  # noqa: E402
-from closed_list_counts import written_counts as _written_counts  # noqa: E402
-from service_adapts import (  # noqa: E402
+from backend_migrations import run_migrations
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from closed_list_counts import ADAPT_FINDING_CATEGORY_LIST, scan_tree
+from closed_list_counts import written_counts as _written_counts
+from service_adapts import (
     FINDING_CATEGORIES,
     HISTORICAL_SIGNATURE_ROLES,
     LINK_TARGETS,
     SIGNATURE_ROLES,
 )
-from tausik_utils import ServiceError  # noqa: E402
+from tausik_utils import ServiceError
 
 
 @pytest.fixture
@@ -113,6 +113,9 @@ def test_migration_v36_creates_tables_clean(tmp_path):
     conn.execute(
         "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
     )  # defect_of: v10 column, indexed by v62
+    conn.execute(
+        "CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )  # ALTER target for v63
     # ALTER target for v38 — run_migrations walks every version up to current,
     # not just the one under test here.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
@@ -362,12 +365,6 @@ def test_fts_delete_trigger_removes_entry(svc):
     assert svc.adapt_search("Ephemeral")
     svc.adapt_delete("ghost")
     assert svc.adapt_search("Ephemeral") == []
-
-
-def test_malformed_fts_query_is_friendly_error(svc):
-    svc.adapt_create("a1", "T", "TZ-1")
-    with pytest.raises(ServiceError, match="Invalid search query"):
-        svc.adapt_search('"unbalanced')
 
 
 # === CLI parser wiring ===

@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from audit_translation_drift import (  # noqa: E402
+from audit_translation_drift import (
     audit_pairs,
     count_metrics,
     has_skip_marker,
@@ -171,12 +171,28 @@ def test_main_check_exits_zero_when_no_drift(fake_repo: Path) -> None:
     assert rc == 0
 
 
-def test_main_check_does_not_flag_on_unpaired_only(fake_repo: Path) -> None:
-    """Unpaired files alone are informational and must NOT trigger --check exit 1."""
+def test_main_check_flags_an_undeclared_unpaired_doc(fake_repo: Path) -> None:
+    """CONTRACT CHANGED, deliberately: an unpaired doc used to be informational.
+
+    "Informational" meant nobody owned it, and three files sat in that list across
+    successive reviews while each review spent its time relearning the same three
+    names. So an unpaired doc now has to declare WHY — a permanent reason or the task
+    that closes it — and an undeclared one fails `--check`. A DECLARED one still
+    passes, because the point is the declaration and not the pairing.
+    """
     _write(fake_repo, "en", "en-only.md", "# A\n")
     _write(fake_repo, "ru", "ru-only.md", "# A\n")
-    rc = main(["--check", "--repo-root", str(fake_repo)])
-    assert rc == 0
+    assert main(["--check", "--repo-root", str(fake_repo)]) == 1
+
+    for lang, name in (("en", "en-only.md"), ("ru", "ru-only.md")):
+        _write(
+            fake_repo,
+            lang,
+            name,
+            "# A\n\n<!-- audit-translation-drift: unpaired: an agent-facing spec with no "
+            "user-facing mirror by design -->\n",
+        )
+    assert main(["--check", "--repo-root", str(fake_repo)]) == 0
 
 
 def test_main_json_mode_emits_valid_json(
@@ -321,12 +337,18 @@ class TestЖивоеДеревоНеРасходится:
         )
 
     def test_список_непарных_документов_закреплён(self) -> None:
-        """Три документа существуют на одном языке, и это НАЗВАНО, а не
-        засчитано как паритет. Ратчет держит их поимённо: новый непарный
-        документ обязан объявить о себе, а не раствориться в счётчике."""
+        """Остался ОДИН односторонний документ, и он постоянный по причине.
+
+        Было три. `agent-contract` переведён: CLAUDE.md называет его полным
+        контрактом агента, поэтому его отсутствие по-английски было дефектом
+        продукта, а не пробелом. `hooks-events` ждал именно его — раздел
+        остаточной границы отсылает к якорю внутри контракта. Ратчет держит
+        остаток поимённо: новый непарный обязан объявить о себе, а не
+        раствориться в счётчике.
+        """
         _drifts, en_only, ru_only, _abbrev = audit_pairs(self._repo())
         assert sorted(en_only) == ["at-generation-procedure.md"]
-        assert sorted(ru_only) == ["agent-contract.md", "hooks-events.md"]
+        assert ru_only == [], f"снова появились односторонние по-русски: {ru_only}"
 
     def test_проверка_действительно_смотрит_на_пары(self) -> None:
         """Предпосылка. Ноль расхождений при нуле сравненных пар — самый тихий
@@ -334,3 +356,70 @@ class TestЖивоеДеревоНеРасходится:
         _d, _en_only, ru_only, _a = audit_pairs(self._repo())
         pairs = len(list((self._repo() / "docs" / "ru").glob("*.md"))) - len(ru_only)
         assert pairs > 20, f"сравнивается всего {pairs} пар — детектор ослеп"
+
+
+class TestUnpairedDocsMustDeclareWhy:
+    """Список непарных перестаёт открываться заново: каждый обязан назвать ПРИЧИНУ.
+
+    До этого список печатался как сведение, и сведение без владельца
+    переоткрывают, а не закрывают: три файла стояли в нём из сверки в сверку, и
+    каждая сверка тратила время на то, чтобы заново узнать те же три имени.
+    """
+
+    @staticmethod
+    def _repo() -> Path:
+        return Path(__file__).resolve().parents[1]
+
+    def test_no_undeclared_one_language_doc(self) -> None:
+        from audit_translation_drift import audit_pairs, classify_unpaired
+
+        _d, en_only, ru_only, _a = audit_pairs(self._repo())
+        _declared, undeclared = classify_unpaired(self._repo(), en_only, ru_only)
+        assert not undeclared, (
+            "односторонние документы без объявления: "
+            + ", ".join(undeclared)
+            + " — каждому нужен маркер unpaired с причиной или слагом задачи, либо зеркало"
+        )
+
+    def test_every_declaration_has_text_not_just_a_marker(self) -> None:
+        from audit_translation_drift import audit_pairs, classify_unpaired
+
+        _d, en_only, ru_only, _a = audit_pairs(self._repo())
+        declared, _u = classify_unpaired(self._repo(), en_only, ru_only)
+        assert len(declared) == len(en_only) + len(ru_only)
+        for name, reason in declared.items():
+            assert len(reason) > 40, f"{name}: причина в {len(reason)} символов — это отписка"
+
+    def test_a_bare_marker_is_not_a_declaration(self) -> None:
+        """НЕГАТИВНЫЙ: иначе маркер стал бы способом закрыть список молча.
+
+        Требование причины — единственное, что отличает объявленный пробел от
+        спрятанного; проверка формы без проверки текста давала бы отчёт чище, чем
+        состояние.
+        """
+        from audit_translation_drift import unpaired_reason
+
+        assert unpaired_reason("<!-- audit-translation-drift: unpaired: -->") is None
+        assert unpaired_reason("<!-- audit-translation-drift: unpaired: -   -->") is None
+        assert unpaired_reason("no marker at all") is None
+        assert unpaired_reason("<!-- audit-translation-drift: unpaired: потому что X -->") == (
+            "потому что X"
+        )
+
+    def test_check_reddens_on_an_undeclared_doc(self, tmp_path) -> None:
+        """НЕГАТИВНЫЙ: правило без ненулевого кода возврата — это пожелание."""
+        from audit_translation_drift import main
+
+        for sub in ("docs/en", "docs/ru"):
+            (tmp_path / sub).mkdir(parents=True)
+        (tmp_path / "docs" / "en" / "paired.md").write_text("# A\n", encoding="utf-8")
+        (tmp_path / "docs" / "ru" / "paired.md").write_text("# А\n", encoding="utf-8")
+        (tmp_path / "docs" / "en" / "lonely.md").write_text("# Lonely\n", encoding="utf-8")
+        assert main(["--check", "--repo-root", str(tmp_path)]) == 1
+
+        (tmp_path / "docs" / "en" / "lonely.md").write_text(
+            "# Lonely\n\n<!-- audit-translation-drift: unpaired: agent-facing spec, no mirror "
+            "is produced on purpose -->\n",
+            encoding="utf-8",
+        )
+        assert main(["--check", "--repo-root", str(tmp_path)]) == 0

@@ -2,6 +2,8 @@
 
 # Model Providers
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 TAUSIK is model-agnostic. Skills work with any LLM that supports tool use.
 
 ## Supported Platforms
@@ -67,7 +69,7 @@ hand. The scaffolded set is the single source of truth in
 > `hook_event_name`/`permissionDecision` protocol — so Rule 1 and the write ACL
 > are ENFORCED there, not merely instructed, **once the user has trusted the
 > project's hooks in Codex**. That precondition is the host's, not ours, and it
-> was measured live rather than assumed (session #251): with the generated
+> was measured live rather than assumed: with the generated
 > `.codex/hooks.json` present but NOT trusted, the exact forbidden
 > `Path('outside.txt').write_text(...)` ran to completion — no hook fired, no
 > refusal, the file existed. The same operation under a trusted profile was
@@ -95,8 +97,8 @@ severity.
 |----------|------|-----------------------|
 | QG-0 Context Gate | hard | `tausik_task_start` refuses an incomplete task through MCP and CLI. |
 | QG-2 Implementation Gate / Verify-First | hard | `tausik_task_done` refuses closure without a fresh signed `tausik_verify` receipt. |
-| Rule 9.2 Session limit | hard | `tausik_task_start` refuses work past the active-time limit. |
-| Rule 1 Task before code | hard | `.codex/hooks.json` wires `task_gate.py` to Codex `PreToolUse` — **only after the user has trusted the project hooks in Codex**; an untrusted profile enforces nothing (measured live, session #251). |
+| Rule 9.2 Session limit | signal | `tausik_task_start` prints advice above the active-time threshold and refuses nothing (1.10). |
+| Rule 1 Task before code | hard | `.codex/hooks.json` wires `task_gate.py` to Codex `PreToolUse` — **only after the user has trusted the project hooks in Codex**; an untrusted profile enforces nothing (measured live). |
 | Rule 2 Scope Boundaries | hard | `.codex/hooks.json` wires `scope_write_gate.py` and `bash_write_gate.py` to Codex `PreToolUse` — **only after the user has trusted the project hooks in Codex**; shell coverage is the declared catalogue, not a claim to interpret every program. |
 
 `tests/test_codex_support_matrix.py` reads both language tables, requires this

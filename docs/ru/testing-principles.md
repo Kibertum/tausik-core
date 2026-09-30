@@ -2,6 +2,8 @@
 
 # Принципы тестирования
 
+<!-- doc-map: reader=user; zone=quality -->
+
 Для контрибьюторов и агентов, которые меняют ядро TAUSIK (`scripts/`, MCP, гейты, хуки). Про поток верификации в CLI см. [Глоссарий verify / QG](verify-glossary.md) и раздел **Verification** в [CLI](cli.md).
 
 ## Когда добавлять или расширять тест
@@ -44,4 +46,4 @@ RESOLVED`.
 
 - [Архитектура](architecture.md) — структура репозитория, гейты, команды тестирования.
 - [Глоссарий verify / QG](verify-glossary.md) — Verify-First, тестовый shim, обход кеша для чувствительных файлов.
-- [CLI — Верификация](cli.md#верификация) — `verify`, TTL кеша, `task done`.
+- [CLI — Верификация](cli-quality.md#верификация) — `verify`, TTL кеша, `task done`.

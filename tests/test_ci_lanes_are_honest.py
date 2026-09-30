@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT  # noqa: E402
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT
 
 
 # The CI lane definitions this file reads. Declared so the scoped-pytest gate
@@ -363,13 +363,13 @@ class TestEveryLaneInstallsWhatTheAddoptsDemand:
             if "pip install" not in line:
                 continue
             tokens = line.split("pip install", 1)[1].split()
-            # Package names only: flags, and the file that follows `-r`, are not.
+            # Package names only: flags, and the file that follows `-r`/`-c`, are not.
             packages, skip_next = [], False
             for tok in tokens:
                 if skip_next:
                     skip_next = False
                     continue
-                if tok in ("-r", "--requirement"):
+                if tok in ("-r", "--requirement", "-c", "--constraint"):
                     skip_next = True
                     continue
                 if tok.startswith("-"):

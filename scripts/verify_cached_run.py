@@ -38,7 +38,7 @@ from verify_constants import DEFAULT_CACHE_TTL_S
 from verify_files_hash import compute_files_hash
 from verify_own_export import coverage_files
 from verify_recent_lookup import lookup_recent_for_task
-from verify_zero_gate import rests_on_a_declaration
+from verify_zero_gate import rests_on_a_declaration, unscoped_only
 from verify_no_test_mapped import handle_no_test_mapped
 from verify_run_record import (
     RECORD_FAILED_STATUS,
@@ -69,6 +69,9 @@ AUDIT_NO_TESTS_DECLARED_SQL = (
 )
 
 
+SCOPE_NARROWER = "scope-narrower-than-diff"
+
+
 def run_gates_with_cache(
     conn: sqlite3.Connection,
     slug: str,
@@ -89,7 +92,7 @@ def run_gates_with_cache(
     Returns (passed, results, cache_status) where:
       passed: bool — final gate verdict (True if cache hit OR fresh green)
       results: gate_runner result list (empty when cache hit)
-      cache_status: "hit" / "miss" / "bypass" / "git-mismatch" /
+      cache_status: "hit" / "miss" / "bypass" / "scope-narrower-than-diff" /
                     "no-test-mapped" / "no-tests-declared" /
                     "scope-security-mismatch" / None
 
@@ -121,7 +124,7 @@ def run_gates_with_cache(
     `task_created_at` (v1.3.4): when provided, the cache lookup is also
     gated on the declared-vs-git comparison — if the agent declared a strict
     subset of files actually changed since task start (per `git log --since`
-    + `git diff HEAD`), the cache is refused (status "git-mismatch") to
+    + `git diff HEAD`), the cache is refused (status "scope-narrower-than-diff") to
     prevent the bypass where a misreported file scope masks a
     security-sensitive change. None or empty falls back to the pre-v1.3.4
     behavior (security-only bypass).
@@ -325,7 +328,15 @@ def run_gates_with_cache(
     # verify-no-test-mapped-dead-end: сам вердикт живёт в verify_no_test_mapped.
     # Здесь остаётся только условие входа — три решения этой ветки (блокировать,
     # записывать блокировку, дать явный выход) слишком велики для тела функции.
-    if files and results and all(r.get("skipped") for r in results):
+    # a-passing-irrelevant-gate-unblocks-an-empty-verify: a green run whose
+    # only executed gates are project-wide, while every file-scoped gate
+    # skipped, has examined the declared files no better than an all-skipped
+    # one — it takes the same branch.
+    if (
+        files
+        and results
+        and (all(r.get("skipped") for r in results) or (passed and unscoped_only(results)))
+    ):
         return handle_no_test_mapped(
             conn,
             slug=slug,
@@ -384,6 +395,8 @@ def run_gates_with_cache(
     # ran at all, so there is nothing to write and no write to fail. That path
     # is untouched — "nothing to record" is not "failed to record".
     if results:
+        # A local sink when the caller passed none: the signer check below reads it.
+        details = details if details is not None else {}
         summary = summarize_results(results)
         try:
             _record_verification(
@@ -408,10 +421,27 @@ def run_gates_with_cache(
             # defect: `task done` could not tell it apart from a run whose
             # evidence exists.
             return False, [*results, record_failure_result(exc)], RECORD_FAILED_STATUS
+        # SIGNER_UNAVAILABLE: a key is configured and the receipt was not signed.
+        # This used to be a printed WARNING on a green, closable run.
+        if passed and details is not None and details.get("receipt_status") == "error":
+            from infra_refusal import SIGNER_UNAVAILABLE, line
+
+            signer = {
+                "name": "verify-signer",
+                "passed": False,
+                "skipped": False,
+                "severity": "block",
+                "output": line(SIGNER_UNAVAILABLE),
+                "duration_ms": 0,
+            }
+            return False, [*results, signer], "signer-unavailable"
     if not cache_ok:
         cache_status = "bypass"
     elif not git_diff_consistent:
-        cache_status = "git-mismatch"
+        # Was "git-mismatch", which read as a cache miss — "try again" — while
+        # it meant the declared scope is narrower than what git says changed
+        # (github#12). The name now says that, and the report says what to do.
+        cache_status = SCOPE_NARROWER
     else:
         cache_status = "miss"
     return passed, results, cache_status

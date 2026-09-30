@@ -1,4 +1,8 @@
+[English](../en/hooks-events.md) | **Русский**
+
 # Хук-события и покрытие записи файлов
+
+<!-- doc-map: reader=maintainer; zone=quality -->
 
 Ревизия хук-контракта TAUSIK (задача `l26-hook-contract-review`, Decision #162).
 Отвечает на вопрос AC1: какие события перехватывают запись файлов и покрыта ли

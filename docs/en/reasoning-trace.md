@@ -2,6 +2,8 @@
 
 # Reasoning Trace (RENAR)
 
+<!-- doc-map: reader=agent; zone=quality -->
+
 A **reasoning trace** is an ordered, append-only chain of typed steps attached to
 a task. It records *why* the agent did something — the rationale a fresh agent
 could not reconstruct from the diff alone. It is the reasoning half of RENAR

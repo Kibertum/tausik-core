@@ -93,8 +93,7 @@ def index_symbols(svc: Any, root: str, paths: list[str]) -> dict[str, int]:
     unreadable = sum(
         1
         for path in paths
-        if classify(path) in ("code", "config")
-        and not path.lower().endswith(SYMBOL_SUFFIXES)
+        if classify(path) in ("code", "config") and not path.lower().endswith(SYMBOL_SUFFIXES)
     )
     return {"symbols": written, "no_extractor": unreadable}
 
@@ -143,8 +142,13 @@ def ingest_observed(svc: Any, root: str) -> dict[str, int]:
         if src == dst:
             continue
         svc.be.artifact_edge_add(
-            src, dst, "covers", "observed_coverage", 1.0,
-            observations=observations, source_ref=path,
+            src,
+            dst,
+            "covers",
+            "observed_coverage",
+            1.0,
+            observations=observations,
+            source_ref=path,
         )
         written += 1
     return {"pairs": len(counts), "edges": written, "tests": len(tests)}

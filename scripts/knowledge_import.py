@@ -132,7 +132,9 @@ def import_from_brain_mirror(*, dry_run: bool = False) -> dict[str, int]:
 
 def _read(src: sqlite3.Connection, table: str) -> list[sqlite3.Row]:
     try:
-        return src.execute(f"SELECT * FROM {table}").fetchall()  # noqa: S608 — fixed names
+        return src.execute(
+            f"SELECT * FROM {table}"
+        ).fetchall()  # ruff-not-enabled: S608 — fixed names
     except sqlite3.Error:
         # A mirror written by an older brain may not have every table. Absent is
         # not an error: there is simply nothing of that kind to bring over.

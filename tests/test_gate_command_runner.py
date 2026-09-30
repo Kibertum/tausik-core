@@ -25,7 +25,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_command_runner import (  # noqa: E402
+from gate_command_runner import (
     _SCOPE_LABEL_MAX_NAMED,
     _scope_label,
     run_command_gate,
@@ -319,9 +319,12 @@ class TestTheLabelSurvivesRendering:
         )
 
         assert "NOT the full suite" in rendered
-        for i in range(5):
+        # Eight lines fit the excerpt whole (head 5 + tail 5): the scope line
+        # evicts none of them. It used to be exactly five, which is what cut the
+        # FAILED names off a batched pytest run (github#11,
+        # tests/test_gate_output_keeps_failures.py).
+        for i in range(8):
             assert f"failure line {i}" in rendered
-        assert "failure line 5" not in rendered
 
 
 class TestScopeLabelShape:

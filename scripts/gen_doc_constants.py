@@ -149,7 +149,9 @@ def _restore_prior(payload: dict[str, object], key: str, repo_root: Path, why: s
 
 
 def output_json_path(repo_root: Path) -> Path:
-    return repo_root / "docs" / "_generated" / "constants.json"
+    from derived_trees import DOC_CONSTANTS_DIR
+
+    return repo_root.joinpath(*DOC_CONSTANTS_DIR, "constants.json")
 
 
 def render_json(payload: dict[str, object]) -> str:

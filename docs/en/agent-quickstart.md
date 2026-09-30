@@ -2,6 +2,8 @@
 
 # Agent quickstart: connect TAUSIK, then work under it
 
+<!-- doc-map: reader=agent; zone=getting-started -->
+
 You are an AI agent. This page is written for you, in the order you will need
 it: how to connect the framework to a project on the host you are running in,
 how to check that it is actually there, and how to do work once it is — as
@@ -161,8 +163,8 @@ Two kinds of rules, two kinds of enforcement — the split is by WHO performs
 the action, not by host:
 
 * **Rules our surface holds, everywhere.** QG-0 (no start without goal + AC),
-  QG-2 (no close without evidence and a fresh verify), the session limit, the
-  memory route. These refuse inside `tausik_*` / the CLI, so they hold on a
+  QG-2 (no close without evidence and a fresh verify) and the memory route;
+  session time and capacity are advice there, never a refusal (1.10). These refuse inside `tausik_*` / the CLI, so they hold on a
   host with no hooks at all.
 * **Rules that intercept YOUR action.** Rule 1 (no file write without an
   active task), Rule 2 (no write outside the declared scope), the shell

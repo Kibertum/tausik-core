@@ -1,0 +1,10 @@
+# Static tools whose verdict decides a CI lane, pinned so that verdict comes from
+# this repository and not from whatever was released the night before
+# (mypy-and-bandit-are-unpinned-in-ci-like-ruff-was, session #269).
+#
+# Every install of these tools goes through this file: `pip install -c ci-constraints.txt ...`
+# (tests/test_ci_tool_pins.py refuses a bare install). The versions are the ones
+# the local gates ran when the pins were set; raise them in one commit, here.
+ruff==0.16.5
+mypy==1.20.2
+bandit==1.9.4

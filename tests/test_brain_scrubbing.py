@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import brain_scrubbing  # noqa: E402
+import brain_scrubbing
 
 
 # ---- Clean content ---------------------------------------------------
@@ -293,7 +293,7 @@ def test_blocklist_cyrillic_homoglyph_bypass_blocked_named_detector():
             id="blocklist_all_cyrillic_homoglyphs_blocked",
         ),
         pytest.param(
-            "Contact the meg​acorp team by Friday",  # ZWSP
+            "Contact the meg\u200bacorp team by Friday",  # ZWSP
             {"project_names": ["megacorp"]},
             False,
             id="blocklist_zero_width_bypass_blocked",
@@ -311,7 +311,7 @@ def test_blocklist_cyrillic_homoglyph_bypass_blocked_named_detector():
             id="blocklist_html_numeric_entity_bypass_blocked",
         ),
         pytest.param(
-            "Talk to М​egacorp tomorrow",  # Cyrillic M + ZWSP
+            "Talk to М\u200begacorp tomorrow",  # Cyrillic M + ZWSP
             {"project_names": ["megacorp"]},
             False,
             id="blocklist_mixed_homoglyph_and_zero_width_blocked",
@@ -454,15 +454,15 @@ def test_the_source_carries_no_invisible_characters_of_its_own():
     development remote. A file-level property this cheap to test does not need
     to wait that long.
     """
-    import io as _io
     import os as _os
+    from pathlib import Path
 
     path = _os.path.join(
         _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
         "scripts",
         "brain_scrubbing.py",
     )
-    src = _io.open(path, encoding="utf-8").read()
+    src = Path(path).read_text(encoding="utf-8")
     offenders = sorted({hex(ord(c)) for c in src if brain_scrubbing._ZERO_WIDTH_RE.fullmatch(c)})
     assert not offenders, (
         f"scripts/brain_scrubbing.py contains invisible characters {offenders} — "

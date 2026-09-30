@@ -16,6 +16,7 @@ from backend_migrations_v42_backfill import maybe_backfill_v42
 from backend_migrations_v43 import maybe_rebuild_tasks_v43
 from backend_migrations_v48 import maybe_rebuild_usage_events_v48
 from backend_migrations_v49 import maybe_widen_spec_types_v49
+from backend_migrations_v64 import maybe_widen_spec_types_v64
 from backend_migrations_v50 import maybe_widen_adapt_statuses_v50
 from backend_migrations_v53 import ensure_actz_points_tz_ref_index
 
@@ -46,7 +47,7 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
                 logging.getLogger("tausik.migrations").warning("v18 seed/flag failed: %s", e)
                 try:
                     conn.rollback()
-                except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
+                except Exception:  # noqa: BLE001,S110 — best-effort: maintenance/IO, non-fatal to the surrounding op
                     pass
             if report and report["dropped_legacy_values"]:
                 import sys
@@ -72,3 +73,5 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
         maybe_widen_adapt_statuses_v50(conn)
     if current_version >= 53:  # index on actz_points.tz_ref, safe on either path (guarded)
         ensure_actz_points_tz_ref_index(conn)
+    if current_version >= 64:  # widen specs.type to twelve: SPEC-UC (guarded rebuild)
+        maybe_widen_spec_types_v64(conn)

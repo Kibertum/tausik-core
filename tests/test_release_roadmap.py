@@ -14,6 +14,8 @@ say no.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import subprocess
 import sys
@@ -544,7 +546,7 @@ def test_the_module_never_reaches_for_the_clock():
     # Both halves: the reader decides WHICH decision is in force, the renderer
     # prints it, and a clock in either would make every reissue differ.
     src = "".join(
-        open(m.__file__, encoding="utf-8").read()
+        Path(m.__file__).read_text(encoding="utf-8")
         for m in (release_roadmap, release_roadmap_composition)
     )
     for forbidden in ("import time", "datetime.now", "utcnow"):

@@ -20,6 +20,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
@@ -67,7 +69,9 @@ def test_hooks_are_reachable_in_a_plain_clone(tmp_path):
 
     import json
 
-    settings = json.loads(open(os.path.join(p.ide_dir, "settings.json"), encoding="utf-8").read())
+    settings = json.loads(
+        Path(os.path.join(p.ide_dir, "settings.json")).read_text(encoding="utf-8")
+    )
     commands = [
         h["command"]
         for entries in settings["hooks"].values()

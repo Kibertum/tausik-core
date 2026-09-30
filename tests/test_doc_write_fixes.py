@@ -12,7 +12,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from doc_drift_scanners import (  # noqa: E402
+from doc_drift_scanners import (
     scan_test_counts,
     write_cross_file_fixes,
 )

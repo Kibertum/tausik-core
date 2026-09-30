@@ -197,13 +197,14 @@ def build_memory_block(
             "cross-project user preferences; writes there are blocked unless the "
             "user's last turn contains the marker `confirm: cross-project`."
         ),
+        "`≈` marks a memory whose claim was inferred, not observed (provenance).",
     ]
 
     if contexts:
         lines.append("")
         lines.append(f"**Context — environment facts ({len(contexts)}):**")
         for ctx in contexts:
-            lines.append(entry_line(ctx.get("id"), ctx.get("title"), 80, sup_ctx))
+            lines.append(entry_line(ctx.get("id"), _marked(ctx), 80, sup_ctx))
 
     if decisions:
         lines.append("")
@@ -215,13 +216,13 @@ def build_memory_block(
         lines.append("")
         lines.append(f"**Conventions ({len(conventions)}):**")
         for c in conventions:
-            lines.append(entry_line(c.get("id"), c.get("title"), 80, sup_con))
+            lines.append(entry_line(c.get("id"), _marked(c), 80, sup_con))
 
     if deadends:
         lines.append("")
         lines.append(f"**Recent dead ends ({len(deadends)}):**")
         for de in deadends:
-            lines.append(entry_line(de.get("id"), de.get("title"), 80, sup_de))
+            lines.append(entry_line(de.get("id"), _marked(de), 80, sup_de))
 
     lines.extend(shared)
 
@@ -240,6 +241,16 @@ def build_memory_block(
     lines.extend(warning)
 
     return "\n".join(lines)
+
+
+#: Marks a memory record whose claim was reasoned, not measured (v65 provenance).
+INFERRED_MARK = "≈ "
+
+
+def _marked(row: dict) -> str:
+    """The title, marked when the record's provenance is `inferred`."""
+    title = row.get("title") or ""
+    return INFERRED_MARK + title if row.get("provenance", "inferred") == "inferred" else title
 
 
 def _shared_section(max_shared: int) -> tuple[list[str], list[str]]:

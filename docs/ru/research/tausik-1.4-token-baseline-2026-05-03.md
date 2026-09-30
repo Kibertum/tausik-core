@@ -37,7 +37,7 @@ status: baseline-v1
 | `CLAUDE.md` (full body) | 172 | ~600 |
 | `AGENTS.md` | 143 | ~500 |
 | **Tool definitions** (system prompt от Claude Code, ~99 MCP tools — описания в tools.py) | — | **~12000-15000** |
-| **Skill definitions** (13 core skills × ~20 lines = ~260 lines descriptions при `context_tier=standard`) | 260 | ~900 |
+| **Skill definitions** (14 core skills × ~20 lines = ~260 lines descriptions при `context_tier=standard`) | 260 | ~900 |
 | Memory Block (recent decisions + conventions + dead ends) | ~30 | ~150 |
 | MCP tool calls в `/start` (8 параллельных): session_start, status, last-handoff, task_list, metrics, explore_current, audit_check, memory_block | — | ~1500 (output JSON) |
 | Brain primer (если включен) | — | ~300 |
@@ -78,7 +78,7 @@ status: baseline-v1
 
 ### P1 — Skill descriptions (~900 tokens)
 
-13 core skills × ~70 tokens описание. Можно сократить до one-liner (~25 tokens / skill = ~325 итого, экономия 575).
+14 core skills × ~70 tokens описание. Можно сократить до one-liner (~25 tokens / skill = ~325 итого, экономия 575).
 
 ### P2 — CLAUDE.md (~600 tokens)
 

@@ -35,7 +35,7 @@ from verify_constants import DEFAULT_CACHE_TTL_S  # noqa: F401
 # v14b-filesize-debt-paydown: security pattern definitions + is_security_sensitive
 # moved to security_pattern.py for filesize compliance. Re-exported below so
 # existing callers (service_gates, tests/*) keep working unchanged.
-from security_pattern import (  # noqa: F401, E402
+from security_pattern import (  # noqa: F401
     _SEC_BASE,
     _SEC_EXT,
     _SECURITY_BASENAMES,
@@ -47,11 +47,11 @@ from security_pattern import (  # noqa: F401, E402
 
 # v1.3.4: compute_files_hash extracted to verify_files_hash.py for filesize
 # compliance. Re-exported so existing callers don't need to change.
-from verify_files_hash import (  # noqa: F401, E402
+from verify_files_hash import (  # noqa: F401
     _FILES_HASH_CONTENT_SAMPLE_BYTES,
     compute_files_hash,
 )
-from verify_recent_lookup import lookup_recent_for_task  # noqa: F401, E402
+from verify_recent_lookup import lookup_recent_for_task  # noqa: F401
 
 
 # is_security_sensitive moved to security_pattern.py — re-exported above.
@@ -65,7 +65,7 @@ from verify_recent_lookup import lookup_recent_for_task  # noqa: F401, E402
 # them: `_record_verification` now raises `VerificationRecordError` rather than
 # logging and returning None, and callers turn that into a blocking verdict
 # with `record_failure_result` / `RECORD_FAILED_STATUS`.
-from verify_run_record import (  # noqa: F401, E402
+from verify_run_record import (  # noqa: F401
     RECORD_FAILED_STATUS,
     RECORD_GATE_NAME,
     VerificationRecordError,
@@ -79,7 +79,7 @@ from verify_run_record import (  # noqa: F401, E402
 # resolve_gate_signature, _build_cache_command, has_fresh_verify_run) moved to
 # verify_cache.py. Re-exported here so all existing callers (service_gates,
 # service_task, tests/*) continue importing them from service_verification.
-from verify_cache import (  # noqa: F401, E402
+from verify_cache import (  # noqa: F401
     _build_cache_command,
     has_fresh_verify_run,
     is_cache_allowed,
@@ -93,7 +93,7 @@ from verify_cache import (  # noqa: F401, E402
 # earlier split: the logic lives in its own module, this one stays the facade,
 # and `service_verification.run_gates_with_cache` keeps working for ~30 call
 # sites and for the test that monkeypatches it by that name.
-from verify_cached_run import (  # noqa: F401, E402
+from verify_cached_run import (  # noqa: F401
     DEFAULT_PIPELINE_TIMEOUT_S,
     GateEnvelopeTimeoutError,
     resolve_pipeline_timeout_s,

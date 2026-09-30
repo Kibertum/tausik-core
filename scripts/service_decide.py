@@ -41,6 +41,8 @@ def record(
     task_slug: str | None = None,
     rationale: str | None = None,
     to_global: bool = False,
+    rejected: list[str] | None = None,
+    supersedes: int | None = None,
 ) -> str:
     """Record a decision: locally by default, or in the shared store on request.
 
@@ -68,6 +70,17 @@ def record(
     # there is no outward boundary to prove anything about. `write_decision`
     # raises rather than falling back, so a failed shared write never becomes a
     # quiet local one.
+    from decision_lifecycle import check_before_write, normalize_rejected, supersede
+
+    if to_global and (rejected or supersedes is not None):
+        from tausik_utils import ServiceError
+
+        raise ServiceError(
+            "--rejected and --supersedes live on this project's decisions; the shared "
+            "store has no place for them, and dropping them silently is not an option"
+        )
+    rejected_json = normalize_rejected(rejected)
+    check_before_write(svc, supersedes, rationale)
     if to_global:
         from knowledge_write import write_decision
 
@@ -75,8 +88,12 @@ def record(
 
     # Task-linked decisions are inherently project-specific — never shared.
     if task_slug is not None:
-        did = write_local(svc, text, task_slug, rationale)
-        return f"Decision #{did} recorded — saved to local (reason: linked to task {task_slug})."
+        with svc.be.transaction():  # the decision and its supersedes edge land together
+            did = write_local(svc, text, task_slug, rationale, rejected_json)
+            tail = supersede(svc, did, supersedes, rationale) if supersedes is not None else ""
+        return (
+            f"Decision #{did} recorded — saved to local (reason: linked to task {task_slug}).{tail}"
+        )
 
     # A decision is recorded HERE and nowhere else. There is no outward
     # publication left in the framework (decision #358).
@@ -99,15 +116,21 @@ def record(
     # for every project of mine" without also saying "publish it to a wiki".
     # Two destinations, both chosen rather than inferred: this project by
     # default, the shared local store with `--global`.
-    did = write_local(svc, text, task_slug, rationale)
-    return f"Decision #{did} recorded — saved to local."
+    with svc.be.transaction():  # the decision and its supersedes edge land together
+        did = write_local(svc, text, task_slug, rationale, rejected_json)
+        tail = supersede(svc, did, supersedes, rationale) if supersedes is not None else ""
+    return f"Decision #{did} recorded — saved to local.{tail}"
 
 
 def write_local(
-    svc: ProjectService, text: str, task_slug: str | None, rationale: str | None
+    svc: ProjectService,
+    text: str,
+    task_slug: str | None,
+    rationale: str | None,
+    rejected: str | None = None,
 ) -> int:
     """The ONE local write for a decision: DB row + git projection. Returns the id."""
-    did = svc.be.decision_add(text, task_slug, rationale)
+    did = svc.be.decision_add(text, task_slug, rationale, rejected)
     from state_triggers import auto_export_by_id  # state-git-triggers (fail-open)
 
     auto_export_by_id(cast("ProjectService", svc), "decisions", did)

@@ -10,6 +10,8 @@ message the tool will never say is worse than none.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 import sys
@@ -116,7 +118,7 @@ _REFUSALS = [
 @pytest.mark.parametrize("source,phrase", _REFUSALS, ids=[p for _, p in _REFUSALS])
 def test_each_quoted_refusal_is_what_the_code_prints(lang, source, phrase):
     assert phrase in _text(lang), f"{lang}: the page no longer quotes {phrase!r}"
-    code = open(os.path.join(_ROOT, source), encoding="utf-8").read()
+    code = Path(os.path.join(_ROOT, source)).read_text(encoding="utf-8")
     assert phrase in code, (
         f"{source} no longer prints {phrase!r} — the page quotes a message the tool will never say"
     )

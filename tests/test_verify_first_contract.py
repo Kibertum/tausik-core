@@ -350,8 +350,28 @@ class TestRelevantFilesFallback:
             with pytest.raises(ServiceError, match="no fresh `tausik verify`"):
                 task_ready.task_done("t", ac_verified=True)
 
-    def test_fallback_skipped_when_no_verify_row(self, task_ready, monkeypatch):
-        _stub_verify_only(monkeypatch, auto_verify=False)
+    def test_fallback_ignores_a_row_belonging_to_another_task(self, task_ready, monkeypatch):
+        """A green verify row for a DIFFERENT task must not unlock this one.
+
+        This was `test_fallback_skipped_when_no_verify_row`, and with no row at all
+        its body was byte-identical to `TestVerifyFirstEnforcement::
+        test_no_verify_run_blocks` -- the same assertion under a second name, because
+        "no row" and "no fallback" cannot be told apart by construction. The branch
+        that distinguishes the fallback is a row that EXISTS and is rejected, and of
+        those only the security-sensitive one was covered.
+        """
+        sv = _stub_verify_only(monkeypatch, auto_verify=False)
+        files = ["scripts/foo.py"]
+        sv.record_run(
+            task_ready.be._conn,
+            task_slug="some-other-task",
+            scope="standard",
+            command=sv._build_cache_command("verify", files),
+            exit_code=0,
+            summary="pytest=PASS",
+            files_hash=sv.compute_files_hash(files),
+            duration_ms=10,
+        )
         with patch.dict(
             "sys.modules",
             {"gate_runner": MagicMock(run_gates=MagicMock(return_value=(True, [])))},

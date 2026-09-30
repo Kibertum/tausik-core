@@ -36,7 +36,8 @@ from service_specs import SPEC_TYPES  # noqa: E402
 # Transcribed from standard/08-specifications.md §8.3 — deliberately NOT derived
 # from SPEC_TYPES. Comparing a value against the constant that produced it is a
 # tautology (memory #474); the standard's literal is the only honest reference.
-STANDARD_ELEVEN = (
+# RENAR 1.1 (2026-09-19, ADR-018) closed it at twelve: SPEC-UC.
+STANDARD_TWELVE = (
     "ARCH",
     "API",
     "DATA",
@@ -48,12 +49,17 @@ STANDARD_ELEVEN = (
     "OPS",
     "TEST",
     "DOC",
+    "UC",
 )
 
 # Where a literal list of SPEC types is legitimate, and why.
 ALLOWED_LITERAL_LISTS = {
     # The single source itself.
     "scripts/service_specs.py",
+    # A HISTORICAL migration: the frozen v64 DDL snapshot that widened the CHECK
+    # to twelve (convention #646) — reading the live constant would let a later
+    # change alter what v64 built.
+    "scripts/backend_migrations_v64.py",
     # A HISTORICAL migration: it recorded the schema as it was in v35 and must
     # never be edited, or the migration chain stops describing what it built.
     "scripts/backend_migrations_v35.py",
@@ -62,7 +68,7 @@ ALLOWED_LITERAL_LISTS = {
     # The baseline DDL for a fresh database — SQL, not Python, so it cannot
     # interpolate the tuple.
     "scripts/backend_schema_specs.py",
-    # The standard's own eleven, kept independent on purpose as the denominator
+    # The standard's own twelve, kept independent on purpose as the denominator
     # the completeness report divides by.
     "scripts/spec_completeness.py",
     # This file: the transcription above.
@@ -115,6 +121,10 @@ ALLOWED_WRITTEN_COUNTS = {
         "the v49 record itself: it widened the list TO eleven and must say so, "
         "on the same ground that freezes backend_migrations_v35.py above"
     ),
+    "scripts/backend_migrations_v64.py": (
+        "the v64 record itself: it widened the list TO twelve (SPEC-UC, ADR-018) "
+        "and must say so, on the same ground as the v49 record"
+    ),
     "tests/test_migrations_v49_spec_types.py": (
         "past tense about the pre-migration state this test pins — 'ours "
         "enumerated nine' describes what WAS, and asserts nothing about what is"
@@ -137,9 +147,9 @@ def written_counts(text: str) -> list[str]:
 # --- composition -------------------------------------------------------------
 
 
-def test_closed_list_is_the_standards_eleven():
-    assert SPEC_TYPES == STANDARD_ELEVEN
-    assert len(SPEC_TYPES) == 11
+def test_closed_list_is_the_standards_twelve():
+    assert SPEC_TYPES == STANDARD_TWELVE
+    assert len(SPEC_TYPES) == 12
 
 
 def test_the_two_types_adr_013_added_are_present():
@@ -179,7 +189,7 @@ def test_mcp_tool_enum_is_read_from_the_single_source():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert mod._SPEC_TYPES == list(SPEC_TYPES)
-    assert len(mod._SPEC_TYPES) == 11
+    assert len(mod._SPEC_TYPES) == 12
 
 
 # --- the count is derived, never written -------------------------------------
@@ -233,9 +243,9 @@ class TestTheCountMatcherReadsThePropertyNotThePhrasing:
     @pytest.mark.parametrize(
         "sample",
         [
-            "Closed list of 11 RENAR types",
-            '"evidence": "11 closed SPEC types enforced",',
-            "# SPEC_TYPES. Ours now carries the same eleven (v49 / ADR-013), and that is",
+            "Closed list of 12 RENAR types",
+            '"evidence": "12 closed SPEC types enforced",',
+            "# SPEC_TYPES. Ours now carries the same twelve (v64 / ADR-018), and that is",
         ],
     )
     def test_reds_even_when_the_written_number_is_right(self, sample):
@@ -246,7 +256,7 @@ class TestTheCountMatcherReadsThePropertyNotThePhrasing:
         agreement cannot tell a derived number from a written one — which is the
         degenerate measurer of memory #484 facing the other way.
         """
-        assert len(SPEC_TYPES) == 11, "the samples below agree with the list on purpose"
+        assert len(SPEC_TYPES) == 12, "the samples below agree with the list on purpose"
         assert written_counts(sample), f"a correct literal is still a literal: {sample!r}"
 
     @pytest.mark.parametrize(

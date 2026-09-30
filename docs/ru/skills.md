@@ -2,11 +2,13 @@
 
 # Навыки (v1.4)
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
 Skill'ы — intent-based инструкции, определяющие поведение агента. Не нужно запоминать имена или синтаксис — пишете, что хотите, и агент подбирает подходящий skill. Slash-префикс (`/plan`, `/ship`) явно вызывает один.
 
-После bootstrap идут **13 core skills** из `harness/skills/`. Дополнительные **official / vendor skills** (20) ставятся по запросу: per-skill через `tausik skill install <name>`, либо вся пачка через `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias `--include-vendor`). **Карта репо-скиллов:** [Экосистема скиллов (one-pager)](skill-ecosystem.md). **Bulk-install по группам:** [Skill Bundles](skill-bundles.md).
+После bootstrap идут **14 core skills** из `harness/skills/`. Дополнительные **official / vendor skills** (20) ставятся по запросу: per-skill через `tausik skill install <name>`, либо вся пачка через `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias `--include-vendor`). **Карта репо-скиллов:** [Экосистема скиллов (one-pager)](skill-ecosystem.md). **Bulk-install по группам:** [Skill Bundles](skill-bundles.md).
 
-> **Изменение default в v1.4.x.** До v1.4.x bootstrap автоматически разворачивал все 38 source+registry скиллов (~1,520 токенов в system-reminder). Теперь default разворачивает 13 core-навыков; перезапусти bootstrap с `--include-official`, если нужен старый полный набор. **В v1.4.0 также удалены 5 избыточных скиллов** (`/go`, `/next`, `/diff`, `/onboard`, `/init`) — vendor count теперь 20. См. **[Skill Bundles Migration](skill-bundles-migration.md)**.
+> **Изменение default в v1.4.x.** До v1.4.x bootstrap автоматически разворачивал все 38 source+registry скиллов (~1,520 токенов в system-reminder). Теперь default разворачивает 14 core-навыков; перезапусти bootstrap с `--include-official`, если нужен старый полный набор. **В v1.4.0 также удалены 5 избыточных скиллов** (`/go`, `/next`, `/diff`, `/onboard`, `/init`) — vendor count теперь 20. См. **[Skill Bundles Migration](skill-bundles-migration.md)**.
 
 **Варианты под разные хосты:** у skill может быть каталог **`variants/<profile>.md`** — см. [Профили skills и variants](skill-profiles.md).
 
@@ -20,7 +22,7 @@ Skill'ы — intent-based инструкции, определяющие пов�
 |-------|-------|
 | `/start` | Начать рабочую сессию — загружает handoff, status, memory block |
 | `/end` | Завершить сессию — сохраняет метрики + handoff |
-| `/checkpoint` | Сохранить контекст без завершения сессии (рекомендовано каждые 30–50 tool calls) |
+| `/checkpoint` | Сохранить контекст без завершения сессии (когда об этом говорит сигнал чекпоинта) |
 | `/plan` | Спланировать задачу из свободного описания (interview phase + AC) |
 | `/task` | Работать над существующей задачей с QG-0/QG-2 enforcement |
 | `/ship` | Завершить задачу: review + test + gates + commit |
@@ -41,7 +43,6 @@ Skill'ы — intent-based инструкции, определяющие пов�
 | `/review` | Code review против 28-point SENAR checklist (5 параллельных агентов, итеративно) |
 | `/test` | Запуск/написание тестов, отслеживание coverage |
 | `/debug` | Reproduce → isolate root cause → fix |
-| `/i-have-adhd` | Ответ владельцу начинается с действия и не скрывает доказательства TAUSIK; вендорирован из [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) под MIT. |
 
 ## Official / Vendor skill'ы (20)
 

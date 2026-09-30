@@ -185,25 +185,29 @@ def cmd_team(svc: ProjectService, args: Any) -> None:
 def cmd_session(svc: ProjectService, args: Any) -> None:
     c = args.session_cmd
     if c == "start":
-        print(svc.session_start())
+        print(svc.session_start(getattr(args, "host_id", None)))
     elif c == "end":
-        print(svc.session_end(args.summary))
+        print(svc.session_end(args.summary, getattr(args, "host_id", None)))
     elif c == "current":
         from render_session import session_current_line
 
         print(session_current_line(svc))
     elif c == "list":
         sessions = svc.session_list(args.limit)
-        _print_table(sessions, ["id", "started_at", "ended_at", "summary"])
+        for s in sessions:
+            s["handoff"] = "yes" if s.get("handoff") else "-"
+        _print_table(sessions, ["id", "started_at", "ended_at", "handoff", "summary"])
     elif c == "handoff":
-        try:
-            data = json.loads(args.json_data)
-        except (json.JSONDecodeError, TypeError) as e:
-            print(f"Error: invalid JSON for handoff: {e}", file=sys.stderr)
-            return
-        print(svc.session_handoff(data))
+        data = None
+        if args.json_data:
+            try:
+                data = json.loads(args.json_data)
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"Error: invalid JSON for handoff: {e}", file=sys.stderr)
+                return
+        print(svc.session_handoff(data, getattr(args, "host_id", None)))
     elif c == "last-handoff":
-        ho = svc.session_last_handoff()
+        ho = svc.session_last_handoff(getattr(args, "session", None))
         if ho:
             print(json.dumps(ho, indent=2, ensure_ascii=False))
         else:
@@ -211,7 +215,7 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
     elif c == "extend":
         print(svc.session_extend(args.minutes))
     elif c == "recompute":
-        from project_cli_ops import cmd_session_recompute
+        from project_cli_session import cmd_session_recompute
 
         cmd_session_recompute(svc, args)
     else:
@@ -221,11 +225,30 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
 
 
 def cmd_decide(svc: ProjectService, args: Any) -> None:
-    print(svc.decide(args.text, args.task, args.rationale, getattr(args, "to_global", False)))
+    rationale = args.rationale or getattr(args, "because", None)
+    print(
+        svc.decide(
+            args.text,
+            args.task,
+            rationale,
+            getattr(args, "to_global", False),
+            getattr(args, "rejected", None),
+            getattr(args, "supersedes", None),
+        )
+    )
 
 
 def cmd_decisions(svc: ProjectService, args: Any) -> None:
-    _print_table(svc.decisions(args.limit), ["id", "decision", "task_slug", "created_at"])
+    rows = svc.decisions(
+        args.limit,
+        getattr(args, "status", "all"),
+        getattr(args, "task", None),
+        getattr(args, "rejected", None),
+    )
+    cols = ["id", "decision", "task_slug", "superseded_by", "created_at"]
+    if getattr(args, "rejected", None):
+        cols.insert(2, "rejected")
+    _print_table(rows, cols)
 
 
 def cmd_roadmap(svc: ProjectService, args: Any) -> None:
@@ -235,7 +258,7 @@ def cmd_roadmap(svc: ProjectService, args: Any) -> None:
 
 
 # cmd_metrics, cmd_search, cmd_events, cmd_dead_end, cmd_explore, cmd_audit, cmd_run
-# -> moved to project_cli_extra.py
+# -> moved to project_cli_knowledge.py
 
 
 # _print_with_warnings, _auto_slug, _print_task_detail

@@ -2,13 +2,20 @@
 
 # Localization Strategy
 
+<!-- doc-map: reader=maintainer; zone=reference -->
+
 ## Approach
 
 TAUSIK uses **directory-based localization**: `docs/en/` (English) + `docs/ru/` (Russian).
 
 - **Main language** for GitHub: English (`README.md`)
 - Each localized file has a language switcher linking to the other version
-- All documentation is fully localized (EN + RU)
+- Documentation is localized in both directions, EXCEPT one-language docs that declare
+  why. The declaration is machine-readable —
+  `<!-- audit-translation-drift: unpaired: <reason or task slug> -->` — and an undeclared
+  one-language doc is a finding of `audit_translation_drift --check`, not information. This
+  bullet used to claim FULL localization while the diagram below admitted one RU-only file,
+  so the policy contradicted itself and neither half was checkable.
 
 ## Structure
 
@@ -23,8 +30,7 @@ docs/
 │                    brain-*, skill-*, plan-*, cost-telemetry, environment,
 │                    permissions, security, etc.)
 ├── ru/            ← Russian docs (~44 files; mirrors en/ minus a few EN-only
-│                    docs like plan-review/plan-stacks/skill-spec/skill-patterns,
-│                    plus RU-only agent-contract.md)
+│                    docs like plan-review/plan-stacks/skill-spec/skill-patterns)
 ├── en/research/   ← Research notes, NOT paired: each stays in the language it
 ├── ru/research/      was written in (1 EN vs 10 RU today). See "What's NOT
 │                     localized" below — this diagram used to claim the pair.

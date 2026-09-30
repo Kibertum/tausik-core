@@ -1,6 +1,7 @@
 """CLI dispatcher for `tausik skill ...` (lifecycle, catalog, repo, rebuild).
 
-Extracted from project_cli_extra.py to keep that file under the 400-line gate.
+Named after its command, like the rest of the family. It used to be described as an
+extraction from a residue module; that module is gone, and a home needs no such excuse.
 """
 
 from __future__ import annotations

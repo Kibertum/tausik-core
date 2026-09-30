@@ -2,6 +2,8 @@
 
 # Skill Specification
 
+<!-- doc-map: reader=agent; zone=internal-spec -->
+
 Formal contract for SKILL.md files in the TAUSIK framework.
 
 ## File Structure

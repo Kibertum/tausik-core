@@ -13,7 +13,8 @@ import time
 from typing import Any
 
 import rag_context
-from rag_detect import get_file_list, detect_language
+from rag_detect import EXT_TO_LANG, get_file_list, detect_language
+from rag_languages import BUILTIN_BOUNDARIES, load as load_project_languages
 
 
 def _safe_path(project_dir: str, rel_path: str) -> str | None:
@@ -59,6 +60,7 @@ _BOUNDARY_PATTERNS: dict[str, re.Pattern[str]] = {
     "elixir": re.compile(r"^(def |defp |defmodule )", re.MULTILINE),
     "markdown": re.compile(r"^#{1,3} ", re.MULTILINE),
 }
+_BOUNDARY_PATTERNS.update(BUILTIN_BOUNDARIES)
 
 
 def annotate_chunks(
@@ -95,7 +97,9 @@ def annotate_chunks(
     return chunks
 
 
-def chunk_file(content: str, language: str | None) -> list[dict[str, Any]]:
+def chunk_file(
+    content: str, language: str | None, boundaries: dict[str, re.Pattern[str]] | None = None
+) -> list[dict[str, Any]]:
     """Split file content into indexable chunks.
 
     Uses language-aware boundaries when possible, falls back to line-based.
@@ -107,7 +111,9 @@ def chunk_file(content: str, language: str | None) -> list[dict[str, Any]]:
     lines = content.split("\n")
 
     # Try language-aware splitting
-    pattern = _BOUNDARY_PATTERNS.get(language or "") if language else None
+    pattern = (
+        (_BOUNDARY_PATTERNS.get(language) or (boundaries or {}).get(language)) if language else None
+    )
     if pattern:
         chunks = _chunk_by_boundaries(lines, pattern)
     else:
@@ -121,7 +127,7 @@ def _chunk_by_boundaries(lines: list[str], pattern: re.Pattern[str]) -> list[dic
     """Split at top-level code boundaries (functions, classes, etc.)."""
     boundaries: list[int] = []
     for i, line in enumerate(lines):
-        if pattern.match(line):
+        if pattern.match(line[:400]):  # a boundary is a line START; bounds any regex's work
             boundaries.append(i)
 
     if not boundaries:
@@ -302,14 +308,21 @@ def _get_changed_files(project_dir: str, since_commit: str) -> tuple[list[str], 
     for line in out.strip().split("\n"):
         if not line:
             continue
-        parts = line.split("\t", 1)
-        if len(parts) != 2:
+        # Rename and copy lines carry TWO paths: `R100<TAB>old<TAB>new`. Split
+        # once, the old path was never deleted and "old<TAB>new" was read as
+        # one path — how agents/ survived its rename to harness/ in the index.
+        parts = line.split("\t")
+        if len(parts) < 2:
             continue
-        status, path = parts[0], parts[1]
+        status = parts[0]
         if status.startswith("D"):
-            deleted.append(path)
+            deleted.append(parts[1])
+        elif status[:1] in ("R", "C") and len(parts) == 3:
+            if status.startswith("R"):
+                deleted.append(parts[1])
+            modified.append(parts[2])
         else:
-            modified.append(path)
+            modified.append(parts[1])
     return modified, deleted
 
 
@@ -337,6 +350,7 @@ def index_full(
     store.clear()
 
     files = get_file_list(project_dir, max_seconds=max_seconds)
+    langs = load_project_languages(project_dir, EXT_TO_LANG)
     total_chunks = 0
     errors = 0
     truncated = False
@@ -351,7 +365,10 @@ def index_full(
             with open(f["path"], encoding="utf-8", errors="replace") as fh:
                 content = fh.read()
             chunks = annotate_chunks(
-                chunk_file(content, f["language"]), f["rel_path"], f["language"], content
+                chunk_file(content, f["language"], langs.boundaries),
+                f["rel_path"],
+                f["language"],
+                content,
             )
             store.upsert_file(f["rel_path"], chunks)
             total_chunks += len(chunks)
@@ -366,7 +383,7 @@ def index_full(
                     f"{total_chunks} chunks, {round(time.time() - t0)}s elapsed\n"
                 )
                 _sys.stderr.flush()
-            except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
+            except Exception:  # noqa: BLE001,S110 — best-effort: MCP handler must not crash the server on a tool call
                 pass
 
     commit = _get_current_commit(project_dir)
@@ -385,6 +402,22 @@ def index_full(
     }
 
 
+def _prune_missing(project_dir: str, store: Any) -> int:
+    """Drop every indexed path that no longer exists on disk; return how many.
+
+    The git diff above sees only what changed since `last_commit`; paths that
+    went dead earlier (62 of 3507 in session #189) stay forever without this
+    sweep. A path that escapes the project is left alone, not deleted.
+    """
+    pruned = 0
+    for rel in store.indexed_paths():
+        full = _safe_path(project_dir, rel)
+        if full is not None and not os.path.exists(full):
+            store.delete_file(rel)
+            pruned += 1
+    return pruned
+
+
 def index_incremental(project_dir: str, store: Any) -> dict[str, Any]:
     """Incremental reindex: only files changed since last commit."""
     last_commit = store.get_meta("last_commit")
@@ -396,17 +429,22 @@ def index_incremental(project_dir: str, store: Any) -> dict[str, Any]:
         return {
             "files_indexed": 0,
             "total_chunks": 0,
+            # The sweep runs here too: dead paths from before the fix are not
+            # "changes since last index", and must not wait for the next commit.
+            "files_pruned": _prune_missing(project_dir, store),
             "message": "No changes since last index.",
         }
 
     t0 = time.time()
     modified, deleted = _get_changed_files(project_dir, last_commit)
+    langs = load_project_languages(project_dir, EXT_TO_LANG)
 
     # Delete removed files from index
     for path in deleted:
         if _safe_path(project_dir, path) is None:
             continue  # path traversal — skip
         store.delete_file(path.replace("\\", "/"))
+    pruned = _prune_missing(project_dir, store)
 
     # Re-index modified files
     total_chunks = 0
@@ -419,13 +457,15 @@ def index_incremental(project_dir: str, store: Any) -> dict[str, Any]:
         if not os.path.exists(full_path):
             store.delete_file(rel_path)
             continue
-        lang = detect_language(path)
+        lang = detect_language(path, langs.extensions)
         if not lang:
             continue
         try:
             with open(full_path, encoding="utf-8", errors="replace") as fh:
                 content = fh.read()
-            chunks = annotate_chunks(chunk_file(content, lang), rel_path, lang, content)
+            chunks = annotate_chunks(
+                chunk_file(content, lang, langs.boundaries), rel_path, lang, content
+            )
             store.upsert_file(rel_path, chunks)
             total_chunks += len(chunks)
             indexed += 1
@@ -439,6 +479,7 @@ def index_incremental(project_dir: str, store: Any) -> dict[str, Any]:
     return {
         "files_indexed": indexed,
         "files_deleted": len(deleted),
+        "files_pruned": pruned,
         "total_chunks": total_chunks,
         "duration_sec": round(time.time() - t0, 2),
         "commit": current,

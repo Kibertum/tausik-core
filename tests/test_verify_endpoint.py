@@ -58,9 +58,7 @@ def _wait_until_serving(httpd, timeout: float = _READY_TIMEOUT_S) -> None:
     last = ""
     while time.monotonic() < deadline:
         try:
-            conn = http.client.HTTPConnection(
-                "127.0.0.1", httpd.server_address[1], timeout=1
-            )
+            conn = http.client.HTTPConnection("127.0.0.1", httpd.server_address[1], timeout=1)
             conn.request("GET", "/healthz-probe-not-a-real-route")
             conn.getresponse().read()
             conn.close()
@@ -181,9 +179,22 @@ class TestNegatives:
             conn.close()
 
     def test_unknown_path_is_404(self, server):
+        """Both verbs, and both assertions SAY what they got.
+
+        This test failed once in a full parallel run and never again in 24
+        isolated ones, so its cause is unmeasured. A bare `== 404` turns the next
+        occurrence into the same dead end: the status and the body are what would
+        distinguish "the server answered something else" from "a different server
+        answered". Naming them costs nothing and is the only thing that makes the
+        next failure evidence.
+        """
         httpd, _ = server
-        assert _request(httpd, "GET", "/nope")[0] == 404
-        assert _request(httpd, "POST", "/nope", {})[0] == 404
+        for method, payload in (("GET", None), ("POST", {})):
+            status, body = _request(httpd, method, "/nope", payload)
+            assert status == 404, (
+                f"{method} /nope answered {status}, not 404 — body {body!r}. "
+                f"Server port {httpd.server_address[1]}."
+            )
 
     def test_no_key_is_503(self, tmp_path):
         httpd = make_server(str(tmp_path / "keyless"), port=0)

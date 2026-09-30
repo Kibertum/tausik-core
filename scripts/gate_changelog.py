@@ -206,7 +206,7 @@ def enforce_changelog(
                 "--no-changelog — task declares no changelog entry warranted "
                 "(docs/cleanup/measurement); continuous-changelog gate skipped",
             )
-        except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+        except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
             pass
         try:
             svc.be.task_append_notes(
@@ -214,7 +214,28 @@ def enforce_changelog(
                 "Changelog gate: skipped via --no-changelog (no behaviour "
                 "change; exception logged).",
             )
-        except Exception:  # noqa: BLE001 — best-effort note, never blocks
+        except Exception:  # noqa: BLE001,S110 — best-effort note, never blocks
+            pass
+        return
+
+    # A FRAGMENT SATISFIES THIS FIRST. `changelog.d/<slug>.md` is named after the task, so
+    # two lanes cannot collide on it — while every entry in the shared files goes to the
+    # head of the same section and conflicts on every close. The gate did not get weaker:
+    # it accepts a second proof, not a smaller one, and a fragment that is missing, empty
+    # or half-written falls through to the git check below exactly as before.
+    try:
+        from changelog_fragments import check as fragment_check
+
+        # No : looking for the fragment wherever the process happens to stand
+        # would read another checkout's file and pass this close on it. No root, no
+        # fragment route — the git check below is fail-closed for exactly that case.
+        ok, why = fragment_check(root, slug) if root else (False, "")
+    except Exception:  # noqa: BLE001 - an optional second route never decides a close alone
+        ok, why = False, ""
+    if ok:
+        try:
+            svc.be.task_append_notes(slug, f"Changelog gate: verified — {why}.")
+        except Exception:  # noqa: BLE001,S110 — best-effort note, never blocks
             pass
         return
 
@@ -291,5 +312,5 @@ def enforce_changelog(
             slug,
             f"Changelog gate: verified — git shows added changelog text in {', '.join(files)}.",
         )
-    except Exception:  # noqa: BLE001 — best-effort note, never blocks
+    except Exception:  # noqa: BLE001,S110 — best-effort note, never blocks
         pass

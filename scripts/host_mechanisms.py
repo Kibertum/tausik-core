@@ -169,6 +169,11 @@ def matcher_table(lib_dir: str | None = None) -> dict[str, dict[str, str]]:
     make a regression look settled.
     """
     lib = lib_dir or _REPO
+    # The generators import from <lib>/bootstrap. The import-time path above is
+    # module-relative and misses it from the deployed copy (`.claude/scripts/`).
+    bootstrap_dir = os.path.join(lib, "bootstrap")
+    if os.path.isdir(bootstrap_dir) and bootstrap_dir not in sys.path:
+        sys.path.insert(0, bootstrap_dir)
     table: dict[str, dict[str, str]] = {}
     with tempfile.TemporaryDirectory() as tmp:
         project_dir = os.path.join(tmp, "project")

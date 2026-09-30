@@ -35,6 +35,7 @@ if _BOOTSTRAP not in sys.path:
     sys.path.insert(0, _BOOTSTRAP)
 
 from bootstrap_venv import install_cli_wrapper  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 # A standalone stub that mimics scripts/project.py: echoes its args, exits 0.
 _STUB = "import sys\nprint('STUB_OK ' + ' '.join(sys.argv[1:]))\n"
@@ -73,7 +74,8 @@ class TestCmdWrapper:
         result = subprocess.run(
             ["cmd", "/c", str(wrapper), "status"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 0, result.stderr
         assert "STUB_OK status" in result.stdout
@@ -87,7 +89,8 @@ class TestCmdWrapper:
         result = subprocess.run(
             ["cmd", "/c", str(wrapper), "status"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 1
         assert result.stderr.count("no scripts dir found") == 1
@@ -109,7 +112,8 @@ class TestShWrapper:
         result = subprocess.run(
             ["bash", str(wrapper), "status"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 0, result.stderr
         assert "STUB_OK status" in result.stdout
@@ -125,7 +129,8 @@ class TestShWrapper:
         result = subprocess.run(
             ["bash", str(wrapper), "status"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 1
         assert result.stderr.count("no scripts dir found") == 1
@@ -136,7 +141,7 @@ def test_template_has_placeholder_not_hardcoded_list():
     """The committed templates must use __IDE_LIST__, not a hardcoded IDE list,
     so bootstrap_config.IDE_DIRS stays the single source of truth."""
     for name in ("tausik_wrapper.sh", "tausik_wrapper.cmd"):
-        text = open(os.path.join(_BOOTSTRAP, name), encoding="utf-8").read()
+        text = Path(os.path.join(_BOOTSTRAP, name)).read_text(encoding="utf-8")
         assert "__IDE_LIST__" in text, f"{name} lost its __IDE_LIST__ placeholder"
 
 

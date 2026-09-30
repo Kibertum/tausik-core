@@ -2,6 +2,8 @@
 
 # Добавление новой IDE в TAUSIK
 
+<!-- doc-map: reader=maintainer; zone=ide-and-skills -->
+
 TAUSIK поддерживает несколько IDE через абстракцию в `scripts/ide_utils.py`.
 
 ## Шаги для добавления нового IDE
@@ -90,7 +92,7 @@ if os.environ.get("MYIDE_DIR"):
 
 ```
 harness/
-├── skills/          # 13 core + 20 vendor-скиллов (opt-in), общие для всех IDE
+├── skills/          # 14 core + 20 vendor-скиллов (opt-in), общие для всех IDE
 ├── roles/           # роли (все IDE)
 ├── stacks/          # стеки (все IDE)
 ├── overrides/       # IDE-специфичные override-файлы

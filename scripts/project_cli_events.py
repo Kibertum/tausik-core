@@ -70,7 +70,7 @@ def cmd_events_emit_supervision(svc: Any, args: Any) -> None:
 
     project_dir = os.path.dirname(svc.tausik_dir())
 
-    # SENAR 1.4 §8.6(j): the direct-edit vector carries the Gate Bypass (3.13)
+    # SENAR 1.5 §8.6(j): the direct-edit vector carries the Gate Bypass (3.13)
     # fields, and a record without a rationale is REFUSED here rather than
     # written as a stub. Refusing the RECORD never refuses the edit — the edit
     # already happened, and the standard treats it as a regulated exception, not

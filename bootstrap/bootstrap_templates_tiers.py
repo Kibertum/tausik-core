@@ -55,6 +55,7 @@ Compaction can be instructed; an uninstructed one drops the context whose value 
 4. **Retired or superseded rules** — a forgotten retirement resurrects a dead rule.
 5. **Owner prohibitions** — in the owner's words.
 6. **Open forks** — decisions raised and not taken, with the options named.
+7. **Where the rest is** — what the six do not carry is not lost: the full transcript of this session is on disk at the path in Current State above. Grep it rather than re-derive.
 """
 
 MINIMAL_COMPACTION = """## Compaction (minimal)

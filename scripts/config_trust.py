@@ -242,19 +242,37 @@ def _read_layer(path: str, tier: str) -> dict:
     return data
 
 
-def user_config_path() -> str:
-    """``~/.tausik/config.json``, or ``$TAUSIK_USER_CONFIG`` when set.
+def default_user_config_path() -> str:
+    """``~/.config/tausik/config.json`` — the user tier since 1.10.
 
-    The env override exists so tests (and multi-account boxes) never have to
-    touch a real home directory.
+    user-tier-config-recreates-the-directory-18-removed: the old place,
+    ``~/.tausik/config.json``, recreated the very ``~/.tausik`` directory 1.8
+    moved the shared store out of, because a directory of that name makes the
+    home folder look like a project.
     """
+    return os.path.join(os.path.expanduser("~"), ".config", "tausik", "config.json")
+
+
+def legacy_user_config_path() -> str:
+    """``~/.tausik/config.json`` — still READ, so an existing setting is not lost."""
     from tausik_utils import tausik_config_path
 
+    return tausik_config_path(os.path.expanduser("~"))
+
+
+def user_config_path() -> str:
+    """The user tier file: ``$TAUSIK_USER_CONFIG``, else the new place, else the legacy one.
+
+    The new place wins whenever it exists; the legacy file is read only when it
+    is the only one (doctor says so, and says when both exist).
+    """
     override = os.environ.get(USER_CONFIG_ENV)
     if override:
         return os.path.abspath(os.path.expanduser(override))
-    # Same `.tausik/config.json` layout as a project, rooted at home instead.
-    return tausik_config_path(os.path.expanduser("~"))
+    new, legacy = default_user_config_path(), legacy_user_config_path()
+    if os.path.isfile(new) or not os.path.isfile(legacy):
+        return new
+    return legacy
 
 
 def managed_config_path() -> str:

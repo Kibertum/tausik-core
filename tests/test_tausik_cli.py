@@ -34,7 +34,7 @@ def tausik_env(tmp_path):
                 "gates": {
                     "pytest": {"enabled": False},
                     "ruff": {"enabled": False},
-                    "filesize": {"enabled": False},
+                    "ruff_format": {"enabled": False},
                 }
             }
         )
@@ -150,16 +150,75 @@ class TestTaskCLI:
         assert r.returncode == 0
         assert "started" in r.stdout.lower()
 
-        # Log AC verification + Done
+        # Do the work the task names, then log AC verification
+        (cwd / "README.md").write_text("# Test project\n", encoding="utf-8")
         r = run_cli(
             ["task", "log", "create-readme", "AC verified: 1. README exists"],
             env,
             str(cwd),
         )
         assert r.returncode == 0
-        r = run_cli(["task", "done", "create-readme", "--ac-verified"], env, str(cwd))
-        assert r.returncode == 0
+
+        # QG-2 applies to every project, not only one with a test gate: since the static
+        # gates carry the `verify` trigger, a close without a verify run is refused. Close
+        # the way a user does — declare the file and verify in the same call — instead of
+        # switching off each verify gate by name, which broke on every new one.
+        r = run_cli(
+            [
+                "task",
+                "done",
+                "create-readme",
+                "--ac-verified",
+                "--relevant-files",
+                "README.md",
+                "--verify",
+            ],
+            env,
+            str(cwd),
+        )
+        assert r.returncode == 0, r.stderr
         assert "completed" in r.stdout.lower()
+
+        # The refusal it replaced is still a refusal: a fileless close without verify.
+        r = run_cli(
+            [
+                "task",
+                "add",
+                "Write changelog",
+                "--group",
+                "s1",
+                "--slug",
+                "second",
+                "--goal",
+                "Write a changelog file",
+            ],
+            env,
+            str(cwd),
+        )
+        assert r.returncode == 0, r.stderr
+        r = run_cli(
+            [
+                "task",
+                "update",
+                "second",
+                "--acceptance-criteria",
+                "1. CHANGELOG exists. 2. Error if file already exists.",
+            ],
+            env,
+            str(cwd),
+        )
+        assert r.returncode == 0, r.stderr
+        r = run_cli(["task", "start", "second"], env, str(cwd))
+        assert r.returncode == 0, r.stderr
+        r = run_cli(
+            ["task", "log", "second", "AC verified: 1. CHANGELOG exists 2. error on rerun"],
+            env,
+            str(cwd),
+        )
+        assert r.returncode == 0, r.stderr
+        r = run_cli(["task", "done", "second", "--ac-verified"], env, str(cwd))
+        assert r.returncode != 0
+        assert "relevant_files" in r.stderr
 
     def test_task_list(self, tausik_env):
         cwd, env = tausik_env
@@ -366,11 +425,12 @@ class TestMetrics:
 
 
 class TestDeadEnd:
-    def test_dead_end(self, project_env):
+    def test_dead_end_without_a_task_is_refused(self, project_env):
+        """Since 1.10 a dead end names its task (dead_end_gate.bind_task)."""
         cwd, env = project_env
         r = run_cli(["dead-end", "test approach", "test reason"], env, str(cwd))
-        assert r.returncode == 0
-        assert "documented" in r.stdout.lower() or "dead" in r.stdout.lower()
+        assert r.returncode != 0
+        assert "must name its task" in (r.stdout + r.stderr)
 
     def test_dead_end_with_task(self, project_env):
         cwd, env = project_env

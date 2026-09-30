@@ -63,7 +63,7 @@ def pytest_sessionfinish(session, exitstatus) -> None:
 
         db = os.path.join(_project_root(session), ".tausik", "tausik.db")
         red_history.record_reds(db, RED_NODES)
-    except Exception:  # noqa: BLE001 — recording must never break a run
+    except Exception:  # noqa: BLE001,S110 — recording must never break a run
         pass
     finally:
         RED_NODES.clear()

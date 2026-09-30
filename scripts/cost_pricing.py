@@ -301,7 +301,7 @@ def routed_claude_model_ids(config: dict | None = None) -> set[str]:
             model = (spec or {}).get("model")
             if model:
                 ids.add(str(model).strip().lower())
-    except Exception:  # noqa: BLE001 — a missing table means nothing to check, not a failure
+    except Exception:  # noqa: BLE001,S110 — a missing table means nothing to check, not a failure
         pass
     try:
         import model_routing_matrix
@@ -314,7 +314,11 @@ def routed_claude_model_ids(config: dict | None = None) -> set[str]:
             for val in routing.values():
                 if isinstance(val, str) and val.strip():
                     ids.add(val.strip().lower())
-    except Exception:  # noqa: BLE001
+    # NARROWED from `Exception`: the body only reads a mapping and strips strings, so the
+    # one real failure is a `config` that is not a mapping at all. An absent or malformed
+    # routing block means "no extra ids", which is the answer this function needs; a
+    # different error here would be a bug, and a broad catch was hiding that distinction.
+    except (AttributeError, TypeError):
         pass
     try:
         import service_delegate
@@ -322,7 +326,10 @@ def routed_claude_model_ids(config: dict | None = None) -> set[str]:
         default_id = service_delegate._DEFAULT_MODEL[0]
         if default_id:
             ids.add(str(default_id).strip().lower())
-    except Exception:  # noqa: BLE001
+    # NARROWED: the module may be absent (a consumer install without delegation), the
+    # private constant may be gone, or it may be empty. Those three mean "no default id to
+    # price", which is a fact; anything else raising here is a defect worth seeing.
+    except (ImportError, AttributeError, IndexError):
         pass
     return {i for i in ids if i.startswith("claude")}
 

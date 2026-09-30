@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import context_block_audit as cba  # noqa: E402
+import context_block_audit as cba
 
 CROSSCUTTING_SCOPE: list[str] = []  # reads a rules file and transcripts, never the tree
 

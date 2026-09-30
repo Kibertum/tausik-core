@@ -50,7 +50,10 @@ class TestWriteTargets:
             ("mv a.py b.py", ["b.py"]),
             ("touch new.py", ["new.py"]),
             ("python -c \"open('gen.py','w').write('x')\"", ["gen.py"]),
-            ("python - <<'PY'\nfrom pathlib import Path\nPath('gen.py').write_text('x')\nPY", ["gen.py"]),
+            (
+                "python - <<'PY'\nfrom pathlib import Path\nPath('gen.py').write_text('x')\nPY",
+                ["gen.py"],
+            ),
             ("python - <<'PY'\nfrom pathlib import Path\nPath('gen.py').read_text()\nPY", []),
             # --- review fixes: cp/mv -t, curl/wget/tar/unzip, BSD sed -i '' ---
             ("cp -t scripts/hooks a.txt", ["scripts/hooks"]),
@@ -190,7 +193,9 @@ class TestHook:
     def test_pathlib_python_stdin_write_outside_scope_is_blocked(self, tmp_path):
         """The live bypass: `python - <<PY` must reach the shared AST reader."""
         _make_db(tmp_path, [("t1", "active", '["scripts/"]')])
-        command = "python - <<'PY'\nfrom pathlib import Path\nPath('harness/x.py').write_text('x')\nPY"
+        command = (
+            "python - <<'PY'\nfrom pathlib import Path\nPath('harness/x.py').write_text('x')\nPY"
+        )
         result = _run_hook(tmp_path, command)
         assert result.returncode == 2, result.stderr
         assert "harness/x.py" in result.stderr

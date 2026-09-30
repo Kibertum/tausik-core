@@ -35,12 +35,12 @@ import sqlite3
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import (  # noqa: E402
+from _common import (
     cli_invocation,
     is_tausik_project,
     shell_cwd,
 )
-from hook_policy import (  # noqa: E402
+from hook_policy import (
     classify_target,
     fail_open_on_db_error,
     legacy_fail_secure_notice,
@@ -82,7 +82,7 @@ def target_is_outside_project(raw_stdin: str, project_dir: str) -> bool:
         # `destination`. EVERY named path must be outside for the exemption:
         # judging the destination alone let a move of a project file to a
         # foreign directory pass with no task at all (review, session #259).
-        from write_tools import edited_paths  # noqa: PLC0415
+        from write_tools import edited_paths  # ruff-not-enabled: PLC0415
 
         paths = [p for p in edited_paths(tool_input) if p.strip()]
         if not paths:

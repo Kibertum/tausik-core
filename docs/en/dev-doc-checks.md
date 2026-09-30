@@ -2,6 +2,8 @@
 
 # Developer doc checks (v14-doc-automation)
 
+<!-- doc-map: reader=maintainer; zone=quality -->
+
 Tooling that keeps the documentation honest with the codebase. All
 scripts are stdlib-only and produce machine-readable output for CI.
 

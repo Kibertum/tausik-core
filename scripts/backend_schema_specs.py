@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS specs (
     slug TEXT NOT NULL UNIQUE,
     type TEXT NOT NULL CHECK(type IN
         ('ARCH', 'API', 'DATA', 'INT', 'PROC', 'UI', 'AI', 'SEC', 'OPS',
-         'TEST', 'DOC')),
+         'TEST', 'DOC', 'UC')),
     title TEXT NOT NULL,
     content_ref TEXT,
     version TEXT NOT NULL,

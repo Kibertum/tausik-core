@@ -153,3 +153,27 @@ class TestCliMetricsOutput:
         captured = capsys.readouterr().out
         assert "Per-tier" in captured
         assert "light" in captured
+
+
+def test_calibration_is_the_median_of_the_last_30_with_its_spread():
+    """calibration-window-too-small-to-forecast: the backtest winner, not the mean of 10."""
+    from backend_tier_metrics import calibration_drift
+
+    # 40 closures, oldest first: 10 wild ones (ratio 5.0) older than the last 30.
+    ratios = [5.0] * 10 + [0.5] * 15 + [1.0] * 15
+    rows = [{"b": 10, "a": r * 10} for r in reversed(ratios)]  # newest first, as the SQL returns
+
+    def q(sql, params=()):
+        assert "LIMIT 30" in sql
+        return rows[:30]
+
+    drift = calibration_drift(q)
+    assert drift["samples"] == 30
+    assert drift["avg_ratio"] == 0.75  # median of fifteen 0.5 and fifteen 1.0
+    assert (drift["p25"], drift["p75"]) == (0.5, 1.0)
+
+
+def test_fewer_than_five_samples_still_give_no_coefficient():
+    from backend_tier_metrics import calibration_drift
+
+    assert calibration_drift(lambda sql, params=(): [{"b": 1, "a": 1}] * 4) is None

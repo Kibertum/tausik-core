@@ -351,6 +351,18 @@ def _builtin_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
+                # Same audit after `tausik task done` in the shell (own entry: a hyphen
+                # in an MCP name makes a matcher a regex, and Bash would match BashOutput).
+                "matcher": SHELL_MATCHER,
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_cmd("task_done_verify.py"),
+                        "timeout": 6,
+                    }
+                ],
+            },
+            {
                 # HIGH-5 review fix: only Write/Edit/MultiEdit + the shell tools
                 # count toward call_actual. Read/Grep/Glob are research, not
                 # work — including them inflates the calibration drift metric.
@@ -399,19 +411,15 @@ def _builtin_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                # v14b-start-lite-tool-truncation: coaching nudge when a
-                # tool's textual output exceeds the configured threshold
-                # (default 250 lines, override in
-                # .tausik/config.json::tool_output_truncation_threshold).
-                # Does NOT modify tool output — just emits stderr so the
-                # agent reads it next turn and adjusts strategy.
+                # Output-size nudge (tool_output_truncation_threshold); RAG hits after a Grep (#391).
                 "matcher": f"Read|Grep|Glob|{SHELL_MATCHER}",
                 "hooks": [
                     {
                         "type": "command",
                         "command": hook_cmd("tool_output_truncation_nudge.py"),
                         "timeout": 3,
-                    }
+                    },
+                    {"type": "command", "command": hook_cmd("rag_grep_context.py"), "timeout": 3},
                 ],
             },
             {

@@ -8,4 +8,4 @@
 - For tests: run scoped `pytest tests/test_<file>.py -x -q` first, NOT full suite. Full suite only for final verify.
 - Trust the gate output verbatim — if filesize gate says line 401 in foo.py, edit foo.py to ≤400 lines. Don't argue.
 - After gates pass: immediately `task_done --ac-verified` with `evidence_json`. No "should I close it now?" check.
-- For unfamiliar code: `mcp__codebase-rag__search_code` first (returns chunks), Read only when path is known.
+- For unfamiliar code: narrow first (Grep with a path/glob), Read only when the path is known.

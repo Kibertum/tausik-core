@@ -8,6 +8,8 @@ breaks.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import http.client
 import json
 import os
@@ -81,7 +83,7 @@ class TestDocumentedExample:
         receipt_path = str(tmp_path / "receipt.json")
         assert ci_main(host, port, receipt_path) == 0
         # the persisted receipt re-verifies through the endpoint, as in the doc
-        envelope = json.loads(open(receipt_path, encoding="utf-8").read())
+        envelope = json.loads(Path(receipt_path).read_text(encoding="utf-8"))
         conn = http.client.HTTPConnection(host, port, timeout=30)
         conn.request("POST", "/receipt/verify", body=json.dumps(envelope), headers={})
         resp = conn.getresponse()

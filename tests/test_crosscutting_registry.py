@@ -41,6 +41,8 @@ opt out visibly, or be in the frozen list, which may only shrink.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 import subprocess
@@ -239,7 +241,7 @@ def _flagged_undeclared() -> set[str]:
             continue
         path = os.path.join(_TESTS, fn)
         try:
-            text = open(path, encoding="utf-8").read()
+            text = Path(path).read_text(encoding="utf-8")
         except OSError:
             continue
         if _iterates_source_tree(text) and read_crosscutting_scope(path) is None:
@@ -340,3 +342,69 @@ class TestInvisibleToEveryEdge:
             f"{len(invisible)} of {len(_test_files())} tests read as invisible — the "
             "detector is flagging wholesale, which means it broke rather than found"
         )
+
+
+# THIRD DETECTOR — INVISIBLE TO THE DEFAULT LANE.
+# The two detectors above ask whether a CHANGE can select a guard. This one asks
+# whether the guard runs at all. `addopts` in pyproject carries `-m 'not slow'`, so
+# a file marked slow is deselected unless someone asks for it by name, and the
+# dead-symbol ratchet sat under that mark: "the full suite is green" meant the suite
+# without it, and without 156 other tests, for a whole release.
+#
+# A GUARD IS IDENTIFIED BY WHAT IT READS, not by its name: a test that opens this
+# repository's own `tausik/gates.json` is reading a ratchet baseline, which is the
+# one thing that cannot be allowed to hold a zero in a lane nobody runs. The mark
+# belongs to tests whose cost is orders above a baseline read — stress and profile
+# deployment — and an exception here has to name its own cost to earn the mark.
+_RATCHET_READ = re.compile(r"""["']tausik["']\s*/\s*["']gates\.json""")
+_SLOW_MARK = re.compile(r"(?:pytestmark\s*=\s*pytest\.mark\.slow|@pytest\.mark\.slow)")
+
+#: Declared exception, with its reason. `test_consumer_first_close` names gates.json
+#: because it WRITES one into a temporary consumer project; it reads no baseline of
+#: this repository, and it genuinely costs 72s.
+_SLOW_RATCHET_EXCEPTIONS = frozenset({"test_consumer_first_close.py"})
+
+
+def _ratchets_deselected_by_default() -> set[str]:
+    out: set[str] = set()
+    for fn in _test_files():
+        if fn in _SELF or fn in _SLOW_RATCHET_EXCEPTIONS:
+            continue
+        try:
+            text = Path(os.path.join(_TESTS, fn)).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if _RATCHET_READ.search(text) and _SLOW_MARK.search(text):
+            out.add(fn)
+    return out
+
+
+class TestRatchetsRunInTheDefaultLane:
+    def test_no_ratchet_is_marked_slow(self):
+        flagged = _ratchets_deselected_by_default()
+        assert not flagged, (
+            "these tests read this repository's tausik/gates.json — they hold a "
+            "ratchet baseline — and carry pytest.mark.slow, which `addopts` "
+            "deselects by default. A zero held only in a lane nobody runs is not "
+            "held at all. Drop the mark, or declare the file in "
+            "_SLOW_RATCHET_EXCEPTIONS with the reason and its measured cost:\n  "
+            + "\n  ".join(sorted(flagged))
+        )
+
+    def test_the_detector_can_see_a_slow_ratchet(self, tmp_path, monkeypatch):
+        """Planted: a file that reads the baseline and is marked slow must be found.
+
+        Without this, the rule above would pass forever if the regex stopped
+        matching — which is exactly how the original mark survived unnoticed.
+        """
+        probe = tmp_path / "test_planted_ratchet.py"
+        probe.write_text(
+            "import pytest\npytestmark = pytest.mark.slow\n"
+            'BASE = (REPO / "tausik" / "gates.json")\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(sys.modules[__name__], "_TESTS", str(tmp_path))
+        monkeypatch.setattr(
+            sys.modules[__name__], "_test_files", lambda: ["test_planted_ratchet.py"]
+        )
+        assert _ratchets_deselected_by_default() == {"test_planted_ratchet.py"}

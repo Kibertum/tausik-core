@@ -31,7 +31,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ide_utils import all_profile_dirs  # noqa: E402
+from ide_utils import all_profile_dirs
 
 #: How far into a transcript to look for the `cwd` field before giving up. It
 #: appears on the first user entry in practice; the cap keeps a mis-shaped or
@@ -138,6 +138,17 @@ def project_transcripts(project_dir: str | None = None) -> list[str]:
     for directory in project_transcript_dirs(project_dir):
         files.extend(_jsonl_in(directory))
     return sorted(files, key=_safe_mtime)
+
+
+def newest_project_transcripts(project_dir: str | None, last: int) -> list[str]:
+    """The NEWEST `last` transcripts, oldest of them first.
+
+    `project_transcripts` is oldest-first, so `[:last]` is the FIRST sessions ever
+    recorded. Both the answer measure and its ratchet sliced it that way and read a
+    window frozen on the project's earliest transcripts (p90 1325 on the oldest ten
+    against 453 on the newest ten). One helper, so the two cannot drift.
+    """
+    return project_transcripts(project_dir)[-max(1, int(last)) :]
 
 
 def latest_project_transcript(project_dir: str | None = None) -> str | None:

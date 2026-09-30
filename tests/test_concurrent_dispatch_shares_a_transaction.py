@@ -26,7 +26,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
+from project_backend import SQLiteBackend
 
 
 @pytest.fixture

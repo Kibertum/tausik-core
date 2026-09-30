@@ -52,19 +52,21 @@ _Handler = Callable[[Any, dict], str]
 
 
 def _increment_tool_counter(svc: Any) -> str:
-    """Increment tool call counter atomically. Returns warning if threshold reached."""
+    """Checkpoint advice from the DERIVED count (1.10, counters-are-derived-...).
+
+    The name is kept for its callers; nothing is incremented any more. The
+    count of calls since the last checkpoint is computed from the session's
+    usage events minus what the last handoff recorded (`checkpoint_signal`).
+    """
     try:
-        # Atomic increment via backend public API
-        svc.be.meta_increment("tool_call_count")
-        val = svc.be.meta_get("tool_call_count") or "0"
-        count = int(val)
-        if count == _CHECKPOINT_THRESHOLD:
-            return (
-                f"\n⚠ SENAR Rule 9.3: {count} tool calls since last checkpoint. "
-                f"Consider /checkpoint to save context."
-            )
-        if count > _CHECKPOINT_THRESHOLD and count % 10 == 0:
-            return f"\n⚠ SENAR Rule 9.3: {count} tool calls! /checkpoint overdue."
+        from checkpoint_signal import checkpoint_advice
+        from journal_freshness import DEFAULT_THRESHOLD, freshness_advice
+        from project_config import load_config
+
+        cfg = load_config()
+        cp = int(cfg.get("checkpoint_calls", _CHECKPOINT_THRESHOLD))
+        jf = int(cfg.get("journal_freshness_calls", DEFAULT_THRESHOLD))
+        return checkpoint_advice(svc.be, cp) + freshness_advice(svc.be, jf)
     except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
         import logging
 
@@ -158,7 +160,22 @@ def _do_fts_optimize(svc: Any, args: dict) -> str:
 # Dispatch table: tool name -> handler(svc, args)
 # ---------------------------------------------------------------------------
 
+
+def _do_tool_schema(svc: Any, args: dict) -> str:
+    """Полная схема выгруженного инструмента.
+
+    Живёт здесь, а не в домене: предмет — сама поверхность инструментов, и
+    читать её надо из того же `TOOLS`, по которому валидируются аргументы.
+    Второй перечень был бы вторым источником правды о том, что мы объявляем.
+    """
+    from mcp_tool_tiers import schema_reply
+    from tools import TOOLS
+
+    return schema_reply(TOOLS, args.get("name"), args.get("query"))
+
+
 _DISPATCH: dict[str, _Handler] = {
+    "tausik_tool_schema": _do_tool_schema,
     # --- Exploration ---
     "tausik_explore_start": lambda svc, args: svc.exploration_start(
         args["title"], args.get("time_limit", 30)

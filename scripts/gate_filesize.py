@@ -249,15 +249,19 @@ def _resolve_exempt_files(start: str | None = None) -> frozenset[str]:
     )
 
 
-def run_filesize_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
-    """Check file sizes against max_lines threshold.
+def is_exempt(path: str, gate: dict | None = None) -> bool:
+    """Is this path outside the cap's reach?
 
-    Exempt dirs/basenames come from the committed tausik/gates.json merged over
-    the hardcoded fallbacks (``_resolve_exempts``). Per-file exempts via
-    gate.exempt_files: entries with '/' match by exact path, bare names match by
-    basename (covers a file anywhere in tree).
+    EXTRACTED so the write-time forecast asks the SAME question the gate asks. A second
+    copy of the exemption rules is a copy that drifts, and the two would then disagree
+    about a file exactly when it matters: the forecast would warn about something the gate
+    exempts, or stay silent about something it refuses.
+
+    A line cap is a rule about SOURCE TEXT. Applied to a binary file it counts 0x0A bytes
+    in a compressed stream and refuses a close for a violation that does not exist —
+    observed live, where a PDF in relevant_files was reported as "9897 lines (max 500)".
     """
-    max_lines = gate.get("max_lines", DEFAULT_MAX_LINES)
+    gate = gate or {}
     exempt_dirs, exempt_basenames_cfg = _resolve_exempts()
     exempt_paths: set[str] = set(_resolve_exempt_files())
     exempt_basenames: set[str] = set()
@@ -268,24 +272,33 @@ def run_filesize_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
         else:
             exempt_basenames.add(norm)
 
+    normalized = path.replace("\\", "/")
+    if any(_path_under_exempt_dir(normalized, d) for d in exempt_dirs):
+        return True
+    canon = _normalize_path(path)
+    basename = os.path.basename(canon)
+    if canon in exempt_paths or basename in exempt_basenames:
+        return True
+    if basename in exempt_basenames_cfg:
+        return True
+    return bool(os.path.isfile(path) and is_binary_file(path))
+
+
+def run_filesize_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
+    """Check file sizes against max_lines threshold.
+
+    Exempt dirs/basenames come from the committed tausik/gates.json merged over
+    the hardcoded fallbacks (``_resolve_exempts``). Per-file exempts via
+    gate.exempt_files: entries with '/' match by exact path, bare names match by
+    basename (covers a file anywhere in tree).
+    """
+    max_lines = gate.get("max_lines", DEFAULT_MAX_LINES)
+
     violations = []
     for f in files:
         if not os.path.isfile(f):
             continue
-        normalized = f.replace("\\", "/")
-        if any(_path_under_exempt_dir(normalized, d) for d in exempt_dirs):
-            continue
-        canon = _normalize_path(f)
-        basename = os.path.basename(canon)
-        if canon in exempt_paths or basename in exempt_basenames:
-            continue
-        if basename in exempt_basenames_cfg:
-            continue
-        # A line cap is a rule about SOURCE TEXT. Applied to a binary file it
-        # counts 0x0A bytes in a compressed stream and refuses a close for a
-        # violation that does not exist (observed live, session #177: a PDF in
-        # relevant_files reported as "9897 lines (max 500)").
-        if is_binary_file(f):
+        if is_exempt(f, gate):
             continue
         lines = count_lines(f)
         if lines > max_lines:

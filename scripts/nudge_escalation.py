@@ -119,7 +119,7 @@ def reset(conn: sqlite3.Connection, invariant: str) -> None:
     try:
         conn.execute("DELETE FROM meta WHERE key = ?", (_meta_key(invariant),))
         conn.commit()
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
 
 

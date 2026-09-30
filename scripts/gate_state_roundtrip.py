@@ -123,7 +123,7 @@ def run_state_roundtrip_gate() -> gate_outcome.GateOutcome:
         if be is not None:
             try:
                 be.close()
-            except Exception:  # noqa: BLE001 — best-effort cleanup
+            except Exception:  # noqa: BLE001,S110 — best-effort cleanup
                 pass
 
     if drift:

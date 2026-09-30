@@ -81,6 +81,17 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="SENAR Rule 6: how to undo this change (git revert / migration "
         "down / feature flag off).",
     )
+    # QG-0 refuses a start without acceptance criteria, and until now the command that
+    # CREATES a task could not set them — every `task add` was followed by a `task update`
+    # to supply the one field the next step requires. Measured over this project's own
+    # shift: nine tasks, nine extra calls, at roughly 482,000 tokens of re-sent prefix each.
+    ta.add_argument(
+        "--acceptance-criteria",
+        default=None,
+        dest="acceptance_criteria",
+        help="QG-0: what must be true for this task to close. Settable here so a task is "
+        "startable after one command.",
+    )
     ta.add_argument(
         "--ticket",
         nargs="*",
@@ -136,7 +147,18 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tstart.add_argument(
         "--force",
         action="store_true",
-        help="Bypass session capacity gate (logs audit event + notes)",
+        help="Retired in 1.10: session capacity is a signal, not a gate; passing this flag is refused with the reason (decision #376)",
+    )
+
+    tobs = task_sub.add_parser(
+        "obsolete",
+        help="Close a task whose premise time resolved: kept on record, no QG-2, left out of delivery metrics (a reason is required)",
+    )
+    tobs.add_argument("slug")
+    tobs.add_argument(
+        "--reason",
+        required=True,
+        help="What made the task unnecessary and where that is recorded (>=10 chars)",
     )
 
     tdone = task_sub.add_parser("done")
@@ -153,6 +175,15 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="Confirm no knowledge to capture",
     )
     tdone.add_argument("--relevant-files", nargs="*", default=None)
+    tdone.add_argument(
+        "--verify",
+        action="store_true",
+        help="Run the scoped check in THIS call and close with its handle — the whole "
+        "ceremony in one call instead of four. The run is the same one `tausik verify "
+        "--task <slug>` performs and records the same receipt; a red run refuses the "
+        "close and leaves the task open. Refuses alongside --verify-handle, and refuses "
+        "a task that declares no relevant_files unless --no-file-changes says so.",
+    )
     tdone.add_argument(
         "--verify-handle",
         default=None,
@@ -222,6 +253,16 @@ def add_task(sub: argparse._SubParsersAction) -> None:
 
     tupdate = task_sub.add_parser("update")
     tupdate.add_argument("slug")
+    tupdate.add_argument(
+        "--add-scope-paths",
+        nargs="*",
+        default=None,
+        dest="add_scope_paths",
+        help="ADD paths to the declared write scope, keeping what is already there. "
+        "The scope is declared before the work reveals which files it touches, so "
+        "widening is the normal case; --scope-paths replaces and made every widening "
+        "restate the whole list.",
+    )
     tupdate.add_argument("--title", default=None)
     tupdate.add_argument("--goal", default=None)
     tupdate.add_argument("--notes", default=None)
@@ -324,6 +365,13 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         "--phase",
         help="Filter by phase (planning, implementation, review, testing, done)",
     )
+
+    tbudget = task_sub.add_parser(
+        "budget-check",
+        help="Exit non-zero when an ARMED autonomous run is past the call-budget ceiling",
+        epilog="Example: TAUSIK_AUTONOMOUS_BUDGET_BLOCK=1 tausik task budget-check my-task",
+    )
+    tbudget.add_argument("slug", help="Task slug")
 
     treason = task_sub.add_parser(
         "reason-step",

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from typing import Mapping
 
 # Leaf constants + pure config-value helpers moved to tausik_constants
 # (project-config-god-module-split); re-exported so `from project_config import X`
@@ -184,7 +185,18 @@ def find_tausik_dir() -> str:
     вопрос «где проект БЫЛ БЫ», и вызывающие, которым нужен существующий,
     проверяют `os.path.isdir` (см. `knowledge_write._project_handle`).
     """
-    override = os.environ.get("TAUSIK_DIR")
+    return tausik_dir_from(os.getcwd(), os.environ)
+
+
+def tausik_dir_from(cwd: str, env: Mapping[str, str]) -> str:
+    """То же самое, но от ЯВНЫХ cwd и окружения — чистая часть подъёма.
+
+    Выделена, потому что резолверу проекта (`gmcp_project_resolver`) нужен
+    детерминированный подъём от переданного каталога, а не от текущего. Второй
+    реализации подъёма в проекте быть не должно: два ответа на вопрос «где
+    проект» расходятся молча, и расхождение видно не там, где возникло.
+    """
+    override = env.get("TAUSIK_DIR")
     if override:
         return override
     try:
@@ -192,7 +204,7 @@ def find_tausik_dir() -> str:
         forbidden = os.path.normcase(os.path.realpath(home_tier_dir()))
     except Exception:  # noqa: BLE001 — недоступный дом не должен ломать поиск проекта
         home, forbidden = "", ""
-    d = os.getcwd()
+    d = cwd
     for _ in range(10):
         candidate = os.path.join(d, TAUSIK_DIR)
         if os.path.isdir(candidate) and os.path.normcase(os.path.realpath(candidate)) != forbidden:
@@ -204,7 +216,7 @@ def find_tausik_dir() -> str:
             break
         d = parent
     # Default to cwd
-    return os.path.join(os.getcwd(), TAUSIK_DIR)
+    return os.path.join(cwd, TAUSIK_DIR)
 
 
 def get_db_path() -> str:

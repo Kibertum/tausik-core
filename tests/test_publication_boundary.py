@@ -26,6 +26,7 @@ if str(_SCRIPTS) not in sys.path:
 import knowledge_db  # noqa: E402
 import knowledge_export as kx  # noqa: E402
 import publication_boundary as pb  # noqa: E402
+from tausik_utils import ServiceError  # noqa: E402
 
 # The property walk reads these trees; a change under either must select this file.
 CROSSCUTTING_SCOPE = ["scripts/", "harness/"]
@@ -249,6 +250,46 @@ def _modules():
             yield path
 
 
+class TestAServiceEndpointIsADestinationToo:
+    """An embeddings provider is handed whole rows verbatim, so it is a place bytes go.
+
+    `assert_local_destination` answers for a file somebody asked to write; this answers for a
+    service somebody configured. Without it the feature would have reinstated the leak class
+    decision #358 closed — one search at a time, with nobody watching.
+    """
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://127.0.0.1:11434/api/embed",
+            "http://localhost:11434/api/embed",
+            "https://127.0.0.1:8443/embed",
+            "http://[::1]:11434/api/embed",
+        ],
+    )
+    def test_loopback_is_allowed(self, url):
+        assert pb.assert_loopback_service(url) == url
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            pytest.param("https://api.example.com/v1/embeddings", id="hosted"),
+            pytest.param("http://10.0.0.5:11434/api/embed", id="lan"),
+            pytest.param("http://embeddings.internal/api", id="internal_name"),
+            pytest.param("ws://127.0.0.1:11434/embed", id="wrong_scheme"),
+            pytest.param("/var/run/embed.sock", id="not_a_url"),
+            pytest.param("", id="empty"),
+            # Refusal is by SHAPE, so a name that RESOLVES to loopback is refused too: a
+            # resolution changes without the configuration changing, and a check that trusted
+            # DNS would approve an endpoint that moves house tomorrow.
+            pytest.param("http://my-local-box.example/api/embed", id="resolves_to_loopback"),
+        ],
+    )
+    def test_everything_else_is_refused_by_shape(self, url):
+        with pytest.raises(ServiceError):
+            pb.assert_loopback_service(url)
+
+
 def _walk() -> tuple[int, list[str], set[str]]:
     """(store readers scanned, offenders, allowlist entries that were needed)."""
     scanned = 0
@@ -281,7 +322,9 @@ def test_every_store_reader_that_writes_outward_passes_the_boundary():
 def test_every_allowlist_entry_is_still_needed():
     _, _, exercised = _walk()
     stale = sorted(set(ALLOWLIST) - exercised)
-    assert not stale, f"ALLOWLIST entries no longer needed — remove them, they hide the next leak: {stale}"
+    assert not stale, (
+        f"ALLOWLIST entries no longer needed — remove them, they hide the next leak: {stale}"
+    )
 
 
 def test_the_exporter_itself_imports_the_boundary():

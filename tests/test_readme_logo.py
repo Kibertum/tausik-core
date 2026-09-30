@@ -8,6 +8,8 @@ picture at the top of README with nothing going red — this does.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 
@@ -20,7 +22,7 @@ _IMG = re.compile(r"<img\s[^>]*src=\"([^\"]+)\"")
 
 
 def _images(rel: str) -> list[str]:
-    text = open(os.path.join(_ROOT, rel), encoding="utf-8").read()
+    text = Path(os.path.join(_ROOT, rel)).read_text(encoding="utf-8")
     return _IMG.findall(text)
 
 
@@ -36,10 +38,13 @@ def test_every_image_on_the_page_is_a_file(page):
         assert os.path.isfile(os.path.join(base, src)), f"{page}: {src} is not a file"
 
 
-def test_the_front_pages_carry_the_colour_and_the_docs_index_the_line():
+def test_every_page_carries_the_one_logo_and_the_colour_rendering_is_placed_nowhere():
+    """Owner, 2026-09-14: the monoline is the logo; the colour rendering is
+    kept as `-full` and sits on no page."""
     assert _images("README.md") == ["docs/assets/tausik-logo.png"]
     assert _images("README.ru.md") == ["docs/assets/tausik-logo.png"]
-    assert _images("docs/README.md") == ["assets/tausik-mark.png"]
+    assert _images("docs/README.md") == ["assets/tausik-logo.png"]
+    assert os.path.isfile(os.path.join(_ROOT, "docs", "assets", "tausik-logo-full.png"))
 
 
 def test_a_made_up_asset_would_be_caught(tmp_path):

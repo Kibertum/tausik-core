@@ -15,11 +15,19 @@ def _session_hours(stats: dict | None) -> float:
     return round(stats["hours"], 1) if stats and stats.get("hours") else 0
 
 
+# An obsolete close is status 'done' but was not delivered (task_obsolete.py):
+# it gets its own key, so every `counts['done']` reader counts deliveries only.
+_STATUS_COUNTS_SQL = (
+    "SELECT CASE WHEN resolution = 'obsolete' THEN 'obsolete' ELSE status END AS status, "
+    "COUNT(*) as cnt FROM tasks GROUP BY 1"
+)
+
+
 class BackendQueriesMetricsMixin:
     """Status snapshot + SENAR delivery metrics (FPSR/DER/cycle/lead/throughput)."""
 
     def get_status_data(self) -> dict[str, Any]:
-        tasks = self._q("SELECT status, COUNT(*) as cnt FROM tasks GROUP BY status")  # type: ignore[attr-defined]
+        tasks = self._q(_STATUS_COUNTS_SQL)  # type: ignore[attr-defined]
         return {
             "task_counts": {r["status"]: r["cnt"] for r in tasks},
             "epics": self.epic_list(),  # type: ignore[attr-defined]
@@ -29,7 +37,7 @@ class BackendQueriesMetricsMixin:
     def get_metrics(self) -> dict[str, Any]:
         task_counts = {
             r["status"]: r["cnt"]
-            for r in self._q("SELECT status, COUNT(*) as cnt FROM tasks GROUP BY status")  # type: ignore[attr-defined]
+            for r in self._q(_STATUS_COUNTS_SQL)  # type: ignore[attr-defined]
         }
         total = sum(task_counts.values())
         done = task_counts.get("done", 0)
@@ -37,15 +45,15 @@ class BackendQueriesMetricsMixin:
         combined = (
             self._q1(  # type: ignore[attr-defined]
                 "SELECT "
-                "  (SELECT COUNT(*) FROM tasks WHERE status='done' AND attempts=1) as first_pass, "
+                "  (SELECT COUNT(*) FROM tasks WHERE status='done' AND resolution IS NULL AND attempts=1) as first_pass, "
                 "  (SELECT COUNT(DISTINCT defect_of) FROM tasks WHERE defect_of IS NOT NULL) as defect_count, "
-                "  (SELECT COUNT(*) FROM tasks WHERE status='done' AND defect_of IS NULL) as non_defect_done, "
+                "  (SELECT COUNT(*) FROM tasks WHERE status='done' AND resolution IS NULL AND defect_of IS NULL) as non_defect_done, "
                 "  (SELECT COUNT(*) FROM memory) as mem_count, "
                 "  (SELECT COUNT(*) FROM memory WHERE type='dead_end') as dead_end_count, "
                 "  (SELECT AVG((julianday(completed_at) - julianday(started_at)) * 24) "
-                "   FROM tasks WHERE status='done' AND started_at IS NOT NULL AND completed_at IS NOT NULL) as cycle_hours, "
+                "   FROM tasks WHERE status='done' AND resolution IS NULL AND started_at IS NOT NULL AND completed_at IS NOT NULL) as cycle_hours, "
                 "  (SELECT AVG((julianday(completed_at) - julianday(created_at)) * 24) "
-                "   FROM tasks WHERE status='done' AND completed_at IS NOT NULL) as lead_hours"
+                "   FROM tasks WHERE status='done' AND resolution IS NULL AND completed_at IS NOT NULL) as lead_hours"
             )
             or {}
         )
@@ -80,7 +88,7 @@ class BackendQueriesMetricsMixin:
         for row in self._q(  # type: ignore[attr-defined]
             "SELECT complexity, COUNT(*) as cnt, "
             "AVG((julianday(completed_at) - julianday(started_at)) * 24) as avg_hours "
-            "FROM tasks WHERE status='done' AND started_at IS NOT NULL AND completed_at IS NOT NULL "
+            "FROM tasks WHERE status='done' AND resolution IS NULL AND started_at IS NOT NULL AND completed_at IS NOT NULL "
             "GROUP BY complexity"
         ):
             c = row["complexity"] or "unknown"
@@ -100,7 +108,10 @@ class BackendQueriesMetricsMixin:
             "tasks": task_counts,
             "tasks_total": total,
             "tasks_done": done,
-            "completion_pct": round(done / total * 100, 1) if total else 0,
+            # Closed, delivered or not: an obsolete close finishes the task too.
+            "completion_pct": (
+                round((done + task_counts.get("obsolete", 0)) / total * 100, 1) if total else 0
+            ),
             "throughput": throughput,
             "lead_time_hours": lead_hours,
             "fpsr": fpsr,
@@ -109,6 +120,14 @@ class BackendQueriesMetricsMixin:
             "knowledge_capture_rate": kcr,
             "dead_end_rate": dead_end_rate,
             "dead_end_count": dead_end_count,
+            # SENAR 1.5 §9.4(a): the population each ratio is taken over, so a
+            # report can say "no population" instead of printing 0% for 0/0.
+            "populations": {
+                "throughput": sessions_total,
+                "fpsr": done,
+                "der": non_defect_done,
+                "dead_end_rate": total,
+            },
             "cost_per_task": cost_by_complexity,
             "per_tier": per_tier_metrics(self._q),  # type: ignore[attr-defined]
             "calibration_drift": calibration_drift(self._q),  # type: ignore[attr-defined]
@@ -160,7 +179,7 @@ class BackendQueriesMetricsMixin:
 
             for trigger in ("verify", "task-done"):
                 known.extend(g["name"] for g in get_gates_for_trigger(trigger))
-        except Exception:  # noqa: BLE001 — metrics are read-only; config trouble must not blank them
+        except Exception:  # noqa: BLE001,S110 — metrics are read-only; config trouble must not blank them
             pass
         return gate_activity(self._conn, sorted(set(known)))  # type: ignore[attr-defined]
 

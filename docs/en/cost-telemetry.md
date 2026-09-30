@@ -2,6 +2,8 @@
 
 # Cost Telemetry — Per-Task Token Attribution
 
+<!-- doc-map: reader=user; zone=quality -->
+
 TAUSIK records LLM usage in two places that work together:
 
 | Table | Source | Granularity | When |
@@ -105,8 +107,32 @@ tausik task show v14c-token-budget-task
 
 **Out of scope (separate tasks):** session-level token cap (mirror of `session_capacity_calls`), HUD/status display of tokens-vs-budget, token-tier mapping in `/plan` SKILL.md.
 
+## The cost of a task, in turns
+
+```bash
+python scripts/turn_economy.py          # the report
+python scripts/turn_economy.py --json   # the same, machine-readable
+```
+
+**Why the unit is a TURN, not a request.** Across 5,964 telemetry rows the input side is 99.5%
+`cache_read`: 2,876,911,173 tokens against 22,099 of fresh input. The prefix is re-sent whole on
+every call, so an extra CALL costs about 482,000 tokens while shortening a request saves
+hundreds. An edit that trims the request and adds a turn loses by roughly a hundred to one.
+
+**What the measurement says** (1,230 closed tasks carrying a `call_actual`): median 20 turns, p90
+78, max 1,900. By month: 2026-04 median 6 → 2026-09 median 32, p90 35 → 114. In tokens, 9.6M for
+the median task and 37.6M at p90.
+
+**Where the turns go** (8,195 measured calls): `Bash` 87.6% and 3.64 of 4.07 billion
+`cache_read`, `Write` 7.7%, `Edit` 2.7%, everything else together under 2%.
+
+Both halves are LOCAL: `call_actual` lives in this project's database and the sidecar is written
+by a hook on this machine. Neither travels, so on a fresh clone the report says absence in words
+rather than printing a zero.
+
 ## Limitations
 
+- **Session tokens recorded before 1.10 are overstated and are not re-derived**. Claude Code writes one API message with N content blocks as N transcript entries carrying the same usage, and the meter added it N times: 1.81x on the replay transcript of session #263. Since 1.10 usage is counted once per message id. The overstatement depends on the block count, so old rows cannot be divided by a constant; do not compare them with new ones.
 - **`tausik metrics tokens` does not attribute cost per tool, and says so before
   it shows you anything.** API usage is reported per *message*, not per tool
   call — the capture hook states this about itself. What reaches

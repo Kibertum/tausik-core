@@ -120,10 +120,14 @@ def handle_receipt_verify(body: dict[str, Any], project_dir: str) -> dict[str, A
         from receipt_export import ExportError, verify_export
 
         try:
-            valid, detail = verify_export(body)
+            valid, detail, trusted_key = verify_export(body)
         except ExportError as e:
             raise RequestError(str(e)) from e
-        return {"valid": valid, "detail": detail}
+        # `trusted_key` travels in the answer. A caller posting an export the service
+        # has never seen gets its INTEGRITY verified against the key inside it, which
+        # says nothing about who signed — so the field that says so must reach them,
+        # or the endpoint repeats the CLI's old mistake over HTTP.
+        return {"valid": valid, "detail": detail, "trusted_key": trusted_key}
     if body.get("envelope") == "tausik-signed/v1":
         import crypto_keys
         import crypto_sign
@@ -170,7 +174,7 @@ def make_handler(project_dir: str) -> type[BaseHTTPRequestHandler]:
                 raise RequestError("JSON object required")
             return data
 
-        def do_GET(self) -> None:  # noqa: N802 — http.server contract
+        def do_GET(self) -> None:  # ruff-not-enabled: N802 — http.server contract
             if self.path == "/healthz":
                 self._send(200, {"ok": True, "service": "tausik-verify"})
                 return
@@ -184,7 +188,7 @@ def make_handler(project_dir: str) -> type[BaseHTTPRequestHandler]:
                 return
             self._send(404, {"error": f"unknown path {self.path}"})
 
-        def do_POST(self) -> None:  # noqa: N802 — http.server contract
+        def do_POST(self) -> None:  # ruff-not-enabled: N802 — http.server contract
             import crypto_keys
 
             routes = {"/verify": handle_verify, "/receipt/verify": handle_receipt_verify}

@@ -17,9 +17,9 @@ import gate_outcome
 def run_at_freshness_gate(gate: dict, files: list[str]) -> gate_outcome.GateOutcome:
     """Registry-uniform ``(gate, files)`` entrypoint."""
     try:
-        from project_backend import SQLiteBackend  # noqa: PLC0415
-        from project_config import get_db_path  # noqa: PLC0415
-        from project_service import ProjectService  # noqa: PLC0415
+        from project_backend import SQLiteBackend  # ruff-not-enabled: PLC0415
+        from project_config import get_db_path  # ruff-not-enabled: PLC0415
+        from project_service import ProjectService  # ruff-not-enabled: PLC0415
 
         db_path = get_db_path()
         if not os.path.isfile(db_path):

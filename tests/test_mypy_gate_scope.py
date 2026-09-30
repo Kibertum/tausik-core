@@ -14,13 +14,15 @@ pyproject.toml задаёт СВОЙ набор источников. Два и�
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from gate_command_runner import run_command_gate  # noqa: E402
-from gate_registry import GATE_REGISTRY  # noqa: E402
+from gate_command_runner import run_command_gate
+from gate_registry import GATE_REGISTRY
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -154,6 +156,6 @@ def test_conftest_itself_was_not_edited() -> None:
     Иначе задача отчиталась бы о починке способа вызова, а на деле замаскировала
     бы симптом правкой предмета замера.
     """
-    body = open(os.path.join(REPO_ROOT, "tests", "conftest.py"), encoding="utf-8").read()
+    body = Path(os.path.join(REPO_ROOT, "tests", "conftest.py")).read_text(encoding="utf-8")
     assert "import service_gates" in body or "service_gates" in body
     assert "backend_schema" in body

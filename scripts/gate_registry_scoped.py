@@ -108,7 +108,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done", "commit"],
+            "trigger": ["task-done", "commit", "verify"],
             "command": None,
             "description": "Warn if files exceed max_lines threshold",
             # Interim cap raised 400→500 (task l26-filesize-gate-revisit,
@@ -118,6 +118,42 @@ _SCOPED: tuple[GateSpec, ...] = (
             # genuinely 2× file still blocks. The real fix (measure post-MRO
             # public class surface, not raw lines) is a deferred follow-up.
             "max_lines": 500,
+        },
+    ),
+    GateSpec(
+        name="path_artifact",
+        prevents=(
+            "A commit changes a guarded path without moving the artifact the project "
+            "bound to it (github#90). Guards nothing until the project declares its map: "
+            "the default map is empty and the gate says so on every commit. "
+        ),
+        phase=PHASE_SCOPED,
+        impl="gate_path_artifact:run_path_artifact_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["commit"],
+            "command": None,
+            "description": "a staged change under a mapped path needs its artifact in the same commit",
+            "map": [],
+        },
+    ),
+    GateSpec(
+        name="ruff_format",
+        prevents=(
+            "A verify signs, or a commit lands, over a task file the formatter would change. "
+            "Found in session #155: 86 files diverged and no gate asked; by 1.10 it was 117. "
+            "The inherited files are a frozen list that only shrinks (decision #386). "
+        ),
+        phase=PHASE_SCOPED,
+        impl="gate_ruff_format:run_ruff_format_gate",
+        default_config={
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["commit", "verify"],
+            "command": None,
+            "description": "ruff format --check over the task's files, legacy list excepted",
+            "file_extensions": [".py"],
         },
     ),
     GateSpec(
@@ -132,7 +168,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done", "commit"],
+            "trigger": ["task-done", "commit", "verify"],
             "command": None,
             "description": "Block GROWTH in structurally indistinguishable tests",
             # The detector (`audit_pytest_dedupe`) shipped with a --check flag
@@ -157,7 +193,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done", "commit"],
+            "trigger": ["task-done", "commit", "verify"],
             "command": None,
             "description": "Cap a class's composed public surface after inheritance",
             # Complements `filesize`, never replaces it (task filesize-mro-exempt-mcp).
@@ -223,7 +259,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done"],
+            "trigger": ["task-done", "verify"],
             "command": None,
             "description": "Fail if deployed IDE profiles drift from scripts/ source",
         },
@@ -265,7 +301,7 @@ _SCOPED: tuple[GateSpec, ...] = (
         default_config={
             "enabled": True,
             "severity": "block",
-            "trigger": ["task-done", "commit"],
+            "trigger": ["task-done", "commit", "verify"],
             "command": None,
             "description": "Block a shipped name that no document mentions",
         },

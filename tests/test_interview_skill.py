@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 _SKILL_PATH = os.path.join(
     os.path.dirname(__file__), "..", "harness", "skills", "interview", "SKILL.md"
@@ -14,34 +15,34 @@ def test_skill_file_exists():
 
 
 def test_skill_has_frontmatter():
-    content = open(_SKILL_PATH, encoding="utf-8").read()
+    content = Path(_SKILL_PATH).read_text(encoding="utf-8")
     assert content.startswith("---\n"), "frontmatter missing"
     assert "name: interview" in content
 
 
 def test_max_3_questions_principle():
-    content = open(_SKILL_PATH, encoding="utf-8").read().lower()
+    content = Path(_SKILL_PATH).read_text(encoding="utf-8").lower()
     # The max-3 principle must be literally stated
     assert "at most 3" in content or "max 3" in content or "maximum of 3" in content
 
 
 def test_socratic_framing():
-    content = open(_SKILL_PATH, encoding="utf-8").read().lower()
+    content = Path(_SKILL_PATH).read_text(encoding="utf-8").lower()
     assert "socratic" in content
 
 
 def test_stop_condition_present():
-    content = open(_SKILL_PATH, encoding="utf-8").read().lower()
+    content = Path(_SKILL_PATH).read_text(encoding="utf-8").lower()
     assert "when to skip" in content
 
 
 def test_has_gotchas_section():
-    content = open(_SKILL_PATH, encoding="utf-8").read()
+    content = Path(_SKILL_PATH).read_text(encoding="utf-8")
     assert "## Gotchas" in content
 
 
 def test_frontmatter_mentions_triggers():
-    content = open(_SKILL_PATH, encoding="utf-8").read()
+    content = Path(_SKILL_PATH).read_text(encoding="utf-8")
     # At least one Russian + English trigger
     assert "interview me" in content.lower()
     assert "уточни" in content or "задай вопрос" in content.lower()

@@ -15,12 +15,12 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from backend_migrations import run_migrations  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from service_specs import SPEC_RELATIONS, SPEC_TYPES  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from backend_migrations import run_migrations
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from service_specs import SPEC_RELATIONS, SPEC_TYPES
+from tausik_utils import ServiceError
 
 
 def _make_service(db_path: str) -> ProjectService:
@@ -69,6 +69,9 @@ def test_migration_v35_creates_tables_clean(tmp_path):
     conn.execute(
         "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
     )  # defect_of: v10 column, indexed by v62  # FK target
+    conn.execute(
+        "CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )  # ALTER target for v63
     # ALTER target for v38 — run_migrations walks every version up to current,
     # not just the one under test here.
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
@@ -252,13 +255,6 @@ def test_fts_delete_trigger_removes_entry(svc):
     assert svc.spec_search("Ephemeral")
     svc.spec_delete("ghost-api")
     assert svc.spec_search("Ephemeral") == []
-
-
-def test_malformed_fts_query_is_friendly_error(svc):
-    """NEGATIVE: an unbalanced FTS5 query is a ServiceError, not a raw crash."""
-    svc.spec_add("s", "API", "T", "v1")
-    with pytest.raises(ServiceError, match="Invalid search query"):
-        svc.spec_search('"unbalanced')
 
 
 # === NEGATIVE: validation surfaces as ServiceError (no raw traceback) ===

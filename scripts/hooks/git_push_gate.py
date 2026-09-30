@@ -106,7 +106,7 @@ def _command_invokes_git_push(command: str, tool_name: str = "") -> bool:
     ticketed. Named in `docs/*/enforcement-coverage.md` — silence about it is
     what produced the task this gate was changed for.
     """
-    from shell_channel import tokenize  # noqa: PLC0415
+    from shell_channel import tokenize  # ruff-not-enabled: PLC0415
 
     tokens = tokenize(tool_name, command)
     if tokens is None:

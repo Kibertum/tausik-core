@@ -2,6 +2,8 @@
 
 # Troubleshooting
 
+<!-- doc-map: reader=user; zone=reference -->
+
 > Машино-читаемый гайд: ошибка → диагноз → фикс.
 
 ## Stale MCP-модули (тихие зависания)

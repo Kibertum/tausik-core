@@ -15,8 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from _common import profile_dir as _common_profile_dir  # noqa: E402
-from _common import tausik_path as _tausik_path  # noqa: E402
+from _common import profile_dir as _common_profile_dir
+from _common import tausik_path as _tausik_path
 
 
 def _run_tausik(cmd: str, args: list[str], project_dir: str, timeout: int = 4) -> str:
@@ -48,20 +48,20 @@ def _profile_dir() -> str | None:
 
 
 def _rag_server_path(project_dir: str) -> str | None:
-    """Path to the codebase-rag MCP server.py if installed, else None."""
+    """Path to the codebase-rag MCP rag_server.py if installed, else None."""
     profile = _profile_dir()
     if profile:
-        p = os.path.join(profile, "mcp", "codebase-rag", "server.py")
+        p = os.path.join(profile, "mcp", "codebase-rag", "rag_server.py")
         if os.path.exists(p):
             return p
     for ide in ("claude", "cursor"):
         # `ide` was previously unused in this branch — the literal below read
         # `.claude` on both iterations, so the cursor pass tested the same path
         # twice and only the harness fallback below ever varied.
-        p = os.path.join(project_dir, f".{ide}", "mcp", "codebase-rag", "server.py")
+        p = os.path.join(project_dir, f".{ide}", "mcp", "codebase-rag", "rag_server.py")
         if os.path.exists(p):
             return p
-        p2 = os.path.join(project_dir, "harness", ide, "mcp", "codebase-rag", "server.py")
+        p2 = os.path.join(project_dir, "harness", ide, "mcp", "codebase-rag", "rag_server.py")
         if os.path.exists(p2):
             return p2
     return None
@@ -191,11 +191,7 @@ def _rag_summary(project_dir: str) -> str:
     _spawn_background_reindex(project_dir, mode="incremental")
     if chunks == 0:
         return "RAG: empty — full reindex spawned in background."
-    return (
-        f"RAG: {chunks} chunks indexed (incremental reindex running in background). "
-        "Prefer `mcp__codebase-rag__search_code` for symbol/pattern lookup. "
-        "Use Grep/Read only for known file paths."
-    )
+    return f"RAG: {chunks} chunks indexed (incremental reindex running in background)."
 
 
 def build_context(project_dir: str) -> str:
@@ -230,11 +226,53 @@ def build_context(project_dir: str) -> str:
         "- `task start <slug>` is required before any Write/Edit (SENAR Rule 9.1).\n"
         "- Run `/start` for the full dashboard (handoff, metrics, explorations, audit).\n"
         "- Log progress with `task log`; document dead ends with `dead-end`.\n"
-        "- Use `search_code` (RAG) before Grep/Read for unfamiliar code — saves tokens, returns chunks not full files.\n"
         "- Project knowledge → `tausik memory add`, NOT `~/.claude/*/memory/` "
         "(blocked by PreToolUse hook; bypass only with `confirm: cross-project`).\n"
     )
     return "".join(parts)
+
+
+def _spawn_update_check(project_dir: str) -> None:
+    """Refresh the update cache DETACHED: SessionStart never waits on the network.
+
+    `tausik update-check` asks GitHub at most once a day (update_check.py); the
+    answer reaches `status` — and so this context — from the cache.
+    """
+    tausik_cmd = _tausik_path(project_dir)
+    if not tausik_cmd:
+        return
+    kwargs: dict = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "cwd": project_dir,
+    }
+    if sys.platform == "win32":
+        kwargs["creationflags"] = 0x00000008  # DETACHED_PROCESS
+    else:
+        kwargs["start_new_session"] = True
+    try:
+        subprocess.Popen([tausik_cmd, "update-check"], **kwargs)
+    except (OSError, ValueError):
+        pass  # never break the session start
+
+
+def _open_host_session(project_dir: str, payload: object) -> None:
+    """The TAUSIK session IS the host session (decision #376): open it here.
+
+    Idempotent per host session id — SessionStart fires again on resume and
+    after compaction with the same id, and those must not open a second row.
+    A payload without an id (another host, a manual run) opens nothing: the
+    CLI path `tausik session start` remains for hosts without the event.
+    Best-effort like the rest of this hook — SessionStart must never block.
+    """
+    host_id = payload.get("session_id") if isinstance(payload, dict) else None
+    if not isinstance(host_id, str) or not host_id.strip():
+        return
+    tausik_cmd = _tausik_path(project_dir)
+    if not tausik_cmd:
+        return
+    _run_tausik(tausik_cmd, ["session", "start", "--host-id", host_id.strip()], project_dir)
 
 
 def main() -> int:
@@ -254,15 +292,17 @@ def main() -> int:
     if not os.path.exists(tausik_db):
         return 0
 
+    try:
+        payload = json.load(sys.stdin)
+    except (json.JSONDecodeError, EOFError, ValueError):
+        payload = {}
+    _open_host_session(project_dir, payload)
+
     _auto_rebuild_skills(project_dir)
+    _spawn_update_check(project_dir)
     context = build_context(project_dir)
     if not context.strip():
         return 0
-
-    try:
-        json.load(sys.stdin)
-    except (json.JSONDecodeError, EOFError, ValueError):
-        pass
 
     output = {
         "hookSpecificOutput": {

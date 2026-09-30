@@ -284,7 +284,7 @@ def detect_provenance_drift(conn: sqlite3.Connection) -> list[Finding]:
           FROM task_specs ts
           JOIN specs s ON s.slug = ts.spec_slug
           JOIN tasks t ON t.slug = ts.task_slug
-         WHERE t.status = 'done'
+         WHERE t.status = 'done' AND t.resolution IS NULL
            AND s.status = 'active'
            AND {_VERIFIED_AT} IS NOT NULL
            AND s.updated_at > {_VERIFIED_AT}
@@ -314,7 +314,7 @@ def detect_provenance_drift(conn: sqlite3.Connection) -> list[Finding]:
           FROM task_specs ts
           JOIN specs s ON s.slug = ts.spec_slug
           JOIN tasks t ON t.slug = ts.task_slug
-         WHERE t.status = 'done'
+         WHERE t.status = 'done' AND t.resolution IS NULL
            AND s.status = 'active'
            AND {_VERIFIED_AT} IS NULL
         """,

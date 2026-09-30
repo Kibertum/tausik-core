@@ -58,7 +58,7 @@ from typing import Any, Iterable
 # The pattern language lives in `path_glob`: `*` within a segment, `**` across
 # segments (zero included), everything lowercased first. Re-exported so the
 # three enforcement layers import one module, not two.
-from path_glob import (  # noqa: F401 — re-exported for the layers
+from path_glob import (
     glob_match,
     is_absolute,
     normalize,

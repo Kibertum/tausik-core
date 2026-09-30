@@ -41,4 +41,34 @@ def reminders_at_close(slug: str, notes: str | None, task: dict) -> list[str]:
     ticket = proposal_for_task(task)
     if ticket:
         out.append(ticket)
+    note = _comment_note(slug, task)
+    if note:
+        out.append(note)
     return out
+
+
+def _comment_note(slug: str, task: dict) -> str | None:
+    """Записка о событии, добавленная В КОММЕНТАРИЙ этой же задачей.
+
+    Спрашивается здесь по той же причине, что и остальные два: автор ещё помнит,
+    что записка значила, а через час её уже нельзя ни перенести, ни объяснить.
+    Область берётся из объявленной задачей — за её пределами правки не её, и
+    сообщать о них значило бы превратить напоминание в шум.
+    """
+    import json
+    import os
+
+    from comment_history_refs import closure_note, new_refs_for_close
+
+    try:
+        declared = task.get("relevant_files") or task.get("scope_paths")
+        paths = json.loads(declared) if isinstance(declared, str) else (declared or [])
+        paths = [p for p in paths if isinstance(p, str) and p.endswith(".py")]
+        if not paths:
+            return None
+        from project_config import find_tausik_dir
+
+        root = os.path.dirname(os.path.abspath(find_tausik_dir()))
+        return closure_note(slug, new_refs_for_close(root, paths))
+    except Exception:  # noqa: BLE001 — напоминание не смеет уронить закрытие
+        return None

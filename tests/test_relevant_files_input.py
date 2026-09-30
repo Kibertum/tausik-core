@@ -131,7 +131,7 @@ class TestAMissingPathIsAWarningNotARefusal:
 def test_the_help_text_no_longer_invites_the_comma():
     """The parser said "JSON-list" — the STORAGE shape — and a reader took it
     as the input format. The help must name the input form."""
-    from project_parser_task import add_task  # noqa: F401
+    from project_parser_task import add_task
     import argparse
 
     parser = argparse.ArgumentParser(prog="tausik")

@@ -44,13 +44,14 @@ from repo_coherence_collectors import (
     _translation_drift,
     _unused_python,
 )
-from repo_coherence_shape import (  # noqa: F401 — re-exported surface
+from repo_coherence_shape import (
     MAX_FINDINGS,
     NOT_EXAMINED,
     SEVERITY_ORDER,
     Finding,
     _safe,
 )
+
 
 #: The volume ceiling. A report nobody reads is worse than no report — it costs
 #: attention and returns the feeling of having looked. Findings are ranked, and

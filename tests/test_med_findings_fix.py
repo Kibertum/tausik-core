@@ -65,51 +65,38 @@ class TestUpdateBudgetWins:
         assert task["tier"] == "light"
 
 
-# === MED-7: --force flag bypasses session capacity gate ===
+# === MED-7 retired in 1.10: --force has nothing left to bypass (decision #376) ===
 
 
-class TestForceFlag:
-    def test_force_bypasses_capacity_overshoot(self, svc):
+class TestForceFlagIsRetired:
+    """Session capacity used to be a gate on task start and `--force` its
+    audited escape hatch (MED-7). 1.10 made capacity a SIGNAL — printed with
+    the start, never a refusal — so the flag has nothing to bypass. It is not
+    silently accepted: that would teach the old habit."""
+
+    # The "overshoot starts with an advisory" case lives once, in
+    # tests/test_session_signal_not_gate.py — the dedupe gate counts shapes.
+
+    def test_force_is_refused_with_the_reason(self, svc):
         svc.session_start()
         _ready_task(svc, "big", budget=300)
-        with pytest.raises(ServiceError, match="capacity"):
-            svc.task_start("big")
-        result = svc.task_start("big", force=True)
-        assert "FORCED start" in result
-        assert svc.be.task_get("big")["status"] == "active"
+        with pytest.raises(ServiceError, match="retired"):
+            svc.task_start("big", force=True)
+        assert svc.be.task_get("big")["status"] == "planning"
 
-    def test_force_logs_audit_event(self, svc):
+    def test_no_capacity_force_event_is_ever_written(self, svc):
         svc.session_start()
         _ready_task(svc, "big", budget=300)
-        svc.task_start("big", force=True)
-        events = svc.be.events_list(entity_type="task", entity_id="big")
-        actions = [e["action"] for e in events]
-        assert "capacity_force_start" in actions
+        svc.task_start("big")
+        actions = [e["action"] for e in svc.be.events_list(entity_type="task", entity_id="big")]
+        assert "capacity_force_start" not in actions
+        assert "FORCED" not in (svc.be.task_get("big")["notes"] or "")
 
-    def test_force_appends_audit_to_notes(self, svc):
-        svc.session_start()
-        _ready_task(svc, "big", budget=300)
-        svc.task_start("big", force=True)
-        notes = svc.be.task_get("big")["notes"] or ""
-        assert "FORCED start" in notes
-
-    def test_force_without_overshoot_no_audit(self, svc):
+    def test_a_task_within_capacity_gets_no_advisory(self, svc):
         svc.session_start()
         _ready_task(svc, "ok", budget=10)
-        result = svc.task_start("ok", force=True)
-        assert "FORCED" not in result
-        events = [
-            e
-            for e in svc.be.events_list(entity_type="task", entity_id="ok")
-            if e["action"] == "capacity_force_start"
-        ]
-        assert events == []
-
-    def test_force_default_is_false(self, svc):
-        svc.session_start()
-        _ready_task(svc, "big", budget=300)
-        with pytest.raises(ServiceError):
-            svc.task_start("big")
+        result = svc.task_start("ok")
+        assert "Session capacity" not in result
 
 
 # === MED-9: julianday compare for event-count window ===

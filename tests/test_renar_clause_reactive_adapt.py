@@ -30,9 +30,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from renar_clause_reactive_adapt import (  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from renar_clause_reactive_adapt import (
     AR_SHAPE_FIELDS,
     BACKWARD_FINDING_CATEGORIES,
     ReactiveAdaptState,

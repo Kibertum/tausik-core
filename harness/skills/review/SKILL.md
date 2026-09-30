@@ -112,17 +112,23 @@ The `/review` skill runs **6 adversarial agents** — this is an **L3 review** (
   --type L3 \
   --critical {N_critical} \
   --warnings {N_high_plus_medium} \
+  --reason "{why each CRITICAL is CRITICAL — required when N_critical > 0}" \
+  --author-model {model id of this session — it wrote the code} \
+  --reviewer-model {model the reviewer agents ran on, e.g. sonnet} \
   --notes "{1-line summary or commit/PR url}"
 ```
+
+An L3 record is refused when the two models are the same family, or when either is missing (SENAR Rule 4, github#157). If the agents inherited the session model, the pass was a separate context but not a separate model: record it as `--type L2`.
 
 Notes:
 - `--type L1` = author self-review, `L2` = peer (same context), `L3` = adversarial/external (this skill).
 - ADR is shown in `tausik metrics` once any L3 reviews exist.
+- Severity follows the project scale in `docs/en/severity-scale.md` (SENAR 1.5 §10.15(f)). Your classification is a proposal; the supervisor who accepts a finding decides it.
 - Skip if no active task — store as `--task <related-slug>` if reviewing arbitrary code (still surfaces in `tausik review list`).
 
 ### Fallback: Single-Pass Review
 
-If the Agent tool is unavailable or agents fail, fall back to a **single-pass review** covering all 5 domains yourself. Use the severity categories:
+If the Agent tool is unavailable or agents fail, fall back to a **single-pass review** covering all 5 domains yourself. Use the severity scale of `docs/en/severity-scale.md`; in short:
 
 **CRITICAL** — Null access, race conditions, injection, auth bypass, data loss
 **HIGH** — Missing validation, error swallowing, hardcoded secrets, N+1

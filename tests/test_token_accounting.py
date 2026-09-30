@@ -22,7 +22,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from token_accounting import (  # noqa: E402
+from token_accounting import (
     NEW_ERA,
     NEW_TOKENIZER_INFLATION,
     OLD_ERA,
@@ -309,7 +309,11 @@ class TestIterationsShapeAgainstLiveTranscripts:
         found = []
         for path in project_transcripts(root)[-4:]:
             try:
-                handle = open(path, encoding="utf-8", errors="replace")
+                # FALSE POSITIVE, and the handle IS closed: `with handle` two lines below does
+                # it. The open() sits in its own try so an unreadable transcript makes the loop
+                # CONTINUE instead of aborting the scan — a context manager around the open
+                # cannot express that, because the failure has to be caught before the block.
+                handle = open(path, encoding="utf-8", errors="replace")  # noqa: SIM115
             except OSError:
                 continue
             with handle:

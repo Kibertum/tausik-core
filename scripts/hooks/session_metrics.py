@@ -24,8 +24,8 @@ from glob import glob
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cost_pricing import calculate_cost_usd  # noqa: E402
-from token_accounting import sum_usage_tokens  # noqa: E402
+from cost_pricing import calculate_cost_usd
+from token_accounting import sum_usage_tokens
 
 
 def parse_transcript(
@@ -53,6 +53,9 @@ def parse_transcript(
     tool_rows = tool_rows_out if tool_rows_out is not None else []
     tokens_input = 0
     tokens_output = 0
+    # N content blocks of one message = N entries with one message.id and one usage:
+    # keep it per id (last wins), sum once (it was 1.81x on the #263 replay).
+    usage_by_message: dict[str, tuple[int, int]] = {}
     tool_calls = 0
     model = ""
     messages = 0
@@ -100,8 +103,12 @@ def parse_transcript(
             usage = entry.get("usage") or entry.get("message", {}).get("usage") or {}
             if usage:
                 ti, to = sum_usage_tokens(usage)
-                tokens_input += ti
-                tokens_output += to
+                msg = entry.get("message")
+                if isinstance(msg, dict) and msg.get("id"):
+                    usage_by_message[str(msg["id"])] = (ti, to)
+                else:
+                    tokens_input += ti
+                    tokens_output += to
 
             # Extract model
             entry_model = entry.get("model") or entry.get("message", {}).get("model") or ""
@@ -124,6 +131,8 @@ def parse_transcript(
                                 {"id": len(tool_rows) + 1, "tool_name": name, "model_id": model}
                             )
 
+    tokens_input += sum(ti for ti, _ in usage_by_message.values())
+    tokens_output += sum(to for _, to in usage_by_message.values())
     tokens_total = tokens_input + tokens_output
 
     cost_usd: float | None
@@ -338,9 +347,18 @@ def main():
         print("Error: no transcript path provided", file=sys.stderr)
         sys.exit(1)
 
+    # SessionEnd hands the hook a payload on stdin: the host's own session id
+    # and the transcript it just wrote. Read it only when stdin is a pipe — a
+    # manual run from a terminal must not block waiting for input, and the
+    # service's own call passes DEVNULL.
+    payload = _read_hook_payload() if args[0] == "--auto" else {}
+    host_id = payload.get("session_id") if isinstance(payload.get("session_id"), str) else None
+
     path = None
     if args[0] == "--auto":
-        path = auto_find_transcript()
+        hinted = payload.get("transcript_path")
+        path = hinted if isinstance(hinted, str) and os.path.isfile(hinted) else None
+        path = path or auto_find_transcript()
         if not path:
             print("No transcript found (--auto). Skipping metrics.", file=sys.stderr)
             sys.exit(0)
@@ -364,6 +382,10 @@ def main():
     # session; use it only when the window proves it is current.  With neither
     # proof, write the human-readable full transcript summary but refuse to
     # put an un-attributable total in the authoritative per-session table.
+    if record and session_id is None and host_id:
+        from session_windows import open_session_for_host
+
+        session_id = open_session_for_host(host_id)
     if record and session_id is None:
         from session_windows import load_session_windows
 
@@ -422,6 +444,54 @@ def main():
             f"token_metrics.jsonl: {len(rows)} row(s) -> {jsonl} "
             f"({attributed} attributed, {len(rows) - attributed} outside any session)"
         )
+
+    if record and host_id:
+        _close_host_session(host_id)
+
+
+def _read_hook_payload() -> dict:
+    try:
+        if sys.stdin is None or sys.stdin.isatty():
+            return {}
+        data = json.load(sys.stdin)
+    except (json.JSONDecodeError, ValueError, OSError, AttributeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _close_host_session(host_id: str) -> None:
+    """The host ended its session, so the TAUSIK session ends with it (decision #376).
+
+    Runs AFTER the metrics above, in this process, on purpose: Claude Code runs
+    the hooks of one event in parallel, so a separate closing hook could end
+    the session before its metrics were attributed. The CLI closes exactly the
+    session opened for this host id and is told not to re-collect metrics —
+    they were just recorded. Best-effort: a hook must not break session end.
+    """
+    import subprocess
+
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    try:
+        from _common import tausik_path
+
+        cmd = tausik_path(project_dir)
+    except Exception:  # noqa: BLE001 — best-effort: hook must not break session end
+        cmd = None
+    if not cmd:
+        return
+    env = {**os.environ, "TAUSIK_DISABLE_SESSION_METRICS": "1", "PYTHONUTF8": "1"}
+    try:
+        subprocess.run(
+            [cmd, "session", "end", "--host-id", host_id],
+            cwd=project_dir,
+            env=env,
+            capture_output=True,
+            timeout=20,
+            check=False,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
 
 
 if __name__ == "__main__":

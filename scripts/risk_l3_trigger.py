@@ -124,7 +124,7 @@ def _block_enabled() -> bool:
         risk_cfg = load_config().get("risk", {})
         if isinstance(risk_cfg, dict):
             return bool(risk_cfg.get("l3_block_on_high", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 
@@ -158,7 +158,7 @@ def check_l3_required(
             f"(SENAR Rule 10.15 selective escalation, Rule 4 external validation)."
             f"{_delegation_hint()} Then record the verdict — "
             f"`tausik review record --task {slug} --type L3 "
-            f"--critical <n> --warnings <n>` — and re-run task done. "
+            f"--critical <n> --warnings <n> [--reason ...]` — and re-run task done. "
             f"Opt out: config risk.l3_block_on_high=false."
         )
         if not _block_enabled():
@@ -207,5 +207,5 @@ def _emit_l3_downgrade(conn: sqlite3.Connection, slug: str, ms: float) -> None:
             aux.commit()
         finally:
             aux.close()
-    except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+    except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
         pass

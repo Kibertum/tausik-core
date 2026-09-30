@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from mcp_reaper import (  # noqa: E402
+from mcp_reaper import (
     SIBLING_WARN_THRESHOLD,
     cached_enumerate,
     sibling_warning,

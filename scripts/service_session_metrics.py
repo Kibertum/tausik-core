@@ -110,7 +110,10 @@ def session_overrun_warning(
     *,
     effective_limit: int | None = None,
 ) -> str | None:
-    """SENAR Rule 9.2 — warn if active time exceeds limit. Returns msg or None.
+    """Session time advisory — a warning when active time exceeds the threshold, else None.
+
+    A signal, not a gate (decision #376, 1.10): nothing refuses work on it; the
+    text says so and names where the threshold's basis lives.
 
     `effective_limit` lets a caller that has ALREADY resolved the limit hand it
     in instead of paying for a second `events_list` scan of the same session.
@@ -128,24 +131,69 @@ def session_overrun_warning(
         if effective_limit is not None
         else effective_session_limit(be, current["id"], base)
     )
+    if limit <= 0:
+        return None  # a threshold of 0 switches the signal off (1.10)
     active = session_active_minutes(be, current["id"])
     if active <= limit:
         return None
+    try:
+        from session_pressure import note_crossing
+
+        note_crossing(be, current["id"], active, limit)  # §9.4(d): recorded once
+    except Exception:  # noqa: BLE001,S110 — recording the crossing must never cost the advice
+        pass
     wall = session_wall_minutes(be, current["id"])
     return (
-        f"Session #{current['id']} has {active} min active "
-        f"({wall} min wall) — over {limit}-min limit. Consider ending with /end."
+        f"Session #{current['id']} has {active} min active ({wall} min wall) — "
+        f"over the {limit}-min advisory threshold. Context pressure is a signal, "
+        f"not a gate: save state with /checkpoint or hand off with /end; the basis "
+        f"for the threshold is docs/ru/session-active-time.md."
     )
 
 
-def audit_overdue_sessions(be: Any) -> int:
-    """SENAR Rule 9.5: sessions since last audit when ≥3, else 0."""
+# SENAR Rule 9.5 cadence, counted in CLOSURES since 1.10 (decision #376). It
+# counted sessions: the last dependency of a quality rule on a ritual — a rule
+# "every 3 sessions" could be dodged or over-performed by opening and closing
+# sessions, and without sessions it never arrived at all. Basis for the default
+# (SENAR 1.5 §9.4(c)): the old cadence was 3 sessions, and the measured
+# throughput is 5.72 closures per session (tausik metrics, session #266):
+# 3 x 5.72 = 17. Override with `audit_every_closures` in .tausik/config.json.
+DEFAULT_AUDIT_EVERY_CLOSURES = 17
+
+
+def audit_mark_time(be: Any) -> str | None:
+    """When the last audit was marked, or None when never.
+
+    `last_audit_at` since 1.10; before that only `last_audit_session` was kept,
+    and its session's start is the moment — a mark made under the old clock is
+    read, not reset to zero.
+    """
+    at = be.meta_get("last_audit_at")
+    if at:
+        return str(at)
     try:
-        last = int(be.meta_get("last_audit_session") or 0)
+        sid = int(be.meta_get("last_audit_session") or 0)
     except (ValueError, TypeError):
-        return 0
-    if not last:
-        return 0
-    cur = be.session_current()
-    diff = (cur["id"] if cur else 0) - last
-    return diff if diff >= 3 else 0
+        return None
+    if not sid:
+        return None
+    row = be.session_last_handoff(sid)  # the by-id form returns the session row
+    return str(row["started_at"]) if row and row.get("started_at") else None
+
+
+def audit_closures_since(be: Any) -> int | None:
+    """Tasks closed after the last audit mark; None when no audit was ever marked."""
+    mark = audit_mark_time(be)
+    if mark is None:
+        return None
+    return sum(
+        1
+        for t in be.task_list(status="done") or []
+        if t.get("completed_at") and str(t["completed_at"]) > mark
+    )
+
+
+def audit_overdue_closures(be: Any, every: int = DEFAULT_AUDIT_EVERY_CLOSURES) -> int:
+    """SENAR Rule 9.5: closures since the last audit when at or over `every`, else 0."""
+    n = audit_closures_since(be)
+    return n if n is not None and n >= every else 0

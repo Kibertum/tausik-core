@@ -2,6 +2,8 @@
 
 # What changed in 1.9
 
+<!-- doc-map: reader=user; zone=release-notes -->
+
 A page for whoever is upgrading. Before reading what breaks, it is worth knowing
 what it was for.
 
@@ -78,7 +80,7 @@ telemetered.
 server with seven tools, the `/brain` skill and two hooks that searched the
 brain before a web fetch.
 
-**Now.** None of that ships (decision #358). The shared store is local and
+**Now.** None of that ships. The shared store is local and
 file-based — `~/.tausik-knowledge` — and `--global` on `decide` and
 `memory add` is the only way a record leaves this project. `tausik knowledge
 import-brain` still reads the local mirror file `~/.tausik-brain/brain.db`, so
@@ -97,8 +99,14 @@ you want in the shared store.
 ### Database schema: 44 → 62
 
 Eighteen migrations apply automatically on first access (the figures here are
-read from `SCHEMA_VERSION` by `tests/test_release_notes_1_9.py`, so the page
-cannot fall behind the tree again). Each is preceded by a backup at
+held by `tests/test_release_notes_1_9.py` against what tag v1.9.0 shipped).
+
+> **Known issue, fixed in 1.10.** Upgrading a 1.8 database with 1.9.0 crashes at
+> v53 (`duplicate column name: tz_ref`) and leaves `schema_version` at 44
+> (github#51, gitlab#18). Upgrade straight to 1.10: the chain skips an
+> `ADD COLUMN` the table already has and stamps the version after every
+> migration, so an interrupted upgrade resumes where it stopped. A database a
+> 1.9.0 upgrade already broke is carried up by the same run. Each is preceded by a backup at
 `.tausik/tausik.db.bak.v<old>`; spares are cleared with `tausik db prune --keep N`.
 
 The most visible is v58: the token and cost columns in `usage_events` became

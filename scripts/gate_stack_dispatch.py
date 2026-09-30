@@ -95,7 +95,7 @@ def _build_dispatch_tables() -> tuple[
             {k: frozenset(v) for k, v in files.items()},
             tuple((k, frozenset(v)) for k, v in hints.items()),
         )
-    except Exception:  # noqa: BLE001 — gate dispatch must work even on broken registry
+    except Exception:
         import logging
 
         logging.getLogger("tausik.gate_dispatch").warning(

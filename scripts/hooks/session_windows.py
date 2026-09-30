@@ -155,3 +155,31 @@ def make_session_resolver(project_dir: str | None = None):
         return _locate(moment, starts, windows)
 
     return resolve
+
+
+def open_session_for_host(host_session_id: str, project_dir: str | None = None) -> int | None:
+    """The OPEN TAUSIK session opened for this host session, or None (decision #376).
+
+    Read-only, like everything here. None when the database cannot be read, the
+    column does not exist yet (a database not migrated to v63), or no open
+    session carries this id — the caller then falls back to the window rule.
+    """
+    db = _db_path(project_dir)
+    if not host_session_id or not os.path.exists(db):
+        return None
+    try:
+        uri = Path(db).absolute().as_uri() + "?mode=ro"
+        conn = sqlite3.connect(uri, uri=True, timeout=2)
+    except (sqlite3.Error, ValueError, OSError):
+        return None
+    try:
+        row = conn.execute(
+            "SELECT id FROM sessions WHERE host_session_id=? AND ended_at IS NULL "
+            "ORDER BY id DESC LIMIT 1",
+            (host_session_id,),
+        ).fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+    return int(row[0]) if row else None

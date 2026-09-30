@@ -128,7 +128,7 @@ def finalize_close(tausik_dir: str, slug: str) -> None:
         from model_routing_session import clear_active_task_recommendation
 
         clear_active_task_recommendation(tausik_dir)
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
 
 

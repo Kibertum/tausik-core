@@ -13,6 +13,8 @@ drop, a parent that is not a commit.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import subprocess
 import sys
@@ -73,7 +75,6 @@ def repo(tmp_path):
     _write(root, "tausik/tasks/some-task.md", "task\n")
     _write(root, "tausik/decisions/d1.md", "decision\n")
     _write(root, "tausik/memory/m1.md", "memory\n")
-    _write(root, "TODO.md", "todo\n")
     _write(root, "TAUSIK-plan-1.9.md", "plan\n")
     _write(root, ".gitlab-ci.yml", "stages: []\n")
     public_head = _commit(root, "public head")
@@ -96,7 +97,6 @@ class TestTheExclusionListIsOneDeclaration:
             "tausik/tasks/other-task.md",
             "tausik/decisions/d1.md",
             "tausik/memory/m1.md",
-            "TODO.md",
             "TAUSIK-plan-1.9.md",
             ".gitlab-ci.yml",
         }
@@ -109,7 +109,19 @@ class TestTheExclusionListIsOneDeclaration:
 
     def test_the_rules_are_the_ones_decision_368_named(self):
         """The list is read by the release procedure and quoted in publishing.md;
-        a silent widening or narrowing must show up as a test edit."""
+        a silent widening or narrowing must show up as a test edit.
+
+        Narrowed once: `TODO.md` was retired (decision #401) and a rule naming a file
+        that no longer exists is the same rot the file died of.
+
+        Widened once: the reader for the development pipeline and its test.
+        That reader exists because the published-lane reader answered "GREEN" ten
+        times about a thirteen-day-old run while the working branch was red, and it
+        is development-line tooling for a host the public repository has no
+        relationship with. `cli_push_ok` imports it optionally, so the published tree
+        works with both files absent -- which `tests/test_ci_lane_dev.py` asserts on
+        the OUTPUT, not merely on not raising.
+        """
         assert snap.EXCLUDED_FROM_PUBLIC_SNAPSHOT == (
             "tausik/tasks/",
             "tausik/stories/",
@@ -117,18 +129,19 @@ class TestTheExclusionListIsOneDeclaration:
             "tausik/decisions/",
             "tausik/memory/",
             "tausik/graph-snapshots/",
-            "TODO.md",
             "TAUSIK-plan-1.9.md",
             ".gitlab-ci.yml",
+            "scripts/ci_lane_dev.py",
+            "tests/test_ci_lane_dev.py",
         )
 
     def test_a_directory_rule_is_a_prefix_and_a_file_rule_is_exact(self):
         assert snap.is_excluded("tausik/tasks/x.md")
         assert snap.is_excluded("tausik\\tasks\\x.md")
         assert not snap.is_excluded("tausik/gates.json")
-        assert snap.is_excluded("TODO.md")
-        assert not snap.is_excluded("docs/TODO.md")
-        assert not snap.is_excluded("TODO.md.bak")
+        assert snap.is_excluded("TAUSIK-plan-1.9.md")
+        assert not snap.is_excluded("docs/TAUSIK-plan-1.9.md")
+        assert not snap.is_excluded("TAUSIK-plan-1.9.md.bak")
 
 
 class TestTheSnapshotIsBuiltFromObjects:
@@ -145,9 +158,8 @@ class TestTheSnapshotIsBuiltFromObjects:
         commit = snap.build_snapshot_commit(str(root), public_head, "snapshot")
         assert _git(root, "rev-parse", "HEAD").stdout.strip() == before_head
         assert _git(root, "status", "--porcelain").stdout.strip() == "M scripts/tool.py"
-        assert (
-            "print('uncommitted edit')"
-            in open(root / "scripts" / "tool.py", encoding="utf-8").read()
+        assert "print('uncommitted edit')" in Path(root / "scripts" / "tool.py").read_text(
+            encoding="utf-8"
         )
         assert commit and len(commit) == 40
 
@@ -207,7 +219,7 @@ class TestIdenticalIsATreeComparison:
         ).stdout.strip()
         ok, why = snap.snapshot_matches(str(root), whole, "HEAD")
         assert not ok
-        assert "tausik/tasks/some-task.md" in why and "TODO.md" in why
+        assert "tausik/tasks/some-task.md" in why and "TAUSIK-plan-1.9.md" in why
 
 
 class TestRefusalsAreLoud:
@@ -236,7 +248,7 @@ class TestTheLiveTree:
         )
         assert not any(p.startswith("tausik/tasks/") for p in kept)
         assert any(p.startswith("tausik/tasks/") for p in left)
-        assert "TAUSIK-plan-1.9.md" in left and ".gitlab-ci.yml" in left and "TODO.md" in left
+        assert "TAUSIK-plan-1.9.md" in left and ".gitlab-ci.yml" in left
 
     def test_no_leak_class_survives_on_the_snapshot(self):
         """Over the WORKING tree restricted to the snapshot set, so the ratchet
@@ -256,7 +268,7 @@ class TestTheLiveTree:
             if rel in snap.MAY_DESCRIBE_LEAKS:
                 continue
             try:
-                text = open(os.path.join(_ROOT, rel), encoding="utf-8").read()
+                text = Path(os.path.join(_ROOT, rel)).read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
             for name, rx in classes.items():

@@ -10,6 +10,7 @@ Run: pytest tests/test_bootstrap_skills_coverage.py -v
 
 from __future__ import annotations
 
+
 import os
 import subprocess
 import sys
@@ -52,15 +53,24 @@ def _run_bootstrap(
 
 
 class TestBootstrapSkillsCoverage:
-    def test_i_have_adhd_skill_keeps_evidence_outside_presentation_rule(self):
-        skill = os.path.join(_builtin_skills_dir, "i-have-adhd", "SKILL.md")
-        text = open(skill, encoding="utf-8").read()
+    def test_the_answer_rules_keep_evidence_outside_the_presentation_rule(self):
+        """The boundary outlived the file that used to carry it.
 
-        assert "https://github.com/ayghri/i-have-adhd" in text
-        assert "not a verbatim copy" in text
-        assert "output-presentation" in text
-        assert "signed verify receipts" in text
-        assert os.path.isfile(os.path.join(os.path.dirname(skill), "LICENSE"))
+        This asserted a vendored `i-have-adhd` SKILL.md and its MIT LICENSE. That copy is
+        gone: its ideas are restated as ours in the block that ships every session, so
+        there is no second licence to honour and no upstream to track. What must NOT be
+        lost with it is the boundary — brevity is a rule about PRESENTATION and never
+        shortens the evidence a later agent parses.
+        """
+        import sys
+
+        sys.path.insert(0, os.path.join(_repo_root, "bootstrap"))
+        from bootstrap_templates import ANSWER_SHAPE
+
+        assert "KEEP BYTE-EXACT" in ANSWER_SHAPE
+        assert "KEEP FULL PROSE" in ANSWER_SHAPE
+        assert "acceptance-criteria evidence" in ANSWER_SHAPE
+        assert not os.path.isdir(os.path.join(_builtin_skills_dir, "i-have-adhd"))
 
     def test_codex_skills_match_claude_apply_overlay_and_preserve_agents(self, tmp_path):
         """Codex receives the same skills, then its session rebuild applies its delta."""
@@ -75,11 +85,6 @@ class TestBootstrapSkillsCoverage:
             path.name for path in codex_skills.iterdir()
         }
         assert all((path / "SKILL.md").is_file() for path in codex_skills.iterdir())
-        for skills_dir in (claude_skills, codex_skills):
-            deployed = skills_dir / "i-have-adhd"
-            assert "output-presentation" in (deployed / "SKILL.md").read_text(encoding="utf-8")
-            assert "MIT License" in (deployed / "LICENSE").read_text(encoding="utf-8")
-
         stale_skill = codex_skills / "stale"
         stale_skill.mkdir()
         agent_dir = codex_project / ".codex" / "agents"
@@ -148,7 +153,6 @@ class TestBootstrapSkillsCoverage:
             "plan",
             "checkpoint",
             "explore",
-            "i-have-adhd",
         }
         result = _run_bootstrap(str(tmp_path))
         assert result.returncode == 0, f"bootstrap failed: {result.stderr}"

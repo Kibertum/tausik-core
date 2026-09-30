@@ -23,6 +23,7 @@ import subprocess
 import sys
 
 import pytest
+from pathlib import Path
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _SCRIPTS = os.path.join(_ROOT, "scripts")
@@ -49,7 +50,8 @@ def _run(args, code, env):
     return subprocess.run(
         [sys.executable, *args, "-c", code],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         errors="replace",
         env=env,
     )
@@ -124,13 +126,13 @@ def test_x_utf8_flag_fixes_locale_default():
 
 def test_wrappers_set_pythonutf8():
     for name in ("tausik_wrapper.sh", "tausik_wrapper.cmd"):
-        text = open(os.path.join(_ROOT, "bootstrap", name), encoding="utf-8").read()
+        text = Path(os.path.join(_ROOT, "bootstrap", name)).read_text(encoding="utf-8")
         assert "PYTHONUTF8" in text, f"{name} does not set PYTHONUTF8"
 
 
 def test_hook_command_builders_use_x_utf8():
     for name in ("bootstrap_generate.py", "bootstrap_qwen.py"):
-        text = open(os.path.join(_ROOT, "bootstrap", name), encoding="utf-8").read()
+        text = Path(os.path.join(_ROOT, "bootstrap", name)).read_text(encoding="utf-8")
         assert "-X utf8" in text, f"{name} _hook_cmd lost the -X utf8 flag"
 
 
@@ -140,10 +142,10 @@ def test_mcp_servers_call_fix_stdio_encoding():
     servers = glob.glob(os.path.join(_ROOT, "harness", "*", "mcp", "*", "server.py"))
     assert servers, "no MCP server sources found"
     for path in servers:
-        text = open(path, encoding="utf-8").read()
+        text = Path(path).read_text(encoding="utf-8")
         assert "fix_stdio_encoding" in text, f"{path} entry does not call fix_stdio_encoding"
 
 
 def test_bootstrap_uses_fix_stdio_encoding():
-    text = open(os.path.join(_ROOT, "bootstrap", "bootstrap.py"), encoding="utf-8").read()
+    text = Path(os.path.join(_ROOT, "bootstrap", "bootstrap.py")).read_text(encoding="utf-8")
     assert "fix_stdio_encoding" in text, "bootstrap.py main() no longer calls fix_stdio_encoding"

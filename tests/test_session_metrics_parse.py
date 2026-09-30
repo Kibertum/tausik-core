@@ -392,7 +392,7 @@ class TestRecordToDbSelfLocation:
         store `os.path.join(home, ".claude", "projects")` — not a project
         profile, so it is out of scope for the ide_utils generalisation.
         """
-        text = open(_HOOK_PATH, encoding="utf-8").read()
+        text = Path(_HOOK_PATH).read_text(encoding="utf-8")
         assert 'os.path.join(project_root, ".claude"' not in text
 
 

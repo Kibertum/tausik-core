@@ -20,6 +20,8 @@ one would need its own row and its own line here.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import re
 import sys
@@ -91,9 +93,7 @@ class TestTheTableNamesEveryStore:
 
     def test_the_shared_store_is_named_as_it_is_read_back(self):
         """The heading the block INJECTS into CLAUDE.md is the one the table names."""
-        src = open(
-            os.path.join(_ROOT, "scripts", "service_knowledge_aggregates.py"), encoding="utf-8"
-        ).read()
+        src = Path(_ROOT, "scripts", "service_knowledge_aggregates.py").read_text(encoding="utf-8")
         assert "Shared knowledge — from other projects" in src
 
 

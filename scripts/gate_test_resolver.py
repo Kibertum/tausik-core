@@ -33,13 +33,13 @@ def read_crosscutting_scope(test_path: str) -> list[str] | None:
             tree = ast.parse(fh.read())
     except (OSError, SyntaxError, ValueError):
         return None
-    for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        if not any(isinstance(t, ast.Name) and t.id == _CROSSCUTTING_CONST for t in node.targets):
+    for node in tree.body:  # `X = [...]` and `X: list[str] = [...]` alike (AnnAssign)
+        value_node = node.value if isinstance(node, (ast.Assign, ast.AnnAssign)) else None
+        targets = getattr(node, "targets", None) or [getattr(node, "target", None)]
+        if value_node is None or _CROSSCUTTING_CONST not in {getattr(t, "id", 0) for t in targets}:
             continue
         try:
-            value = ast.literal_eval(node.value)
+            value = ast.literal_eval(value_node)
         except (ValueError, TypeError, SyntaxError):
             return None
         if isinstance(value, (list, tuple)):
@@ -414,8 +414,9 @@ def resolve_test_files_for_relevant(
         if not raw or not isinstance(raw, str):
             continue
         rel = raw.replace("\\", "/")
-        # If the entry already points at a test file, accept it as-is.
-        if "/tests/" in f"/{rel}" or os.path.basename(rel).startswith("test_"):
+        # A test file is accepted as-is; a fixture (.sql) in pytest argv made it collect nothing.
+        is_test = "/tests/" in f"/{rel}" or os.path.basename(rel).startswith("test_")
+        if is_test and rel.endswith(".py"):
             abs_p = rel if os.path.isabs(rel) else os.path.join(base, rel)
             if os.path.isfile(abs_p):
                 _add(rel)

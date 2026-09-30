@@ -1,5 +1,7 @@
 # Two lines: where development happens, and what a consumer sees
 
+<!-- doc-map: reader=maintainer; zone=reference -->
+
 Decision #267 (29.08): **GitLab is the development line, GitHub is the release
 mirror.** It replaced the 25.08 wording ("GitHub becomes the primary place of
 development"), which went unexecuted for five sessions straight — branches lived
@@ -70,7 +72,9 @@ byte for byte, and a machine checks that equality, not a memory.
    the GitHub Release, and `published_tags.json` records the commit either
    way. In the same pass, on the development line, `tausik/published_tags.json`
    is updated (see "Tags" below).
-4. External authorship survives: a contributor's commits land by merge or by a
+4. The claimed SENAR edition is public: `tausik publish senar-check` asks GitHub Kibertum/SENAR for the tag of the edition TAUSIK claims. It exits 1 when the tag is missing and 2 when it could not ask; either way the TAUSIK release is not tagged. It prints both versions and the SENAR releases link.
+5. Release notes: the GitHub Release body is written in English, the full text lives in `docs/en/whats-new-X.Y.md` and `docs/ru/whats-new-X.Y.md`, and the body links both pages. `tausik publish notes --version X.Y.Z --body-file <file>` refuses a body that misses either page; run it before creating the release. The rule applies from 1.10 on; published tags are not re-cut for it.
+6. External authorship survives: a contributor's commits land by merge or by a
    squash carrying their `Co-Authored-By` — otherwise the authorship is erased.
 
 ## What is published: a filter, not the whole tree
@@ -87,8 +91,9 @@ The exclusions are now ONE declared constant,
 | Stays on the development line | Why |
 |---|---|
 | `tausik/tasks/`, `tausik/stories/`, `tausik/epics/`, `tausik/decisions/`, `tausik/memory/`, `tausik/graph-snapshots/` | the state projection that carries state between machines on a branch; of no use to a consumer of the framework |
-| `TODO.md`, `TAUSIK-plan-1.9.md` | internal working documents |
+| `TAUSIK-plan-1.9.md` | an internal working document (the release charter) |
 | `.gitlab-ci.yml` | the development line's pipeline |
+| `scripts/ci_lane_dev.py`, `tests/test_ci_lane_dev.py` | the reader for that pipeline: tooling for a host the public repository has no relationship with. `cli_push_ok` imports it OPTIONALLY, so the published tree works without it and stays silent rather than complaining |
 
 The ratchet files `tausik/*.json` (`gates`, `policy`, `published_tags`,
 `spec_coverage`) **travel**: gates and tests read them. Measured on the 1.9

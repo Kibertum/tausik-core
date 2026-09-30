@@ -33,6 +33,8 @@ flip went into 1.9 with credit. This file holds the rest:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import re
@@ -152,7 +154,7 @@ class TestOneListOfWriteTools:
             "memory_posttool_audit",
             "secret_scan",
         ):
-            src = open(os.path.join(_HOOKS, f"{name}.py"), encoding="utf-8").read()
+            src = Path(os.path.join(_HOOKS, f"{name}.py")).read_text(encoding="utf-8")
             assert "from write_tools import" in src, name
             assert '("Write", "Edit", "MultiEdit")' not in src, f"{name} still spells its own list"
 
@@ -398,6 +400,8 @@ class TestTheMatcherSemanticsArePinnedNotAnchored:
         assert {t for t in _TOOL_UNIVERSE if "Bash" in t and t != "Bash"} == {"BashOutput"}
 
     def test_anchoring_is_declined_in_writing(self):
-        src = open(os.path.join(_ROOT, "bootstrap", "bootstrap_hooks.py"), encoding="utf-8").read()
+        src = Path(os.path.join(_ROOT, "bootstrap", "bootstrap_hooks.py")).read_text(
+            encoding="utf-8"
+        )
         assert "That is NOT ported" in src and "unmeasured" in src
         assert "^(?:" not in bh.BUILTIN_WRITE_MATCHER + bh.SHELL_MATCHER + bh.MCP_WRITE_MATCHER

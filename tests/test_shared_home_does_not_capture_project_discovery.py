@@ -24,8 +24,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import knowledge_db  # noqa: E402
-import project_config  # noqa: E402
+import knowledge_db
+import project_config
 
 CROSSCUTTING_SCOPE = ["scripts/knowledge_db.py", "scripts/project_config.py"]
 

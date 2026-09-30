@@ -15,6 +15,8 @@ So the contract has two halves, and both are tested here:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
@@ -22,11 +24,11 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import redact_scope  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from redact_engine import RedactionRequest, apply_redaction, plan_redaction  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+import redact_scope
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from redact_engine import RedactionRequest, apply_redaction, plan_redaction
+from tausik_utils import ServiceError
 
 # Opt-out, not an omission: the `os.walk` below traverses a projection this test
 # just exported under `tmp_path`, never the repository's own sources. The scoped
@@ -220,7 +222,7 @@ class TestProjectionIsRebuiltFromTheRedactedDatabase:
             for name in files:
                 if not name.endswith(".md"):
                     continue
-                text = open(os.path.join(root, name), encoding="utf-8", errors="replace").read()
+                text = Path(os.path.join(root, name)).read_text(encoding="utf-8", errors="replace")
                 assert SECRET not in text
                 if redact_scope.marker("internal-host") in text:
                     found = True

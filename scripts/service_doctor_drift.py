@@ -46,7 +46,7 @@ _TEMPLATE_SHAPED_MIN_RATIO = 0.5
 def _resolve_output_mode_for_drift(cfg: dict) -> str:
     """output_mode from the config root, or "off". Never raises — drift is best-effort."""
     try:
-        from bootstrap_config import resolve_output_mode  # noqa: PLC0415
+        from bootstrap_config import resolve_output_mode  # ruff-not-enabled: PLC0415
 
         # str(): resolve_output_mode is imported across a sys.path boundary mypy can't
         # follow, so it infers Any; the function's own contract is str.
@@ -110,7 +110,7 @@ def claudemd_drift_report(project_dir: str) -> ClaudemdDriftReport | None:
         bootstrap_src = library_source(project_dir, "bootstrap")
         if bootstrap_src is not None:
             sys.path.insert(0, bootstrap_src)
-        import importlib  # noqa: PLC0415
+        import importlib  # ruff-not-enabled: PLC0415
 
         try:
             bt = importlib.import_module("bootstrap_templates")
@@ -120,7 +120,10 @@ def claudemd_drift_report(project_dir: str) -> ClaudemdDriftReport | None:
     except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         return None
     try:
-        from project_config import load_project_config, resolve_context_tier  # noqa: PLC0415
+        from project_config import (
+            load_project_config,
+            resolve_context_tier,
+        )  # ruff-not-enabled: PLC0415
 
         # l26-config-not-repo-state-audit: read the RAW project tier, not the
         # merged load_config(). This check's subject is "does the tracked
@@ -270,7 +273,7 @@ def check_claudemd_drift(project_dir: str) -> int | None:
 def _scaffold_ides() -> list[str]:
     try:
         sys.path.insert(0, os.path.join(os.getcwd(), "bootstrap"))
-        from bootstrap_config import SCAFFOLD_IDES  # noqa: PLC0415
+        from bootstrap_config import SCAFFOLD_IDES  # ruff-not-enabled: PLC0415
 
         return list(SCAFFOLD_IDES)
     except Exception:  # noqa: BLE001 — bootstrap/ may be absent; fall back, do not crash the check

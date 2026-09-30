@@ -107,6 +107,11 @@ SPECIAL_FILES: dict[str, str] = {
     "CMakeLists.txt": "cmake",
 }
 
+# Godot and other built-ins that live with the per-project knob (rag_languages).
+from rag_languages import BUILTIN_EXTENSIONS, load as load_project_languages  # noqa: E402
+
+EXT_TO_LANG.update(BUILTIN_EXTENSIONS)
+
 # Max file size to index (1 MB)
 MAX_FILE_SIZE = 1_048_576
 # Max files to index per project
@@ -153,13 +158,13 @@ def _matches_ignore(rel_path: str, patterns: list[str]) -> bool:
     return False
 
 
-def detect_language(file_path: str) -> str | None:
-    """Detect language from file extension or name."""
+def detect_language(file_path: str, extra: dict[str, str] | None = None) -> str | None:
+    """Detect language from file extension or name; `extra` is the project's knob."""
     basename = os.path.basename(file_path)
     if basename in SPECIAL_FILES:
         return SPECIAL_FILES[basename]
     _, ext = os.path.splitext(basename)
-    return EXT_TO_LANG.get(ext.lower())
+    return EXT_TO_LANG.get(ext.lower()) or (extra or {}).get(ext.lower())
 
 
 def _is_reparse_or_symlink(path: str) -> bool:
@@ -209,6 +214,7 @@ def get_file_list(project_dir: str, max_seconds: float | None = None) -> list[di
 
     deadline = (time.monotonic() + max_seconds) if max_seconds is not None else None
     patterns = parse_gitignore(project_dir)
+    extra = load_project_languages(project_dir, EXT_TO_LANG).extensions
     files: list[dict[str, str]] = []
 
     for root, dirs, filenames in os.walk(project_dir):
@@ -246,7 +252,7 @@ def get_file_list(project_dir: str, max_seconds: float | None = None) -> list[di
                 continue
 
             # Detect language
-            lang = detect_language(fname)
+            lang = detect_language(fname, extra)
             if not lang:
                 continue
 

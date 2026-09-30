@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from _common import (  # noqa: E402
+from _common import (
     extract_task_done_slug_from_bash,
     is_task_done_invocation,
     tausik_path,

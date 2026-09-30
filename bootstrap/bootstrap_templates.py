@@ -13,7 +13,7 @@ import sys
 # Tier-specific bodies live in bootstrap_templates_tiers (filesize cap). Imported
 # rather than re-declared, and re-exported so existing `from bootstrap_templates
 # import MINIMAL_MEMORY` call sites keep working.
-from bootstrap_templates_tiers import (  # noqa: F401 — re-exported
+from bootstrap_templates_tiers import (
     FULL_TIER_NOTE,
     COMPACTION_CONTRACT,
     MINIMAL_COMMANDS,
@@ -36,34 +36,44 @@ from enforcement_coverage import build_enforcement_notice, profile_dir_for  # no
 from rule_coverage import render_rule_notice  # noqa: E402
 
 
-HARD_CONSTRAINTS = """## Hard Constraints (non-negotiable)
+HARD_CONSTRAINTS = """## Hard Constraints
 
 - **No code without a task.** Run `task start <slug>` before any Write/Edit. No exceptions. (SENAR Rule 9.1)
 - **QG-0 Context Gate.** `task start` requires goal + acceptance_criteria; work that changes behaviour names at least one negative scenario, work that changes only prose does not. Set both before starting.
 - **QG-2 Implementation Gate (Verify-First v1.4).** Heavy gates (pytest, tsc, cargo, phpstan, …) live on a separate `verify` step. Sequence: run `tausik verify --task <slug>` once everything is in place — it caches a green; then `task done --ac-verified` looks the cache up and closes the task in milliseconds. If the cache is missing or stale → `task done` blocks with the explicit remediation command. Opt-out for CI: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` (legacy inline behavior).
 - **No commit without gates, and verification is PROPORTIONATE to the change.** Gates run automatically — fix blocking failures before committing. Run the scoped `verify` for what you touched; the full suite belongs in CI and at the release gate, not after every local step. A test asserts behaviour — never a number in a document, never that a generated file is fresh (whatever moves its source regenerates it). One test that goes red on the defect beats a suite that goes red on bookkeeping.
-- **No direct DB access.** Use MCP tools or CLI. Never raw SQLite.
+- **No direct DB access.** MCP tools and the CLI keep the projections and the audit trail in step; raw SQLite writes go past both.
 - **Don't guess CLI arguments.** Run `.tausik/tausik <cmd> --help` or read the CLI reference.
 - **MCP-first.** Prefer MCP tools (`tausik_*`) over CLI when equivalent.
-- **Git: ask before commit/push.** Always request user confirmation.
+- **Git: ask before commit/push.**
 - **Max 500 lines per file.** Filesize gate warns. Exceptions: tests, generated code.
 - **Continuous logging.** Run `task log <slug> "message"` after every meaningful step. (SENAR Rule 9.4)
 - **Document dead ends.** Run `.tausik/tausik dead-end "approach" "reason"` on failed approaches. (SENAR Rule 9.4)
-- **Checkpoint every 30-50 tool calls.** Save context periodically. (SENAR Rule 9.3)
-- **Session limit: 180 min.** `.tausik/tausik status` warns on overrun. Close the session before starting a new one. (SENAR Rule 9.2)
+- **Checkpoint when the signal says so.** The count of calls since the last handoff is derived from the ledger and advised in tool responses. (SENAR Rule 9.3)
+- **Context pressure is a signal, not a gate.** Session time and call capacity advise a `/checkpoint` or a handoff; they never refuse a task start (decision #376; basis: `docs/en/session-active-time.md`, SENAR 1.5 §9.4(c)).
 """
+
+# Two rules about the SHAPE of the code an agent writes. They sit in their own
+# section rather than under Hard Constraints, because neither refuses anything:
+# the first is a `doctor` row, the second a line printed at closure. Filing them
+# with the non-negotiables would be a small lie of the kind this project spends
+# its tests preventing.
+#
+# Both are written as descriptions with their reason, not as commands. Neither
+# asks the model to write less or to save tokens: an agent told to conserve grows
+# reluctant to take on ambitious work, which costs far more than the prose saves.
+CODE_STYLE = """## Code Style
+
+- **Code is written in English — identifiers AND prose.** Traces, `grep`, pytest node ids and coverage reports read the name, and a non-ASCII one breaks quietly: console encoding, a regex over `\\w`, a backslash in `sh`. Comments, docstrings and test descriptions are English too, so the next reader of a file is not decided by which language they happen to have. `doctor` reports the identifier half as `Identifier style`, counted from your own code. Answers to the user stay in the user's language: this rule is about the file, not the reply.
+- **What happened goes to `memory add`; why the code is that way stays in the docstring.** A session id, decision id or date in a comment is paid for on every read of that file and found only by whoever already opened it. Closing a task names the ones it added and prints the command that files them; the invariant in your docstrings is not the target.
+"""
+
 
 WORKFLOW = """## Workflow
 
-```
-start → plan → task → [review | test] → commit → end
-```
+`start → plan → task → [review | test] → commit → end`
 
-- `start` — load session state, active tasks, handoff from previous session · `plan` — create task with complexity scoring + stack detection
-- `task <slug>` — pick up or continue a task · `review` — code review with parallel sub-agents (bugs, fake tests, drift)
-- `test` — run or write tests · `commit` — standardized commit with SENAR metadata · `end` — close session with handoff for next agent
-
-**Cost-aware model selection:** `tausik suggest-model <complexity>` prints a recommended Claude model (Haiku for simple 1 SP tasks, Sonnet for medium 3 SP, Opus for complex 8 SP). Claude Code doesn't switch models programmatically — apply the suggestion manually via the IDE model picker, and persist your default for the next session with `tausik config set model_profile <slug>` (note: `/fast` only toggles fast-output on Opus, it does NOT downgrade to a smaller model).
+**Cost-aware model selection:** `tausik suggest-model <complexity>` recommends a model; `task start` prints the same recommendation for the task at hand. Persist a default with `tausik config set model_profile <slug>`.
 """
 
 MEMORY = """## Memory (choose the destination by what the fact is about, not by where you are)
@@ -76,12 +86,12 @@ MEMORY = """## Memory (choose the destination by what the fact is about, not by 
 
 **Memory-first recall (hard rule).** Before asking the user for — or guessing — an established
 project fact (hosts, environments, where credentials live, paths, service URLs, prior decisions),
-you MUST `memory_search` / `decisions_list` FIRST; asking for something already recorded is a
+the recorded answer is in `memory_search` / `decisions_list`; asking for something already recorded is a
 process violation. Record durable environment facts as `context` so future sessions inherit them.
 
 **Routing litmus (hard).** *Would another agent, in another tool, need this to work on THIS
 project?* → `memory add`. *Is it true beyond this project — of the tool, the platform, the library?*
-→ `memory add --global`. Never your host's own memory (`~/.claude/**/memory/`, `.cursor/rules/`,
+→ `memory add --global`. Not your host's own memory (`~/.claude/**/memory/`, `.cursor/rules/`,
 `.windsurf/rules/`, `.github/copilot-instructions.md`, `.github/instructions/`, `.clinerules`, `.roo/rules/`,
 `.continue/rules/`, `.aider*` — blocked by the `memory_route` gate); a cloud-side memory writes no
 file for any gate to see, so there this line is the only enforcement. Skills that need persistent
@@ -100,13 +110,13 @@ TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
 | Rule 2 Scope Boundaries | Declare scope + scope_exclude per task | Warning |
 | Rule 3 Verify Against Criteria | Per-criterion evidence | Warning |
 | Rule 7 Root Cause | Defect tasks require root cause | Warning |
-| Rule 9.2 Session limit | 180 min per session | Hard (blocks `task_start`) |
-| Rule 9.3 Checkpoint | Every 30-50 tool calls | Instruction |
+| Rule 9.2 Session limit | advisory threshold on active time, org-set with a documented basis | Signal (never blocks) |
+| Rule 9.3 Checkpoint | calls since the last handoff, derived from the ledger | Signal (never blocks) |
 | Rule 9.4 Dead Ends + Logging | Document failed approaches, log progress | Instruction |
 
-> **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote. Where it is not deployed, Rule 1 is enforced by the agent reading this line — because TAUSIK generates no payload for that host, NOT because the host cannot accept one; only the first claim is ours to make. The rest hold everywhere: QG-0, QG-2 and the session limit live in the `tausik-project` MCP server and the CLI. For a process-level Rule 1 without a mechanism, route writes through `tausik_task_start` / `tausik_task_done_v2` and treat raw file edits as non-conformant in review.
+> **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote. Where it is not deployed, Rule 1 is enforced by the agent reading this line — because TAUSIK generates no payload for that host, NOT because the host cannot accept one; only the first claim is ours to make. The rest hold everywhere: QG-0 and QG-2 live in the `tausik-project` MCP server and the CLI; the session limit lives there too, as a signal that never blocks. For a process-level Rule 1 without a mechanism, route writes through `tausik_task_start` / `tausik_task_done_v2` and treat raw file edits as non-conformant in review.
 
-Full rule set: [SENAR v1.3](https://senar.tech).
+Full rule set: [SENAR v1.5](https://senar.tech).
 """
 
 
@@ -159,30 +169,24 @@ COMMANDS = build_commands_section()
 
 QUALITY_GATES = """## Quality Gates
 
-Gates run on three triggers:
-
 - **`task-done`** — cheap-only (filesize, tdd_order). Closes a task in milliseconds.
 - **`verify`** — heavy (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint). Run via `.tausik/tausik verify --task <slug>`. Result cached for 10 min; `task done` reads the cache.
 - **`commit`** — local lint (ruff, eslint, phpcs, golangci-lint).
 
-Stack-specific gates auto-enable by detected stack. Filesize gate warns on files >500 lines.
-
-Check status: `.tausik/tausik gates status`. Fix blocking failures before committing. Verify-First Contract opt-out: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` runs the heavy gates inside `task done` instead of as a separate step.
+Stack-specific gates auto-enable by detected stack; the filesize gate warns on files >500 lines. Check status: `.tausik/tausik gates status`. Fix blocking failures before committing. Verify-First Contract opt-out: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` runs the heavy gates inside `task done` instead of as a separate step.
 """
 
 TOOL_ROUTING = """## Tool Routing — when to use which
 
-Don't reach for `Grep`/`Glob` first. TAUSIK ships dedicated retrieval MCP servers; using them keeps context lean and surfaces project-specific knowledge that raw text search cannot.
+TAUSIK ships retrieval MCP servers: RAG for code and project knowledge for decisions, memory and the roadmap. On hosts with hooks, every Grep also returns the RAG index's top chunks. Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fresh; if `chunks=0`, run `mcp__codebase-rag__reindex` before any `search_code` call.
 
 | Need | Primary | Fallback |
 |---|---|---|
-| Find a function/symbol/usage in code | `mcp__codebase-rag__search_code` | `Grep` (only if RAG returns no hits or index is stale) |
+| Find a function/symbol/usage in code | `mcp__codebase-rag__search_code` | `Grep` with a `path`/`glob` (RAG hits are added to it) |
 | Recall a past project decision | `tausik_decisions_list` / `tausik_memory_search` (`type=convention/pattern`) | — |
 | Cross-project pattern or gotcha | `tausik_memory_search` (the shared store is folded into the results) | — |
 | Web lookup (docs, API, errors) | `WebFetch` | — |
 | Understand the project structure | `tausik_status` + `tausik_roadmap` | `Glob` for raw file listing |
-
-Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fresh. If `chunks=0`, run `mcp__codebase-rag__reindex` before any `search_code` call.
 """
 
 CURSOR_MCP_SETUP = """## Local MCP in Cursor (this workspace)
@@ -202,7 +206,7 @@ MULTIMODEL_NOTE = """## Are you a non-Claude agent? (GPT-5.5, Composer, Codex, O
 
 TAUSIK is model-agnostic, but the surface you actually use differs from Claude Code:
 
-- **MCP tools first.** Every quality gate (QG-0, QG-2, session limit, dead-end tracking) is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
+- **MCP tools first.** Every quality gate (QG-0, QG-2, dead-end tracking) and the session signals is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
 - **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `harness/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
 - **PreToolUse hooks may not be deployed here.** The notice at the top of this file says whether they are, counted from this host's profile. Where they are not, `task_gate.py` does not protect Rule 1 ("no code without a task") and you self-enforce: always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write. The reason is that TAUSIK generates no hooks payload for some hosts — what a given host is capable of accepting is a separate question, and not one this file answers.
 - **Don't write to `~/.claude/`.** It is a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools, or the path under `CLAUDE_PLUGIN_DATA` if your host sets it.
@@ -210,40 +214,75 @@ TAUSIK is model-agnostic, but the surface you actually use differs from Claude C
 - **`task_done_v2` over `task_done`.** When the MCP server publishes both, prefer `tausik_task_done_v2` — its structured JSON response (`stage`, `gate_results`, `blocking_failures`) is much friendlier to non-Claude tool-use loops that expect typed payloads.
 """
 
-RESPONSE_LANGUAGE = """## Response Language
+RESPONSE_LANGUAGE = ""  # traded into ANSWER_SHAPE: the sentence survives, the section does not
 
-Always respond in the user's language.
+# THE SHAPE OF THE ANSWER, shipped unconditionally. It used to live inside the caveman
+# directive, which defaults to OFF, and in a vendored skill that had to be invoked. Measured on this project's own transcripts after both existed: the median final
+# answer was 522 words against a budget of 200 — worse than the 396 measured before them.
+# A rule an agent must remember to switch on is a rule that is off.
+#
+# It does NOT ask for less work or fewer tokens. An agent told to conserve grows reluctant
+# to take on ambitious work, which costs far more than the prose saves. It asks that the
+# answer be ORDERED and that the record stay whole.
+#
+# OURS, NOT VENDORED. The four-part shape and the rules below started as a reading of
+# ayghri/i-have-adhd, recorded in a decision. Carrying that project's SKILL.md in the tree
+# gave us a dependency to keep in sync AND no discipline at all, because a skill is
+# invoked and nobody invoked it. The ideas are restated here in our own words, in the
+# block that ships every session whether or not anyone asks for it.
+ANSWER_SHAPE = """## Answer shape
+
+- Responses are in the user's language.
+- SHAPE, empty parts omitted: done → verified by → left → your call.
+- KEEP BYTE-EXACT: code, shell commands, tool output, file paths, error messages. KEEP FULL PROSE: \
+acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
+- EXCEPTIONS: explanation asked; destructive action; three failed debugging turns → \
+state the assumption, ask; ambiguity → one question; the rule would \
+delete the answer itself.
+- Steps numbered, one action each, the last doable in two minutes; five items per \
+group unless completeness needs more. One tangent, once, at the end. Estimates in minutes.
+- PRE-SEND: delete announcements, closing recaps, side branches, hedges; \
+first line = next action, last line = current state.
 """
+
+#: Ceiling on the always-injected shape. Same argument as the caveman cap below: this block
+#: is paid for every call, so a fat one defeats what it asks for. Measured at the value the
+#: block holds today, never rounded up to leave room for growth.
+#:
+#: The four #407 rules were first added as +455 chars (1223). That spent the generated
+#: file's own budgets (180 lines, body chars) instead of paying for them, so the block was
+#: rewritten to carry the same terms in 776. Any future growth states its own number here
+#: and pays for itself inside the file's budget, or does not happen.
+ANSWER_SHAPE_MAX_CHARS = 776
+
+ANSWER_SHAPE_MARKER = "## Answer shape"
 
 # Output-economy directive, appended only when `output_mode: caveman`. Inspired by the
 # caveman skill (github.com/JuliusBrussee/caveman); we ship the idea as our own rule
 # rather than installing its hooks (which would collide with TAUSIK's SessionStart hook
 # and settings.json ownership).
 #
+# What remains here is ONLY the prose compression. The shape, the boundary, the exceptions
+# and the pre-send check moved to ANSWER_SHAPE, which ships whether or not this mode is on:
+# they are not an economy measure, they are how an answer is ordered.
+#
 # This block is INJECTED EVERY SESSION, so its own length is a token line-item: a long
 # directive would cost more input than the terse output saves. CAVEMAN_DIRECTIVE_MAX_CHARS
 # caps it, enforced by tests. caveman's own "~65% output reduction" is THEIR figure and is
-# unmeasured in our harness — we do not restate it as our result.
+# not reproduced here.
 CAVEMAN_DIRECTIVE = """## Output economy (caveman mode)
 
 Answer in terse, telegraphic prose — drop articles/filler, keep the meaning. \
 Inspired by the caveman skill (github.com/JuliusBrussee/caveman).
-- SHAPE, in this order, empty parts omitted: done → verified by → left → your call.
 - KEEP BYTE-EXACT (never compress): code, shell commands, tool output, file paths, error messages.
-- KEEP FULL PROSE (never compress): acceptance-criteria evidence, decisions, SPEC/ADAPT, \
-task logs, handoffs — future agents parse these verbatim.
-- EXCEPTIONS (named, not judged): explanation requested; destructive action needs confirmation; \
-three failed debugging turns → state the assumption, ask one question; genuine ambiguity → one \
-question; the rule would delete the answer itself.
-- PRE-SEND: delete intent announcements, closing recaps, side branches, empty hedges; \
-first line = next action, last line = current state.
+- The answer shape above still applies; this mode compresses the prose inside it.
 """
 
 # Hard ceiling on the injected directive. If a future edit bloats it, the guard fails —
 # the whole point of the mode is fewer tokens, and a fat directive defeats it. 700 held
 # brevity alone; the response contract (shape, named exceptions, pre-send check) measures
 # 888 and the ceiling moves to that measured value, not to a round number.
-CAVEMAN_DIRECTIVE_MAX_CHARS = 888
+CAVEMAN_DIRECTIVE_MAX_CHARS = 358
 
 # The heading that marks the directive inside a generated rules file.
 CAVEMAN_DIRECTIVE_MARKER = "## Output economy (caveman mode)"
@@ -286,10 +325,10 @@ def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
     """Header + project metadata. agent_name goes into the opening sentence."""
     stack_str = ", ".join(stacks) if stacks else "not detected"
     return (
-        f"You are {agent_name} working on this project. Follow these instructions strictly.\n\n"
+        f"You are {agent_name} working on this project.\n\n"
         f"## Project: {project_name}\n\n"
         f"Stack: {stack_str}\n"
-        f"Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.3](https://senar.tech)\n"
+        f"Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.5](https://senar.tech)\n"
     )
 
 
@@ -298,7 +337,7 @@ def build_skills_section(ide_subdir: str) -> str:
         f"## Skills\n\n"
         f"After bootstrap, **13 core skills** ship from `harness/skills/` and are always available: "
         f"`/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, "
-        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`, `/i-have-adhd`.\n\n"
+        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`.\n\n"
         f"**25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py "
         f"--include-official` (full bundle) or `tausik skill install <name>` (per skill) from the "
         f"`tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, "
@@ -402,6 +441,7 @@ def build_full_body(
             MINIMAL_COMPACTION,
             MINIMAL_COMMANDS,
             RESPONSE_LANGUAGE,
+            ANSWER_SHAPE,
             CAVEMAN_DIRECTIVE if caveman else "",
             MINIMAL_TIER_FOOTER,
             DYNAMIC_BLOCK,
@@ -413,6 +453,8 @@ def build_full_body(
         enforcement,
         rule_notice,
         HARD_CONSTRAINTS,
+        ANSWER_SHAPE,
+        CODE_STYLE,
         WORKFLOW,
         TOOL_ROUTING,
         MEMORY,

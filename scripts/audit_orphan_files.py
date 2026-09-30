@@ -85,8 +85,33 @@ def _module_name(rel: str) -> str:
     return base
 
 
+#: Functions that import by NAME-AS-STRING. A module reached only through one of
+#: these is invisible to an `ast.Import` walk, so the detector called it an orphan
+#: while the CLI imported it on every run. `__import__` is matched bare and
+#: `importlib.import_module` on its last attribute, because both spellings
+#: (`importlib.import_module`, `from importlib import import_module`) occur.
+_DYNAMIC_IMPORTERS = frozenset({"__import__", "import_module"})
+
+
+def _dynamic_import_name(node: ast.Call) -> str | None:
+    """The module named by a string-literal dynamic import, or None.
+
+    Only a LITERAL argument counts. A computed name (`__import__(f"mod_{kind}")`)
+    names no single module, and guessing one would make the detector claim a
+    reference it cannot see -- the opposite failure to the one this fixes.
+    """
+    func = node.func
+    name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+    if name not in _DYNAMIC_IMPORTERS or not node.args:
+        return None
+    first = node.args[0]
+    if not isinstance(first, ast.Constant) or not isinstance(first.value, str):
+        return None
+    return first.value.split(".")[0]
+
+
 def _imports_in(path: Path) -> set[str]:
-    """Top-level module names imported by the given file."""
+    """Top-level module names imported by the given file, static or dynamic."""
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except (SyntaxError, UnicodeDecodeError, OSError):
@@ -98,6 +123,10 @@ def _imports_in(path: Path) -> set[str]:
                 out.add(alias.name.split(".")[0])
         elif isinstance(node, ast.ImportFrom) and node.module:
             out.add(node.module.split(".")[0])
+        elif isinstance(node, ast.Call):
+            dynamic = _dynamic_import_name(node)
+            if dynamic:
+                out.add(dynamic)
     return out
 
 

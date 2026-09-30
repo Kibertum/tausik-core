@@ -81,6 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_actz_subparsers(sub)
     build_at_subparsers(sub)
     build_aidd_subparsers(sub)
+    __import__("project_cli_demo").build_demo_subparser(sub)
     doctor_p = sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
     doctor_p.add_argument(
         "--fix-bytecode",
@@ -89,14 +90,20 @@ def build_parser() -> argparse.ArgumentParser:
         "(stale after a tree move; the interpreter recreates them). Reports otherwise.",
     )
 
+    uc_p = sub.add_parser(
+        "update-check", help="Ask GitHub (at most daily) whether a newer TAUSIK release exists"
+    )
+    uc_p.add_argument("--now", action="store_true", help="Ask now, ignoring the daily cache")
+
     drift_p = sub.add_parser(
-        "drift", help="RENAR drift detectors (schema, TC↔req provenance, standard corpus)"
+        "drift",
+        help="Drift detectors: RENAR (schema, provenance, standard corpus) and the SENAR corpus",
     )
     drift_p.add_argument(
         "--detector",
-        choices=["schema", "provenance", "supersession", "standard", "all"],
+        choices=["schema", "provenance", "supersession", "standard", "senar", "all"],
         default="all",
-        help="Which RENAR drift detector to run (default: all)",
+        help="Which drift detector to run (default: all)",
     )
 
     renar_p = sub.add_parser("renar", help="RENAR conformance self-assessment")
@@ -155,6 +162,11 @@ def build_parser() -> argparse.ArgumentParser:
         "restore", help="Rebuild the shared store from a backup (matches records by uuid)"
     )
     kn_restore.add_argument("--from", dest="from_dir", required=True, help="Backup directory")
+    kn_pr = kn_sub.add_parser("promote", help="Copy a project memory/decision to the store")
+    kn_pr_what = kn_pr.add_mutually_exclusive_group(required=True)
+    kn_pr_what.add_argument("--memory", type=int, default=None, help="Memory id")
+    kn_pr_what.add_argument("--decision", type=int, default=None, help="Decision id")
+    kn_pr.add_argument("--yes", action="store_true", help="Write it (without: show only)")
     kn_import = kn_sub.add_parser(
         "import-brain",
         help="One-off: copy the local Notion mirror into the shared store (no network)",
@@ -171,6 +183,11 @@ def build_parser() -> argparse.ArgumentParser:
     dec_p.add_argument("--task", default=None)
     dec_p.add_argument("--rationale", default=None)
     dec_p.add_argument(
+        "--rejected", action="append", default=None, help="'option :: why' (repeatable)"
+    )
+    dec_p.add_argument("--supersedes", type=int, default=None, help="Decision id this replaces")
+    dec_p.add_argument("--because", default=None, help="Why it replaces it (or --rationale)")
+    dec_p.add_argument(
         "--global",
         dest="to_global",
         action="store_true",
@@ -183,6 +200,9 @@ def build_parser() -> argparse.ArgumentParser:
     # --- decisions ---
     decs_p = sub.add_parser("decisions", help="List decisions")
     decs_p.add_argument("--limit", type=int, default=20)
+    decs_p.add_argument("--status", choices=["all", "active", "superseded"], default="all")
+    decs_p.add_argument("--task", default=None, help="Only decisions linked to this task")
+    decs_p.add_argument("--rejected", default=None, help="Search the rejected alternatives")
 
     # --- memory ---
     mem_p = sub.add_parser("memory", help="Project memory")
@@ -193,6 +213,13 @@ def build_parser() -> argparse.ArgumentParser:
     ma.add_argument("content")
     ma.add_argument("--tags", nargs="*", default=None)
     ma.add_argument("--task", default=None)
+    ma.add_argument(
+        "--provenance",
+        choices=["observed", "inferred", "told"],
+        default="inferred",
+        help="observed: backed by a test, a verify run or a task journal (checked); "
+        "inferred (default): reasoned, not measured; told: a person said so",
+    )
     ma.add_argument(
         "--global",
         dest="to_global",
@@ -221,6 +248,10 @@ def build_parser() -> argparse.ArgumentParser:
     mshow.add_argument("id", type=int)
     mdel = mem_sub.add_parser("delete")
     mdel.add_argument("id", type=int)
+    medit = mem_sub.add_parser("edit", help="Rewrite a memory, keeping its id, slug and date")
+    medit.add_argument("id", type=int)
+    medit.add_argument("--title", default=None, help="New title; omit to keep it")
+    medit.add_argument("--content", default=None, help="New body; omit to keep it")
     march = mem_sub.add_parser(
         "archive",
         help="Soft-archive memory rows older than --before. Dry-run unless --confirm.",
@@ -307,6 +338,11 @@ def build_parser() -> argparse.ArgumentParser:
     gates_sub = gates_p.add_subparsers(dest="gates_cmd")
     gates_sub.add_parser("status", help="Show active gates and their config")
     gates_sub.add_parser("list", help="List all gates with enabled/disabled state")
+    gates_sub.add_parser(
+        "ratchets",
+        help="Run only the tests that read the ratchet baseline (seconds, not the "
+        "full lane) — the fast answer to whether this change moved one",
+    )
     ge = gates_sub.add_parser("enable")
     ge.add_argument("name", help="Gate name to enable")
     gd = gates_sub.add_parser("disable")
@@ -451,22 +487,12 @@ def build_parser() -> argparse.ArgumentParser:
     ev_emit.add_argument("--remediation", default=None, help="how it gets undone")
     ev_emit.add_argument("--approved-by", dest="approved_by", default=None, help="who agreed to it")
 
-    # --- db (v14b-junk-audit-pass: backup hygiene) ---
-    db_p = sub.add_parser("db", help="Database hygiene helpers")
-    db_sub = db_p.add_subparsers(dest="db_cmd")
-    db_prune = db_sub.add_parser(
-        "prune",
-        help="Delete oldest .tausik/tausik.db.bak.* files keeping the most recent N",
-    )
-    db_prune.add_argument(
-        "--keep",
-        type=int,
-        default=3,
-        help="Number of most-recent backups to keep (default: 3, 0 = delete all)",
-    )
-
+    # --- db (extracted to project_parser_db to keep the filesize gate) ---
     # --- SENAR ops subparsers (delegated; the list lives beside its parsers) ---
+    from project_parser_db import add_db
     from project_parser_ops import add_ops
+
+    add_db(sub)
 
     add_ops(sub)
 

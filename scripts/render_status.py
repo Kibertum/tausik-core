@@ -39,17 +39,36 @@ def search_lines(svc: Any, query: str, scope: str = "all", limit: int = SEARCH_L
             lines.append("")
         lines.append(f"--- {group} ({len(items)} results) ---")
         for item in items:
+            title = item.get("title", item.get("decision", ""))
+            snippet = item.get("_snippet")
+            shown, repeats = _title_and_snippet(title, snippet)
             if "slug" in item:
-                title = item.get("title", item.get("decision", ""))
-                lines.append(f"  {item['slug']}: {title}")
+                lines.append(f"  {item['slug']}: {shown}")
             elif "query" in item:
                 lines.append(f"  {item['query']}")
             else:
-                lines.append(f"  {item.get('title', item.get('decision', str(item)[:80]))}")
-            snippet = item.get("_snippet")
-            if snippet:
+                lines.append(f"  {shown or str(item)[:80]}")
+            if snippet and not repeats:
                 lines.append(f"    {snippet}")
     return lines or ["No results."]
+
+
+def _title_and_snippet(title: str, snippet: str | None) -> tuple[str, bool]:
+    """`(line to print, whether the snippet would only repeat it)`.
+
+    MEASURED, session #277: on a live query 27 of 60 snippets were byte-identical
+    to the title once the `>>>`/`<<<` highlight markers were stripped — 45% of the
+    fattest response in this surface (21,189 characters) was one line of text
+    printed twice. The snippet is not dropped: when it repeats the title, the
+    HIGHLIGHTED form takes the title's place, so the reader still sees which word
+    matched and pays for one line instead of two.
+    """
+    if not snippet:
+        return title, False
+    bare = snippet.replace(">>>", "").replace("<<<", "").strip()
+    if bare and bare == (title or "").strip():
+        return snippet, True
+    return title, False
 
 
 def events_lines(

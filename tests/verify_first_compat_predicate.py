@@ -24,7 +24,7 @@ def test_verify_first_marker_turns_off_autouse_compat_shim() -> None:
         def __init__(self, has_marker: bool) -> None:
             self._has = has_marker
 
-        def get_closest_marker(self, name: str):  # noqa: ANN201
+        def get_closest_marker(self, name: str):  # ruff-not-enabled: ANN201
             if name == "verify_first" and self._has:
                 return object()
             return None

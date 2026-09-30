@@ -2,7 +2,9 @@
 
 # Skill ecosystem — one-page map
 
-Single entry point for **vendor / repo skills** (not the 13 core slash skills in `harness/skills/` — those ship with TAUSIK and are documented in **[Skills](skills.md)**).
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
+Single entry point for **vendor / repo skills** (not the 14 core slash skills in `harness/skills/` — those ship with TAUSIK and are documented in **[Skills](skills.md)**).
 
 ## Flow (install path)
 
@@ -14,7 +16,7 @@ flowchart TD
   I --> V[vendor cache]
 ```
 
-**CLI steps** (mirror of [CLI — Skills](cli.md#skills); run via `.tausik/tausik`):
+**CLI steps** (mirror of [CLI — Skills](cli-admin.md#skills); run via `.tausik/tausik`):
 
 1. **`skill repo add <url>`** — register a TAUSIK-compatible repo (`tausik-skills.json` / legacy `skills.json`).
 2. **`skill install <name>`** — clone if needed, copy skill files, install declared pip dependencies.

@@ -171,12 +171,12 @@ def test_get_file_list_skips_junction_cycle(tmp_path):
 
 
 def _load_rag_server():
-    """Load codebase-rag server.py under a unique module name — a bare
+    """Load codebase-rag rag_server.py under a unique module name — a bare
     `import server` collides with the project MCP server module imported by
     other test files in the same pytest session."""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("tausik_rag_server", RAG_DIR / "server.py")
+    spec = importlib.util.spec_from_file_location("tausik_rag_server", RAG_DIR / "rag_server.py")
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

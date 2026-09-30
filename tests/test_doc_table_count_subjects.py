@@ -28,17 +28,17 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from doc_drift_common import (  # noqa: E402
+from doc_drift_common import (
     _CODE_COUNT_PATTERNS,
     _MCP_COUNT_PATTERNS,
 )
-from doc_drift_common import (  # noqa: E402
+from doc_drift_common import (
     CODE_COUNT_EXTRA_TARGETS,
     CROSS_FILE_SCAN_TARGETS,
     MCP_COUNT_EXTRA_TARGETS,
     _strip_fenced_blocks,
 )
-from doc_drift_tables import (  # noqa: E402
+from doc_drift_tables import (
     _TABLE_COUNT_SUBJECTS,
     STATED_ONLY_WHERE_NOTHING_READS,
     TABLE_SUBJECT_EXEMPT,
@@ -46,7 +46,7 @@ from doc_drift_tables import (  # noqa: E402
     scan_table_count_columns,
     table_subject_keys,
 )
-from gen_doc_constants import build_constants_doc  # noqa: E402
+from gen_doc_constants import build_constants_doc
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 

@@ -107,12 +107,18 @@ class TestTheTableIsDerivedFromTheGenerators:
 
 
 class TestTheGateFindsRealDifferences:
-    def test_the_live_tree_has_the_matcher_differences_that_motivated_this(self, live_table):
-        """Not a fixture: these four are what the generators produce today, and
-        they are why a basename-only comparison was not enough."""
+    def test_the_matcher_differences_that_motivated_this_are_gone(self, live_table):
+        """These four were why a basename-only comparison was not enough. Qwen
+        built them from a hand-kept list; since 1.10 it builds from the shared
+        declaration (decision #389), and they must not come back unnoticed."""
         found = gate.find_differences(live_table)
-        assert "matcher:hook:PostToolUse:task_done_verify.py" in found
-        assert "matcher:hook:PostToolUse:task_call_counter.py" in found
+        for script in (
+            "activity_event.py",
+            "task_call_counter.py",
+            "tool_output_truncation_nudge.py",
+            "task_done_verify.py",
+        ):
+            assert f"matcher:hook:PostToolUse:{script}" not in found
 
     def test_every_live_difference_is_declared(self, live_table):
         found = set(gate.find_differences(live_table))

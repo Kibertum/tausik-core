@@ -82,7 +82,12 @@ def window_calls(project_dir: str) -> int:
             v = section.get("window_calls")
             if isinstance(v, int) and v > 0:
                 return v
-    except Exception:  # noqa: BLE001
+    # BROAD ON PURPOSE, and the reason is the policy rather than the code: this runs inside
+    # a hook, where an unreadable or hand-broken config must not take the host down. The
+    # window falls back to its default, which is a working answer — unlike a traceback in
+    # the middle of someone's tool call. Config parsing raises whatever its backend raises,
+    # so naming types here would be a guess that goes stale with the backend.
+    except Exception:  # noqa: BLE001,S110 - a hook fails open on config; the default is correct
         pass
     return DEFAULT_WINDOW_CALLS
 

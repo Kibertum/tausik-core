@@ -49,9 +49,12 @@ def reset_checkpoint_counter(svc: Any) -> None:
     invokes on purpose, so a future caller that wants one without the other can
     have it.
     """
+    # Since 1.10 the count itself is derived (checkpoint_signal): writing the
+    # handoff records `calls_at_write`, which IS the reset. What remains here is
+    # clearing the display-only warning bucket so the next advice fires again.
     try:
-        svc.be.meta_set("tool_call_count", "0")
-    except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
+        svc.be.meta_set("checkpoint_warn_bucket", "0")
+    except Exception:  # noqa: BLE001,S110 — best-effort: MCP handler must not crash the server on a tool call
         pass
 
 
@@ -65,13 +68,13 @@ def _do_session_handoff(svc: Any, args: dict) -> str:
     what the caller sees, so a counter failure can no longer be mistaken for a
     handoff failure.
     """
-    result = svc.session_handoff(args["handoff"])
+    result = svc.session_handoff(args.get("handoff"))
     reset_checkpoint_counter(svc)
     return result
 
 
 def _do_session_last_handoff(svc: Any, args: dict) -> str:
-    ho = svc.session_last_handoff()
+    ho = svc.session_last_handoff(args.get("session_id"))
     return json.dumps(ho, indent=2, ensure_ascii=False) if ho else "No handoff found."
 
 

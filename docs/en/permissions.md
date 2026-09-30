@@ -2,6 +2,8 @@
 
 # Permission Strategies
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 ## Permission File Location
 
 ```

@@ -24,9 +24,9 @@ sys.path.insert(
     ),
 )
 
-import rag_context  # noqa: E402
-from rag_indexer import annotate_chunks, chunk_file  # noqa: E402
-from rag_store import RAGStore  # noqa: E402
+import rag_context
+from rag_indexer import annotate_chunks, chunk_file
+from rag_store import RAGStore
 
 CROSSCUTTING_SCOPE = ["harness/claude/mcp/codebase-rag/"]
 

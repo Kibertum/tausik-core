@@ -22,7 +22,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
+from project_backend import SQLiteBackend
 
 _HOOK_PATH = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks", "posttool_usage.py")
 

@@ -50,7 +50,7 @@ Work backwards from the symptom:
 4. Check stack-specific pitfalls from the stack guide
 5. Search for related code that might affect the issue:
    - Recent changes: `git log --oneline -10 -- {file}`
-   - Similar patterns: `mcp__codebase-rag__search_code` for the function/variable name; `Grep` only as fallback when RAG is empty or stale
+   - Similar patterns: `Grep` or `mcp__codebase-rag__search_code` for the function/variable name
 
 ### 4. Identify the Bug Category
 - **Logic error**: wrong condition, off-by-one, incorrect operator
@@ -121,11 +121,7 @@ After: {fixed code}
 
 ## Code search hierarchy
 
-When tracking the bug across files, prefer the cheapest tool that fits:
-
-1. **`mcp__codebase-rag__search_code`** — first choice for symbols, error messages, patterns, "where is X used". Returns ranked chunks, not full files. Cheapest token-wise.
-2. **`Grep`** — only when you already know which file(s) to search in, or when RAG is empty/stale.
-3. **`Read`** — only when you have an exact path. Don't `Read` unfamiliar code — use `search_code` first to locate the relevant chunks.
+When tracking the bug across files, narrow before you read: `Grep` with a `path`/`glob`, `Read` with `offset`/`limit`. RAG is the route to code: after every `Grep` a hook adds the index's top chunks for the same identifiers, and `mcp__codebase-rag__search_code` answers questions by concept ("where is X handled") that a regex cannot.
 
 ## Gotchas
 

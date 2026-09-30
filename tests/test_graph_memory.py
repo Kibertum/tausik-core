@@ -7,6 +7,7 @@ auto-supersede, edge cases, CLI smoke.
 from __future__ import annotations
 
 import os
+import sqlite3
 import subprocess
 import sys
 
@@ -244,13 +245,29 @@ class TestGraphService:
         with pytest.raises(ServiceError, match="not found"):
             svc.memory_unlink(999)
 
-    def test_memory_unlink_already_invalid(self, svc):
+    def test_memory_unlink_is_idempotent(self, svc):
+        """A second unlink answers instead of refusing, and the contract changed on purpose.
+
+        An edge can now be ended by the SYSTEM when its target is archived or deleted — that
+        is what makes the orphan sweep converge — so a refusal here would blame the caller
+        for a departure somebody else caused. The reply names when it ended, which is the
+        part a caller can act on.
+        """
         svc.be.memory_add("pattern", "t1", "c1")
         svc.be.memory_add("pattern", "t2", "c2")
         svc.memory_link("memory", 1, "memory", 2, "relates_to")
-        svc.memory_unlink(1)
-        with pytest.raises(ServiceError, match="already invalidated"):
-            svc.memory_unlink(1)
+        assert "invalidated" in svc.memory_unlink(1)
+        again = svc.memory_unlink(1)
+        assert "already ended" in again
+        assert "nothing to unlink" in again
+
+    def test_unlinking_an_edge_the_system_ended_does_not_refuse(self, svc):
+        """The case the change exists for: the target left, so the edge was ended for you."""
+        svc.be.memory_add("pattern", "source row", "body of the source")
+        svc.be.memory_add("pattern", "target row", "body of the target")
+        svc.memory_link("memory", 1, "memory", 2, "relates_to")
+        svc.be.memory_archive_ids([2])
+        assert "already ended" in svc.memory_unlink(1)
 
     def test_memory_related(self, svc):
         svc.be.memory_add("pattern", "center", "main node")
@@ -295,12 +312,8 @@ class TestGraphService:
         assert len(valid_edges) >= 1
 
     def test_find_similar(self, svc):
-        svc.be.memory_add(
-            "pattern", "Database indexing", "Always add indexes on FK columns"
-        )
-        svc.be.memory_add(
-            "gotcha", "SQLite FTS5", "FTS5 requires content sync triggers"
-        )
+        svc.be.memory_add("pattern", "Database indexing", "Always add indexes on FK columns")
+        svc.be.memory_add("gotcha", "SQLite FTS5", "FTS5 requires content sync triggers")
         results = svc.memory_find_similar("Database", "indexes")
         assert len(results) >= 1
 
@@ -321,9 +334,7 @@ class TestGraphService:
 class TestMigration:
     def test_schema_has_memory_edges(self, db):
         """memory_edges table exists after init."""
-        tables = db._q(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='memory_edges'"
-        )
+        tables = db._q("SELECT name FROM sqlite_master WHERE type='table' AND name='memory_edges'")
         assert len(tables) == 1
 
     def test_schema_version_current(self, db):
@@ -334,7 +345,7 @@ class TestMigration:
 
     def test_edge_check_constraints(self, db):
         """Invalid relation should be rejected by CHECK constraint."""
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             db._ins(
                 "INSERT INTO memory_edges(source_type,source_id,target_type,target_id,"
                 "relation,confidence,valid_from,created_at) VALUES(?,?,?,?,?,?,?,?)",
@@ -342,7 +353,7 @@ class TestMigration:
             )
 
     def test_edge_invalid_source_type(self, db):
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             db._ins(
                 "INSERT INTO memory_edges(source_type,source_id,target_type,target_id,"
                 "relation,confidence,valid_from,created_at) VALUES(?,?,?,?,?,?,?,?)",
@@ -398,18 +409,14 @@ class TestGraphCLI:
         # Create two memories first
         self._run(tausik_env, "memory", "add", "pattern", "title1", "content1")
         self._run(tausik_env, "memory", "add", "pattern", "title2", "content2")
-        result = self._run(
-            tausik_env, "memory", "link", "memory", "1", "memory", "2", "relates_to"
-        )
+        result = self._run(tausik_env, "memory", "link", "memory", "1", "memory", "2", "relates_to")
         assert result.returncode == 0
         assert "Edge #" in result.stdout
 
     def test_memory_unlink(self, tausik_env):
         self._run(tausik_env, "memory", "add", "pattern", "t1", "c1")
         self._run(tausik_env, "memory", "add", "pattern", "t2", "c2")
-        self._run(
-            tausik_env, "memory", "link", "memory", "1", "memory", "2", "relates_to"
-        )
+        self._run(tausik_env, "memory", "link", "memory", "1", "memory", "2", "relates_to")
         result = self._run(tausik_env, "memory", "unlink", "1")
         assert result.returncode == 0
         assert "invalidated" in result.stdout
@@ -417,9 +424,7 @@ class TestGraphCLI:
     def test_memory_graph(self, tausik_env):
         self._run(tausik_env, "memory", "add", "pattern", "t1", "c1")
         self._run(tausik_env, "memory", "add", "pattern", "t2", "c2")
-        self._run(
-            tausik_env, "memory", "link", "memory", "1", "memory", "2", "relates_to"
-        )
+        self._run(tausik_env, "memory", "link", "memory", "1", "memory", "2", "relates_to")
         result = self._run(tausik_env, "memory", "graph")
         assert result.returncode == 0
         assert "relates_to" in result.stdout
@@ -427,9 +432,7 @@ class TestGraphCLI:
     def test_memory_related(self, tausik_env):
         self._run(tausik_env, "memory", "add", "pattern", "center", "main")
         self._run(tausik_env, "memory", "add", "pattern", "neighbor", "linked")
-        self._run(
-            tausik_env, "memory", "link", "memory", "1", "memory", "2", "relates_to"
-        )
+        self._run(tausik_env, "memory", "link", "memory", "1", "memory", "2", "relates_to")
         result = self._run(tausik_env, "memory", "related", "memory", "1")
         assert result.returncode == 0
         assert "neighbor" in result.stdout

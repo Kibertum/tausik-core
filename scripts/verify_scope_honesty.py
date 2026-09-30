@@ -103,6 +103,7 @@ def describe_declared_scope(
         "undeclared": [],
         "undeclared_count": 0,
         "security_undeclared": [],
+        "security_blocking": [],
     }
     if not task_created_at:
         return {"status": STATUS_UNKNOWN, "reason": "no task_created_at", **empty}
@@ -115,7 +116,9 @@ def describe_declared_scope(
     # is the seam tests substitute, and a direct name binding would silently
     # ignore `monkeypatch.setattr(verify_git_diff, "changed_files_since", ...)`
     # — the check would then pass while measuring nothing.
-    actual = verify_git_diff.changed_files_since(task_created_at, root=root, runner=runner)
+    actual = verify_git_diff.changed_files_since(
+        task_created_at, root=root, runner=runner, task_slug=task_slug
+    )
     if actual is None:
         # changed_files_since collapses "not a git repo", "git missing from
         # PATH" and "git call failed" into None. All three mean the same to us:
@@ -153,7 +156,10 @@ def describe_declared_scope(
     if foreign_owned:
         actual -= foreign_owned
         own_subtracted = ", ".join(
-            filter(None, [own_subtracted, "committed sibling work: " + ", ".join(sorted(foreign_owned))])
+            filter(
+                None,
+                [own_subtracted, "committed sibling work: " + ", ".join(sorted(foreign_owned))],
+            )
         )
 
     # The SECOND subtraction, and the same principle as the first (convention
@@ -200,13 +206,51 @@ def describe_declared_scope(
             "reason": f"declared set covers all {len(actual)} changed file(s)",
             **empty,
         }
+    security_undeclared = [p for p in undeclared if is_security_sensitive([p])]
     return {
         "status": STATUS_UNDER_DECLARED,
         "reason": f"{len(undeclared)} file(s) changed per git but not declared",
         "undeclared": undeclared[:MAX_LISTED_UNDECLARED],
         "undeclared_count": len(undeclared),
-        "security_undeclared": [p for p in undeclared if is_security_sensitive([p])],
+        "security_undeclared": security_undeclared,
+        "security_blocking": _in_flight(security_undeclared, root=root, runner=runner),
     }
+
+
+def _in_flight(
+    candidates: list[str],
+    *,
+    root: str | None = None,
+    runner: Callable[..., subprocess.CompletedProcess] | None = None,
+) -> list[str]:
+    """Which of `candidates` are uncommitted RIGHT NOW.
+
+    WHY THE BLOCK NARROWS TO THESE, reported from a consumer project: a task
+    opened on 24.08 was still open a month later, and the window "changed since
+    task start" had swallowed everyone else's landed work — billing, payments,
+    and other files the task never touched. Being security-sensitive by pattern,
+    they tripped the refusal, and there was nothing the author could do: declaring
+    another team's files as this task's scope is a lie, and not declaring them is a
+    block with no remedy. The owner left the task open and said plainly that he
+    was not going to spend time on it, which is how a gate stops being read — and
+    it takes the real finding down with it.
+
+    A COMMITTED change was already gated when it was committed: the secret scan,
+    the shell firewall and the memory-route gate all run on the commit hook. What
+    the scoped gates would genuinely never see is a change still in the working
+    tree at closing time, and that is exactly this set.
+
+    Returns the candidates unchanged when git cannot answer. Silence here would
+    turn an unreadable working tree into a pass, and this is the one check whose
+    absence must not read as permission.
+    """
+    if not candidates:
+        return []
+    dirty = verify_git_diff.uncommitted_changes(root=root, runner=runner)
+    if dirty is None:
+        return list(candidates)
+    dirty_set = {_normalize_repo_path(p) for p in dirty}
+    return [p for p in candidates if p in dirty_set]
 
 
 def security_block_reason(description: dict[str, Any] | None) -> str | None:
@@ -223,14 +267,22 @@ def security_block_reason(description: dict[str, Any] | None) -> str | None:
     """
     if not description:
         return None
-    offenders = list(description.get("security_undeclared") or [])
+    # `security_blocking` when the producer set it — the in-flight subset. A
+    # description without the key predates this split; falling back to the wide
+    # set keeps such a caller at its previous behaviour rather than silently
+    # granting it a pass.
+    if "security_blocking" in description:
+        offenders = list(description.get("security_blocking") or [])
+    else:
+        offenders = list(description.get("security_undeclared") or [])
     if not offenders:
         return None
     shown = ", ".join(offenders[:10])
     more = "" if len(offenders) <= 10 else f" (+{len(offenders) - 10} more)"
     return (
-        f"FAIL: security-sensitive file(s) changed since task start but absent "
+        f"FAIL: security-sensitive file(s) with UNCOMMITTED changes are absent "
         f"from relevant_files: {shown}{more}. Scoped gates run against the "
         f"declared list only, so these files would be verified by nothing. "
-        f"Add them to relevant_files and re-run."
+        f"Add them to relevant_files and re-run. Files someone else already "
+        f"committed do not appear here — they were gated at commit time."
     )

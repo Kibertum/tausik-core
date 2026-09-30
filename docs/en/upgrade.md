@@ -2,6 +2,8 @@
 
 # Upgrade Safety
 
+<!-- doc-map: reader=user; zone=getting-started -->
+
 What bootstrap touches, what it leaves alone, and how to upgrade without losing your work.
 
 ## The two trees

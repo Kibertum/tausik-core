@@ -86,12 +86,9 @@ RULES: tuple[Rule, ...] = (
         SURFACE,
         "tausik_task_done",
     ),
-    Rule(
-        "Rule 9.2 Session limit",
-        "starting work past the session's active-time limit",
-        SURFACE,
-        "tausik_task_start",
-    ),
+    # Rule 9.2 (session limit) is no longer here: since 1.10 it is a signal
+    # that refuses nothing (decision #376), so it guards no action a host could
+    # fail to intercept, and listing it told agents task_start would refuse.
     Rule(
         "Rule 1 Task before code",
         "writing or editing a file with no active task",

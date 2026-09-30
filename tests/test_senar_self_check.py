@@ -81,9 +81,7 @@ class TestItCanSayNo:
             pytest.param(
                 "`senar_self_check.py`", "`module_deleted_last_year.py`", id="renamed_module"
             ),
-            pytest.param(
-                "`parse_claims()`", "`function_nobody_ever_wrote()`", id="renamed_symbol"
-            ),
+            pytest.param("`parse_claims()`", "`function_nobody_ever_wrote()`", id="renamed_symbol"),
         ],
     )
     def test_a_citation_whose_target_is_gone_is_refused(self, tmp_path, was, now):
@@ -313,10 +311,12 @@ class TestTheLensCarriesItWithoutCryingWolf:
     def test_this_repository_reports_its_uncited_rows(self):
         import repo_coherence
 
+        # 1.10: the matrices were rewritten against SENAR 1.5 Core and every row
+        # of the claimed sections now cites code, so the live pages may report
+        # nothing. What must hold is that nothing on them is a broken citation;
+        # the detection itself is held by the tmp_path cases around this one.
         findings = repo_coherence._senar_claim_citations(_REPO)
-        assert findings, "the lens carries the check but says nothing about our own pages"
         assert all(f.severity != "high" for f in findings), "\n".join(f.detail for f in findings)
-        assert any("cite nothing checkable" in f.summary for f in findings)
 
     def test_a_broken_citation_reaches_the_lens_as_high(self, tmp_path):
         """The negative half of the wiring: a report the lens would rank first."""

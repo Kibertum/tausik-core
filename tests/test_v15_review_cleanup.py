@@ -8,10 +8,10 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks"))
 
-from gate_command_runner import run_command_gate  # noqa: E402
-from project_cli_aidd_validate import _files_over, _verify_max_filesize  # noqa: E402
-from scope_write_gate import delegated_missing_scope  # noqa: E402
-from service_knowledge_aggregates import build_memory_compact  # noqa: E402
+from gate_command_runner import run_command_gate
+from project_cli_aidd_validate import _files_over, _verify_max_filesize
+from scope_write_gate import delegated_missing_scope
+from service_knowledge_aggregates import build_memory_compact
 
 
 class TestFilesOverTruncation:

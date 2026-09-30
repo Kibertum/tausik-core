@@ -73,19 +73,25 @@ def build_dynamic_state(svc: Any, project_dir: str) -> str:
 
     active = [t for t in tasks if t["status"] == "active"]
     blocked = [t for t in tasks if t["status"] == "blocked"]
-    done_count = sum(1 for t in tasks if t["status"] == "done")
+    # An obsolete close is done but not delivered (task_obsolete.py): counted apart.
+    obsolete = sum(1 for t in tasks if t.get("resolution") == "obsolete")
+    done_count = sum(1 for t in tasks if t["status"] == "done") - obsolete
 
     session_info = f"#{session['id']} (active)" if session else "none"
     lines = [
         "## Current State",
         f"Session: {session_info} | Branch: {resolve_branch(project_dir)} | "
         f"{STAMP_LABEL}: {resolve_version()}",
-        f"Tasks: {done_count}/{len(tasks)} done, {len(active)} active, {len(blocked)} blocked",
+        f"Tasks: {done_count}/{len(tasks)} done"
+        + (f", {obsolete} obsolete" if obsolete else "")
+        + f", {len(active)} active, {len(blocked)} blocked",
     ]
     if active:
         lines.append(f"Active: {', '.join(t['slug'] for t in active)}")
     if blocked:
         lines.append(f"Blocked: {', '.join(t['slug'] for t in blocked)}")
+    if transcript := _transcript_path(project_dir):
+        lines.append(f"Full history (grep it for what a compaction dropped): {transcript}")
 
     if (be := getattr(svc, "be", None)) is not None:
         try:
@@ -94,10 +100,47 @@ def build_dynamic_state(svc: Any, project_dir: str) -> str:
             if memory_tail := service_knowledge_aggregates.build_compact_memory_tail(be):
                 lines.append("")
                 lines.extend(memory_tail)
-        except Exception:  # noqa: BLE001 — best-effort: см. docstring
+        except Exception:  # noqa: BLE001,S110 — best-effort: см. docstring
             pass
 
     return "\n".join(lines)
+
+
+def _transcript_path(project_dir: str) -> str | None:
+    """Путь к транскрипту ЭТОЙ смены, либо ``None``.
+
+    Зачем он в блоке состояния. Сводка компакции умышленно короткая, и всё, что в
+    шесть её пунктов не попало, теряется — а полная история в это время лежит на
+    диске: 36 МБ за одну смену, 37 файлов по проекту. Агент не знает об этом,
+    потому что имя каталога получается искажением пути проекта, и угадать его
+    нельзя — ровно для этого существует `transcript_locator`, находящий файл
+    ДОКАЗАТЕЛЬСТВОМ, а не совпадением имени.
+
+    Строка живёт в переменной половине блока, то есть не удорожает неизменную
+    часть инструкций. Любая ошибка поиска — ``None``: блок состояния не смеет
+    падать из-за подсказки.
+    """
+    try:
+        import os
+        import sys
+
+        hooks = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hooks")
+        if hooks not in sys.path:
+            sys.path.insert(0, hooks)
+        from transcript_locator import latest_project_transcript
+
+        found = latest_project_transcript(project_dir)
+        if not found:
+            return None
+        # ДОМАШНИЙ КАТАЛОГ СВЁРНУТ В `~`, и это не косметика. CLAUDE.md и AGENTS.md
+        # версионируются, а полный путь несёт имя пользователя — гейт границы
+        # публикации поймал именно это на первой же записи. `~` раскрывает и
+        # оболочка, и сам агент, поэтому подсказка не теряет пользы.
+        home = os.path.expanduser("~")
+        text = str(found)
+        return "~" + text[len(home) :] if home and text.startswith(home) else text
+    except Exception:  # noqa: BLE001 — подсказка не смеет уронить запись состояния
+        return None
 
 
 def resolve_project_dir(svc: Any) -> str | None:

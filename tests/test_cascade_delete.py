@@ -5,6 +5,7 @@ deleting a story cascades to tasks, and FTS indexes stay in sync.
 """
 
 import os
+import sqlite3
 import sys
 
 import pytest
@@ -13,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from project_backend import SQLiteBackend
 from project_service import ProjectService
+from tausik_utils import ServiceError
 
 
 @pytest.fixture
@@ -103,11 +105,11 @@ class TestCascadeDeleteStory:
 
 class TestForeignKeyIntegrity:
     def test_task_requires_valid_story(self, svc):
-        with pytest.raises(Exception):
+        with pytest.raises(ServiceError):
             svc.task_add("nonexistent", "t1", "T1")
 
     def test_story_requires_valid_epic(self, svc):
-        with pytest.raises(Exception):
+        with pytest.raises(ServiceError):
             svc.story_add("nonexistent", "s1", "S1")
 
     def test_fk_enforcement_on(self, svc):
@@ -117,7 +119,7 @@ class TestForeignKeyIntegrity:
 
     def test_task_story_id_references_stories(self, svc):
         """Cannot insert task with invalid story_id directly."""
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             svc.be._conn.execute(
                 "INSERT INTO tasks(story_id, slug, title, status, created_at, updated_at) "
                 "VALUES(99999, 'bad', 'Bad', 'planning', '2025-01-01', '2025-01-01')"
@@ -126,7 +128,7 @@ class TestForeignKeyIntegrity:
 
     def test_story_epic_id_references_epics(self, svc):
         """Cannot insert story with invalid epic_id directly."""
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             svc.be._conn.execute(
                 "INSERT INTO stories(epic_id, slug, title, status, created_at) "
                 "VALUES(99999, 'bad', 'Bad', 'open', '2025-01-01')"

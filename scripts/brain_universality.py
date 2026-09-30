@@ -97,7 +97,7 @@ def detect_universal_patterns(content: str) -> list[str]:
     return sorted(found)
 
 
-def format_universality_hint(topics: list[str]) -> str:
+def format_universality_hint(topics: list[str], promote: str | None = None) -> str:
     """Format detected topics as a single-line hint for stderr emission.
 
     Returns ``""`` for empty input so callers can guard with truthiness.
@@ -106,13 +106,21 @@ def format_universality_hint(topics: list[str]) -> str:
     if not topics:
         return ""
     joined = ", ".join(topics)
+    if promote:
+        # The record exists already; sharing it must not mean typing it again.
+        return (
+            f"Universal pattern(s) detected: {joined} — to share it with your other "
+            f"projects: `tausik knowledge promote {promote}` (shows it first; --yes writes)."
+        )
     return (
         f"Universal pattern(s) detected: {joined} — "
         f"consider `memory add --global` (or skip with `confirm: cross-project`)."
     )
 
 
-def emit_universality_hint(text: str, *, cfg: dict | None = None) -> None:
+def emit_universality_hint(
+    text: str, *, cfg: dict | None = None, promote: str | None = None
+) -> None:
     """Detect universal patterns in ``text`` and print hint to stderr.
 
     One layer, advisory and crash-safe: the regex catalogue of this module.
@@ -125,10 +133,10 @@ def emit_universality_hint(text: str, *, cfg: dict | None = None) -> None:
     del cfg
     try:
         topics = detect_universal_patterns(text)
-        hint = format_universality_hint(topics)
+        hint = format_universality_hint(topics, promote)
         if hint:
             import sys
 
             print(hint, file=sys.stderr)
-    except Exception:  # noqa: BLE001 — best-effort: the hint is non-fatal to the local flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: the hint is non-fatal to the local flow
         pass

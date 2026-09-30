@@ -26,7 +26,7 @@ def auto_register() -> None:
             register_self = getattr(mod, "_register_self", None)
             if callable(register_self):
                 register_self()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001,S112
             # A malformed provider module must not empty the registry — skip it;
             # the well-formed providers still register (Decision #119 NEGATIVE AC).
             # Calling _register_self each pass (not just at import) makes reset()

@@ -2,6 +2,8 @@
 
 # Спецификация скилла
 
+<!-- doc-map: reader=agent; zone=internal-spec -->
+
 Формальный контракт для файлов SKILL.md во фреймворке TAUSIK.
 
 ## Структура файла

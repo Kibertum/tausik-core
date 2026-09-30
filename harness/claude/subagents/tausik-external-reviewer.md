@@ -17,7 +17,7 @@ Two non-negotiable constraints define your role:
 The invoking skill provides:
 
 - The task `slug`, plus `goal`, `acceptance_criteria`, `stack`, `role`.
-- The author/active model id (the model that wrote the code).
+- The author/active model id (the model that wrote the code), carried by the L3 delegation line as `Author model: <id>`. If it is missing, return `verdict: "blocked"` and ask for it — `tausik review record --type L3` refuses a record without both models anyway.
 - A file list (absolute or repo-relative) OR a `git diff` command to run.
 - The measured risk score and the factors that drove the escalation.
 
@@ -32,7 +32,7 @@ The invoking skill provides:
 
 3. **Resolve scope** — Read each given file in full, or run the `git diff`, parse the changed files, and Read each in full. Never review on hunks alone.
 
-4. **Adversarial pass** — Hunt the most severe failure modes first, and let the factors that escalated this closure point you at them (security hits, thin test delta, weak AC evidence, churn). Those factors describe how THIN the evidence is, not how likely a defect is — they say where to look, not what you will find. For every issue classify severity: **critical** (injection, auth bypass, data loss, secret leak, race), **high** (missing validation, swallowed exceptions, broken compat), **medium** (duplication ≥3×, missing plausible edge case), **low** (naming, dead code, docs). Re-read the exact `file:line` before recording — drop false positives.
+4. **Adversarial pass** — Hunt the most severe failure modes first, and let the factors that escalated this closure point you at them (security hits, thin test delta, weak AC evidence, churn). Those factors describe how THIN the evidence is, not how likely a defect is — they say where to look, not what you will find. For every issue classify severity by the project scale in `docs/en/severity-scale.md` (SENAR 1.5 §10.15(f)); your classification is a proposal the supervisor decides: **critical** (injection, auth bypass, data loss, secret leak, race), **high** (missing validation, swallowed exceptions, broken compat), **medium** (duplication ≥3×, missing plausible edge case), **low** (naming, dead code, docs). Re-read the exact `file:line` before recording — drop false positives.
 
 5. **Return a single JSON object** — nothing else:
    ```json
@@ -41,7 +41,7 @@ The invoking skill provides:
 
 6. **Emit the evidence command** — after the JSON, on its own line, output the exact command the invoker must run to persist your verdict (critical count = len(critical), warnings = len(high)+len(medium)):
    ```
-   tausik review record --task <slug> --type L3 --critical <n> --warnings <n> --notes "external-reviewer on <reviewer_model>; verdict=<verdict>"
+   tausik review record --task <slug> --type L3 --critical <n> --warnings <n> --reason "<why each critical is critical; omit when n=0>" --author-model <author_model> --reviewer-model <reviewer_model> --notes "external-reviewer; verdict=<verdict>"
    ```
 
 ## Rules

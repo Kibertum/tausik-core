@@ -237,26 +237,36 @@ class ProjectService(
         return self.be.fts_maybe_optimize(threshold)
 
     def audit_check(self) -> str | None:
-        """SENAR Rule 9.5 warning string, None when not overdue."""
-        if not self.be.meta_get("last_audit_session"):
+        """SENAR Rule 9.5 warning string, None when not overdue (clock: closures)."""
+        from service_session_metrics import audit_mark_time
+
+        if audit_mark_time(self.be) is None:
             return "SENAR Rule 9.5: No audit has been performed yet. Run: .tausik/tausik audit mark"
-        n = self.audit_overdue_sessions()
-        if n < 3:
+        n = self.audit_overdue_closures()
+        if not n:
             return None
-        return f"SENAR Rule 9.5: {n} sessions since last audit. Run a quality sweep, then: .tausik/tausik audit mark"
+        return (
+            f"SENAR Rule 9.5: {n} tasks closed since the last audit. "
+            "Run a quality sweep, then: .tausik/tausik audit mark"
+        )
 
-    def audit_overdue_sessions(self) -> int:
-        from service_session_metrics import audit_overdue_sessions as _f
+    def audit_overdue_closures(self) -> int:
+        from project_config import load_config
+        from service_session_metrics import DEFAULT_AUDIT_EVERY_CLOSURES, audit_overdue_closures
 
-        return _f(self.be)
+        every = load_config().get("audit_every_closures", DEFAULT_AUDIT_EVERY_CLOSURES)
+        return audit_overdue_closures(self.be, int(every))
 
     def audit_mark(self) -> str:
-        """Mark periodic audit as completed for current session."""
+        """Mark the periodic audit as done now — with or without an open session."""
+        from tausik_utils import utcnow_iso
+
+        now = utcnow_iso()
+        self.be.meta_set("last_audit_at", now)
         current = self.be.session_current()
-        if not current:
-            raise ServiceError("No active session. Start one: .tausik/tausik session start")
-        self.be.meta_set("last_audit_session", str(current["id"]))
-        return f"Audit marked at session #{current['id']}."
+        if current:
+            self.be.meta_set("last_audit_session", str(current["id"]))
+        return f"Audit marked at {now}."
 
     # --- Stacks ---
 
@@ -360,7 +370,7 @@ class ProjectService(
                 "no_goal": [t["slug"] for t in no_goal[:5]],
                 "no_ac": [t["slug"] for t in no_ac[:5]],
             }
-        except Exception:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
             pass
 
         return {

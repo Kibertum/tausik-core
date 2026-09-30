@@ -9,13 +9,15 @@ keep working.
 Hard QG-0 gates raised via `ServiceError`:
   - missing goal / acceptance_criteria
   - AC has no negative scenario (boundary-aware via gate_negative_scenario)
-  - SENAR Rule 9.2 session-duration overrun (when session_check_duration_fn supplied)
   - SENAR Rule 2: explicit medium/complex without scope declaration
     (scope_paths or legacy free-text scope; opt-out qg0.scope_hard_gate=false)
   - SENAR Rule 6: explicit medium/complex without rollback_plan
 
 Soft warnings returned in the list:
   - missing scope (simple/unset complexity) / scope_exclude (medium/complex)
+  - session active time over the advisory threshold (when
+    session_check_duration_fn supplied) — a signal, never a refusal since 1.10
+    (decision #376): QG-0 judges the task record only (SENAR 1.5 §8.1)
   - audit overdue (when audit_check_fn supplied)
   - security surface mentioned in title/goal but no security AC
   - <5/9 intent dimensions filled (prompt-master diagnostic)
@@ -75,6 +77,35 @@ SECURITY_AC_KEYWORDS = (
 )
 
 
+_PROSE_SUFFIXES = (".md", ".txt", ".rst", ".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")
+
+
+def _prose_only_scope(task: dict[str, Any]) -> bool:
+    """True iff scope_paths is declared and every path is prose or an asset.
+
+    A test file BESIDE the prose is allowed — it is what holds the placement —
+    but a scope of tests alone is code and keeps the refusal.
+    """
+    try:
+        from scope_acl import _parse_list
+
+        paths = [
+            str(p).replace("\\", "/").strip().lower()
+            for p in _parse_list(task.get("scope_paths"), "scope_paths")
+        ]
+    except Exception:  # noqa: BLE001 — an unreadable scope is not a prose scope
+        return False
+    if not paths:
+        return False
+
+    def _prose(p: str) -> bool:
+        return p.endswith(_PROSE_SUFFIXES) or p.startswith("docs/") or "/docs/" in p
+
+    prose = [p for p in paths if _prose(p)]
+    rest = [p for p in paths if not _prose(p)]
+    return bool(prose) and all(p.startswith("tests/") for p in rest)
+
+
 def _has_scope_paths(raw: Any) -> bool:
     """True only for a NON-empty scope_paths ACL. A parsed-empty '[]' is NOT a
     valid declaration — it would pass QG-0 yet make the write-gate block every
@@ -98,7 +129,7 @@ def _scope_hard_gate_enabled() -> bool:
         qg0 = load_config().get("qg0", {})
         if isinstance(qg0, dict):
             return bool(qg0.get("scope_hard_gate", True))
-    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
         pass
     return True
 
@@ -118,8 +149,9 @@ def check_qg0_start(
     Raises ServiceError for hard-gate failures.
 
     Optional callbacks:
-      - `session_check_duration_fn`: returns warning string when SENAR Rule 9.2
-        session limit exceeded; raises ServiceError (hard-block).
+      - `session_check_duration_fn`: returns warning string when the session's
+        active time is over the advisory threshold; appended to soft warnings
+        (a signal, not a gate — decision #376).
       - `audit_check_fn`: returns warning string when SENAR Rule 9.5 audit overdue;
         appended to soft warnings.
     """
@@ -134,6 +166,10 @@ def check_qg0_start(
             f"QG-0 Context Gate: '{slug}' cannot start — missing {', '.join(missing)}. "
             f"Fix: .tausik/tausik task update {slug} --goal '...' --acceptance-criteria '...'"
         )
+    from ac_placeholder import refusal as placeholder_refusal  # substance, not presence
+
+    if thin := placeholder_refusal(task["goal"], task["acceptance_criteria"]):
+        raise ServiceError(f"{thin} Task '{slug}'.")
     # QG-0: SENAR Core Rule 2 scope. v15-scope-rule2-hardgate: explicit
     # medium/complex tasks must DECLARE scope — either structured
     # scope_paths (v30 ACL, enforced by scope_write_gate) or legacy
@@ -161,7 +197,7 @@ def check_qg0_start(
             # failure must never crash task_start (AC5 fail-open).
             try:
                 on_scope_hard_gate_bypass()
-            except Exception:  # noqa: BLE001 — best-effort telemetry, never blocks
+            except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
                 pass
         warnings.append(
             f"WARNING: Task '{slug}' has no scope defined. "
@@ -198,25 +234,30 @@ def check_qg0_start(
     # QG-0: negative scenario required in AC (SENAR Core Start Gate #3).
     # v1.3.4 (med-batch-2-qg #1): use boundary-aware detection instead of
     # substring match. "Works without errors" no longer satisfies the gate.
+    # Verification is proportionate to the change (decision #371): a task whose
+    # declared scope is only prose and assets has no behaviour a negative case
+    # could exercise, so the refusal below is not raised for it. An undeclared
+    # scope, or any code path in it, keeps the refusal exactly as before.
     ac_text = task.get("acceptance_criteria") or ""
-    if ac_text and not has_negative_scenario(ac_text):
+    if ac_text and not has_negative_scenario(ac_text) and not _prose_only_scope(task):
         raise ServiceError(
             f"QG-0 Start Gate: '{slug}' AC has no negative scenario. "
             f"SENAR requires at least one error/boundary case in acceptance criteria. "
             f"Fix: add a criterion like 'Returns 400 on invalid input' or 'Ошибка при пустом поле'."
         )
-    # SENAR Rule 9.2: session duration — block task_start after limit
+    # Session time is a SIGNAL, not a gate (decision #376; SENAR 1.5 §8.1: the
+    # QG-0 verdict is about the task record and about nothing else). Until 1.10
+    # an overrun refused the start. Over 70 measured sessions (#196–#265) one
+    # crossed the limit (#241, 246 active minutes) — there the refusal stopped
+    # a long run from starting its next task, which is exactly the autonomous
+    # work 1.10 is for, and nowhere did it prevent a declared effect. The warning is passed
+    # through as advice and the start proceeds.
     if session_check_duration_fn is not None:
         try:
             session_warning = session_check_duration_fn()
             if session_warning:
-                raise ServiceError(
-                    f"QG-0 Start Gate: {session_warning} "
-                    f"Use '/end' to finish session, or 'session extend' to continue."
-                )
-        except ServiceError:
-            raise
-        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+                warnings.append(f"SESSION: {session_warning}")
+        except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
             pass  # callback unavailable — skip
     # SENAR Rule 9.5: audit overdue warning at task start
     if audit_check_fn is not None:
@@ -224,7 +265,7 @@ def check_qg0_start(
             audit_warning = audit_check_fn()
             if audit_warning:
                 warnings.append(f"AUDIT: {audit_warning}")
-        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+        except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
             pass
     # QG-0: security surface warning (SENAR Core Start Gate #5).
     # ac_text is case-preserving for has_negative_scenario (case-insensitive
@@ -245,7 +286,7 @@ def check_qg0_start(
             renar_msg = renar_advisory_fn()
             if renar_msg:
                 warnings.append(renar_msg)
-        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+        except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
             pass
     # QG-0: 9-dimension intent completeness (prompt-master pattern)
     dims = qg0_dimensions_score(task)

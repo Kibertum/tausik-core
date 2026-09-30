@@ -14,6 +14,12 @@ separate acts, done by hand after reading what this printed.
   publish verify --snapshot <sha> --from <ref>
       "GitLab is identical to GitHub": the snapshot's tree equals the filtered
       tree of <ref>, byte for byte; a mismatch names the paths.
+
+  publish notes --version X.Y.Z --body-file F     (release_notes)
+  publish senar-check                             (senar_claim)
+      Two checks of the release procedure, run before the owner tags: the
+      release body links both whats-new pages; the SENAR edition TAUSIK claims
+      is published on GitHub (exit 1 missing, 2 could not ask).
 """
 
 from __future__ import annotations
@@ -39,6 +45,12 @@ def cmd_publish(svc: Any, args: Any) -> None:
         if sub == "verify":
             _verify(_root(svc), args)
             return
+        if sub == "notes":
+            _notes(args)
+            return
+        if sub == "senar-check":
+            _senar_check()
+            return
     except scope.PublicationError as e:
         # A typo in --from / --snapshot is ordinary input, not a crash:
         # the refusal names the git answer, without a traceback.
@@ -47,9 +59,33 @@ def cmd_publish(svc: Any, args: Any) -> None:
     if True:
         print(
             "Usage: tausik publish snapshot --from <ref> --parent <public-head> [--dry-run]\n"
-            "       tausik publish verify --snapshot <sha> --from <ref>"
+            "       tausik publish verify --snapshot <sha> --from <ref>\n"
+            "       tausik publish notes --version <X.Y.Z> --body-file <file>\n"
+            "       tausik publish senar-check"
         )
         sys.exit(2)
+
+
+def _notes(args: Any) -> None:
+    """The release body links both whats-new pages (docs/en/publishing.md)."""
+    from release_notes import missing_links
+
+    with open(args.body_file, encoding="utf-8") as f:
+        missing = missing_links(f.read(), args.version)
+    if missing:
+        print("REFUSED: the release body does not link " + ", ".join(missing))
+        sys.exit(1)
+    print(f"OK: the release body of {args.version} links both whats-new pages")
+
+
+def _senar_check() -> None:
+    """The claimed SENAR edition is public before a release tag (senar_claim)."""
+    from senar_claim import check_message, published
+
+    status, detail = published()
+    print(check_message(status, detail))
+    if status != "published":
+        sys.exit(1 if status == "not-published" else 2)
 
 
 def _snapshot(root: str, args: Any) -> None:

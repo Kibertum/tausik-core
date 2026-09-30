@@ -14,6 +14,8 @@ Every guard here defends a token-economy or agent-first invariant:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import sys
@@ -26,6 +28,9 @@ for _p in (os.path.join(_ROOT, "bootstrap"), os.path.join(_ROOT, "scripts")):
         sys.path.insert(0, _p)
 
 from bootstrap_templates import (  # noqa: E402
+    ANSWER_SHAPE,
+    ANSWER_SHAPE_MARKER,
+    ANSWER_SHAPE_MAX_CHARS,
     CAVEMAN_DIRECTIVE,
     CAVEMAN_DIRECTIVE_MAX_CHARS,
     build_full_body,
@@ -66,12 +71,28 @@ class TestDirectiveInjection:
 
 
 class TestDirectiveIsLean:
-    def test_directive_under_length_ceiling(self):
-        """The directive is injected EVERY session; a fat one would cost more input than the
-        terse output saves. If this fails, the mode is defeating its own purpose."""
-        assert len(CAVEMAN_DIRECTIVE) <= CAVEMAN_DIRECTIVE_MAX_CHARS, (
-            f"directive is {len(CAVEMAN_DIRECTIVE)} chars, ceiling is {CAVEMAN_DIRECTIVE_MAX_CHARS}"
-        )
+    @pytest.mark.parametrize(
+        ("name", "block", "ceiling"),
+        [
+            pytest.param(
+                "caveman directive",
+                CAVEMAN_DIRECTIVE,
+                CAVEMAN_DIRECTIVE_MAX_CHARS,
+                id="opt_in_directive",
+            ),
+            pytest.param(
+                "answer shape", ANSWER_SHAPE, ANSWER_SHAPE_MAX_CHARS, id="always_shipped_shape"
+            ),
+        ],
+    )
+    def test_each_injected_block_is_under_its_ceiling(self, name, block, ceiling):
+        """Both are injected every session — the shape always, the directive when the mode
+        is on — so a fat one costs more input than the terse output it asks for saves.
+
+        Parametrised rather than two tests: the assertion is the same and the subject is
+        which block, which is what a parameter is for.
+        """
+        assert len(block) <= ceiling, f"{name} is {len(block)} chars, ceiling is {ceiling}"
 
     def test_ceiling_is_actually_enforced_not_vacuous(self):
         """Guard the guard: the ceiling must be a real bound, not set absurdly high."""
@@ -84,11 +105,28 @@ class TestCarveOuts:
         for term in ("code", "command", "error", "path"):
             assert term in d, f"directive must carve out {term!r} from compression"
 
-    def test_directive_protects_verification_records(self):
-        d = CAVEMAN_DIRECTIVE.lower()
-        assert "acceptance" in d or "evidence" in d
-        assert "decision" in d
-        assert "spec" in d or "adapt" in d
+    def test_the_record_is_protected_whether_or_not_the_mode_is_on(self):
+        """The carve-out moved to the always-shipped shape, and this now asks the GENERATED
+        FILE rather than whichever constant happens to hold it.
+
+        It used to read `CAVEMAN_DIRECTIVE`, and that made the guarantee conditional on a
+        mode that is off by default: with `output_mode: off` nothing told the agent the
+        record must not be shortened. Asking the body is the version of this assertion that
+        cannot pass while the user's rules file lacks the rule.
+        """
+        for mode in ("off", "caveman"):
+            body = _body(output_mode=mode).lower()
+            assert "acceptance" in body or "evidence" in body, mode
+            assert "decision" in body, mode
+            assert "spec" in body or "adapt" in body, mode
+            assert "never shortened" in body or "keep full" in body, mode
+
+    def test_the_shape_ships_with_the_mode_off(self):
+        """The reason this whole split exists: measured median 522 words against a budget of
+        200 while the shape lived behind an opt-in mode and an opt-in skill."""
+        body = _body(output_mode="off")
+        assert ANSWER_SHAPE_MARKER in body
+        assert "done → verified by → left → your call" in body
 
 
 class TestResolveOutputMode:
@@ -131,7 +169,7 @@ class TestModeDoesNotLeakIntoVerificationRecords:
 
         paths = [os.path.join(_ROOT, "scripts", "project_cli_task.py")]
         paths += glob.glob(os.path.join(_ROOT, "harness", "*", "mcp", "project", "handlers*.py"))
-        found = {p: open(p, encoding="utf-8").read() for p in paths if os.path.isfile(p)}
+        found = {p: Path(p).read_text(encoding="utf-8") for p in paths if os.path.isfile(p)}
         assert found, "no verification-record writer modules found — test would be vacuous"
         return found
 

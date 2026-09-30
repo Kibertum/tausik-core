@@ -202,10 +202,19 @@ class TestFormatBanner:
         assert "✓ model match" in out
 
     def test_unreadable_transcript_yields_unknown(self, tmp_path):
-        # NEGATIVE: bad path → "active model unknown" (no crash, no false warning).
+        """NEGATIVE: a path that EXISTS and cannot be read → unknown, no crash.
+
+        The path is a directory, which is the portable way to make `open` fail on a
+        path that is present. It used to be `tmp_path / "absent.jsonl"`, which made
+        this test byte-identical to the missing-path test in test_phase_surfaces.py
+        -- so the case its name promises, present but unreadable, went untested while
+        the absent case was covered twice.
+        """
+        unreadable = tmp_path / "transcript-as-a-directory"
+        unreadable.mkdir()
         out = format_task_start_banner(
             complexity="medium",
-            transcript_path=str(tmp_path / "absent.jsonl"),
+            transcript_path=str(unreadable),
             active_model=None,
         )
         assert "active model unknown" in out

@@ -19,6 +19,8 @@ next person does not "fix" the divergence back into a bug.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import os
 import sys
 
@@ -26,8 +28,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import status_view  # noqa: E402
-from service_session_metrics import (  # noqa: E402
+import status_view
+from service_session_metrics import (
     effective_session_limit,
     session_overrun_warning,
 )
@@ -219,10 +221,9 @@ def test_effective_limit_is_resolved_once_per_view(monkeypatch):
 
 def test_doctor_reports_the_configured_base_on_purpose():
     """Doctor describes CONFIGURATION; folding a session's extension in would lie."""
-    src = open(
-        os.path.join(os.path.dirname(__file__), "..", "scripts", "project_cli_doctor.py"),
-        encoding="utf-8",
-    ).read()
+    src = Path(os.path.dirname(__file__), "..", "scripts", "project_cli_doctor.py").read_text(
+        encoding="utf-8"
+    )
     assert "DELIBERATELY the configured base" in src, (
         "the intended divergence must stay documented, or it reads as the same bug"
     )

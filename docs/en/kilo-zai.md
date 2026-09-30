@@ -2,8 +2,10 @@
 
 # z.ai GLM under TAUSIK (Claude Code & Kilo)
 
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
 TAUSIK runs on **z.ai GLM** models under any Anthropic-compatible host. GLM is a
-**model family** (axis-2, Decision #119) — pure data in `model_profiles`, not
+**model family** (axis-2) — pure data in `model_profiles`, not
 code — so it is **independent of which host you run in**. The simplest and most
 capable path is **Claude Code**: the host is unchanged, so every SENAR gate keeps
 firing and only the `model` field reads `glm-*`.

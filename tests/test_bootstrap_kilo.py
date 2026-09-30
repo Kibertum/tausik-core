@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
-import bootstrap_kilo as bk  # noqa: E402
+import bootstrap_kilo as bk
 
 
 def _make_lib(tmp_path):

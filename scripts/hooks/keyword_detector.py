@@ -31,7 +31,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from _common import has_active_task as _has_active_task  # noqa: E402
+from _common import has_active_task as _has_active_task
 
 
 DRIFT_KEYWORDS = (

@@ -36,7 +36,7 @@ CONFIG_FILE = "config.toml"
 #: (имя сервера, путь относительно корня mcp/). Порядок — порядок записи.
 _SERVERS = (
     ("tausik-project", os.path.join("project", "server.py")),
-    ("codebase-rag", os.path.join("codebase-rag", "server.py")),
+    ("codebase-rag", os.path.join("codebase-rag", "rag_server.py")),
 )
 
 #: Границы нашего блока. По ним же он и опознаётся при повторном прогоне —

@@ -10,6 +10,8 @@ CHECK constraint (hard guarantee). Mixed into ProjectService.
 
 from __future__ import annotations
 
+import os
+
 from typing import TYPE_CHECKING, Any
 
 import sqlite3
@@ -19,6 +21,7 @@ from tausik_utils import ServiceError, validate_content, validate_length, valida
 if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
+
 # RENAR SPEC types — the standard's CLOSED list (§8.3, mirrors the DB CHECK on
 # specs.type). TEST and DOC were added by ADR-013: binding a TC to a test bench
 # through SPEC-OPS would have invalidated every TC on that SPEC-OPS whenever an
@@ -26,6 +29,23 @@ if TYPE_CHECKING:
 # version increment), so the bench earns its own type and invalidation stays
 # precise. THE ONLY list in the codebase — a second literal anywhere else is a
 # future divergence, not a mirror.
+def _require_uc_body(content_ref: str | None, root: str) -> None:
+    """SPEC-UC is refused unless its body names a role and refs every step (§8.5.12.1).
+
+    The body is read relative to the repository root the same way the §8.4.1
+    completeness control reads it (`spec_completeness._read_body`).
+    """
+    from spec_completeness import _read_body
+    from spec_uc import check_uc_body
+
+    body, why = _read_body(content_ref or "", root)
+    if body is None:
+        raise ServiceError(f"SPEC-UC needs a readable body: {why}.")
+    problems = check_uc_body(body)
+    if problems:
+        raise ServiceError("SPEC-UC body is not structurally complete: " + "; ".join(problems))
+
+
 SPEC_TYPES: tuple[str, ...] = (
     "ARCH",
     "API",
@@ -38,6 +58,7 @@ SPEC_TYPES: tuple[str, ...] = (
     "OPS",
     "TEST",
     "DOC",
+    "UC",  # RENAR 1.1 §8.5.12 (ADR-018): use cases, role human|agent, steps ref statements
 )
 # task↔SPEC link relations — CLOSED list (mirrors task_specs.relation CHECK).
 SPEC_RELATIONS: tuple[str, ...] = ("implements", "constrained_by")
@@ -86,6 +107,9 @@ class SpecsMixin:
             raise ServiceError(f"Invalid SPEC status '{status}'. Valid: {', '.join(SPEC_STATUSES)}")
         if self.be.spec_get(slug):
             raise ServiceError(f"SPEC '{slug}' already exists.")
+        if type_ == "UC":
+            # Convention #265: the project root comes from the service, never cwd.
+            _require_uc_body(content_ref, os.path.dirname(self.tausik_dir()))  # type: ignore[attr-defined]
         try:
             self.be.spec_add(slug, type_, title, version, content_ref, status)
         except sqlite3.IntegrityError as e:

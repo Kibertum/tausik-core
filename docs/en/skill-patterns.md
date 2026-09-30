@@ -2,6 +2,8 @@
 
 # Shared Skill Patterns
 
+<!-- doc-map: reader=agent; zone=internal-spec -->
+
 Common patterns used across multiple skills. Reference this instead of duplicating.
 
 ## Session Health Check

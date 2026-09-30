@@ -74,8 +74,15 @@ def test_declared_scope_covers_the_agent_facing_mcp_package():
     CLAUDE.md tells the agent to prefer over the CLI — was never type-checked at
     all. Narrowing the scope back would be a silent regression, so it is pinned.
     """
-    config = (_REPO / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"harness/claude/mcp/project"' in config, (
-        "the MCP project package dropped out of [tool.mypy] files — the code the "
-        "agent talks to would stop being type-checked"
-    )
+    import tomllib
+
+    with (_REPO / "pyproject.toml").open("rb") as fh:
+        files = tomllib.load(fh)["tool"]["mypy"]["files"]
+    # Read FROM the config, not grepped: a commented-out entry must not count.
+    # Both MCP packages the agent talks to — the project server and, since the
+    # rag server stopped being a second `server.py`, codebase-rag too.
+    for package in ("harness/claude/mcp/project", "harness/claude/mcp/codebase-rag"):
+        assert package in files, (
+            f"{package} dropped out of [tool.mypy] files — the code the agent "
+            "talks to would stop being type-checked"
+        )

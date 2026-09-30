@@ -2,7 +2,9 @@
 
 # Хуки
 
-TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **22 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 24 шлюза (v1.4 добавил `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`; 1.8 добавил `scope_write_gate.py` и `bash_write_gate.py`; 1.9 добавил `read_ledger_gate.py`, выключенный по умолчанию).
+<!-- doc-map: reader=user; zone=core-surface -->
+
+TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **23 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 24 шлюза (v1.4 добавил `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`; 1.8 добавил `scope_write_gate.py` и `bash_write_gate.py`; 1.9 добавил `read_ledger_gate.py`, выключенный по умолчанию).
 
 ## Что такое хуки
 
@@ -26,11 +28,12 @@ TAUSIK использует хуки Claude Code для автоматическ
 |------|-------|-----------|
 | `auto_format.py` | После каждого пишущего инструмента (MultiEdit не был на этом хуке до PR #5) | Авто-форматирование через ruff/prettier/gofmt + лог "Modified: X" в задачу |
 | `memory_posttool_audit.py` | После каждого пишущего инструмента в auto-memory | Аудитит cross-project leakage (использует regex-библиотеку `memory_markers.py`) и предупреждает |
-| `task_done_verify.py` | После `mcp__tausik-project__tausik_task_done` | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite). |
+| `task_done_verify.py` | После `mcp__tausik-project__tausik_task_done` или `tausik task done`, запущенного в оболочке | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite). |
 | `task_call_counter.py` | После любого tool call | Инкрементирует per-task `call_actual` счётчик; warning'ит на 1.5×budget |
 | `posttool_usage.py` (v1.4) | После любого tool call | Записывает token-usage события в `usage_events` для per-task cost rollup |
 | `activity_event.py` | После любого tool call | Записывает activity-таймстемпы для **gap-based active-time** метрики (SENAR Rule 9.2) |
 | `tool_output_truncation_nudge.py` (v1.4) | После Read/Grep/Glob и каждым shell-инструментом (Bash, PowerShell, `mcp__windows-mcp__PowerShell`) | Подсказывает агенту сузить scope, когда вывод превышает порог по строкам (warn-only) |
+| `rag_grep_context.py` (1.10) | После Grep | Ищет идентификаторы шаблона Grep в RAG-индексе и добавляет 3 лучших куска (путь:строки) в контекст. Только чтение; ничего, если индекса нет или совпадений нет. |
 | `task_cost_budget_check.py` (v1.4) | После любого tool call | Сравнивает `cost_actual` / `tokens_actual` активной задачи с бюджетом; WARN на 1.5×, BLOCKER на 2× (с throttle) |
 
 ## SessionStart
@@ -43,7 +46,7 @@ TAUSIK использует хуки Claude Code для автоматическ
 
 | Хук | Когда | Что делает |
 |------|-------|-----------|
-| `user_prompt_submit.py` | На пользовательском промпте | Распознаёт coding-intent (EN+RU) → подталкивает, если нет активной задачи; распознаёт поисковый интент («где определена X») → подталкивает к `search_code`. Игнорирует тела слэш-команд и текст, порождённый хуками |
+| `user_prompt_submit.py` | На пользовательском промпте | Распознаёт coding-intent (EN+RU) → подталкивает, если нет активной задачи; меряет только что прочитанный ответ и сверх `answer_budget_words` или без вердикта первой строкой добавляет одну строку с числами. Подсказка к `search_code` на поисковый интент убрана в 1.10 (решение #390: в парном прогоне с ней 0 вызовов search_code). Игнорирует тела слэш-команд и текст, порождённый хуками |
 
 ## Stop
 
@@ -57,6 +60,27 @@ TAUSIK использует хуки Claude Code для автоматическ
 | Хук | Когда | Что делает |
 |------|-------|-----------|
 | `session_metrics.py` | На завершении сессии | Записывает session metrics (active vs wall, throughput) в БД |
+
+## Сессия на каждом хосте (1.10)
+
+Сессия TAUSIK — это сессия хоста: её открывает и закрывает сам
+хост, а не ритуал агента. Замеры — по бинарю хоста, а не по документации
+(конвенция #686), смена #266.
+
+<!-- host-session-table -->
+| Хост | Открытие | Закрытие | Чем обеспечено | Замер |
+|---|---|---|---|---|
+| claude | hook | hook | SessionStart / SessionEnd из общего объявления хуков | протокол хуков Claude Code |
+| qwen | hook | hook | SessionStart / SessionEnd из общего объявления хуков | профиль bootstrap |
+| codex | hook | hook | SessionStart / SessionEnd из общего объявления хуков | codex 0.153.4: перечень событий содержит SessionStart и SessionEnd |
+| opencode | plugin | plugin | `session.created` / `session.deleted` в плагине `tausik-qg0.js` | opencode 1.1.42: события плагина в бинаре |
+| kilo | cli | cli | `tausik session start` / `session end` руками | событий сессии у профиля нет |
+| cursor | cli | cli | `tausik session start` / `session end` руками | профиль без хуков |
+<!-- /host-session-table -->
+
+Где стоит `cli`, теряется то, что делает закрытие хуком: запись метрик
+транскрипта и порождённый handoff в момент выхода. `session end` руками делает
+и то и другое.
 
 ## Git pre-commit
 

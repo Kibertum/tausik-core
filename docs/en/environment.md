@@ -2,6 +2,8 @@
 
 # Environment Variables and Shell Rules
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 > Two scopes in this doc:
 > 1. **TAUSIK environment variables** — every `TAUSIK_*` / `CLAUDE_*` / `CURSOR_*` / `WINDSURF_*` / `CODEX_*` / `QWEN_*` / `ANTHROPIC_*` / `OPENAI_*` knob that the code actually reads. Use them to override behaviour without editing config.
 > 2. **Shell rules** — shells / virtual envs / Docker on Windows / POSIX, kept from the original `environment.md`.
@@ -125,7 +127,7 @@ Push-Location "path/to/dir"; npm install; Pop-Location
 |---------|-----------|---------|
 | Python arguments | `/` OK | `.tausik/tausik` |
 | PowerShell commands | `\` preferred | `.rag\venv\Scripts\python` |
-| JSON/config files | `/` always | `".claude/mcp/codebase-rag/server.py"` |
+| JSON/config files | `/` always | `".claude/mcp/codebase-rag/rag_server.py"` |
 | Code strings | `/` (escape-safe) | `"src/utils/helper.ts"` |
 
 **Rule:** Forward slashes `/` in Python/code/config. Backslashes `\` in PowerShell/cmd shell commands.
@@ -269,7 +271,7 @@ python -m venv .rag/venv
 |--------|--------|-----|
 | `.claude/scripts/project.py` | `python` (system) | stdlib only |
 | `.claude/mcp/codebase-rag/indexer.py` | `.rag/venv` Python | needs httpx |
-| `.claude/mcp/codebase-rag/server.py` | `.rag/venv` Python | needs mcp, httpx |
+| `.claude/mcp/codebase-rag/rag_server.py` | `.rag/venv` Python | needs mcp, httpx |
 | `.claude/scripts/pdf_parser.py` | `.rag/venv` Python | needs PyMuPDF |
 | Project scripts (`src/`, `scripts/`) | `.venv` Python | project deps |
 

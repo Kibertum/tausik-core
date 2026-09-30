@@ -198,7 +198,7 @@ def test_overlay_strip_is_idempotent(tmp_path):
         model_overlay={"opus": "MODEL_OPUS\n"},
     )
     first = merge_skill_markdown(skill, ide="claude", model="opus")
-    (open(f"{skill}/SKILL.md", "w", encoding="utf-8")).write(first)
+    Path(f"{skill}/SKILL.md").write_text(first, encoding="utf-8")
     second = merge_skill_markdown(skill, ide="claude", model="opus")
     assert first == second
     assert second.count("IDE_CLAUDE") == 1

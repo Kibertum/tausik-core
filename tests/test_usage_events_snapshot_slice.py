@@ -33,9 +33,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from model_pinning import _cost_cell, format_model_usage_section  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
+from model_pinning import _cost_cell, format_model_usage_section
+from project_backend import SQLiteBackend
+from project_service import ProjectService
 
 
 def _service(tmp_path: Path) -> ProjectService:

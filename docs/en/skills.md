@@ -2,11 +2,13 @@
 
 # Skills (v1.4)
 
+<!-- doc-map: reader=user; zone=core-surface -->
+
 Skills are intent-based instructions that define agent behaviour. You don't memorize names or syntax — you write what you want, and the agent picks the right skill. Slash-prefix (`/plan`, `/ship`) explicitly invokes one.
 
-After bootstrap, **13 core skills** ship with TAUSIK from `harness/skills/`. Additional **official / vendor skills** (20) are available on demand: install per-skill via `tausik skill install <name>`, or expand the whole bundle via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md). **Bulk install by group:** [Skill Bundles](skill-bundles.md).
+After bootstrap, **14 core skills** ship with TAUSIK from `harness/skills/`. Additional **official / vendor skills** (20) are available on demand: install per-skill via `tausik skill install <name>`, or expand the whole bundle via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md). **Bulk install by group:** [Skill Bundles](skill-bundles.md).
 
-> **v1.4.x default change.** Before v1.4.x bootstrap auto-deployed all 38 source + registry skills (~1,520 tok in the system-reminder list). The default now ships 13 core skills; re-run bootstrap with `--include-official` if you want the full set surfaced to the agent. **v1.4.0 also dropped 5 redundant skills** (`/go`, `/next`, `/diff`, `/onboard`, `/init`) — bringing the vendor count to 20. See **[Skill Bundles Migration](skill-bundles-migration.md)**.
+> **v1.4.x default change.** Before v1.4.x bootstrap auto-deployed all 38 source + registry skills (~1,520 tok in the system-reminder list). The default now ships 14 core skills; re-run bootstrap with `--include-official` if you want the full set surfaced to the agent. **v1.4.0 also dropped 5 redundant skills** (`/go`, `/next`, `/diff`, `/onboard`, `/init`) — bringing the vendor count to 20. See **[Skill Bundles Migration](skill-bundles-migration.md)**.
 
 **Multi-host variants:** skills can ship optional **`variants/<profile>.md`** overlays — see [Skill profiles & variants](skill-profiles.md).
 
@@ -20,7 +22,7 @@ These are always available after bootstrap — the workflow primitives every TAU
 |-------|------|
 | `/start` | Begin a work session — loads handoff, status, memory block |
 | `/end` | Wrap up the session — saves metrics + handoff |
-| `/checkpoint` | Save context without ending the session (recommended every 30–50 tool calls) |
+| `/checkpoint` | Save context without ending the session (when the checkpoint signal says so) |
 | `/plan` | Plan a task from a free-form description (interview phase + AC) |
 | `/task` | Work on an existing task with QG-0/QG-2 enforcement |
 | `/ship` | Wrap up a task: review + test + gates + commit |
@@ -41,7 +43,6 @@ These are always available after bootstrap — the workflow primitives every TAU
 | `/review` | Code review against 28-point SENAR checklist (5 parallel agents, iterative) |
 | `/test` | Run or write tests, track coverage |
 | `/debug` | Reproduce → isolate root cause → fix |
-| `/i-have-adhd` | Action-first user-facing output; it never reduces TAUSIK evidence. Vendored from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) under MIT. |
 
 ## Official / Vendor Skills (20)
 

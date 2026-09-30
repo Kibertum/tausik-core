@@ -213,6 +213,8 @@ def _task_cols(rec: dict, story_id: int | None) -> dict:
         "defect_of": _fm(fm, "defect_of"),
         "call_budget": _fm(fm, "call_budget"),
         "completed_at": _fm(fm, "completed_at"),
+        "resolution": _fm(fm, "resolution"),
+        "resolution_reason": _fm(fm, "resolution_reason"),
     }
 
 
@@ -347,7 +349,7 @@ def _reindex_fts(conn) -> None:
     for fts in external_content_fts_tables(conn.cursor()):
         try:
             conn.execute(f"INSERT INTO {fts}({fts}) VALUES('rebuild')")
-        except Exception:  # noqa: BLE001 — maintenance, non-fatal to the import
+        except Exception:  # noqa: BLE001,S110 — maintenance, non-fatal to the import
             pass
 
 

@@ -1,110 +1,72 @@
 [English](../en/senar-compliance-matrix.md) | **Русский**
 
-# SENAR v1.3 Core — Матрица соответствия
+# SENAR v1.5 Core — Матрица соответствия
 
-**Заявляемая редакция: SENAR v1.3 Core** (решение владельца #336). Более поздние редакции готовятся и TAUSIK их **не заявляет** нигде.
+<!-- doc-map: reader=maintainer; zone=reference -->
 
-**Дата оценки:** 2026-06-13 | **Аудиторы:** 6+ независимых review-циклов | **Фреймворк на момент оценки:** TAUSIK v1.7.0
+**Заявляемая редакция: SENAR v1.5 Core**, самодекларация (решение владельца #376, 23.09.2026). SENAR v1.5 выпущен 07.09.2026; пока публичное зеркало его не несёт, процедура выпуска отказывает тегу TAUSIK (задача `senar-claim-names-the-published-edition`).
 
-> **Что такое строки ниже и чем они не являются.** Каждая строка утверждает существующий в этом репозитории механизм и называет реализующий его код — эти утверждения проверяемы здесь и были проверены. Но все 35 строк собирались 2026-06-13 против **более поздней, ещё движущейся** редакции стандарта, и документ раньше заканчивался заявлением о соответствии именно ей. Больше не заканчивается: нормативного текста в дереве нет, поэтому процент соответствия заявляемой редакции **здесь вычислить нельзя**, а невычислимая величина подаётся как отсутствующая, а не переносится из другой рубрики (решение #334). Переоценка против v1.3 — задача `senar-14-conformance-reassessment-and-self-check`; до её закрытия читайте эту страницу как *что реализовано*, а не как *оценённое заявление о соответствии*.
+**Дата оценки:** 23.09.2026, линия разработки TAUSIK 1.10, против корпуса, который TAUSIK читает через `senar_standard_corpus` (`tausik drift --detector senar`).
 
-## Quality Gates
+> **Что такое строки.** Каждая строка называет механизм, существующий в этом репозитории, и реализующий его код. `tests/test_senar_compliance_matrix.py` считает каждый раздел против корпуса — у SENAR Core 8 правил, Стартовый и Итоговый гейт, три обязательных свойства гейта (a, c, e) и две метрики, и в таблицах ниже ровно столько строк, — а самопроверка разрешает каждую ссылку. Процента соответствия нет: счёт реализованных механизмов проверяем, процент стандарта — нет.
 
-| Gate | Требование | Статус | Enforcement | Evidence |
-|------|-----------|--------|-------------|----------|
-| QG-0 | Цель обязательна | ✅ Реализовано | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (через делегатор `service_gates.GatesMixin._check_qg0_start`) |
-| QG-0 | AC обязательны | ✅ Реализовано | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (через делегатор `service_gates.GatesMixin._check_qg0_start`) |
-| QG-0 | Негативный сценарий в AC | ✅ Реализовано | Hard block | `gate_negative_scenario.py` `NEGATIVE_SCENARIO_KEYWORDS` + `has_negative_scenario()` (30+ en+ru); проверяется внутри `gate_qg0_check.check_qg0_start()` |
-| QG-0 | Объявление scope | ✅ Реализовано | Hard (medium/complex) | `gate_qg0_check.py` `check_qg0_start()` — medium/complex-задача без `scope`/`scope_paths` бросает ServiceError (opt out `qg0.scope_hard_gate=false`); simple/unset остаётся warning'ом. `scope_exclude` — по-прежнему совещательный warning в stderr. |
-| QG-0 | Обнаружение security surface | ✅ Реализовано | Warning | `gate_qg0_check.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` (re-export из `service_gates` для backward-compat) |
-| QG-2 | AC проверены с evidence | ✅ Реализовано | Hard block | `gate_ac_check.py` `verify_ac()` — flag + notes + per-criterion. НЕТ `--force` байпаса. (через делегатор `service_gates.GatesMixin._verify_ac`) |
-| QG-2 | Шаги плана выполнены | ✅ Реализовано | Hard block | `gate_ac_check.py` `verify_plan_complete()` — JSON план (через делегатор `service_gates.GatesMixin._verify_plan_complete`) |
-| QG-2 | Scoped pytest gate | ✅ Реализовано | Hard block | `service_verification.py` — basename match `tests/test_<file>.py` per `relevant_files` (нет fallback на full suite, когда files supplied) |
-| QG-2 | Verify cache (10 min TTL) | ✅ Реализовано | Skip-on-hit | таблица `verification_runs` — same `files_hash` + green = skip; security paths байпасят cache |
-| QG-2 | Quality gates (pytest/ruff) | ✅ Реализовано | Hard block | `gate_runner.py` + `service_gates.py` `_run_quality_gates()` |
-| QG-2 | Checklist верификации (4 тира) | ✅ Реализовано | Warning | `gate_ac_check.py` `check_verification_checklist()` + `determine_checklist_tier()` авто-тир — v1.5 дополнительно прогоняет `service_ac_evidence.build_report()` и сообщает о per-AC покрытии, отсутствующих test-ref и негативных сценариях (через делегатор `service_gates.GatesMixin._check_verification_checklist`) |
-| QG-2 | Root cause для дефектов | ✅ Реализовано | Warning | `service_task.py` `task_done()` — проверка ключевых слов |
-| QG-2 | Захват знаний | ✅ Реализовано | Warning | `service_task.py` `task_done()` — подсчёт memory/decision |
+## Правила Core
 
-**Результат: 13/13 реализовано.** Уровни enforcement соответствуют спецификации SENAR.
+| Правило | Механизм TAUSIK | Принуждение | Доказательство |
+|---------|-----------------|-------------|----------------|
+| 1. Задача перед кодом | Запись без активной задачи отказывается PreToolUse-хуком; записи из оболочки получают тот же вердикт | Жёстко (хук) | `scripts/hooks/task_gate.py` `main()` |
+| 2. Границы области | Запись вне `scope_paths` активной задачи отказывается; medium/complex-задача не стартует без объявленной области | Жёстко (хук + QG-0) | `scripts/hooks/scope_write_gate.py` `main()` |
+| 3. Проверка по критериям | `task done` требует доказательства по каждому критерию в журнале задачи | Жёстко (QG-2) | `scripts/gate_ac_check.py` `verify_ac()` |
+| 4. Тесты проверяют требования, а не реализацию | Тиры substantial/deep, чьи критерии не называют существующий тест, отказываются | Жёстко (substantial/deep) / Предупреждение | `scripts/gate_ac_check.py` `checklist_hard_block()` |
+| 5. Проверка скрытых дефектов | Чек-лист верификации по тиру при закрытии | Предупреждение | `scripts/gate_ac_check.py` `check_verification_checklist()` |
+| 6. Нулевая терпимость к незавершённому | Все шаги плана выполнены до `task done`; `--force` на закрытии нет | Жёстко (QG-2) | `scripts/gate_ac_check.py` `verify_plan_complete()` |
+| 7. Причины, а не симптомы | Дефект-задача не закрывается без первопричины | Жёстко (порог ключевых слов) | `scripts/service_task_done_flags.py` `_root_cause_hard_enabled()` |
+| 8. Захват знаний | Закрытие предупреждает без записи знания; complex/defect отказывают `--no-knowledge`; тупики записываются | Предупреждение / Жёстко (complex, defect) | `scripts/service_knowledge.py` `dead_end()` |
 
-## Правила
+## Гейты Core
 
-| Правило | Описание | Статус | Enforcement | Evidence |
-|---------|---------|--------|-------------|----------|
-| 1 | Задача перед кодом | ✅ Реализовано | Hard (hook) | `hooks/task_gate.py` блокирует Write/Edit без активной задачи |
-| 2 | Границы scope | ✅ Реализовано | Hard (hook + QG-0) | `hooks/scope_write_gate.py` блокирует Write/Edit вне `scope_paths` активной задачи; `hooks/bash_write_gate.py` распространяет тот же вердикт на оболочечные записи; QG-0 жёстко блокирует старт medium/complex без объявленного scope. `scope_exclude` — совещательный. |
-| 3 | Проверка по критериям | ✅ Реализовано | Hard | QG-0 + QG-2 совместный enforcement |
-| 4 | Внешнее состязательное ревью | ✅ Реализовано | Hard (закрытия с тонким доказательством) | `risk_l3_trigger.py` блокирует `task_done` с тонким доказательством, пока не записан L3-ревью (`tausik review record --type L3`); ревьюер — сепаратный по модели, read-only субагент `tausik-external-reviewer` (`external_reviewer.py`, разделение обязанностей). Opt out `risk.l3_block_on_high=false`. Отбор ОПИСЫВАЕТ доказательство закрытия, а не предсказывает побег дефекта (AUC 0.4820 — решение #212). |
-| 5 | Checklist верификации | ✅ Реализовано | Hard (substantial/deep) / Warning | `gate_ac_check.py` `checklist_hard_block()` жёстко блокирует тиры substantial/deep, чьи AC не ссылаются на существующий тест; ниже — эскалирующий warning (4-тировая авто-детекция). Opt out `task_done.checklist_hard=false`. |
-| 6 | План отката | ✅ Реализовано | Hard (medium/complex) | `gate_qg0_check.py` `check_qg0_start()` — medium/complex-задача без `rollback_plan` бросает ServiceError на `task_start`; unset complexity предупреждает. |
-| 7 | Root cause для дефектов | ✅ Реализовано | Warning | Обнаружение ключевых слов в notes |
-| 8 | Захват знаний | ✅ Реализовано | Warning | Подсчёт memory/decision + `--no-knowledge` opt-out |
-| 9.1 | Нет кода без задачи | ✅ Реализовано | Hard (hook) | То же что Rule 1 |
-| 9.2 | Лимит сессии (180 мин **active**) | ✅ Реализовано | Hard block | Bounded gap-based active time (`Σ min(Δ, threshold)`, default threshold 10 мин — длинный AFK клипуется до threshold'а, v14b-session-active-time). `service_gates.py` блокирует `task_start` при >180 мин active; `status` показывает "X min active / Y min wall"; `session extend` и `session recompute` доступны. Threshold настраивается через `session_idle_threshold_minutes`. |
-| 9.3 | Checkpoint каждые 30-50 вызовов | ✅ Реализовано | Warning (авто) | MCP счётчик в meta, warning при 40 вызовах, сброс при handoff |
-| 9.4 | Документирование dead ends | ✅ Реализовано | Instruction + tooling | `dead_end()` + инструкции в скиллах + `/end` проверка |
-| 9.5 | Периодический аудит | ✅ Реализовано | Warning | `audit_check/mark` + интеграция в `/start` |
+| Гейт | Гейт TAUSIK | Что предотвращает | Доказательство |
+|------|-------------|-------------------|----------------|
+| Стартовый гейт | QG-0: цель, критерии, негативный сценарий, область и откат для medium/complex | Открытие задачи для изменений | `scripts/gate_qg0_check.py` `check_qg0_start()` |
+| Итоговый гейт | QG-2: доказательства по критериям, scoped verify, привязанный к покрытым файлам, план выполнен | Закрытие задачи и распространение результата | `scripts/gate_ac_check.py` `verify_ac()` |
 
-**Результат: 13/13 реализовано.**
+## Три вещи, делающие гейт гейтом
 
-### Gaps и план закрытия
+| Свойство | Механизм TAUSIK | Доказательство |
+|----------|-----------------|----------------|
+| (a) Сказать, что гейт останавливает | Каждый прогон гейта записывает предотвращаемый эффект | `scripts/gate_run_record.py` `record_gate_runs()` |
+| (c) Судить работу такой, какая она сейчас | Хэндл verify привязан к хешу покрытых файлов и отказывается, если они изменились | `scripts/verify_handle_check.py` `check_handle()` |
+| (e) Не можешь сказать — ответ «нет» | Не выполнившийся гейт — COULD NOT RUN и блокирует | `scripts/gate_outcome.py` `could_not_run()` |
 
-| Gap | План | Приоритет |
-|-----|------|-----------|
-| ~~Rule 2: `scope_exclude` не проверяется~~ | ✅ FIXED — добавлено warning для medium/complex задач | Done |
-| ~~Rule 9.3: Нет автоматического счётчика checkpoint'ов~~ | ✅ FIXED — MCP-счётчик + warning на 40 вызовах + сброс при handoff | Done |
+## Метрики Core
 
-## Метрики
+| Метрика | TAUSIK | Доказательство |
+|---------|--------|----------------|
+| FPSR — доля с первой попытки | Доля закрытых задач, закрытых с первой попытки | `scripts/backend_queries_metrics.py` `get_metrics()` |
+| Dead End Rate | Записи тупиков на закрытую задачу | `scripts/backend_queries_metrics.py` `get_metrics()` |
 
-| Метрика | Статус | Evidence |
-|---------|--------|----------|
-| Throughput (задач/сессия) | ✅ Реализовано | `backend_queries.py` `get_metrics()` combined query |
-| Lead Time (среднее часов) | ✅ Реализовано | `backend_queries.py` `get_metrics()` — julianday * 24 |
-| FPSR (% с первой попытки) | ✅ Реализовано | `backend_queries.py` `get_metrics()` — attempts=1 |
-| DER (% побега дефектов) | ✅ Реализовано | `backend_queries.py` `get_metrics()` — DISTINCT defect_of |
-| Dead End Rate (%) | ✅ Реализовано | `backend_queries.py` `get_metrics()` — memory type=dead_end |
-| Cost per Task (часов по complexity) | ✅ Реализовано | `backend_queries.py` `get_metrics()` — GROUP BY complexity |
+## Сверх Core — реализовано, не заявлено
 
-**Результат: 6/6 реализовано.**
+Заявляемая редакция — Core. Конфигурация Foundation Стандарта требует больше; TAUSIK реализует часть и не заявляет ничего из неё.
 
-## Section 5.1: Исследования (Explorations)
+| Пункт Стандарта | TAUSIK | Доказательство |
+|-----------------|--------|----------------|
+| 10.2 Длительность сессии | Порог совета с документированным основанием — сигнал, не ворота (решение #376) | `scripts/service_session_metrics.py` `session_overrun_warning()` |
+| 10.3 Каденция чекпоинтов | Счёт чекпоинта выводится из usage events сессии | `scripts/checkpoint_signal.py` `checkpoint_advice()` |
+| 10.5 Периодический аудит | Каденция считает закрытия задач с последнего аудита | `scripts/service_session_metrics.py` `audit_overdue_closures()` |
+| 6.4(c), 3.45 Handoff | Порождается из журнала; `session end` пишет его, если его не было | `scripts/handoff_generate.py` `generate()` |
+| 8.6(b) Превентивное размещение | PreToolUse-хуки действуют до записи | `scripts/hooks/task_gate.py` `main()` |
+| 8.6(d) Привязка к измеренному дайджесту | Хэндл несёт хеш файлов проверенного набора | `scripts/verify_handle.py` `mint_handle()` |
+| 10.13(a) Модель на сессию | Записывается при открытии сессии | `scripts/backend_crud.py` `session_start()` |
 
-| Функция | Статус | Evidence |
-|---------|--------|----------|
-| explore_start (time-bounded, 30 мин по умолч.) | ✅ Реализовано | `service_knowledge.py` — clamps 1-480 мин |
-| explore_current (elapsed + over_limit) | ✅ Реализовано | `service_knowledge.py` — UTC elapsed calc |
-| explore_end (capture findings) | ✅ Реализовано | `service_knowledge.py` — summary + optional task |
+## Итог
 
-**Результат: 3/3 реализовано.**
+Строки со ссылкой на код, по разделам Core. Таблица «сверх Core» не считается: она не заявлена.
 
-## Дополнительные возможности (сверх SENAR Core)
-
-| Функция | Статус | Evidence |
-|---------|--------|----------|
-| Multi-language gates | ✅ Реализовано | `project_config.py` — 25 default стеков + custom_stacks override |
-| MCP coverage (146 инструментов) | ✅ Реализовано | `tools.py` + `tools_extra.py` |
-| Batch execution (`/run`) | ✅ Реализовано | `plan_parser.py` + скилл `/run` |
-| Structured logs (task_logs + FTS5) | ✅ Реализовано | `backend_schema.py` + `service_task.py:task_log` |
-| Fake test detection | ✅ Реализовано | `/review` — 10 паттернов |
-| Skills система | ✅ Реализовано | 13 core + 20 vendor (markitdown, zero-defect, skill-test и др. — opt-in; bundles via `tausik skill bundle`) — `service_skills.py` + `tausik-skills` репо |
-| Hooks система | ✅ Реализовано | 22 Python-хука + 1 shell pre-commit на PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
-| Реестр ролей | ✅ Реализовано | Гибрид: SQLite-метаданные + `harness/roles/{role}.md` профиль; CRUD CLI + 6 MCP инструментов |
-| Doctor health check | ✅ Реализовано | `tausik doctor` + `tausik_doctor` MCP — 4 группы (venv/DB/MCP/skills) + drift |
-| Zero-defect skill | ✅ Реализовано | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |
-
-## Общий результат
-
-| Категория | Реализовано | Частично | Нет | Строк со ссылкой на код |
-|-----------|-------------|----------|-----|--------------------------|
-| Quality Gates (13) | 13 | 0 | 0 | 12 из 13 |
-| Правила (13) | 13 | 0 | 0 | 7 из 13 |
-| Метрики (6) | 6 | 0 | 0 | 6 из 6 |
-| Исследования (3) | 3 | 0 | 0 | 3 из 3 |
-| **Итого (35)** | **35** | **0** | **0** | **28 из 35** |
-
-**Здесь стоял столбец «Оценка», печатавший 100% пятью строками, и он снят.** Абзац под таблицей уже говорил, что процент соответствия v1.3 здесь вычислить нельзя и он намеренно не назван (решение #334), — а таблица прямо над ним печатала число. Читатель забирает число. Снятие процента в смене #225 вычистило прозу и не тронуло таблицу; смена #238 это доделала.
-
-**Что стоит вместо него и почему это измеримо.** Счёт реализованных механизмов остаётся: он проверяем построчно и был проверен. Добавлен второй счёт — сколько строк раздела **ссылается на код**, который можно разрешить в дереве. Разница между 13 и 7 в разделе «Правила» и есть неравномерность доказанности: остальные шесть строк утверждают механизм прозой («Обнаружение ключевых слов в notes», «QG-0 + QG-2 совместный enforcement»), и такое утверждение нельзя ни подтвердить, ни опровергнуть машиной. Итог «13/13 реализовано» считает их наравне с остальными, поэтому доля названа, а не усреднена.
-
-**Заявляемая редакция: SENAR v1.3 Core**, и оценки соответствия ей на этой странице нет. Нормативного текста стандарта в дереве нет — есть только наш пересказ, — поэтому любая применённая здесь рубрика **наша**, и выдавать её за стандартную нельзя. Проверяемое свойство, которое у страницы действительно есть, — целостность её ссылок: `scripts/senar_self_check.py` разрешает каждую названную здесь функцию, константу и файл против дерева и отказывает, если что-то исчезло. Он входит в `tausik coherence` и в обычный прогон тестов (`tests/test_senar_self_check.py`). Это не аттестация и не сертификация: §13.7 стандарта прямо говорит, что схемы сертификации не создаётся и заявление делает сама организация.
+| Раздел | Строк со ссылкой на код |
+|--------|-------------------------|
+| Правила Core | 8 из 8 |
+| Гейты Core | 2 из 2 |
+| Свойства гейта (a, c, e) | 3 из 3 |
+| Метрики Core | 2 из 2 |
+| **Итого** | **15 из 15** |

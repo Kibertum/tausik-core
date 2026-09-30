@@ -46,7 +46,7 @@ def start_recognition_message(be: Any, slug: str, complexity: str | None) -> str
             from model_routing import format_task_start_banner
 
             return format_task_start_banner(complexity)
-    except Exception:  # noqa: BLE001 — banner is informational, never block start
+    except Exception:  # noqa: BLE001,S110 — banner is informational, never block start
         pass
     return None
 
@@ -57,7 +57,7 @@ def clear_delegation_state(be: Any, slug: str) -> None:
     for key in (_delegation_key(slug), f"worker_summary:{slug}"):
         try:
             be.meta_delete(key)
-        except Exception:  # noqa: BLE001 — best-effort cleanup, never block the caller
+        except Exception:  # noqa: BLE001,S110 — best-effort cleanup, never block the caller
             pass
 
 

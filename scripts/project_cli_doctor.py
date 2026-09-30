@@ -61,6 +61,48 @@ def auto_verify_interactive_warning_detail(
     )
 
 
+def auto_verify_acknowledged_reason(cfg: dict) -> str | None:
+    """The reason recorded next to task_done.auto_verify=true, or None.
+
+    doctor-warns-forever-about-a-deliberate-verify-profile: the default is off,
+    so `true` is always somebody's choice, and "set explicitly" tells nothing
+    apart. A written reason does — the `_<key>_reason` convention tausik/policy.json
+    already uses. With one, doctor reports the choice instead of warning forever
+    (a warning no correct action can clear teaches readers to skip warnings);
+    without one, the legacy profile stays a warning.
+    """
+    td_raw = cfg.get("task_done")
+    td = td_raw if isinstance(td_raw, dict) else {}
+    if not bool(td.get("auto_verify")):
+        return None
+    reason = td.get("_auto_verify_reason")
+    return reason.strip() if isinstance(reason, str) and reason.strip() else None
+
+
+def _user_tier_location_line() -> None:
+    """Where the user tier is read from — and when the legacy place shadows or is shadowed."""
+    from config_trust import (
+        USER_CONFIG_ENV,
+        default_user_config_path,
+        legacy_user_config_path,
+        user_config_path,
+    )
+
+    if os.environ.get(USER_CONFIG_ENV):
+        return
+    new, legacy, used = default_user_config_path(), legacy_user_config_path(), user_config_path()
+    if os.path.isfile(new) and os.path.isfile(legacy):
+        _print_warn(
+            "User tier",
+            f"{new} is used; {legacy} is ignored and recreates ~/.tausik — delete it.",
+        )
+    elif used == legacy:
+        _print_warn(
+            "User tier",
+            f"read from the legacy {legacy}; move it to {new} and delete ~/.tausik.",
+        )
+
+
 def _supports_utf8() -> bool:
     if sys.platform == "win32":
         if os.environ.get("WT_SESSION") or os.environ.get("TERM_PROGRAM"):
@@ -214,9 +256,18 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             "Config knobs",
             f"max={max_min}m warn={warn_th}m idle={idle_th}m capacity={cap} cache_ttl={ttl}s",
         )
+        _user_tier_location_line()
         av_hint = auto_verify_interactive_warning_detail(cfg, dict(os.environ))
-        if av_hint:
-            _print_warn("Verify-First profile", av_hint)
+        av_reason = auto_verify_acknowledged_reason(cfg)
+        if av_hint and av_reason:
+            _print_ok(
+                "Verify-First profile", f"task_done.auto_verify=true, chosen: {av_reason[:120]}"
+            )
+        elif av_hint:
+            _print_warn(
+                "Verify-First profile",
+                av_hint + " To keep it on purpose, record why in task_done._auto_verify_reason.",
+            )
             warnings += 1
         # THREE states, not two. A project-scope key that tried to weaken
         # enforcement is dropped on read, and silent dropping would look like the
@@ -271,6 +322,74 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
             _print_ok("Session", "no active session")
     except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Session", f"could not read: {e}")
+        warnings += 1
+
+    try:
+        from senar_standard_drift import corpus_health as senar_health
+
+        level, detail = senar_health()
+        if level == "ok":
+            _print_ok("SENAR corpus", detail)
+        else:
+            _print_warn("SENAR corpus", detail)
+            warnings += 1
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        _print_warn("SENAR corpus", f"could not read: {e}")
+        warnings += 1
+
+    try:
+        from renar_standard_drift import corpus_health
+
+        level, detail = corpus_health()
+        if level == "ok":
+            _print_ok("RENAR corpus", detail)
+        else:
+            _print_warn("RENAR corpus", detail)
+            warnings += 1
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        _print_warn("RENAR corpus", f"could not read: {e}")
+        warnings += 1
+
+    try:
+        from project_config import load_config
+        from update_check import doctor_line, read_cache
+
+        level, detail = doctor_line(load_config(), read_cache(svc.tausik_dir()))
+        (_print_ok if level == "ok" else _print_warn)("Update check", detail)
+        warnings += level != "ok"
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        _print_warn("Update check", f"could not read: {e}")
+        warnings += 1
+
+    try:
+        from cmd_db import backup_doctor_line
+
+        level, detail = backup_doctor_line(svc.tausik_dir())
+        (_print_ok if level == "ok" else _print_warn)("DB backups", detail)
+        warnings += level != "ok"
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        _print_warn("DB backups", f"could not read: {e}")
+        warnings += 1
+
+    try:
+        from telemetry_retention import doctor_line as _telemetry_line
+
+        level, detail = _telemetry_line(svc.tausik_dir())
+        (_print_ok if level == "ok" else _print_warn)("Telemetry", detail)
+        warnings += level != "ok"
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        _print_warn("Telemetry", f"could not read: {e}")
+        warnings += 1
+
+    try:
+        from answer_budget_ratchet import doctor_line as _answer_line
+
+        project_dir = os.path.dirname(svc.tausik_dir()) or "."
+        level, detail = _answer_line(project_dir, repo_root=project_dir)
+        (_print_ok if level == "ok" else _print_warn)("Answer shape", detail)
+        warnings += level != "ok"
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        _print_warn("Answer shape", f"could not read: {e}")
         warnings += 1
 
     print("=" * 40)

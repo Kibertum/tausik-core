@@ -21,6 +21,7 @@ from backend_init import init_schema
 from backend_queries import BackendQueriesMixin
 from backend_task_deps import BackendTaskDepsMixin
 from backend_transaction import BackendTransactionMixin
+from call_syntax_guard import refuse_call_syntax
 from tausik_utils import utcnow_iso
 
 logger = logging.getLogger("tausik.backend")
@@ -66,6 +67,8 @@ _TASK_FIELDS = frozenset(
         "done_model_version",
         "model_mismatch",
         "no_file_changes_declared",
+        "resolution",
+        "resolution_reason",
     }
 )
 
@@ -91,8 +94,16 @@ class SQLiteBackend(
 ):
     """All DB operations for TAUSIK. Single SQLite file, FTS5 search."""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, read_only: bool = False) -> None:
         self.db_path = db_path
+        if read_only:  # a reader never migrates — see backend_read_only (#266)
+            from backend_read_only import open_read_only
+
+            self._conn = open_read_only(db_path)
+            self._in_tx, self._savepoint_seq, self._pending_projection = False, 0, []
+            self._read_only = True
+            return
+        self._read_only = False
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self._conn = sqlite3.connect(db_path, timeout=10, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
@@ -100,16 +111,17 @@ class SQLiteBackend(
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._in_tx = False
-        # Monotonic, never reset: SAVEPOINT names must be unique for as long as
-        # any of them can still be open. See backend_transaction.
+        # Monotonic, never reset: a SAVEPOINT name must stay unique while any is open.
         self._savepoint_seq = 0
-        # (table, slug) pairs written inside the open transaction, projected when
-        # it commits. See _project_write for why a mid-transaction write is wrong.
+        # (table, slug) written in the open transaction, projected on commit.
         self._pending_projection: list[tuple[str, str]] = []
         init_schema(self._conn)
 
     def close(self) -> None:
-        """Close connection with WAL checkpoint."""
+        """Close connection with WAL checkpoint (a read-only one cannot checkpoint)."""
+        if getattr(self, "_read_only", False):
+            self._conn.close()
+            return
         try:
             self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         except Exception as e:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
@@ -119,7 +131,7 @@ class SQLiteBackend(
     def __enter__(self) -> "SQLiteBackend":
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
     # --- helpers ---
@@ -128,7 +140,7 @@ class SQLiteBackend(
         """Flush WAL to main DB file so .db is self-contained without -shm/-wal."""
         try:
             self._conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
-        except Exception:  # noqa: BLE001 — best-effort: maintenance/IO, non-fatal to the surrounding op
+        except Exception:  # noqa: BLE001,S110 — best-effort: maintenance/IO, non-fatal to the surrounding op
             pass
 
     def _q(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
@@ -139,16 +151,17 @@ class SQLiteBackend(
         return _row_to_dict(row) if row else None
 
     def _ex(self, sql: str, params: tuple = ()) -> int:
-        cur = self._conn.execute(sql, params)
-        if not self._in_tx:
-            self._conn.commit()
-        return cur.rowcount
+        return self._run_write(sql, params).rowcount
 
     def _ins(self, sql: str, params: tuple = ()) -> int:
+        return self._run_write(sql, params).lastrowid or 0
+
+    def _run_write(self, sql: str, params: tuple) -> sqlite3.Cursor:
+        refuse_call_syntax(params)  # the one write boundary (call_syntax_guard)
         cur = self._conn.execute(sql, params)
         if not self._in_tx:
             self._conn.commit()
-        return cur.lastrowid or 0
+        return cur
 
     def _project_write(self, table: str, slug: str) -> None:
         """Keep the git-native projection in step with THIS write. Never raises.
@@ -213,7 +226,7 @@ class SQLiteBackend(
             parent, pslug = frontier.pop()
             for child, fk_col, parent_col in self._dependent_tables(parent):
                 rows = self._q(
-                    f"SELECT slug FROM {child} WHERE {fk_col} IN "  # noqa: S608 — names from ENTITY_DIRS/PRAGMA
+                    f"SELECT slug FROM {child} WHERE {fk_col} IN "  # ruff-not-enabled: S608 — names from ENTITY_DIRS/PRAGMA
                     f"(SELECT {parent_col} FROM {parent} WHERE slug=?)",
                     (pslug,),
                 )
@@ -235,8 +248,7 @@ class SQLiteBackend(
                 self._project_write(child_table, child_slug)
         return removed
 
-    # Closed set, not whatever the caller passes — the table name reaches SQL as
-    # text, and "internal callers only" describes today's callers.
+    # Closed set: the table name reaches SQL as text, not as a bound parameter.
     _ID_DELETABLE = ("decisions", "memory")
 
     def _delete_projected_by_id(self, table: str, row_id: int) -> int:
@@ -253,9 +265,14 @@ class SQLiteBackend(
         """
         if table not in self._ID_DELETABLE:
             raise ValueError(f"_delete_projected_by_id: {table!r} is not a slug-bearing kind")
-        row = self._q1(f"SELECT slug FROM {table} WHERE id=?", (int(row_id),))  # noqa: S608
+        row = self._q1(
+            f"SELECT slug FROM {table} WHERE id=?", (int(row_id),)
+        )  # ruff-not-enabled: S608
         slug = (row or {}).get("slug")
-        removed = self._ex(f"DELETE FROM {table} WHERE id=?", (int(row_id),))  # noqa: S608
+        self._end_edges_for_departure(table, row_id)  # before the row: the id stops selecting
+        removed = self._ex(
+            f"DELETE FROM {table} WHERE id=?", (int(row_id),)
+        )  # ruff-not-enabled: S608
         if removed and slug:
             self._project_write(table, str(slug))
         return removed
@@ -298,12 +315,10 @@ class SQLiteBackend(
             raise ValueError(
                 f"Invalid fields for {table}: {bad}. Valid: {', '.join(sorted(allowed))}"
             )
+        refuse_call_syntax(fields.values(), fields.keys())  # names the field
         sets = ", ".join(f"{k}=?" for k in fields)
         vals = tuple(fields.values()) + (slug,)
         changed = self._ex(f"UPDATE {table} SET {sets} WHERE {slug_col}=?", vals)
-        # The projection follows the WRITE, not the caller's memory. `slug_col`
-        # is checked because the exporter identifies entities by slug: keyed on
-        # anything else, `slug` here is not the name it would look up.
         if changed and slug_col == "slug":
             self._project_write(table, slug)
         return changed

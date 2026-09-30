@@ -77,7 +77,7 @@ def _record(path, mode, flags):
         }
         with open(_LOG, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    except Exception:  # noqa: BLE001 - см. ПОЧЕМУ СЛЕПОЙ EXCEPT ниже
+    except Exception:  # noqa: BLE001,S110 - см. ПОЧЕМУ СЛЕПОЙ EXCEPT ниже
         pass
 
 

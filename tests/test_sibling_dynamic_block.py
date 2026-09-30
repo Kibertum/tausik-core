@@ -36,13 +36,13 @@ import claudemd_writer as cw  # noqa: E402
 import service_knowledge_aggregates as ska  # noqa: E402
 from handlers import handle_tool  # noqa: E402
 from project_backend import SQLiteBackend  # noqa: E402
-from project_cli_extra import cmd_update_claudemd  # noqa: E402
+from project_cli_doc import cmd_update_claudemd  # noqa: E402
 from project_service import ProjectService  # noqa: E402
 
 CROSSCUTTING_SCOPE = [
     "scripts/claudemd_writer.py",
     "scripts/gate_claudemd_state.py",
-    "scripts/project_cli_extra.py",
+    "scripts/project_cli_doc.py",
     "scripts/service_knowledge_aggregates.py",
     "harness/claude/mcp/project/handlers_skill.py",
 ]

@@ -71,7 +71,7 @@ def test_surface_is_not_accidentally_empty() -> None:
 
 def test_schemas_and_dispatch_live_in_separate_modules() -> None:
     """The split is the point: server.py holds transport, not tool payload."""
-    server_src = (PKG / "server.py").read_text(encoding="utf-8")
+    server_src = (PKG / "rag_server.py").read_text(encoding="utf-8")
     assert "Tool(" not in server_src, "tool schemas belong in rag_tools.py"
     assert "def call_tool_sync" not in server_src, "tool logic belongs in rag_handlers.py"
 
@@ -84,7 +84,7 @@ def test_server_keeps_its_entrypoint() -> None:
     quietly stopped appearing: the script would start, define everything, and
     exit 0 without serving. Import-level checks cannot see this.
     """
-    tree = ast.parse((PKG / "server.py").read_text(encoding="utf-8"))
+    tree = ast.parse((PKG / "rag_server.py").read_text(encoding="utf-8"))
     guards = [
         node
         for node in tree.body
@@ -92,7 +92,7 @@ def test_server_keeps_its_entrypoint() -> None:
         and isinstance(node.test, ast.Compare)
         and getattr(node.test.left, "id", None) == "__name__"
     ]
-    assert guards, "server.py lost its `if __name__ == '__main__'` entrypoint"
+    assert guards, "rag_server.py lost its `if __name__ == '__main__'` entrypoint"
     called = {
         n.func.id
         for guard in guards

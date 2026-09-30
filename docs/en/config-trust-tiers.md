@@ -2,6 +2,8 @@
 
 # Configuration trust tiers
 
+<!-- doc-map: reader=user; zone=configuration -->
+
 Implementation: [`scripts/config_trust.py`](../../scripts/config_trust.py).
 SPEC: `sec-config-trust-tiers` (SEC, v1). Task: `l26-config-trust-tiers`.
 
@@ -34,7 +36,7 @@ Config is read from three tiers, least to most trusted:
 |---|---|---|
 | project | `tausik/policy.json` | **yes, always** |
 | project | `.tausik/config.json` | **yes, where `.tausik/` is tracked** |
-| user | `~/.tausik/config.json` | no |
+| user | `~/.config/tausik/config.json` (the legacy `~/.tausik/config.json` is still read when it is the only one; doctor asks to move it) | no |
 | managed | `$TAUSIK_MANAGED_CONFIG` | no |
 
 **The project tier is two files, and the difference is not cosmetic.** Both are
@@ -67,7 +69,7 @@ established** — or the framework default when they are silent.
   the strict value — an invisible coupling that breaks the first time somebody
   writes `cfg["gates"]["x"]["enabled"]` without a default.
 - Tightening also beats the trusted tier. If an operator's
-  `~/.tausik/config.json` merely restates a default (`mypy.enabled: false`) and
+  `~/.config/tausik/config.json` merely restates a default (`mypy.enabled: false`) and
   the project sets `true`, `true` wins: "project may only tighten" holds in this
   direction too, or a tightening the policy already approved would be lost
   silently in the merge. On UNguarded keys ordinary tier precedence still
@@ -88,7 +90,7 @@ The seven keys above. The selection criterion is explicit: **a key is guarded
 only if it TURNS OFF supervision** — not if it scopes supervision or tunes one
 of its parameters.
 
-Deliberately outside the perimeter (decision #137):
+Deliberately outside the perimeter:
 
 - `gates.filesize.exempt_files` — scopes the gate. Its legitimate values
   (generated directories, research dumps) are project-specific by nature and
@@ -139,13 +141,13 @@ formally runs and is always green). Tracked as `l26-gate-command-neutering`.
 ## Threat surface — the honest boundary
 
 **Closed: a repository cannot grant itself authority.** `.tausik/config.json`
-arrives with every clone, fork and PR; `~/.tausik/config.json` does not. A
+arrives with every clone, fork and PR; `~/.config/tausik/config.json` does not. A
 contributor can no longer ship a branch that quietly turns the gates off on the
 reviewer's machine, and an agent editing the project config can no longer lower
 its own bar.
 
 **Not closed, stated plainly rather than implied:** an agent that can run
-arbitrary shell commands can write `~/.tausik/config.json` or export
+arbitrary shell commands can write `~/.config/tausik/config.json` or export
 `TAUSIK_MANAGED_CONFIG` itself. Tiers are **not a sandbox**. What they buy is a
 raised bar and, more importantly, **visibility**: weakening now has to happen
 outside the repository, so it can no longer hide inside a diff that looks like an
@@ -178,7 +180,7 @@ $ tausik gates disable filesize
 Gate 'filesize' NOT disabled — project scope may only tighten gate on/off
 switch. The key was written to .tausik/config.json but the effective config
 keeps True. To disable it for real, set it in the user tier
-(~/.tausik/config.json) or in $TAUSIK_MANAGED_CONFIG.
+(~/.config/tausik/config.json) or in $TAUSIK_MANAGED_CONFIG.
 ```
 
 ## Project-scoped entries in a trusted tier
@@ -186,9 +188,9 @@ keeps True. To disable it for real, set it in the user tier
 A trusted tier is per-machine, and 1.8 paid for that: a workaround written for
 ONE consumer project — `task_done.auto_verify` for a repository whose payment
 code trips the security classifier, `gates.bootstrap_drift.enabled=false` for a
-submodule layout — sat at the top level of `~/.tausik/config.json` and governed
+submodule layout — sat at the top level of `~/.config/tausik/config.json` and governed
 every project on the box. A fresh project then had to notice a foreign
-`auto_verify` and tighten it back (gotcha #690).
+`auto_verify` and tighten it back.
 
 Both trusted tiers may carry a `projects` object. Its keys are absolute project
 directories, its values are overlays that apply ONLY when the project being
@@ -231,7 +233,7 @@ resolved is that directory:
 A project that disabled a gate in `.tausik/config.json` will find that gate
 enabled after upgrading, with the key named in `tausik doctor`. That is
 intentional. If the opt-out is legitimate — a sandbox, a CI image, a gate that
-genuinely does not apply — move it to `~/.tausik/config.json` or to the file
+genuinely does not apply — move it to `~/.config/tausik/config.json` or to the file
 `$TAUSIK_MANAGED_CONFIG` points at. Tightening from the project tier is
 unchanged.
 

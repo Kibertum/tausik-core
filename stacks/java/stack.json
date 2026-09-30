@@ -12,6 +12,7 @@
       "severity": "block",
       "trigger": ["verify"],
       "command": "mvn compile -q 2>&1 | head -20",
+      "file_extensions": [".java"],
       "description": "Java compilation check",
       "stacks": ["java"]
     }

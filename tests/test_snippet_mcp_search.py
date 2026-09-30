@@ -144,8 +144,8 @@ class TestNegative:
 def _import_mcp():
     mcp_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
     sys.path.insert(0, mcp_dir)
-    from handlers import handle_tool  # noqa: E402
-    from tools import TOOLS  # noqa: E402
+    from handlers import handle_tool
+    from tools import TOOLS
 
     return handle_tool, TOOLS
 

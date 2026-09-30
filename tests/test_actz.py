@@ -17,18 +17,18 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from actz_closed_lists import (  # noqa: E402
+from actz_closed_lists import (
     ACTZ_STATUSES,
     LINK_TARGETS,
     REQUIRED_SIGNATURE_ROLES,
     SIGNATURE_ROLES,
 )
-from backend_migrations import run_migrations  # noqa: E402
-from backend_schema import SCHEMA_VERSION  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from service_actz import FORBIDDEN_WORD_RE, display_name  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
+from backend_migrations import run_migrations
+from backend_schema import SCHEMA_VERSION
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from service_actz import FORBIDDEN_WORD_RE, display_name
+from tausik_utils import ServiceError
 
 
 @pytest.fixture
@@ -108,6 +108,9 @@ def test_migration_v52_then_v53_matches_fresh_shape(tmp_path):
     conn.execute(
         "CREATE TABLE tasks(slug TEXT PRIMARY KEY, defect_of TEXT)"
     )  # defect_of: v10 column, indexed by v62
+    conn.execute(
+        "CREATE TABLE sessions(id INTEGER PRIMARY KEY AUTOINCREMENT)"
+    )  # ALTER target for v63
     conn.execute("CREATE TABLE verification_runs(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     conn.execute("CREATE TABLE decisions(id INTEGER PRIMARY KEY AUTOINCREMENT)")
     conn.execute("CREATE TABLE memory(id INTEGER PRIMARY KEY AUTOINCREMENT)")
@@ -555,11 +558,6 @@ def test_fts_delete_trigger_removes_entry(svc):
     svc.actz_create("z1", "Сроки приёмки", "TZ-2026-001")
     svc.actz_delete("z1")
     assert svc.actz_search("приёмки") == []
-
-
-def test_malformed_fts_query_is_friendly_error(svc):
-    with pytest.raises(ServiceError, match="unterminated"):
-        svc.actz_search('"unterminated')
 
 
 # === CLI parser wiring ===

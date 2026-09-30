@@ -2,6 +2,8 @@
 
 # Engineering Review Protocol
 
+<!-- doc-map: reader=agent; zone=internal-spec -->
+
 Used by /plan skill for pre-planning engineering review.
 
 ## Size Detection

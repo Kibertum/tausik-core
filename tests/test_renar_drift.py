@@ -18,10 +18,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-import renar_drift  # noqa: E402
-from renar_drift import (  # noqa: E402
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+import renar_drift
+from renar_drift import (
     detect_provenance_drift,
     detect_schema_drift,
     format_findings,

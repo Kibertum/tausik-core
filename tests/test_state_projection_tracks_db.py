@@ -47,13 +47,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-import project_config  # noqa: E402
-import state_triggers  # noqa: E402
-from project_backend import SQLiteBackend  # noqa: E402
-from project_service import ProjectService  # noqa: E402
-from state_export import build_tree  # noqa: E402
-from state_import import ENTITY_DIRS  # noqa: E402
-from tausik_utils import ServiceError, utcnow_iso  # noqa: E402
+import project_config
+import state_triggers
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from state_export import build_tree
+from state_import import ENTITY_DIRS
+from tausik_utils import ServiceError, utcnow_iso
 
 
 def _mem_id(message: str) -> int:
@@ -480,7 +480,14 @@ def _op_memory_add(svc, w: _World) -> None:
 
 def _op_dead_end(svc, w: _World) -> None:
     d = w.uid("de")
-    w.mem.append(_mem_id(svc.dead_end(f"Подход {d}", "Не сработал по измеримой причине")))
+    # A dead end names a REAL task since 1.10; the first live one (no random draw,
+    # so the seeded sequence is unchanged). With none, the op has nothing to do.
+    t = next((x for x in w.tasks if svc.be.task_get(x)), None)
+    if t is None:
+        return
+    w.mem.append(
+        _mem_id(svc.dead_end(f"Подход {d}", "Не сработал по измеримой причине", task_slug=t))
+    )
 
 
 def _op_memory_delete(svc, w: _World) -> None:

@@ -2,7 +2,9 @@
 
 # Session Active Time (v1.4)
 
-SENAR Rule 9.2 ограничивает сессию **180 минутами**. В v1.4 эти 180 — **active time**, не wall-clock: длинные паузы клипуются до threshold'а вместо того, чтобы их выбрасывать. Эта страница объясняет алгоритм, semantics-выбор (clip vs exclude), и как тюнить threshold.
+<!-- doc-map: reader=user; zone=sessions -->
+
+SENAR Foundation (10.2) требует установить максимум длительности сессии с основанием; SENAR Core, который заявляет TAUSIK, сессий не нормирует вовсе. В TAUSIK порог **180 минут** — с 1.10 **совет, а не ворота**: выше него `task start`, `status` и Stop-хук печатают предупреждение, но в старте задачи не отказывают. Считается порог по **active time**, не wall-clock: длинные паузы клипуются до threshold'а вместо того, чтобы их выбрасывать. Эта страница объясняет алгоритм, semantics-выбор (clip vs exclude), основание порога и как тюнить threshold.
 
 ## Зачем active time
 
@@ -10,7 +12,7 @@ Wall clock наказывает за естественные перерывы. 
 
 ## Алгоритм
 
-Каждый tool call пишет строку в `events` (через PostToolUse-хук `activity_event.py`). Active time — сумма **bounded** интервалов между последовательными timestamps:
+Каждый вызов инструмента, на который зарегистрирован хук, — запись, оболочка, чтение, поиск, веб и внешние MCP-инструменты записи, один набор на всех хостах с 1.10, — пишет строку в `events` (через PostToolUse-хук `activity_event.py`). Active time — сумма **bounded** интервалов между последовательными timestamps:
 
 ```
 active_seconds = Σ min(t[i+1] − t[i], idle_threshold_seconds)
@@ -43,9 +45,9 @@ wall       = t5 − t1
 | Knob | Default | Значение |
 |------|---------|----------|
 | `session_idle_threshold_minutes` | 10 | Gap'ы выше этого клипуются до threshold'а (длинная AFK добавляет ровно столько в active time, не ноль) |
-| `session_max_minutes` | 180 | Hard limit — `task_start` блокируется выше (`session extend` для override) |
+| `session_max_minutes` | 180 | Порог совета — выше него `task_start`, `status` и Stop-хук печатают предупреждение, не отказ (`session extend` поднимает порог) |
 | `session_warn_threshold_minutes` | 150 | Soft warning стартует здесь |
-| `session_capacity_calls` | 200 | Capacity gate (в **tool calls**, не minutes), который QG-0 проверяет на `task_start` |
+| `session_capacity_calls` | 200 | Ёмкость в **tool calls**, не минутах; бюджет задачи выше остатка — совет в выводе `task_start`, не отказ |
 
 ## Где это видно
 
@@ -69,7 +71,7 @@ Session: 76m active / 145m wall
 
 ## Activity hook
 
-`scripts/hooks/activity_event.py` — PostToolUse-хук, который штампует `(session_id, tool_name, timestamp)` в `session_activity`. Запускается на каждый tool call. Отключайте через `TAUSIK_SKIP_HOOKS=1` только для дебага — отключение его останавливает накопление active time до повторного включения.
+`scripts/hooks/activity_event.py` — PostToolUse-хук, который штампует `(session_id, tool_name, timestamp)` в `session_activity`. Запускается на инструменты из его матчера, одинаковые у Claude, Qwen и Codex. Отключайте через `TAUSIK_SKIP_HOOKS=1` только для дебага — отключение его останавливает накопление active time до повторного включения.
 
 ## Override / Extend
 
@@ -79,13 +81,18 @@ Session: 76m active / 145m wall
 .tausik/tausik session extend --minutes 60
 ```
 
-`task_start --force` — отдельный escape hatch, который байпасит **capacity gate** с audit-event trail; он не заменяет `session extend`.
+`task_start --force` отозван в 1.10: ёмкость больше не гейт, обходить нечего; флаг отвечает отказом с причиной.
+
+## Основание порога (SENAR 1.5 §9.4(c))
+
+Числа 180 / 150 / 200 унаследованы от ориентира SENAR 1.3 §9.2 («после 180 минут отдача падает») и до 1.10 держали ворота. Замер смены #266 по 70 сменам #196–#265 (`tausik session recompute --limit 70`): одна смена пересекла 180 активных минут (#241, 246 минут, без продления), медиана 73, p90 146; продление `session extend` не вызывалось ни разу, а итоги 13 смен упоминают ёмкость как причину остановки. Поэтому порог стал советом. Основание пересчитывается командой: `session recompute` печатает строку `SUMMARY` — медиану, p90, максимум активных минут и число смен выше порога (на 23.09.2026 по сменам #196–#265: медиана 73, p90 146, выше 180 — 1). Пересечение порога записывается событием `session_threshold_crossed` один раз на сессию (§9.4(d)). Любой порог — `session_max_minutes`, `session_capacity_calls`, `checkpoint_calls` (40), `journal_freshness_calls` (40) — выключается значением 0.
 
 ## Negative — что active time НЕ есть
 
 - Это **не** wall clock — длинные паузы выбрасываются выше idle threshold'а.
 - Это **не** оценка реального focused-work времени. Tool calls — proxy; если вы читаете код в голове без вызова tool'ов, таймер паузится.
-- Лимит **180** — на **active**, не wall. Сессия, открытая 12 часов с 30 min активности, всё ещё на 30 min и далеко под лимитом.
+- Порог **180** — на **active**, не wall. Сессия, открытая 12 часов с 30 min активности, всё ещё на 30 min и далеко под порогом.
+- Это **не** ворота: пересечение порога печатает совет и ничему не отказывает (1.10).
 
 ## См. также
 

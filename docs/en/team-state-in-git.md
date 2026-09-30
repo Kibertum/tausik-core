@@ -2,6 +2,8 @@
 
 # TAUSIK state in git — contract (team-state-in-git)
 
+<!-- doc-map: reader=user; zone=memory-and-store -->
+
 > Format spec for the git-native projection of project state. Depended on by
 > `state-git-stable-ids`, `state-git-export`, `state-git-import`,
 > `state-git-triggers`, `state-git-roundtrip-gate`. Decision `#172`.

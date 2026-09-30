@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
-import bootstrap_generate  # noqa: E402
+import bootstrap_generate
 
 
 def _touch(path: str, content: str = "# stub\n") -> None:
@@ -21,10 +21,10 @@ def _touch(path: str, content: str = "# stub\n") -> None:
 
 @pytest.fixture
 def ide_layout(tmp_path):
-    """Simulate .claude/mcp/{codebase-rag,project}/server.py."""
+    """Simulate .claude/mcp/codebase-rag/rag_server.py and .claude/mcp/project/server.py."""
     ide_dir = tmp_path / ".claude"
-    for name in ("codebase-rag", "project"):
-        _touch(str(ide_dir / "mcp" / name / "server.py"))
+    for name, entry in {"codebase-rag": "rag_server.py", "project": "server.py"}.items():
+        _touch(str(ide_dir / "mcp" / name / entry))
     return {"project_dir": str(tmp_path), "ide_dir": str(ide_dir)}
 
 
@@ -97,8 +97,8 @@ def test_uses_forward_slashes_in_paths(tmp_path):
 def test_generates_cursor_project_mcp_json(ide_layout):
     cursor_ide = os.path.join(ide_layout["project_dir"], ".cursor")
     os.makedirs(cursor_ide, exist_ok=True)
-    for name in ("codebase-rag", "project"):
-        _touch(os.path.join(cursor_ide, "mcp", name, "server.py"))
+    for name, entry in {"codebase-rag": "rag_server.py", "project": "server.py"}.items():
+        _touch(os.path.join(cursor_ide, "mcp", name, entry))
 
     bootstrap_generate.generate_cursor_mcp_json(
         ide_layout["project_dir"], cursor_ide, venv_python="C:/py/python.exe"

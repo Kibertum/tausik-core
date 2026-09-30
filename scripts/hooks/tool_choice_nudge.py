@@ -116,7 +116,7 @@ def main() -> None:
         from _common import force_utf8_io
 
         force_utf8_io()
-    except Exception:  # noqa: BLE001 - the guard is a courtesy, not a dependency
+    except Exception:  # noqa: BLE001,S110 - the guard is a courtesy, not a dependency
         pass
 
     try:

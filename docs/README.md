@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/tausik-mark.png" width="120" alt="TAUSIK"></p>
+<p align="center"><img src="assets/tausik-logo.png" width="120" alt="TAUSIK"></p>
 
 # TAUSIK Documentation / Документация TAUSIK
 
@@ -9,6 +9,8 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 ## English
 
 ### Getting started
+
+**Three entry pages, one per reader** — start with the one that describes you: [you use TAUSIK](en/start-here-user.md) · [you are an agent working through it](en/start-here-agent.md) · [you are changing TAUSIK itself](en/start-here-maintainer.md). The full register of pages, with the reader and the zone each one declares, is the [documentation map](_generated/doc-map.md).
 
 | Document | Audience |
 |----------|----------|
@@ -24,8 +26,10 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 |----------|----------|
 | **[Skills](en/skills.md)** | What the agent can do |
 | **[Hooks](en/hooks.md)** | Real-time enforcement: blockers, firewall, drift guards |
+| **[Known limitations](en/known-limitations.md)** | What is NOT guaranteed: deliberate gaps with their reason, open defects, out of scope |
+| **[Agent contract](en/agent-contract.md)** | The extended agent reference: QG-2 mechanics, estimation, Rule 4/7, stacks |
 | **[CLI Commands](en/cli.md)** | Full terminal command reference |
-| **[MCP Tools](en/mcp.md)** | 146 tools for the AI agent |
+| **[MCP Tools](en/mcp.md)** | 147 tools for the AI agent |
 | **[Artifact graph](en/graph.md)** | What changes with what, and on what evidence |
 | **[Symbol index](en/symbol-index.md)** | A definition, its file:line and callers, in one call |
 | **[Architecture](en/architecture.md)** | How the framework works inside |
@@ -89,6 +93,8 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 |----------|----------|
 | **[Troubleshooting](en/troubleshooting.md)** | Common issues and resolutions |
 | **[SENAR compliance matrix](en/senar-compliance-matrix.md)** | Rule-by-rule SENAR coverage |
+| **[RENAR 1.1 changes](en/renar-11-deltas.md)** | What TAUSIK did with each of the 20 changes of RENAR 1.1 |
+| **[Severity scale](en/severity-scale.md)** | CRITICAL/HIGH/MEDIUM/LOW of review findings, who assigns them (SENAR 1.5 §10.15(f)) |
 | **[i18n strategy](en/i18n-strategy.md)** | Bilingual EN/RU localization approach |
 
 ### Internal agent specs *(EN only)*
@@ -101,12 +107,15 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 | **[Skill patterns](en/skill-patterns.md)** | Cross-skill helper patterns |
 | **[Plan review](en/plan-review.md)** | `/plan` review heuristics |
 | **[Plan stacks](en/plan-stacks.md)** | Stack-detection logic for `/plan` |
+| **[AT generation procedure](en/at-generation-procedure.md)** | RENAR §8A: how an acceptance test is produced |
 
 ## Русский
 
 **Начните здесь:** [Быстрый старт](ru/quickstart.md) -> [Что такое SENAR?](ru/senar.md) -> [Рабочий процесс](ru/workflow.md) -> [Навыки](ru/skills.md) -> далее по необходимости.
 
 ### Начало работы
+
+**Три страницы входа, по одной на читателя** — начните с той, что описывает вас: [вы пользуетесь TAUSIK](ru/start-here-user.md) · [вы агент, работающий через него](ru/start-here-agent.md) · [вы меняете сам TAUSIK](ru/start-here-maintainer.md). Полный реестр страниц с читателем и зоной у каждой — [карта документации](_generated/doc-map.md).
 
 | Документ | Для кого |
 |----------|----------|
@@ -122,6 +131,8 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 |----------|----------|
 | **[Навыки (Skills)](ru/skills.md)** | Что умеет AI-агент |
 | **[Хуки (Hooks)](ru/hooks.md)** | Real-time контроль: блокировки, firewall, drift guards |
+| **[Намеренные пробелы](ru/known-limitations.md)** | Что НЕ гарантировано: пробелы с названной причиной, открытые дефекты, вне области |
+| **[Контракт агента](ru/agent-contract.md)** | Расширенная справка агента: механика QG-2, оценка, Rule 4/7, стеки |
 | **[CLI-команды](ru/cli.md)** | Справочник команд терминала |
 | **[MCP-инструменты](ru/mcp.md)** | 152 инструмента для AI-агента |
 | **[Архитектура](ru/architecture.md)** | Как устроен фреймворк внутри |
@@ -185,6 +196,8 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 |----------|----------|
 | **[Troubleshooting](ru/troubleshooting.md)** | Типичные проблемы и решения |
 | **[SENAR матрица](ru/senar-compliance-matrix.md)** | Rule-by-rule SENAR покрытие |
+| **[Правки RENAR 1.1](ru/renar-11-deltas.md)** | Что TAUSIK сделал с каждой из 20 правок RENAR 1.1 |
+| **[Шкала серьёзности](ru/severity-scale.md)** | CRITICAL/HIGH/MEDIUM/LOW находок ревью и кто их присваивает (SENAR 1.5 §10.15(f)) |
 | **[Стратегия i18n](ru/i18n-strategy.md)** | Bilingual EN/RU локализация |
 
 ## Other

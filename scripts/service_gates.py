@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 # Moved to `gate_block` so the extracted `gate_verify_first` can use it without
 # importing this module back (circular). Re-exported: callers and tests that do
 # `from service_gates import _block` keep working.
-from gate_block import _block, extract_files_from_gate_output  # noqa: F401, E402
+from gate_block import _block, extract_files_from_gate_output  # noqa: F401
 
 
 class GatesMixin:
@@ -347,7 +347,7 @@ class GatesMixin:
         relevant_files: list[str] | None = None,
         *,
         no_file_changes: bool = False,
-        no_changelog: bool = False,  # noqa: ARG002 — uniform post-scope shape
+        no_changelog: bool = False,  # ruff-not-enabled: ARG002 — uniform post-scope shape
         verify_handle: str | None = None,
         zero_gate_ack: bool = False,
     ) -> None:
@@ -368,12 +368,12 @@ class GatesMixin:
         self,
         report: dict[str, Any],
         slug: str,
-        relevant_files: list[str] | None = None,  # noqa: ARG002 — uniform shape
+        relevant_files: list[str] | None = None,  # ruff-not-enabled: ARG002 — uniform shape
         *,
         no_changelog: bool = False,
-        no_file_changes: bool = False,  # noqa: ARG002 — uniform post-scope shape
-        verify_handle: str | None = None,  # noqa: ARG002 — uniform post-scope shape
-        zero_gate_ack: bool = False,  # noqa: ARG002 — uniform post-scope shape
+        no_file_changes: bool = False,  # ruff-not-enabled: ARG002 — uniform post-scope shape
+        verify_handle: str | None = None,  # ruff-not-enabled: ARG002 — uniform post-scope shape
+        zero_gate_ack: bool = False,  # ruff-not-enabled: ARG002 — uniform post-scope shape
     ) -> None:
         """Continuous-CHANGELOG gate — delegates to gate_changelog."""
         from gate_changelog import enforce_changelog

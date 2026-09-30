@@ -22,7 +22,7 @@ Check `.tausik/tausik.db` exists. If not — tell user: `python .tausik-lib/boot
 Run **one** MCP tool — `tausik_session_open` (no args). It returns a JSON envelope with all 6 dashboard signals already aggregated server-side:
 
 - `session` — current session id + started_at (auto-started if absent)
-- `status` — compact JSON identical to `tausik_status({"compact": true})`, includes `exploration` + `audit_overdue_sessions` when relevant
+- `status` — compact JSON identical to `tausik_status({"compact": true})`, includes `exploration` + `audit_overdue_closures` when relevant
 - `handoff` — last session's handoff dict, or `null` if none
 - `tasks.active` + `tasks.blocked` — slim {slug,title,status} entries (planning is in CLAUDE.md already)
 - `self_check` — MCP freshness report; check `drift_detected` for stale-module warning
@@ -64,11 +64,7 @@ Do **not** render: planning tasks list (use `tausik task next` on demand), metri
 
 ## Code search hierarchy
 
-Prefer cheapest tool that fits:
-
-1. **`mcp__codebase-rag__search_code`** — first choice for symbols, patterns, "where is X used". Returns ranked chunks, cheapest token-wise.
-2. **`Grep`** — only when you already know which file(s) to search in.
-3. **`Read`** — only when you have an exact path.
+Narrow before you read: `Grep` with a `path`/`glob`, `Read` with `offset`/`limit`. RAG is the route to code: after every `Grep` a hook adds the index's top chunks for the same identifiers, and `mcp__codebase-rag__search_code` answers questions by concept ("where is X handled") that a regex cannot.
 
 ## Gotchas
 

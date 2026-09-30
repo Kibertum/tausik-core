@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import subprocess  # noqa: F401 — re-exported attr for backwards-compat monkeypatching (`gate_runner.subprocess.run`); the module is `subprocess` itself, so patching it here patches it globally for gate_command_runner too.
 import sys
 import time
@@ -29,6 +30,7 @@ from project_config import get_gates_for_trigger, load_config  # noqa: E402
 # cap). Re-exported so tests and the run_gates dispatch import them unchanged.
 from gate_filesize import count_lines, run_filesize_gate  # noqa: E402,F401
 
+from gate_spec import COST_FAST, COST_SLOW, gate_cost  # noqa: E402
 from gate_stack_dispatch import (  # noqa: E402,F401
     gate_applies_to,
     infer_stacks_from_files,
@@ -41,6 +43,7 @@ from gate_renar_drift import run_renar_drift_gate  # noqa: F401, E402
 from gate_bootstrap_drift import run_bootstrap_drift_gate  # noqa: F401, E402
 from gate_test_resolver import resolve_test_files_for_relevant  # noqa: F401, E402
 from gate_registry import impl_for  # noqa: E402
+from verify_zero_gate import declares_file_scope  # noqa: E402
 import gate_outcome  # noqa: E402
 from gate_outcome import GateOutcome  # noqa: F401,E402 — re-exported for callers
 from tausik_utils import cli_invocation  # noqa: E402
@@ -82,8 +85,21 @@ def run_gates(
     if not gates:
         return True, []
 
+    # TWO PHASES, and the order is the whole point. Static gates read files and answer in
+    # seconds; a test gate compiles or runs the project and answers in minutes. Measured on
+    # this project: ruff plus the duplicate-test audit plus the prose audit
+    # together take 3.5 seconds against about four minutes for the full lane, and fifteen
+    # times that shift a static gate failed AFTER the lane had already run — each costing the
+    # lane again plus two or three calls.
+    #
+    # WITHIN a phase nothing stops early: three defects must come back in one report, not in
+    # three rounds. BETWEEN phases a blocking failure stops the run, because there is nothing
+    # the expensive half can tell you that you are not about to invalidate anyway.
+    gates = sorted(gates, key=lambda g: gate_cost(g["name"]) == COST_SLOW)
+
     results = []
     has_block_failure = False
+    fast_phase_failed = False
 
     total = len(gates)
     # v1.4 r14-mcp-streaming-progress: emit a "run_start" event with the
@@ -107,12 +123,33 @@ def run_gates(
                     "gates": [g.get("name") for g in gates],
                 }
             )
-        except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+        except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
             pass
     for idx, gate in enumerate(gates, start=1):
         name = gate["name"]
         severity = gate.get("severity", "warn")
         start_ms = time.monotonic()
+
+        if fast_phase_failed and gate_cost(name) == COST_SLOW:
+            # NOT a pass and NOT "not applicable": the gate applies and produced no evidence,
+            # which §8.6(e) says cannot certify. The run is already red from the cheap half;
+            # this records honestly that the expensive half never spoke.
+            results.append(
+                {
+                    "name": name,
+                    "severity": severity,
+                    "outcome": gate_outcome.COULD_NOT_RUN,
+                    "reason_code": gate_outcome.REASON_FAST_PHASE_FAILED,
+                    "passed": False,
+                    "skipped": True,
+                    "duration_ms": 0,
+                    "output": (
+                        "not run: a blocking static gate failed first. Fix that and re-run — "
+                        "this gate takes minutes and its verdict would be invalidated anyway."
+                    ),
+                }
+            )
+            continue
         if progress_callback:
             progress_callback(
                 {
@@ -130,6 +167,8 @@ def run_gates(
             # stack-mismatch skip persists as NULL while every other outcome
             # carries a real value.
             skipped["duration_ms"] = int((time.monotonic() - start_ms) * 1000)
+            # A gate outside the project's stacks is no part of this run's scope.
+            skipped["file_scoped"] = False
             results.append(skipped)
             if progress_callback:
                 progress_callback(
@@ -229,6 +268,9 @@ def run_gates(
             "scope": scope,
             "skipped": outcome.legacy_skipped,
             "duration_ms": int((time.monotonic() - start_ms) * 1000),
+            # Read by verify_zero_gate.unscoped_only: a project-wide PASS is
+            # not evidence about the declared files.
+            "file_scoped": declares_file_scope(gate),
         }
         results.append(result)
         if progress_callback:
@@ -253,6 +295,8 @@ def run_gates(
         # evidence, so it cannot certify. It blocks alongside an honest failure.
         if outcome.blocks and severity == "block":
             has_block_failure = True
+            if gate_cost(name) == COST_FAST:
+                fast_phase_failed = True
 
     return not has_block_failure, results
 
@@ -335,9 +379,45 @@ def format_results(results: list[dict]) -> str:
         if not r["passed"] and output:
             # `output` is already the sentinel-free body — the scope line lives in
             # the trusted field above and is never duplicated here.
-            for line in output.split("\n")[:5]:
+            for line in failure_excerpt(output):
                 lines.append(f"         {line}")
     return "\n".join(lines)
+
+
+_PYTEST_VERDICT = re.compile(r"^(FAILED|ERROR) \S")
+_PYTEST_SUMMARY = re.compile(r"^=*\s*\d+ (failed|passed|error|errors)\b.*\bin [0-9.]+s")
+_HEAD, _TAIL = 5, 5
+
+
+def failure_excerpt(output: str) -> list[str]:
+    """What a reader needs from a failed gate's output, whatever its length.
+
+    It used to be the first five lines. A batched pytest run puts its FAILED
+    names and its "N failed" summary at the END, after "bringing up nodes..."
+    and pages of dots — so the report showed `[FAIL] pytest (block)` over a
+    body of progress dots and the agent had to reproduce the selection by hand
+    to learn which test was red (github#11: three times in session #263, again
+    in #266). Now: the head, every FAILED/ERROR line and every pytest summary
+    line wherever they stand, and the tail — in order, gaps marked `...`.
+    Output without pytest verdict lines (another tool, a crash) still shows
+    its head and tail, never nothing.
+    """
+    raw = output.split("\n")
+    if len(raw) <= _HEAD + _TAIL:
+        return raw
+    keep: set[int] = set(range(_HEAD)) | set(range(len(raw) - _TAIL, len(raw)))
+    for i, line in enumerate(raw):
+        stripped = line.strip()
+        if _PYTEST_VERDICT.match(stripped) or _PYTEST_SUMMARY.match(stripped):
+            keep.add(i)
+    out: list[str] = []
+    prev = -1
+    for i in sorted(keep):
+        if prev != -1 and i != prev + 1:
+            out.append("...")
+        out.append(raw[i])
+        prev = i
+    return out
 
 
 def check_file_conflicts(tasks: list[dict]) -> list[tuple[str, str, list[str]]]:

@@ -16,7 +16,7 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
 )
 
-from gate_ac_check import check_verification_checklist  # noqa: E402
+from gate_ac_check import check_verification_checklist
 
 _AC = "AC-1: the page says X. AC-2: the page says Y. AC-3 (negative): the page never says Z."
 # Evidence lines with check marks but no test refs, no Negative:, no Domain:.

@@ -19,12 +19,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from memory_markers import detect_markers  # noqa: E402
-from memory_pretool_block import is_in_claude_memory  # noqa: E402
+from memory_markers import detect_markers
+from memory_pretool_block import is_in_claude_memory
 
 
-from write_tools import WRITE_TOOLS as _AUDITED_TOOLS  # noqa: E402
-from write_tools import edited_path  # noqa: E402
+from write_tools import WRITE_TOOLS as _AUDITED_TOOLS
+from write_tools import edited_path
 
 _MAX_REPORTED = 5
 

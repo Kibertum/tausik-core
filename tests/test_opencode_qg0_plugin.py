@@ -14,6 +14,8 @@ Two layers:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import re
@@ -60,10 +62,10 @@ class TestEmission:
 
     def test_idempotent_when_source_is_the_destination(self, emitted):
         path, target = emitted
-        before = open(path, encoding="utf-8").read()
+        before = Path(path).read_text(encoding="utf-8")
         again = generate_opencode_plugin(target)  # no lib_dir: resolves the copy itself
         assert again == path
-        assert open(path, encoding="utf-8").read() == before
+        assert Path(path).read_text(encoding="utf-8") == before
 
     def test_missing_source_raises_loudly(self, tmp_path):
         """A project with no gate is a project with no QG-0. Never skip in silence."""
@@ -78,7 +80,7 @@ class TestNoNpmDependencies:
         """The user's hand-rolled qg0.ts imported @opencode-ai/plugin and took the
         whole prompt loop down with ERR_MODULE_NOT_FOUND. Types come from JSDoc."""
         path, _ = emitted
-        src = open(path, encoding="utf-8").read()
+        src = Path(path).read_text(encoding="utf-8")
         code = "\n".join(
             line for line in src.splitlines() if not line.lstrip().startswith(("//", "*", "/*"))
         )
@@ -90,7 +92,7 @@ class TestNoNpmDependencies:
 
     def test_exports_the_opencode_contract(self, emitted):
         path, _ = emitted
-        src = open(path, encoding="utf-8").read()
+        src = Path(path).read_text(encoding="utf-8")
         assert "export const TausikQG0 = async ({" in src
         assert '"tool.execute.before"' in src
 
@@ -101,7 +103,7 @@ class TestNoNpmDependencies:
         init, i.e. the host dies at load because of a symbol that exists only for pytest.
         That is precisely the failure class this plugin was written to prevent."""
         path, _ = emitted
-        src = open(path, encoding="utf-8").read()
+        src = Path(path).read_text(encoding="utf-8")
         exports = re.findall(r"^\s*export\s+(?:const|function|class|let|var)\s+(\w+)", src, re.M)
         assert exports == ["TausikQG0"], f"plugin must export exactly TausikQG0, got {exports}"
         assert "export default" not in src

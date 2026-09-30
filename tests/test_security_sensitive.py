@@ -19,15 +19,15 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
-from service_verification import (  # noqa: E402
+from conftest import VERIFICATION_RUNS_DDL
+from service_verification import (
     _build_cache_command,
     has_fresh_verify_run,
     is_cache_allowed,
     is_security_sensitive,
     record_run,
 )
-from verify_files_hash import compute_files_hash  # noqa: E402
+from verify_files_hash import compute_files_hash
 
 
 class TestPositiveCases:

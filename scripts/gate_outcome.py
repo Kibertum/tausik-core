@@ -115,6 +115,11 @@ REASON_EMPTY_KNOWLEDGE_BASE = "empty_knowledge_base"
 # The two remaining "nothing to compare" states, from the drift gates. Same
 # reasoning as the four above: a fresh clone has no deployed profile and no
 # materialized projection, and is not at fault for either.
+#: The expensive half of a run was not reached because the cheap half already failed.
+#: COULD_NOT_RUN rather than NOT_APPLICABLE: the gate DOES apply, it simply produced no
+#: evidence, and §8.6(e) says an absent verdict cannot certify.
+REASON_FAST_PHASE_FAILED = "fast_phase_failed"
+
 REASON_NO_SOURCE_DIR = "no_source_dir"
 REASON_NO_PROJECTION = "no_projection"
 

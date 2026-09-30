@@ -53,7 +53,11 @@ if str(_REPO / "scripts") not in sys.path:
 
 CROSSCUTTING_SCOPE = ["scripts/", "bootstrap/", "harness/"]
 
-pytestmark = pytest.mark.slow
+# НЕ `slow`, и это правило, а не вкус: `addopts` в pyproject содержит `-m 'not slow'`,
+# поэтому храповик под этой меткой держит ноль только в той ленте, которую никто не
+# запускает по привычке. Метка принадлежит тестам, чья цена на два порядка выше цены
+# этого файла — стрессу и развёртыванию профилей. Дешёвая проверка в дорогой ленте
+# есть выключенная проверка; сторож за этим правилом — test_crosscutting_registry.
 
 #: Где ищем ОПРЕДЕЛЕНИЯ.
 _ROOTS = ("scripts", "bootstrap", "harness")

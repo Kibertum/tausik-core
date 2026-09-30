@@ -1,110 +1,72 @@
 **English** | [Русский](../ru/senar-compliance-matrix.md)
 
-# SENAR v1.3 Core — Compliance Matrix
+# SENAR v1.5 Core — Compliance Matrix
 
-**Claimed edition: SENAR v1.3 Core** (owner's decision #336). Later editions are in preparation and are **not** claimed by TAUSIK anywhere.
+<!-- doc-map: reader=maintainer; zone=reference -->
 
-**Assessment date:** 2026-06-13 | **Auditors:** 6+ independent review cycles | **Framework at assessment:** TAUSIK v1.7.0
+**Claimed edition: SENAR v1.5 Core**, self-declared (owner's decision #376, 2026-09-23). SENAR v1.5 was released on 2026-09-07; until its public mirror carries it, the release procedure refuses a TAUSIK tag (task `senar-claim-names-the-published-edition`).
 
-> **What the rows below are, and what they are not.** Each row states a mechanism that exists in this repository and names the code that implements it — those statements are checkable here and were checked. The 35 rows were assembled on 2026-06-13 against a **later, still-moving draft** of the standard, and this document previously closed by asserting conformance to that draft. It no longer does: the normative text is not vendored into this tree, so a conformance percentage against the claimed edition **cannot be computed here**, and an uncomputable figure is reported as absent rather than carried over from a different rubric (decision #334). The re-assessment against v1.3 is task `senar-14-conformance-reassessment-and-self-check`; until it closes, read this page as *what is implemented*, not as *a scored conformance claim*.
+**Assessed:** 2026-09-23, TAUSIK 1.10 development line, against the corpus TAUSIK reads through `senar_standard_corpus` (`tausik drift --detector senar`).
 
-## Quality Gates
+> **What the rows are.** Each row names a mechanism that exists in this repository and the code that implements it. `tests/test_senar_compliance_matrix.py` counts each section against the corpus — SENAR Core has 8 rules, a Start Gate and a Done Gate, three gate properties it requires (a, c, e) and two metrics, and the tables below have exactly that many rows — and the self-check resolves every citation. There is no conformance percentage: a count of implemented mechanisms is checkable, a percentage of a standard is not.
 
-| Gate | Requirement | Status | Enforcement | Evidence |
-|------|-------------|--------|-------------|----------|
-| QG-0 | Goal required | ✅ Implemented | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (via `service_gates.GatesMixin._check_qg0_start` delegator) |
-| QG-0 | AC required | ✅ Implemented | Hard block | `gate_qg0_check.py` `check_qg0_start()` — ServiceError (via `service_gates.GatesMixin._check_qg0_start` delegator) |
-| QG-0 | Negative scenario in AC | ✅ Implemented | Hard block | `gate_negative_scenario.py` `NEGATIVE_SCENARIO_KEYWORDS` + `has_negative_scenario()` (30+ en+ru); enforced inside `gate_qg0_check.check_qg0_start()` |
-| QG-0 | Scope declared | ✅ Implemented | Hard (medium/complex) | `gate_qg0_check.py` `check_qg0_start()` — a medium/complex task with no `scope`/`scope_paths` raises ServiceError (opt out `qg0.scope_hard_gate=false`); simple/unset stays a warning. `scope_exclude` remains an advisory stderr warning. |
-| QG-0 | Security surface detection | ✅ Implemented | Warning | `gate_qg0_check.py` `SECURITY_KEYWORDS` + `SECURITY_AC_KEYWORDS` (re-exported by `service_gates` for backward-compat) |
-| QG-2 | AC verified with evidence | ✅ Implemented | Hard block | `gate_ac_check.py` `verify_ac()` — flag + notes + per-criterion. NO `--force` bypass. (via `service_gates.GatesMixin._verify_ac` delegator) |
-| QG-2 | Plan steps complete | ✅ Implemented | Hard block | `gate_ac_check.py` `verify_plan_complete()` — JSON plan check (via `service_gates.GatesMixin._verify_plan_complete` delegator) |
-| QG-2 | Scoped pytest gate | ✅ Implemented | Hard block | `service_verification.py` — basename match `tests/test_<file>.py` per `relevant_files` (no fallback to full suite when files supplied) |
-| QG-2 | Verify cache (10 min TTL) | ✅ Implemented | Skip-on-hit | `verification_runs` table — same `files_hash` + green = skip; security paths bypass cache |
-| QG-2 | Quality gates (pytest/ruff) | ✅ Implemented | Hard block | `gate_runner.py` + `service_gates.py` `_run_quality_gates()` |
-| QG-2 | Verification checklist (4 tiers) | ✅ Implemented | Warning | `gate_ac_check.py` `check_verification_checklist()` + `determine_checklist_tier()` auto-tier — v1.5 also runs `service_ac_evidence.build_report()` to surface per-AC coverage gaps and missing test refs (via `service_gates.GatesMixin._check_verification_checklist` delegator) |
-| QG-2 | Root cause for defects | ✅ Implemented | Warning | `service_task.py` `task_done()` — keyword check |
-| QG-2 | Knowledge capture | ✅ Implemented | Warning | `service_task.py` `task_done()` — memory/decision count |
+## Core rules
 
-**Result: 13/13 implemented.** Enforcement levels match SENAR spec.
+| Rule | TAUSIK mechanism | Enforcement | Evidence |
+|------|------------------|-------------|----------|
+| 1. Task Before Code | A write with no active task is refused by the PreToolUse hook; shell writes get the same verdict | Hard (hook) | `scripts/hooks/task_gate.py` `main()` |
+| 2. Scope Boundaries | Writes outside the active task's `scope_paths` are refused; a medium/complex task cannot start without a declared scope | Hard (hook + QG-0) | `scripts/hooks/scope_write_gate.py` `main()` |
+| 3. Verify Against Criteria | `task done` requires per-criterion evidence in the task journal | Hard (QG-2) | `scripts/gate_ac_check.py` `verify_ac()` |
+| 4. Tests Verify Requirements, Not Implementation | Substantial/deep tiers whose criteria cite no existing test are refused | Hard (substantial/deep) / Warning | `scripts/gate_ac_check.py` `checklist_hard_block()` |
+| 5. Check for Latent Defects | The verification checklist by tier, reported at closure | Warning | `scripts/gate_ac_check.py` `check_verification_checklist()` |
+| 6. Zero Tolerance for Incomplete Work | Every plan step done before `task done`; no `--force` on closure | Hard (QG-2) | `scripts/gate_ac_check.py` `verify_plan_complete()` |
+| 7. Fix Causes, Not Symptoms | A defect task cannot close without a root cause | Hard (keyword floor) | `scripts/service_task_done_flags.py` `_root_cause_hard_enabled()` |
+| 8. Capture Knowledge | Closure warns without a knowledge entry; complex/defect tasks refuse `--no-knowledge`; dead ends are recorded | Warning / Hard (complex, defect) | `scripts/service_knowledge.py` `dead_end()` |
 
-## Rules
+## Core gates
 
-| Rule | Description | Status | Enforcement | Evidence |
-|------|-------------|--------|-------------|----------|
-| 1 | Task before code | ✅ Implemented | Hard (hook) | `hooks/task_gate.py` blocks Write/Edit without active task |
-| 2 | Scope boundaries | ✅ Implemented | Hard (hook + QG-0) | `hooks/scope_write_gate.py` blocks a Write/Edit outside the active task's `scope_paths`; `hooks/bash_write_gate.py` extends the same verdict to shell writes; QG-0 hard-blocks a medium/complex `task_start` with no scope declared. `scope_exclude` stays advisory. |
-| 3 | Verify against criteria | ✅ Implemented | Hard | QG-0 + QG-2 combined enforcement |
-| 4 | External adversarial review | ✅ Implemented | Hard (under-evidenced closures) | `risk_l3_trigger.py` blocks an under-evidenced `task_done` until an L3 review is recorded (`tausik review record --type L3`); reviewer is the separate-model, read-only `tausik-external-reviewer` subagent (`external_reviewer.py`, separation of duties). Opt out `risk.l3_block_on_high=false`. The selector describes the closure's evidence; it does not predict defect escape (AUC 0.4820 — decision #212). |
-| 5 | Verification checklist | ✅ Implemented | Hard (substantial/deep) / Warning | `gate_ac_check.py` `checklist_hard_block()` hard-blocks substantial/deep planning tiers whose AC cite no existing test; lower tiers get an escalating warning (4-tier auto-detection). Opt out `task_done.checklist_hard=false`. |
-| 6 | Rollback plan | ✅ Implemented | Hard (medium/complex) | `gate_qg0_check.py` `check_qg0_start()` — a medium/complex task with no `rollback_plan` raises ServiceError at `task_start`; unset complexity warns. |
-| 7 | Root cause for defects | ✅ Implemented | Warning | Keyword detection in notes |
-| 8 | Knowledge capture | ✅ Implemented | Warning | memory/decision count + `--no-knowledge` opt-out |
-| 9.1 | No code without task | ✅ Implemented | Hard (hook) | Same as Rule 1 |
-| 9.2 | Session time limit (180 min **active**) | ✅ Implemented | Hard block | Bounded gap-based active time (`Σ min(Δ, threshold)`, default threshold 10 min — long AFK clipped to threshold, v14b-session-active-time). `service_gates.py` blocks `task_start` at >180 min active; `status` shows "X min active / Y min wall"; `session extend` and `session recompute` available. Threshold configurable via `session_idle_threshold_minutes`. |
-| 9.3 | Checkpoint every 30-50 calls | ✅ Implemented | Warning (auto) | MCP counter in meta table, warning at 40 calls, reset on handoff |
-| 9.4 | Document dead ends | ✅ Implemented | Instruction + tooling | `dead_end()` + skill instructions + `/end` check |
-| 9.5 | Periodic audit | ✅ Implemented | Warning | `audit_check/mark` + `/start` integration |
+| Gate | TAUSIK gate | What it prevents | Evidence |
+|------|-------------|------------------|----------|
+| Start Gate | QG-0: goal, criteria, a negative scenario, scope and rollback for medium/complex | Opening a task to modification | `scripts/gate_qg0_check.py` `check_qg0_start()` |
+| Done Gate | QG-2: per-criterion evidence, a scoped verify bound to the files it covered, the plan complete | Closing the task and propagating its result | `scripts/gate_ac_check.py` `verify_ac()` |
 
-**Result: 13/13 implemented.**
+## Three things that make a gate a gate
 
-### Gaps and Plan to Close
+| Property | TAUSIK mechanism | Evidence |
+|----------|------------------|----------|
+| (a) Say what the gate stops | Every gate run records the effect it prevents | `scripts/gate_run_record.py` `record_gate_runs()` |
+| (c) Judge the work as it is now | A verify handle is bound to the hash of the files it covered and refused when they changed | `scripts/verify_handle_check.py` `check_handle()` |
+| (e) When you cannot tell, the answer is no | A gate that did not run is COULD NOT RUN and blocks | `scripts/gate_outcome.py` `could_not_run()` |
 
-| Gap | Plan | Priority |
-|-----|------|----------|
-| ~~Rule 2: `scope_exclude` not checked~~ | ✅ FIXED — warning added for medium/complex tasks | Done |
-| ~~Rule 9.3: No automated checkpoint counter~~ | ✅ FIXED — MCP counter + warning at 40 calls + reset on handoff | Done |
+## Core metrics
 
-## Metrics
-
-| Metric | Status | Evidence |
+| Metric | TAUSIK | Evidence |
 |--------|--------|----------|
-| Throughput (tasks/session) | ✅ Implemented | `backend_queries.py` `get_metrics()` combined query |
-| Lead Time (avg hours) | ✅ Implemented | `backend_queries.py` `get_metrics()` — julianday * 24 |
-| FPSR (first pass %) | ✅ Implemented | `backend_queries.py` `get_metrics()` — attempts=1 |
-| DER (defect escape %) | ✅ Implemented | `backend_queries.py` `get_metrics()` — DISTINCT defect_of |
-| Dead End Rate (%) | ✅ Implemented | `backend_queries.py` `get_metrics()` — memory type=dead_end |
-| Cost per Task (hours by complexity) | ✅ Implemented | `backend_queries.py` `get_metrics()` — GROUP BY complexity |
+| FPSR — First-Pass Success Rate | Share of done tasks closed on the first attempt | `scripts/backend_queries_metrics.py` `get_metrics()` |
+| Dead End Rate | Dead-end records per closed task | `scripts/backend_queries_metrics.py` `get_metrics()` |
 
-**Result: 6/6 implemented.** All calculations verified correct.
+## Beyond Core — implemented, not claimed
 
-## Section 5.1: Explorations
+The claimed edition is Core. The Standard's Foundation configuration asks for more; TAUSIK implements part of it and claims none of it.
 
-| Feature | Status | Evidence |
-|---------|--------|----------|
-| explore_start (time-bounded, 30 min default) | ✅ Implemented | `service_knowledge.py` `exploration_start()` — clamps 1-480 min |
-| explore_current (elapsed + over_limit) | ✅ Implemented | `service_knowledge.py` `exploration_current()` — UTC elapsed calc |
-| explore_end (findings capture) | ✅ Implemented | `service_knowledge.py` `exploration_end()` — summary + optional task |
+| Standard item | TAUSIK | Evidence |
+|---------------|--------|----------|
+| 10.2 Session duration | An advisory threshold with a documented basis — a signal, not a gate (decision #376) | `scripts/service_session_metrics.py` `session_overrun_warning()` |
+| 10.3 Checkpoint cadence | A checkpoint count derived from the session's usage events | `scripts/checkpoint_signal.py` `checkpoint_advice()` |
+| 10.5 Periodic audit | Cadence counted in task closures since the last audit | `scripts/service_session_metrics.py` `audit_overdue_closures()` |
+| 6.4(c), 3.45 Handoff | Generated from the journal; `session end` writes one when none was | `scripts/handoff_generate.py` `generate()` |
+| 8.6(b) Preventive placement | PreToolUse hooks act before the write | `scripts/hooks/task_gate.py` `main()` |
+| 8.6(d) Binding to a measured digest | The handle carries the files hash of the verified set | `scripts/verify_handle.py` `mint_handle()` |
+| 10.13(a) Model per session | Recorded at session open | `scripts/backend_crud.py` `session_start()` |
 
-**Result: 3/3 implemented.**
+## Summary
 
-## Additional Features (beyond SENAR Core)
+Rows citing code, by Core section. The beyond-Core table is not counted: it is not claimed.
 
-| Feature | Status | Evidence |
-|---------|--------|----------|
-| Multi-language gates | ✅ Implemented | `project_config.py` — 25 default stacks + custom_stacks override |
-| MCP coverage 146 tools | ✅ Implemented | `tools.py` + `tools_extra.py` |
-| Batch execution (`/run`) | ✅ Implemented | `plan_parser.py` + `/run` skill |
-| Structured logs (task_logs + FTS5) | ✅ Implemented | `backend_schema.py` + `service_task.py:task_log` |
-| Fake test detection | ✅ Implemented | `/review` skill — 10 patterns |
-| Skills system | ✅ Implemented | 13 core skills + 20 official/vendor on demand (bundles via `tausik skill bundle`) — `service_skills.py` + `tausik-skills` repo |
-| Hooks system | ✅ Implemented | 22 Python hooks + 1 shell pre-commit across PreToolUse / PostToolUse / SessionStart / SessionEnd / Stop / UserPromptSubmit |
-| Roles registry | ✅ Implemented | Hybrid: SQLite metadata + `harness/roles/{role}.md` profile; CRUD CLI + 6 MCP tools |
-| Doctor health check | ✅ Implemented | `tausik doctor` + `tausik_doctor` MCP — 4 groups (venv/DB/MCP/skills) + drift |
-| Zero-defect skill | ✅ Implemented | `/zero-defect` (Maestro-inspired): read-before-write, verify-before-claim, never-hallucinate-APIs |
-
-## Overall Score
-
-| Category | Implemented | Partial | Missing | Rows citing code |
-|----------|-------------|---------|---------|------------------|
-| Quality Gates (13) | 13 | 0 | 0 | 12 of 13 |
-| Rules (13) | 13 | 0 | 0 | 7 of 13 |
-| Metrics (6) | 6 | 0 | 0 | 6 of 6 |
-| Explorations (3) | 3 | 0 | 0 | 3 of 3 |
-| **Total (35)** | **35** | **0** | **0** | **28 of 35** |
-
-**A "Score" column stood here printing 100% five times, and it is gone.** The paragraph below the table already said the conformance percentage for v1.3 cannot be computed here and is deliberately left unstated (decision #334) — while the table directly above it printed a number. Readers take the number. Session #225 removed the percentage from the prose and did not touch the table; session #238 finished the job.
-
-**What replaces it, and why that is measurable.** The count of implemented mechanisms stays: it is checkable row by row and was checked. A second count is added — how many rows of each section **cite code** that resolves in the tree. The gap between 13 and 7 under "Rules" is the unevenness of the evidence: the other six rows assert a mechanism in prose ("keyword detection in notes", "QG-0 + QG-2 joint enforcement"), and such a statement can be neither confirmed nor refuted by a machine. The "13/13 implemented" total counts them the same as the rest, so the share is named rather than averaged away.
-
-**Claimed edition: SENAR v1.3 Core**, and this page carries no conformance score against it. The standard's normative text is not vendored in this tree — only our own restatement — so any rubric applied here is **ours**, and passing it off as the standard's is not allowed. The checkable property this page genuinely has is the integrity of its citations: `scripts/senar_self_check.py` resolves every function, constant and file named here against the tree and refuses when one is gone. It runs inside `tausik coherence` and in the ordinary test run (`tests/test_senar_self_check.py`). This is not attestation and not certification: §13.7 of the standard states plainly that no certification scheme is created and that the claim is made by the organisation itself.
+| Section | Rows citing code |
+|---------|------------------|
+| Core rules | 8 of 8 |
+| Core gates | 2 of 2 |
+| Gate properties (a, c, e) | 3 of 3 |
+| Core metrics | 2 of 2 |
+| **Total** | **15 of 15** |

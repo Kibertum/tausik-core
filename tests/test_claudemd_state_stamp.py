@@ -32,6 +32,7 @@ for _p in (
 import claudemd_state as cs  # noqa: E402
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 CROSSCUTTING_SCOPE = ["scripts/claudemd_state.py", "docs/"]
 
@@ -76,11 +77,11 @@ def test_the_label_is_one_constant_and_the_format_has_one_producer():
     """Both callers import build_dynamic_state; neither spells the stamp itself."""
     assert cs.STAMP_LABEL == "TAUSIK"
     callers = [
-        os.path.join(_ROOT, "scripts", "project_cli_extra.py"),
+        os.path.join(_ROOT, "scripts", "project_cli_doc.py"),
         os.path.join(_ROOT, "harness", "claude", "mcp", "project", "handlers_skill.py"),
     ]
     for path in callers:
-        src = open(path, encoding="utf-8").read()
+        src = Path(path).read_text(encoding="utf-8")
         assert "build_dynamic_state" in src, f"{path} no longer uses the one producer"
         spelled = [
             part.value
@@ -93,7 +94,7 @@ def test_the_label_is_one_constant_and_the_format_has_one_producer():
             f"{path} spells the stamp itself — a second copy of the rule: {spelled}"
         )
     tree = ast.parse(
-        open(os.path.join(_ROOT, "scripts", "claudemd_state.py"), encoding="utf-8").read()
+        Path(os.path.join(_ROOT, "scripts", "claudemd_state.py")).read_text(encoding="utf-8")
     )
     literal_labels = [
         n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and n.value == "Version: "
@@ -103,6 +104,6 @@ def test_the_label_is_one_constant_and_the_format_has_one_producer():
 
 @pytest.mark.parametrize("lang", ["en", "ru"])
 def test_the_skill_pattern_docs_show_the_same_label(lang):
-    text = open(os.path.join(_ROOT, "docs", lang, "skill-patterns.md"), encoding="utf-8").read()
+    text = Path(os.path.join(_ROOT, "docs", lang, "skill-patterns.md")).read_text(encoding="utf-8")
     assert "| TAUSIK: {version}" in text
     assert "| Version: {version}" not in text

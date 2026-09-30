@@ -1,7 +1,7 @@
 """What the codebase-rag tools actually do.
 
 Holds the dispatch plus the store/backend accessors and result
-formatters it owns. server.py keeps the MCP transport only.
+formatters it owns. rag_server.py keeps the MCP transport only.
 
 `call_tool_sync` was a closure over `project_dir` inside server.main();
 it now takes it as a parameter. That is the only signature change in the
@@ -206,7 +206,7 @@ def call_tool_sync(name: str, arguments: dict, project_dir: str) -> str:
                     if related:
                         output += "\n\n=== RELATED TASKS ===\n" + related
                     be.close()
-                except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
+                except Exception:  # noqa: BLE001,S110 — best-effort: MCP handler must not crash the server on a tool call
                     pass
             return output
         finally:
@@ -268,11 +268,20 @@ def call_tool_sync(name: str, arguments: dict, project_dir: str) -> str:
             cache.close()
         except Exception:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
             web_status = {"total_entries": 0}
+        from rag_detect import EXT_TO_LANG
+        from rag_languages import load as load_project_languages
+
+        langs = load_project_languages(project_dir, EXT_TO_LANG)
         return json.dumps(
             {
                 "code_index": code_status,
                 "knowledge": staleness,
                 "web_cache": web_status,
+                "language_config": {
+                    "extra_extensions": langs.extensions,
+                    "boundaries": sorted(langs.boundaries),
+                    "problems": langs.problems,
+                },
             },
             indent=2,
         )

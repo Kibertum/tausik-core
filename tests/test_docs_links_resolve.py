@@ -14,10 +14,14 @@ What is NOT checked, and why:
   green would be the wrong fix.
 * `docs/**/research/` — dated notes; internal links inside them are fixed
   where found but the sink is not held to the standard of the live pages.
-* `TODO.md` — not documentation and not part of the public snapshot (#368).
+* the release charter — an internal working document, not documentation and not part of the
+  public snapshot (#368). `TODO.md` stood here too until decision #401 retired it: a
+  hand-written map beside the GENERATED roadmap drifted two releases behind unread.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import os
 import re
@@ -32,15 +36,35 @@ _LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)\)")
 _SITE_ROUTE = re.compile(r"^/(?:ru/docs|docs/ru|docs)/")
 _ROOT_PAGES = ("README.md", "README.ru.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md")
 
-#: Pages that have no pair in the other language ON PURPOSE, each with the
-#: reason the page itself states. Adding a page here is a decision, not a
-#: silence: the pairing test names any page missing from BOTH the tree and
-#: this list.
-SINGLETONS: dict[str, str] = {
-    "docs/ru/agent-contract.md": "RU-only extended contract; the EN reader is served by AGENTS.md",
-    "docs/en/at-generation-procedure.md": "agent-facing specification, marked 'No RU' in its header",
-    "docs/ru/hooks-events.md": "RU-only hook-contract review (l26-hook-contract-review)",
-}
+
+#: Pages that have no pair in the other language ON PURPOSE, read from the page
+#: ITSELF — the `<!-- audit-translation-drift: unpaired: <reason> -->` marker.
+#:
+#: THIS USED TO BE A HAND-WRITTEN DICT, and the second copy did what second copies
+#: do. Its entry for the extended contract read "the EN reader is served by
+#: AGENTS.md", which was not true: AGENTS.md is an onboarding page and CLAUDE.md
+#: calls the contract FULL, so an English-branch reader had no contract at all.
+#: A registry away from its subject carried an excuse for years; the marker sits
+#: in the file a translator opens, and one source cannot disagree with itself.
+def singletons() -> dict[str, str]:
+    import sys
+
+    scripts = os.path.join(_ROOT, "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from audit_translation_drift import unpaired_reason
+
+    out: dict[str, str] = {}
+    for lang in ("en", "ru"):
+        folder = os.path.join(_ROOT, "docs", lang)
+        for name in os.listdir(folder):
+            if not name.endswith(".md"):
+                continue
+            with open(os.path.join(folder, name), encoding="utf-8") as fh:
+                reason = unpaired_reason(fh.read())
+            if reason:
+                out[f"docs/{lang}/{name}"] = reason
+    return out
 
 
 def _pages() -> list[str]:
@@ -73,7 +97,7 @@ def _broken(rel_page: str, text: str) -> list[str]:
 
 @pytest.mark.parametrize("page", _pages())
 def test_every_relative_link_resolves(page):
-    text = open(os.path.join(_ROOT, page), encoding="utf-8").read()
+    text = Path(os.path.join(_ROOT, page)).read_text(encoding="utf-8")
     broken = _broken(page, text)
     assert not broken, f"{page}: {broken}"
 
@@ -88,16 +112,17 @@ def test_every_page_has_its_pair_or_is_a_declared_singleton():
     en = {f for f in os.listdir(os.path.join(_ROOT, "docs", "en")) if f.endswith(".md")}
     ru = {f for f in os.listdir(os.path.join(_ROOT, "docs", "ru")) if f.endswith(".md")}
     lonely = {f"docs/en/{f}" for f in en - ru} | {f"docs/ru/{f}" for f in ru - en}
-    undeclared = lonely - set(SINGLETONS)
-    stale = set(SINGLETONS) - lonely
+    declared = singletons()
+    undeclared = lonely - set(declared)
+    stale = set(declared) - lonely
     assert not undeclared, f"pages without a pair in the other language: {sorted(undeclared)}"
     assert not stale, f"declared singletons that now have a pair — drop them: {sorted(stale)}"
 
 
 @pytest.mark.parametrize("en_name,ru_name", _pairs())
 def test_the_switcher_points_at_the_pair(en_name, ru_name):
-    en_text = open(os.path.join(_ROOT, "docs", "en", en_name), encoding="utf-8").read()
-    ru_text = open(os.path.join(_ROOT, "docs", "ru", ru_name), encoding="utf-8").read()
+    en_text = Path(os.path.join(_ROOT, "docs", "en", en_name)).read_text(encoding="utf-8")
+    ru_text = Path(os.path.join(_ROOT, "docs", "ru", ru_name)).read_text(encoding="utf-8")
     assert f"../ru/{ru_name}" in en_text, f"docs/en/{en_name} has no switcher to its RU pair"
     assert f"../en/{en_name}" in ru_text, f"docs/ru/{ru_name} has no switcher to its EN pair"
 
