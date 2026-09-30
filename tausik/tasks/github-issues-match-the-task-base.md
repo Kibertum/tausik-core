@@ -1,7 +1,7 @@
 ---
 slug: github-issues-match-the-task-base
 title: "GitHub issues match the task base after 1.10: done closed with the version, the rest in the right milestone"
-status: active
+status: done
 epic: release-110-deferred-from-19
 story: release110-owner-priorities
 complexity: medium
@@ -18,16 +18,16 @@ scope_paths:
   - "docs/"
 scope_tools: []
 depends_on: []
-completed_at: null
+completed_at: "2026-09-30T00:48:24Z"
 resolution: null
 resolution_reason: null
 tracker_refs: []
 started_model_id: claude-opus-5
 started_model_version: null
-done_model_id: null
+done_model_id: claude-opus-5
 done_model_version: null
 model_mismatch: 0
-no_file_changes_declared: 0
+no_file_changes_declared: 1
 token_budget: null
 cost_budget_usd: null
 ---
@@ -49,3 +49,4 @@ Reopen the closed issues and restore milestones from the list logged in the task
 ## Journal
 
 - 2026-09-29T23:08:04Z [implementation] — AC-1 MAP (gh api, 184 open issues, before any change): CLOSE after release 93 (task done/obsolete); KEEP 56 (milestone already matches the task's release); MOVE Planning -> v1.11.0 20: #156 #152 #151 #147 #140 #136 #132 #130 #114 #103 #102 #101 #100 #99 #93 #89 #88 #80 #78 #62 (except #78 -> v2.0.0, a v2- task); NO-TASK 15, all epics: close after release when every child is closed -> #192 #168 #167 #166 #55 #54 #53 #52; keep #188 (child #189 site open), #170 #169 (1.11), #59 #58 #57 #56 (2.0).
+- 2026-09-30T00:48:24Z [implementation] — AC-2: ✓ 101 GitHub issues closed with 'Done in TAUSIK 1.10.0: <release url>' (93 done tasks + epics #192 #168 #167 #166 #55 #54 #53 #52), 0 failures; GitLab #18 #8 #11 closed with the same note. AC-3: ✓ 20 moved earlier (19 -> v1.11.0, #78 -> v2.0.0); v1.10.0 now open=2 (#189 site, #188 its epic). AC-4 Negative: ✓ issues with no task (epics) handled by rule, GitLab #10 (no done task) left open. AC-5 Negative: ✓ only Kibertum/tausik-core and the GitLab core project touched.
