@@ -26,8 +26,8 @@
 | `release110-site-docs-and-hygiene`<br>1.10 H. Полный рефакторинг сайта, всей документации и гигиена проекта | active | 1 | 1 | 34 |
 | `release110-open-defects`<br>1.10 I. Открытые дефекты: ни один известный баг трекеров и линии разработки не переезжает в следующую версию | done | 0 | 0 | 50 |
 | `release110-terse-answers`<br>1.10 J. Ответ агента короткий и структурный: замер, а не текст-пожелание | done | 0 | 0 | 8 |
-| `release110-owner-priorities`<br>1.10 owner priorities (#406): understandable from outside, token economy, answer quality | done | 2 | 0 | 17 |
-| **Итого** | | **3** | **1** | **164** |
+| `release110-owner-priorities`<br>1.10 owner priorities (#406): understandable from outside, token economy, answer quality | done | 1 | 0 | 19 |
+| **Итого** | | **2** | **1** | **166** |
 
 ## Что в релиз НЕ входит
 

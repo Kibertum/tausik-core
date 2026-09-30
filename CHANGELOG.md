@@ -9,6 +9,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.10.1] — 2026-09-30
+
+### Fixed — the public tree's own test run is green again
+
+1.10.0 was published with every GitHub Actions job red on the same four tests: each read
+a file the public snapshot leaves out on purpose (`.gitlab-ci.yml`, the `tausik/tasks/`
+projection, and `scripts/ci_lane_dev.py`, which mypy could not find). On the public tree
+those checks now skip with a named reason, and mypy treats the optional development-only
+module as absent by design. On the development line all four run as before.
+
 ## [1.10.0] — 2026-09-30
 
 ### Fixed — a reissued ROADMAP.md no longer refuses a close without files

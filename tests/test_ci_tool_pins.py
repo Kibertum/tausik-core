@@ -10,6 +10,7 @@ line in the CI configs and the contributor guide and refuses a bare install.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -55,9 +56,18 @@ def test_the_pin_file_pins_every_tool_exactly():
     assert set(pins) == set(PINNED_TOOLS)
 
 
+def _excluded_from_public_tree(rel: str) -> bool:
+    sys.path.insert(0, str(_ROOT / "scripts"))
+    from publication_snapshot import EXCLUDED_FROM_PUBLIC_SNAPSHOT
+
+    return any(rel == e or rel.startswith(e) for e in EXCLUDED_FROM_PUBLIC_SNAPSHOT)
+
+
 @pytest.mark.parametrize("rel", INSTALL_SOURCES)
 def test_no_ci_install_of_a_pinned_tool_is_bare(rel):
     path = _ROOT / rel
+    if not path.exists() and _excluded_from_public_tree(rel):
+        pytest.skip(f"{rel} is excluded from the public snapshot; checked on the development line")
     assert path.exists(), f"{rel} is missing — the install paths cannot be checked"
     assert unpinned_installs(path.read_text(encoding="utf-8")) == []
 

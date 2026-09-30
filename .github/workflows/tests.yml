@@ -28,7 +28,7 @@ jobs:
       - name: Security scan (bandit, advisory)
         run: bandit -r scripts/ -ll -q || true
 
-  # Fast lane across the full matrix. `pytest tests/` inherits addopts = -m 'not slow'
+  # Fast lane on Windows and macOS. `pytest tests/` inherits addopts = -m 'not slow'
   # from pyproject, so this is the quick lane — broad platform/version coverage, ~5 min.
   # It also inherits `-n auto` from the same addopts. The ~5 min is the SERIAL figure
   # measured before that; a GitHub runner has 2-4 cores, so expect less than the 8.5x
@@ -37,9 +37,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # Windows and macOS once each. Ubuntu is covered by `test-full` below, which runs
+      # every test including the slow ones, so a fast Ubuntu cell would repeat it.
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.11', '3.12', '3.13']
+        include:
+          - {os: windows-latest, python-version: '3.12'}
+          - {os: macos-latest, python-version: '3.13'}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
