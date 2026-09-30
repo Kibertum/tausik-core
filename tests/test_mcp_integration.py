@@ -177,7 +177,33 @@ class TestMCPServerStartup:
             cwd=str(tmp_path),
             env=env,
         )
-        stdout, stderr = proc.communicate("\n".join(messages) + "\n", timeout=15)
+        # stdin stays OPEN until the tools/call reply is in: at EOF the server shuts down,
+        # and on Linux it did so before the threaded call answered.
+        import threading
+
+        lines: list[str] = []
+        done = threading.Event()
+
+        def _read() -> None:
+            for line in proc.stdout:
+                lines.append(line)
+                if '"id":3' in line.replace(" ", ""):
+                    done.set()
+                    return
+
+        reader = threading.Thread(target=_read, daemon=True)
+        reader.start()
+        proc.stdin.write("\n".join(messages) + "\n")
+        proc.stdin.flush()
+        done.wait(timeout=20)
+        proc.stdin.close()
+        try:
+            _, stderr = proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            _, stderr = proc.communicate()
+        reader.join(timeout=5)
+        stdout = "".join(lines)
         replies = {r.get("id"): r for r in map(json.loads, filter(None, stdout.splitlines()))}
 
         assert "result" in replies.get(2, {}), f"no tools/list reply: {stdout!r} {stderr!r}"
