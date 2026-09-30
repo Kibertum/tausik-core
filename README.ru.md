@@ -10,9 +10,9 @@ TAUSIK встаёт поверх ИИ-агента, которым вы уже �
 
 **Где это стоит.** Поле называет эту дисциплину *harness engineering*: харнесс — это цикл агента, интерфейс инструментов, управление контекстом и механизмы контроля. TAUSIK — не харнесс: цикл и инструменты принадлежат Claude Code, Cursor, Codex и другим. Это слой проверки и контроля поверх них, и его отличие в том, что без доказательства ничто не считается сделанным.
 
-[![v1.10.0](https://img.shields.io/badge/version-v1.10.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.10.1](https://img.shields.io/badge/version-v1.10.1-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![12721 tests](https://img.shields.io/badge/tests-12721-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
+[![12771 tests](https://img.shields.io/badge/tests-12771-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#доказательство-tausik-построен-на-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -171,7 +171,7 @@ Run `tausik verify --task fix-mobile-button` first.
 Каждая функция и каждое исправление TAUSIK прошли через те же контрольные точки, что поставляются в коробке.
 
 - **Каждая задача закрыта с целью и критериями приёмки**, ни одна — без пройденной проверки.
-- **12721 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
+- **12771 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
 - **0 зависимостей ядра** — стандартная библиотека Python 3.11+; MCP-пакеты живут в изолированном `.tausik/venv/`.
 - **Один исходящий запрос** — не чаще раза в день анонимный GET на `api.github.com/repos/Kibertum/tausik-core/releases/latest`, чтобы узнать о новой версии. Без имени проекта, пути и пользователя. Выключается `"updates": {"check": false}` в `.tausik/config.json`. Всё остальное остаётся на вашей машине.
 

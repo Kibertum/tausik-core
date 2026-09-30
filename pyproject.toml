@@ -1,6 +1,6 @@
 [project]
 name = "tausik"
-version = "1.10.0"
+version = "1.10.1"
 description = "Cross-IDE AI agent framework with task lifecycle, quality gates, and project memory"
 readme = "README.md"
 license = "Apache-2.0"
@@ -166,6 +166,14 @@ ignore_missing_imports = true
 # of type information in a third-party package we deliberately do not require.
 [[tool.mypy.overrides]]
 module = "yaml"
+ignore_missing_imports = true
+
+# ci_lane_dev is development-line tooling, excluded from the public snapshot
+# (publication_snapshot.EXCLUDED_FROM_PUBLIC_SNAPSHOT) and imported OPTIONALLY by
+# cli_push_ok. On the development line it exists and is checked; on the public
+# tree it is absent by design, which is not a type error.
+[[tool.mypy.overrides]]
+module = "ci_lane_dev"
 ignore_missing_imports = true
 
 # MCP handler modules. Every handler takes the service as `svc: Any` and many

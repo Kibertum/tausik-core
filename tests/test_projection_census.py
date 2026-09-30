@@ -84,8 +84,14 @@ class TestTheCensusWeighsWhatIsThere:
         assert c.path_share == 0.0 and c.byte_share == 0.0
 
     def test_every_declared_kind_is_a_real_subtree_of_this_project(self):
+        sys.path.insert(0, str(_REPO / "scripts"))
+        from publication_snapshot import EXCLUDED_FROM_PUBLIC_SNAPSHOT
+
         for kind in KINDS:
-            assert (_REPO / "tausik" / kind).is_dir(), kind
+            path = _REPO / "tausik" / kind
+            if not path.is_dir() and f"tausik/{kind}/" in EXCLUDED_FROM_PUBLIC_SNAPSHOT:
+                continue  # the public snapshot leaves the projection out by design
+            assert path.is_dir(), kind
 
 
 class TestTheCeilingOnArchival:
