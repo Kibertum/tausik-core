@@ -191,18 +191,25 @@ class TestMCPServerStartup:
                     done.set()
                     return
 
+        err_lines: list[str] = []
+        err_reader = threading.Thread(target=lambda: err_lines.extend(proc.stderr), daemon=True)
+        err_reader.start()  # an unread stderr pipe fills up and stalls the server
         reader = threading.Thread(target=_read, daemon=True)
         reader.start()
         proc.stdin.write("\n".join(messages) + "\n")
         proc.stdin.flush()
         done.wait(timeout=20)
+        # Not communicate(): after a manual stdin.close() it flushes the closed stdin and
+        # raises ValueError on Linux (see the startup test above).
         proc.stdin.close()
         try:
-            _, stderr = proc.communicate(timeout=10)
+            proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
-            _, stderr = proc.communicate()
+            proc.wait()
         reader.join(timeout=5)
+        err_reader.join(timeout=5)
+        stderr = "".join(err_lines)
         stdout = "".join(lines)
         replies = {r.get("id"): r for r in map(json.loads, filter(None, stdout.splitlines()))}
 
