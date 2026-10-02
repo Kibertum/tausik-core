@@ -204,3 +204,23 @@ def test_report_percentages_are_over_agent_sessions(tmp_path):
 
 def test_history_outside_a_repo_is_empty_not_an_error(tmp_path):
     assert cba.tail_ids_in_history(str(tmp_path)) == set()
+
+
+def test_codex_schema_deferral_is_unknown_when_native_journal_has_no_signal(tmp_path):
+    journal = tmp_path / "codex.jsonl"
+    _write(journal, [{"type": "turn_context", "payload": {"model": "gpt-5.6-sol"}}])
+    observed = cba.codex_schema_observation([str(journal)])
+    assert observed["turn_context_records"] == 1
+    assert observed["records_with_tools_field"] == 0
+    assert observed["deferral_state"] == "unknown"
+
+
+def test_codex_schema_deferral_uses_only_an_explicit_native_signal(tmp_path):
+    journal = tmp_path / "codex.jsonl"
+    _write(
+        journal,
+        [{"type": "turn_context", "payload": {"tools": [], "tools_deferred": True}}],
+    )
+    observed = cba.codex_schema_observation([str(journal)])
+    assert observed["records_with_tools_field"] == 1
+    assert observed["deferral_state"] == "deferred"

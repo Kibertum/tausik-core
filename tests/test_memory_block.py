@@ -169,15 +169,16 @@ class TestMemoryBlockMcp:
 
 
 class TestSessionStartIntegration:
-    """SessionStart hook should call `memory block` and include output when available."""
+    """SessionStart must not duplicate memory loaded on demand."""
 
     def test_hook_script_references_memory_block(self):
-        """The hook source must invoke the memory block CLI command."""
+        """The hook uses compact status and leaves memory to task context."""
         hook_path = os.path.join(
             os.path.dirname(__file__), "..", "scripts", "hooks", "session_start.py"
         )
         source = Path(hook_path).read_text(encoding="utf-8")
-        assert '["memory", "block"]' in source
+        assert '["status", "--compact"]' in source
+        assert '["memory", "block"]' not in source
 
 
 class TestSkillsDocumentation:

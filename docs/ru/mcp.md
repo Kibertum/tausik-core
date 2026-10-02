@@ -19,7 +19,7 @@
 Тяжёлые quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) живут на отдельном триггере `verify`. MCP workflow:
 
 ```
-tausik_task_start(slug=…)                    # QG-0
+tausik_task_start(slug=…, package=true)      # QG-0 + bounded context одним результатом
 … работа над кодом …
 tausik_verify(task_slug=…)                   # тяжёлое: subprocess-гейты → кеш green
 tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеше
@@ -37,7 +37,7 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | `tausik_self_check` | Свежесть MCP-сервера: время старта, snapshot mtime watched-модулей vs текущие mtime на диске, флаг `drift_detected`, список stale-модулей с `delta_seconds`, число sibling MCP project-серверов. Вызывать из `/start` чтобы поймать предвестники тихих зависаний (gotchas #77/#79/#80). | — |
 | `tausik_status` | Обзор проекта: задачи, сессия, эпики. `compact: true` → один JSON без изменения текстового режима по умолчанию. | `compact` (опционально) |
 | `tausik_doctor` | 4-group health (venv + DB + MCP + skills + drift) | — |
-| `tausik_metrics` | Метрики SENAR: Throughput, FPSR, DER, Dead End Rate, Cost/Task | — |
+| `tausik_metrics` | Метрики SENAR или компактный нативный расход при `host=codex\|kilo` | `host?` |
 | `tausik_usage_event_log` | Ручная запись в `usage_events` (агрегаты сессии не трогает) | `tokens_input`, `tokens_output`, `tokens_total`, `cost_usd` |
 | `tausik_search` | Полнотекстовый поиск по задачам, памяти, решениям | `query` |
 
@@ -47,9 +47,9 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 |---|---|---|
 | `tausik_task_add` | Создать задачу (опционально в стори) | `slug`, `title` |
 | `tausik_task_quick` | Быстрое создание с auto-slug | `title` |
-| `tausik_task_start` | Начать работу (QG-0: требует goal + AC + negative scenario) | `slug` |
+| `tausik_task_start` | Начать работу; опционально вернуть bounded context тем же результатом | `slug`, опционально `package` |
 | `tausik_task_done` | Завершить (QG-2: `ac_verified=true`, scoped pytest, verify cache). Возвращает structured JSON: `blocking_failures`, per-gate results, cache status. | `slug` |
-| `tausik_task_show` | Полная информация | `slug` |
+| `tausik_task_show` | Полная информация или ограниченный контекст с `mode=package` | `slug`; опционально `mode` |
 | `tausik_task_list` | Список с фильтрами (status enum: `planning,active,blocked,review,done`) | — |
 | `tausik_task_update` | Обновить поля (title/goal/AC/scope/notes/stack/complexity/role/tier/call_budget) | `slug` |
 | `tausik_task_plan` | Задать шаги плана | `slug`, `steps[]` |
@@ -97,7 +97,7 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | `tausik_session_list` | Список сессий | — |
 | `tausik_session_handoff` | Сохранить handoff data | `handoff` (object) |
 | `tausik_session_last_handoff` | Живой handoff или handoff сессии `session_id` | `session_id` (опц.) |
-| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked задачи + self_check в одном envelope. Питает Phase 1 в `/start`. Секции `session` и `self_check` спроецированы только до рендерящихся полей (без `watched_modules`/`current_mtimes`, без дубля хендоффа) — полная телеметрия через `tausik_self_check`. | — |
+| `tausik_session_open` (v1.5) | Compound RPC: host-context policy + session start + status + handoff + active/blocked задачи + self_check в одном envelope. Питает Phase 1 в `/start`. `host_context` показывает повтор того же thread, доступность native usage, advisory/hard pressure и промпт нового окна. Session и self_check спроецированы; большой handoff — сводка до 4096 UTF-8 байт с явными пропусками и вызовом полного чтения. При `_projection.requires_full_handoff=true` сначала прочитайте полный handoff. Ограничение относится к секции handoff, а не ко всему envelope. Полная телеметрия: `tausik_self_check`; полный handoff: `tausik_session_last_handoff`. | — |
 
 Лимит сессии — gap-based **active time** (паузится после 10-min idle gap), не wall clock. См. `session-active-time.md`.
 
@@ -368,17 +368,19 @@ Bootstrap-шаг генерирует IDE-specific MCP-launchers под `harness
 
 ## Экономия контекста: схемы по требованию
 
-`mcp.compact_tool_list` в `.tausik/config.json` (по умолчанию **выключено**).
-Включённый, он оставляет полные схемы только у ядра из 21 инструмента, а
-остальным 126 — имя и первые 60 символов описания. Схема любого из них
+`mcp.compact_tool_list` в `.tausik/config.json` включается bootstrap, если проект
+не задал явное `false`. Без порождённого конфига сервер безопасно отдаёт полный
+список. Включённый флаг оставляет полные схемы только у ядра из 23 инструментов, а
+остальным 124 — имя и первые 60 символов описания. Схема любого из них
 добирается одним вызовом `tausik_tool_schema(name=...)`; `query` ищет по
 подстроке, пустой аргумент отдаёт перечень имён.
 
-ЗАМЕР, смена #275: список падает с 14 337 до 8 600 токенов, то есть на 40%, и
-эта цена платится в КАЖДОМ запросе. Выбор «60 символов» тоже замер, а не вкус:
-первая строка целиком даёт −27%, только имя — −52%, но «только имя» лишает
-модель признака, по которому выбирают, чью схему просить, и экономия уходит на
-лишний ход.
+На свежей stdio-поверхности из 147 инструментов 02.10.2026 minified UTF-8 список
+уменьшился с 54 566 до 33 752 байт (-38,1%). Выбор «60 символов» тоже основан на
+замере: только имя ещё меньше, но лишает модель признака, по которому выбирают,
+чью схему просить, и может потратить экономию на лишний ход. Полная раскладка
+проектного контекста приведена в [context-economy.md](context-economy.md).
 
-Выключено по умолчанию намеренно: цена ошибки — лишний ход в каждом разговоре, и
-платит её потребитель. Включайте, сверив у себя число ходов на задачу.
+Чтобы отказаться от сокращения, задайте `false` после проверки числа ходов на
+задачу. При отсутствующем, повреждённом или нечитаемом конфиге сервер всегда
+возвращает полный список.

@@ -36,11 +36,22 @@ DEFAULT_FAMILIES: dict[str, dict[str, dict[str, str]]] = {
         "opus": {"model": "glm-4.6", "display": "GLM-4.6"},
         "fable": {"model": "glm-4.6", "display": "GLM-4.6"},
     },
+    "openai": {
+        "haiku": {"model": "gpt-5.6-luna", "display": "GPT-5.6 Luna"},
+        "sonnet": {"model": "gpt-5.6-terra", "display": "GPT-5.6 Terra"},
+        "opus": {"model": "gpt-5.6-sol", "display": "GPT-5.6 Sol"},
+        "fable": {"model": "gpt-6-astra", "display": "GPT-6 Astra"},
+    },
 }
 
 # Vendor token fallback when a model id is not found in the (merged) families
 # reverse index — keeps detection working for point-release ids not yet listed.
-_VENDOR_TOKENS: tuple[str, ...] = ("claude", "glm", "qwen")
+_VENDOR_TOKENS: tuple[tuple[str, str], ...] = (
+    ("claude", "claude"),
+    ("glm", "glm"),
+    ("qwen", "qwen"),
+    ("gpt", "openai"),
+)
 
 
 def normalize_model_id(raw: str | None) -> str:
@@ -128,9 +139,9 @@ def vendor_of(model_id: str | None, families: dict[str, dict[str, dict[str, str]
     hit = reverse_index(families).get(norm)
     if hit is not None:
         return hit[0]
-    for tok in _VENDOR_TOKENS:
+    for tok, family in _VENDOR_TOKENS:
         if tok in norm:
-            return tok
+            return family
     return None
 
 

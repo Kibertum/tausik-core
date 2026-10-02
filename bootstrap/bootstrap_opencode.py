@@ -298,7 +298,7 @@ def scaffold_opencode(
     lib_dir: str | None,
     config: dict | None,
     stacks: list[str],
-    context_tier: str = "standard",
+    context_tier: str = "minimal",
     output_mode: str = "off",
 ) -> None:
     """Full OpenCode scaffold: config + rules + QG-0 plugin + command stubs.
@@ -337,7 +337,7 @@ def generate_opencode_rules(
     project_dir: str,
     project_name: str,
     stacks: list[str],
-    context_tier: str = "standard",
+    context_tier: str = "minimal",
     config: dict | None = None,
     output_mode: str = "off",
 ) -> str:

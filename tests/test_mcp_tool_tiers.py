@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 _REPO = Path(__file__).resolve().parents[1]
-for _sub in ("scripts", "harness/claude/mcp/project"):
+for _sub in ("scripts", "bootstrap", "harness/claude/mcp/project"):
     if str(_REPO / _sub) not in sys.path:
         sys.path.insert(0, str(_REPO / _sub))
 
@@ -75,7 +75,9 @@ class TestЯдроСодержитНужноеНаПервомХоду:
             "tausik_session_open",
             "tausik_status",
             "tausik_task_list",
+            "tausik_task_quick",
             "tausik_task_start",
+            "tausik_task_step",
             "tausik_task_done",
             "tausik_task_log",
             "tausik_verify",
@@ -140,6 +142,43 @@ class TestПоУмолчаниюВыключено:
     def test_без_конфига_список_не_урезан(self, all_tools, monkeypatch, tmp_path):
         monkeypatch.setattr(tiers, "_feature_enabled", lambda *a, **k: False)
         assert tiers.apply_tiers(all_tools) is all_tools
+
+    @pytest.mark.parametrize(
+        ("config", "expected"),
+        [
+            ({"mcp": {"compact_tool_list": True}}, True),
+            ({"bootstrap": {"mcp": {"compact_tool_list": True}}}, False),
+        ],
+    )
+    def test_project_flag_is_read_only_from_the_root_config(self, tmp_path, config, expected):
+        tausik_dir = tmp_path / ".tausik"
+        tausik_dir.mkdir()
+        (tausik_dir / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+        assert tiers._feature_enabled(str(tausik_dir)) is expected
+
+    @pytest.mark.parametrize("existing", [None, False])
+    def test_bootstrap_enables_compaction_but_preserves_explicit_opt_out(self, tmp_path, existing):
+        from bootstrap_config import save_tausik_config
+
+        config_path = tmp_path / ".tausik" / "config.json"
+        if existing is not None:
+            config_path.parent.mkdir()
+            config_path.write_text(
+                json.dumps({"mcp": {"compact_tool_list": existing}}), encoding="utf-8"
+            )
+        save_tausik_config(
+            str(config_path),
+            {"core_skills": [], "extension_skills": []},
+            lib_commit=None,
+            stacks=[],
+            ides=[],
+            project_dir=str(tmp_path),
+            lib_dir=str(_REPO),
+        )
+        written = json.loads(config_path.read_text(encoding="utf-8"))
+
+        assert written["mcp"]["compact_tool_list"] is (True if existing is None else existing)
 
     def test_включённый_флаг_урезает(self, all_tools, monkeypatch):
         monkeypatch.setattr(tiers, "_feature_enabled", lambda *a, **k: True)

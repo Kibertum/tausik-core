@@ -64,10 +64,14 @@ class TaskTeamMixin:
         from project_config import is_task_next_model_hint_enabled
 
         if is_task_next_model_hint_enabled():
-            from model_routing import suggest_model
+            from model_route import route_work
 
             task = dict(task)
-            task["model_hint"] = suggest_model(task.get("complexity"))
+            session = self.be.session_current()  # type: ignore[attr-defined]
+            task["model_hint"] = route_work(
+                task.get("complexity"),
+                active_model=session.get("model_id") if session else None,
+            )
         return task
 
     def task_claim(self, slug: str, agent_id: str) -> str:

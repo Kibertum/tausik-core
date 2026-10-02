@@ -44,6 +44,9 @@ MINIMAL_COMMANDS = """## Commands (minimal)
 ```
 
 Full CLI: [docs/en/cli.md](docs/en/cli.md).
+Skills remain discoverable in [docs/en/skills.md](docs/en/skills.md); MCP tools and
+their parameters remain discoverable in [docs/en/mcp.md](docs/en/mcp.md). Load the
+specific skill or tool description when the task needs it.
 """
 
 COMPACTION_CONTRACT = """## Compaction contract (what must survive a context compaction)

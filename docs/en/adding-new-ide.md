@@ -97,7 +97,7 @@ the context).
 
 ```
 harness/
-├── skills/          # 14 core auto-deployed + 20 vendor opt-in (--include-official)
+├── skills/          # 14 core auto-deployed; external skills installed per skill
 ├── roles/           # roles (all IDEs)
 ├── stacks/          # stacks (all IDEs)
 ├── overrides/       # IDE-specific override files

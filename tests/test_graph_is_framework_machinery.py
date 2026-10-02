@@ -335,7 +335,7 @@ class TestTheConsumersAgentIsToldTheGraphExists:
         sys.path.insert(0, str(_REPO / "bootstrap"))
         from bootstrap_generate import generate_claude_md
 
-        generate_claude_md(str(tmp_path), "proj", ["python"])
+        generate_claude_md(str(tmp_path), "proj", ["python"], context_tier="standard")
         return (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
 
     def test_the_generated_rules_name_the_command(self, tmp_path):

@@ -130,6 +130,42 @@ Both halves are LOCAL: `call_actual` lives in this project's database and the si
 by a hook on this machine. Neither travels, so on a fresh clone the report says absence in words
 rather than printing a zero.
 
+## Native Codex and Kilo reports (1.11)
+
+```bash
+tausik metrics tokens --host codex --json
+tausik metrics tokens --host kilo --json
+```
+
+CLI and `tausik_metrics({"host": "codex" | "kilo"})` call the same reporting
+implementation. A missing source returns `source_available: false` and unknown
+counters instead of zero.
+
+The Codex adapter follows explicit `task start` / successful `task done`
+boundaries in native response order. It includes failed closure attempts and
+their rework, then admits a task to `accepted_task_cost` only when project state
+says `done`. Each task reports response rounds, input/cached/output/reasoning,
+attempts/retries and observed model/reasoning/speed identity. Fork history,
+nested or incomplete windows and responses outside a boundary remain
+unattributed. Commands and tool output are inspected transiently for lifecycle
+success markers and are never persisted in the cache.
+
+The Kilo adapter reads its documented local SQLite store in read-only mode. It
+selects only response identity, provider/model/version and the five token counters;
+prompts, tool payloads, credentials and raw project paths never enter the project
+cache. Kilo stores plain input, cache read, cache write, plain output and reasoning as
+disjoint counters, so TAUSIK reconstructs common input and output totals before
+reporting them. Incremental reads key responses by identity and update timestamp;
+session aggregates provide an independent reconciliation check.
+Completed and failed assistant records are reported separately, so an API error with
+zero tokens cannot be mistaken for a successful GLM run.
+
+Kilo does not expose account subscription quota through this store. The report keeps
+`account_quota: null`, applies no price table and makes no savings claim. Provider API
+documentation about cached tokens does not prove that a particular host surfaced the
+same value. Task attribution is also unknown because Kilo responses do not carry a
+TAUSIK task slug.
+
 ## Limitations
 
 - **Session tokens recorded before 1.10 are overstated and are not re-derived**. Claude Code writes one API message with N content blocks as N transcript entries carrying the same usage, and the meter added it N times: 1.81x on the replay transcript of session #263. Since 1.10 usage is counted once per message id. The overstatement depends on the block count, so old rows cannot be divided by a constant; do not compare them with new ones.

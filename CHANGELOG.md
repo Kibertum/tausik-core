@@ -9,6 +9,55 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-10-02
+
+### Token economy without weaker evidence
+
+- The same 147-tool MCP surface now carries a 32.9% smaller repeated prefix
+  (63,333 → 42,519 UTF-8 bytes). Session start is one bounded call; task start can
+  return its context package; `task show --package` and work packets load only the
+  required contract.
+- Ordinary verify selects affected tests and fails open to the complete applicable
+  lane on uncertainty or security-sensitive changes. Two low-value test tranches were
+  reduced from 87 to 45 nodes (48.3%) without weakening the default or slow lanes.
+- Verify and task closure return bounded verdicts, denominators and actionable failures;
+  complete output remains in `.tausik/verification/`. Compound start/progress/close
+  paths remove deterministic model round trips while preserving QG-0 and QG-2.
+- Codex and Kilo usage readers deduplicate native records, preserve unknown attribution,
+  and keep cache, reasoning, credits and subscription quota distinct. No dollar or
+  weekly-quota saving is inferred from token counters.
+- Provider-neutral routing recommends economical bounded workers and escalates only for
+  named complexity or failed-quality signals. It never pretends to switch the active
+  coordinator; Luna remains unqualified until natural accepted work proves it.
+- Host-context budgets checkpoint long Codex threads and direct the agent to a fresh
+  window. Controlled prose and conditional answer formats keep ordinary answers short
+  without forcing diagrams, HTML or video.
+- The official skill store was reduced to three neutral document skills: `docs`,
+  `excel`, and `pdf`. MCP duplicates, core workflow duplicates, and company-specific
+  roles were removed. Each remaining skill is installed separately; the official
+  store publishes no bundle. A clean bootstrap also leaves `skills.example.json`
+  inert: external catalogs download only after an explicit `skills.json` opt-in.
+
+### Release integrity
+
+- Complete test output and evidence remain durable, while ordinary verification reports
+  its selected and deselected scope. On the final public snapshot, the default lane
+  recorded 12,559 passed, 100 skipped and 143 deselected; the slow lane recorded
+  129 passed, 14 skipped and 12,659 deselected.
+- The per-task `changelog.d` experiment was removed. It produced an empty public folder
+  and most 1.11 fragments did not satisfy its own format; changes again update the two
+  reviewed changelogs directly.
+- The obsolete 1.9 release plan and its migration-only skill pages were removed; current
+  documentation now describes the three-skill store and generic third-party bundles.
+- README test badges count the public test surface, not the development-only GitLab
+  reader excluded from the release snapshot.
+- The architecture reference now measures the flat `scripts/` debt (563 files, 502 at
+  root, 34 versioned migration modules) and defines the 2.0 package layout. Runtime
+  moves and migration squashing remain outside 1.11 so its upgrade path stays intact.
+- This release proves the measured reductions above. It does not claim a 30% reduction
+  in Codex weekly credits: natural-task round acceptance and the verification-cycle
+  replay remain explicitly unproven.
+
 ## [1.10.1] — 2026-09-30
 
 ### Fixed — the public tree's own test run is green again

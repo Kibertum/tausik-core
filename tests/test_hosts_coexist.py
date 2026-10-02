@@ -84,6 +84,10 @@ class TestНаборПравилУОбоихОдин:
         reference = build_hooks_dict(lambda script, suffix="": f"X/{script}{suffix}")
         codex = bootstrap_codex.build_codex_hooks(str(tmp_path / ".codex"))
         assert set(codex) == set(reference)
+        adapter = codex["PreToolUse"].pop()
+        assert adapter["matcher"] == "apply_patch|Bash|PowerShell"
+        assert len(adapter["hooks"]) == 1
+        assert "codex_write_gate.py" in adapter["hooks"][0]["command"]
         for event in reference:
             assert [e.get("matcher") for e in codex[event]] == [
                 e.get("matcher") for e in reference[event]
@@ -94,14 +98,17 @@ class TestНаборПравилУОбоихОдин:
         codex = _CODEX / "hooks.json"
         if not (claude.is_file() and codex.is_file()):
             pytest.skip("оба профиля не развёрнуты в этом дереве")
-        assert len(_hook_commands(_read_json(claude))) == len(_hook_commands(_read_json(codex))), (
+        commands = _hook_commands(_read_json(codex))
+        adapters = [c for c in commands if "codex_write_gate.py" in c]
+        assert len(adapters) == 1
+        assert len(_hook_commands(_read_json(claude))) == len(commands) - len(adapters), (
             "у одного хоста команд больше — набор правил разошёлся между хостами"
         )
 
     def test_различие_ровно_одно_и_это_форма_пути(self, tmp_path):
         """Claude ссылается на хуки через ${CLAUDE_PROJECT_DIR}, Codex — нет,
-        потому что такой переменной у него не существует. Это ЕДИНСТВЕННОЕ
-        различие, и оно названо, а не обнаружено потом."""
+        потому что такой переменной у него не существует. Дополнительный
+        payload adapter проверяется отдельно; все команды остаются абсолютными."""
         codex = bootstrap_codex.build_codex_hooks(str(tmp_path / ".codex"))
         assert not [c for c in _hook_commands({"hooks": codex}) if "${" in c]
 

@@ -25,6 +25,10 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT
+
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "scripts"))
 
@@ -108,6 +112,7 @@ class TestTheDetectorGoesRedWhenItShould:
         assert el.load_config(str(tmp_path)) is None
 
 
+@pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
 class TestOurOwnConfigMatchesWhatWeDecided:
     def test_context_tier_is_present_but_recorded_as_inert(self):
         """Deleting it does not stick — bootstrap writes it back, and correctly.

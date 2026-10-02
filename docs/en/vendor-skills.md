@@ -15,7 +15,7 @@ TAUSIK supports external skill packages from GitHub repos. Skills are cloned onc
 .tausik/tausik skill repo add https://github.com/Kibertum/tausik-skills
 
 # 2. Install a skill (copies files + installs pip deps)
-.tausik/tausik skill install jira
+.tausik/tausik skill install pdf
 
 # 3. Restart IDE to load the new skill
 ```
@@ -48,10 +48,10 @@ TAUSIK ships with `Kibertum/tausik-skills` as a pre-configured default repo. Run
 
 ```bash
 # Install: clone repo (if needed) → copy skill → install pip deps
-.tausik/tausik skill install jira
+.tausik/tausik skill install pdf
 
 # Uninstall: remove files and config entry
-.tausik/tausik skill uninstall jira
+.tausik/tausik skill uninstall pdf
 
 # List everything: active, vendored, and available from repos
 .tausik/tausik skill list
@@ -104,10 +104,10 @@ Active (loaded into agent context)
 
 ```bash
 # Remove from context (keeps files in vendor)
-.tausik/tausik skill deactivate jira
+.tausik/tausik skill deactivate pdf
 
 # Reload into context
-.tausik/tausik skill activate jira
+.tausik/tausik skill activate pdf
 ```
 
 ## tausik-skills.json Format
@@ -119,11 +119,11 @@ TAUSIK-compatible repos must have `tausik-skills.json` in the root:
   "format": "tausik-skills",
   "version": 1,
   "skills": {
-    "jira": {
-      "path": "jira/",
-      "description": "Jira issue management",
-      "triggers": ["jira", "sprint", "issues"],
-      "requires": ["jira-python>=3.0"]
+    "pdf": {
+      "path": "pdf/",
+      "description": "Read and create PDF documents",
+      "triggers": ["pdf", "document"],
+      "requires": []
     }
   }
 }
@@ -161,7 +161,7 @@ pip dependencies listed in `requires` are automatically installed into `.tausik/
 
 ## Legacy: skills.json + bootstrap
 
-The older mechanism using `skills.json` + `bootstrap --update-deps` still works for backward compatibility. See `skills.example.json` for the format. The new `skill repo add` + `skill install` is recommended for new projects.
+The older mechanism using `skills.json` + `bootstrap --update-deps` still works for backward compatibility. See `skills.example.json` for the format; the example is inert until you explicitly copy it to `skills.json`. A clean bootstrap performs no external skill downloads. The new `skill repo add` + `skill install` is recommended for new projects.
 
 Do not confuse the two manifests: `tausik-skills.json` (above) lives in a *skill repo* and is read by `skill install`; `skills.json` lives in *this* repo and is read by `bootstrap --update-deps`, which downloads GitHub tarballs and unpacks each repo's `scripts/` into `scripts/vendor_<name>/`. That is third-party Python placed beside your own, so what a spec points at matters.
 

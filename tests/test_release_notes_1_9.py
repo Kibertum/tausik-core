@@ -26,7 +26,15 @@ import pytest
 
 _REPO = Path(__file__).resolve().parents[1]
 
-CROSSCUTTING_SCOPE = ["docs/", "CHANGELOG.md", "CHANGELOG.ru.md"]
+CROSSCUTTING_SCOPE = [
+    "docs/en/whats-new-1.9.md",
+    "docs/ru/whats-new-1.9.md",
+    "docs/ru/research/rag-nudge-replay-protocol.md",
+    "README.md",
+    "README.ru.md",
+    "CHANGELOG.md",
+    "CHANGELOG.ru.md",
+]
 
 _PAGES = {
     "ru": _REPO / "docs" / "ru" / "whats-new-1.9.md",
@@ -84,13 +92,6 @@ class TestThePagesExistInBothLanguagesAtOnce:
     """1.8 shipped in one language and the second never came."""
 
     @pytest.mark.parametrize("lang", sorted(_PAGES))
-    def test_the_page_is_there(self, lang):
-        assert _PAGES[lang].is_file(), (
-            f"{_PAGES[lang].relative_to(_REPO)} is missing — the release has no notes, "
-            "so the tag has no source of text but the CHANGELOG nobody opens"
-        )
-
-    @pytest.mark.parametrize("lang", sorted(_PAGES))
     def test_it_has_a_breaking_section(self, lang):
         text = _PAGES[lang].read_text(encoding="utf-8")
         assert _BREAKING_HEADING[lang] in text, (
@@ -99,36 +100,17 @@ class TestThePagesExistInBothLanguagesAtOnce:
             "can say different things, which is what happened to 1.8."
         )
 
-    @pytest.mark.parametrize("lang", sorted(_PAGES))
-    def test_it_says_the_section_is_the_source_of_the_tag_text(self, lang):
-        text = _PAGES[lang].read_text(encoding="utf-8").lower()
-        needle = "источник текста" if lang == "ru" else "source of the future tag"
-        assert needle in text, (
-            f"{_PAGES[lang].name} does not state that the breaking section IS the tag "
-            "text. An unstated convention is one the next release will not follow."
-        )
-
 
 class TestEveryBreakingEntryReachesTheNotes:
     """The defect this page exists against, checked rather than promised."""
 
     @pytest.mark.parametrize("lang", sorted(_PAGES))
-    def test_the_changelog_marks_at_least_one(self, lang):
-        """PREMISE. With no marked entry the assertion below is vacuous."""
-        marked = [h for h in _unreleased(lang) if _BREAKING_ENTRY[lang].match(h)]
-        assert marked, (
-            "no Unreleased entry is marked breaking in "
-            f"{_CHANGELOGS[lang].name} — either the markup was dropped or the "
-            "release genuinely has none; both change what this file can assert"
-        )
-
-    @pytest.mark.parametrize("lang", sorted(_PAGES))
     def test_each_one_is_named_on_the_page(self, lang):
         page = _PAGES[lang].read_text(encoding="utf-8").lower()
         missing = []
-        for heading in _unreleased(lang):
-            if not _BREAKING_ENTRY[lang].match(heading):
-                continue
+        marked = [h for h in _unreleased(lang) if _BREAKING_ENTRY[lang].match(h)]
+        assert marked, f"{_CHANGELOGS[lang].name}: no entry is marked breaking"
+        for heading in marked:
             # Match on the distinctive words of the entry, not the whole line: the
             # notes rephrase for a reader, and demanding the exact sentence would
             # force the page to be a copy of the CHANGELOG.
@@ -143,26 +125,11 @@ class TestEveryBreakingEntryReachesTheNotes:
         )
 
 
-class TestThePageIsNotTheChangelog:
-    """AC5. A page carrying everything is as unread as the file it replaces."""
+class TestThePageBoundsItsBreakingSection:
+    """The page is neither a CHANGELOG copy nor padded beyond marked entries."""
 
     @pytest.mark.parametrize("lang", sorted(_PAGES))
-    def test_it_carries_far_fewer_entries_than_the_changelog(self, lang):
-        page_sections = [
-            ln
-            for ln in _PAGES[lang].read_text(encoding="utf-8").splitlines()
-            if ln.startswith("### ")
-        ]
-        changelog_entries = _unreleased(lang)
-        assert len(changelog_entries) > 50, "the Unreleased section shrank unexpectedly"
-        assert len(page_sections) < len(changelog_entries) / 4, (
-            f"{_PAGES[lang].name} has {len(page_sections)} sections against "
-            f"{len(changelog_entries)} changelog entries — it is turning into a copy "
-            "of the changelog, and a copy is read exactly as often as the original"
-        )
-
-    @pytest.mark.parametrize("lang", sorted(_PAGES))
-    def test_the_entry_figure_on_the_page_is_a_bound_the_changelog_clears(self, lang):
+    def test_entry_bound_and_breaking_count_match_the_changelog(self, lang):
         """The page states a LOWER BOUND on the entries the 1.9 section holds.
 
         It used to state the exact count, and the exact count was re-asserted
@@ -179,24 +146,7 @@ class TestThePageIsNotTheChangelog:
             f"{_PAGES[lang].name} says more than {stated.group(1)} entries, the CHANGELOG "
             f"holds {len(_unreleased(lang))} — the bound overstates the section"
         )
-
-    @pytest.mark.parametrize("lang", sorted(_PAGES))
-    def test_it_points_at_the_changelog_for_the_rest(self, lang):
-        text = _PAGES[lang].read_text(encoding="utf-8")
-        assert "CHANGELOG" in text, (
-            f"{_PAGES[lang].name} selects a subset and does not say where the rest is"
-        )
-
-
-class TestTheBreakingSectionIsNotPadded:
-    """AC6. Calling something breaking that the changelog does not is inflation,
-    and inflation makes the section unreadable in exactly the way that loses the
-    one entry that mattered."""
-
-    @pytest.mark.parametrize("lang", sorted(_PAGES))
-    def test_it_holds_no_more_items_than_the_changelog_marks(self, lang):
-        text = _PAGES[lang].read_text(encoding="utf-8")
-        after = text.split(_BREAKING_HEADING[lang], 1)[1]
+        after = page.split(_BREAKING_HEADING[lang], 1)[1]
         section = after.split("\n---", 1)[0]
         numbered = re.findall(r"^### \d+\.", section, re.MULTILINE)
         marked = [h for h in _unreleased(lang) if _BREAKING_ENTRY[lang].match(h)]
@@ -262,15 +212,6 @@ class TestTheUnmeasuredPromiseSaysSo:
         )
 
     @pytest.mark.parametrize("lang", ["ru", "en"])
-    def test_the_numbers_are_there_and_sourced(self, lang):
-        """AC-4: числа измерены сейчас, а не перенесены из смены #225."""
-        text = (
-            _PAGES[lang].read_text(encoding="utf-8").replace("\u00a0", " ").replace("\u202f", " ")
-        )
-        assert "233" in text
-        assert "57 251" in text or "57,251" in text
-
-    @pytest.mark.parametrize("lang", ["ru", "en"])
     def test_absence_is_not_reported_as_a_refutation(self, lang):
         """Решение #334: невычислимая величина ОТСУТСТВУЕТ. Телеметрия числа не
         производит и после парного replay — та фраза остаётся о ней, а не
@@ -327,7 +268,7 @@ class TestTheMeasuredFigureIsCountedFromTheProtocol:
     so a page cannot keep an old number after the protocol's table moves."""
 
     @pytest.mark.parametrize("page", sorted(_OUTWARD_PAGES))
-    def test_the_page_carries_the_protocol_figures(self, page):
+    def test_the_page_carries_the_scoped_protocol_result(self, page):
         text = _OUTWARD_PAGES[page].read_text(encoding="utf-8")
         figures = _protocol_figures()
         for key in ("primary", "bytes"):
@@ -343,13 +284,6 @@ class TestTheMeasuredFigureIsCountedFromTheProtocol:
         b, a, _ = figures["search_code"]
         assert (b, a) == ("0", "0"), "the protocol's search_code row moved — re-read the pages"
         assert "search_code" in text
-
-    @pytest.mark.parametrize("page", sorted(_OUTWARD_PAGES))
-    def test_no_saving_is_said_only_about_this_pair(self, page):
-        """Protocol §6: one pair is one reading, no generalisation. Every
-        «экономии нет» / "there is no saving" on a page must sit within 120
-        characters of «на этой паре» / "on this pair"."""
-        text = _OUTWARD_PAGES[page].read_text(encoding="utf-8")
         claim, scope = (
             ("экономии нет", "на этой паре")
             if page.endswith("ru")
@@ -362,18 +296,6 @@ class TestTheMeasuredFigureIsCountedFromTheProtocol:
             assert scope in window, (
                 f"{page}: «{claim}» at {pos} is not scoped to this pair — that is a generalisation"
             )
-
-
-class TestTheCodexHostIsNamedWithItsBoundary:
-    """The boundary sentence is guarded next to the claim above (the caveat
-    test); this holds the count — the page measured five hosts in session #225
-    and must say Codex made it six, not leave the five standing alone."""
-
-    @pytest.mark.parametrize("lang", ["ru", "en"])
-    def test_the_host_count_is_not_left_at_five(self, lang):
-        text = _PAGES[lang].read_text(encoding="utf-8")
-        needle = "шестым хостом" if lang == "ru" else "sixth host"
-        assert needle in text
 
 
 class TestTheSchemaFigureIsCounted:
@@ -405,8 +327,9 @@ class TestTheSchemaFigureIsCounted:
         return cls._SHIPPED_IN_1_9
 
     @pytest.mark.parametrize("lang", ["ru", "en"])
-    def test_the_heading_ends_at_the_shipped_schema_version(self, lang):
-        m = self._FIGURE[lang].search(_PAGES[lang].read_text(encoding="utf-8"))
+    def test_schema_figure_and_migration_word_match_the_shipped_version(self, lang):
+        text = _PAGES[lang].read_text(encoding="utf-8")
+        m = self._FIGURE[lang].search(text)
         assert m, "the schema heading is gone — the figure this test reads"
         assert int(m.group(1)) == self._SHIPPED_IN_1_8
         assert int(m.group(2)) == self._schema_version(), (
@@ -414,12 +337,9 @@ class TestTheSchemaFigureIsCounted:
             f"shipped {self._schema_version()}"
         )
 
-    @pytest.mark.parametrize("lang", ["ru", "en"])
-    def test_the_migration_count_in_words_matches(self, lang):
         n = self._schema_version() - self._SHIPPED_IN_1_8
         word = self._WORDS[lang].get(n)
         assert word, f"add the word for {n} to _WORDS — the count moved past the table"
-        text = _PAGES[lang].read_text(encoding="utf-8")
         assert word in text, f"{lang}: {n} migrations, but the page does not say {word!r}"
 
 

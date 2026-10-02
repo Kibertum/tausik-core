@@ -95,7 +95,7 @@ def generate_qwen_md(
     project_dir: str,
     project_name: str,
     stacks: list[str],
-    context_tier: str = "standard",
+    context_tier: str = "minimal",
     output_mode: str = "off",
 ) -> None:
     """Generate QWEN.md for Qwen Code CLI — same constraints as CLAUDE.md.

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": {
+    "path": ".tausik/planning/release-111/round-topology-20261001.json",
+    "sha256": "ba1a3d6b2a89f0ac3e3d7c6435dd7a070331a33ac8f18ba0e4b8c39085a9f1b9"
+  },
+  "transitions": [
+    {
+      "sequence": ["retrieval", "retrieval"],
+      "occurrences": 116,
+      "upper_bound_rounds_removed": 116
+    }
+  ]
+}

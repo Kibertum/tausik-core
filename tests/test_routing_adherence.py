@@ -162,9 +162,9 @@ def _write_transcript(tmp_path: Path, model: str) -> str:
 
 class TestTaskDoneIntegration:
     def test_task_done_records_adherence(self, tmp_path, monkeypatch):
-        store = tmp_path / "store"
-        store.mkdir()
-        monkeypatch.setattr("project_config.find_tausik_dir", lambda: str(store))
+        # This is the legacy Claude recommendation-fit path. Keep it hermetic
+        # when the suite itself happens to run inside Codex/Kilo.
+        monkeypatch.setenv("TAUSIK_AGENT_MODEL", "claude-sonnet-4-6")
         # medium -> implement/medium -> Sonnet; active also Sonnet -> match.
         monkeypatch.setattr(
             "model_routing._auto_find_transcript",
@@ -175,17 +175,19 @@ class TestTaskDoneIntegration:
             _seed(svc, "adh-1")
             svc.task_start("adh-1")
             svc.task_done("adh-1", ac_verified=True, evidence="1. does x ✓ negative: y ✓")
-            rows = _read_rows(str(store))
-            assert len(rows) == 1
-            assert rows[0]["slug"] == "adh-1"
-            assert rows[0]["match"] is True
+            rows = _read_rows(svc.tausik_dir())
+            routes = [row for row in rows if row.get("kind") == "route_outcome"]
+            fit = [row for row in rows if row.get("kind") != "route_outcome"]
+            assert len(routes) == 1
+            assert routes[0]["outcome"] == "recommended"
+            assert len(fit) == 1
+            assert fit[0]["slug"] == "adh-1"
+            assert fit[0]["match"] is True
         finally:
             svc.be.close()
 
     def test_task_done_without_transcript_skips_no_error(self, tmp_path, monkeypatch):
-        store = tmp_path / "store2"
-        store.mkdir()
-        monkeypatch.setattr("project_config.find_tausik_dir", lambda: str(store))
+        monkeypatch.setenv("TAUSIK_AGENT_MODEL", "claude-sonnet-4-6")
         monkeypatch.setattr("model_routing._auto_find_transcript", lambda: None)
         svc = _make_service(tmp_path)
         try:
@@ -194,7 +196,8 @@ class TestTaskDoneIntegration:
             # NEGATIVE: no transcript -> actual unknown -> no row, close still succeeds.
             out = svc.task_done("adh-2", ac_verified=True, evidence="1. does x ✓ negative: y ✓")
             assert "adh-2" in out
-            assert _read_rows(str(store)) == []
+            rows = _read_rows(svc.tausik_dir())
+            assert [row["outcome"] for row in rows] == ["recommended"]
         finally:
             svc.be.close()
 

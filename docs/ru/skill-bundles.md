@@ -4,7 +4,7 @@
 
 <!-- doc-map: reader=user; zone=ide-and-skills -->
 
-Bundle навыков — это логическая группировка vendor скиллов из `tausik-skills` (официальный `Kibertum/tausik-skills` repo, в dev зеркало в `skills-official/`). Один CLI вызов ставит все скиллы bundle — удобно подобрать набор под домен проекта (интеграции, извлечение данных, deep quality), не запоминая имена.
+Bundle навыков — необязательная группа, которую объявляет репозиторий навыков. Один CLI-вызов ставит всех участников, поэтому используйте bundle только когда проекту нужна вся группа; иначе ставьте один навык и не расширяйте промпт без пользы.
 
 > **Откуда берутся бандлы (изменено в v1.8):** состав бандла принадлежит
 > магазину, который поставляет скиллы. `bundles.json` едет *внутри*
@@ -26,16 +26,9 @@ Bundle навыков — это логическая группировка ven
 > и перечень членов на стороне ядра означал бы назвать приватные скиллы в
 > публикуемом файле.
 
-## Шесть bundles
+## Доступность
 
-| Bundle | Скиллы | Когда ставить |
-|--------|--------|---------------|
-| `integrations` | `jira`, `bitrix24`, `confluence`, `sentry` | Проекты с внешними сервисами: ticket workflows, CRM, docs publishing, error monitoring. Каждый скилл требует env credentials. |
-| `data-formats` | `excel`, `pdf`, `markitdown` | Document-processing проекты: read/extract/convert бинарных форматов. |
-| `quality-pro` | `audit`, `security`, `optimize`, `zero-defect`, `ultra` | Когда "вроде работает" — не приемлемая планка: security-sensitive код, perf-боттлнеки, precision-mode работа. |
-| `automation` | `run`, `loop-task`, `dispatch` | Batch / loop / multi-worker workflows — автономное выполнение сверх single-task. |
-| `workflow-helpers` | `daily`, `retro`, `presale`, `skill-test`, `docs` | Продуктивность, ретроспективы, presale estimation, doc-генерация, meta tooling. |
-| `ru-locale` | *(пустой placeholder)* | Зарезервирован для RU-specific скиллов. Будет наполнен по мере появления. |
+Официальный магазин TAUSIK не публикует bundles: в нём только `docs`, `excel` и `pdf`, которые устанавливаются по одному. Сторонние репозитории могут публиковать bundles. После добавления такого репозитория выполните `skill bundle list`. Core не копирует названия и состав bundles.
 
 ## CLI
 
@@ -43,35 +36,19 @@ Bundle навыков — это логическая группировка ven
 .tausik/tausik skill bundle list                    # все bundles + counts
 .tausik/tausik skill bundle list --json             # для скриптов
 
-.tausik/tausik skill bundle show integrations       # содержимое bundle
-.tausik/tausik skill bundle show integrations --json
+.tausik/tausik skill bundle show <name>             # содержимое bundle
+.tausik/tausik skill bundle show <name> --json
 
-.tausik/tausik skill bundle install integrations    # ставит все 4 скилла
-.tausik/tausik skill bundle uninstall integrations  # удаляет все 4
+.tausik/tausik skill bundle install <name>           # ставит всех участников
+.tausik/tausik skill bundle uninstall <name>         # удаляет всех участников
 ```
 
 `bundle install` переиспользует существующий `tausik skill install <name>` pipeline по каждому скиллу — тот же vendor cache, тот же pip resolver, тот же activation. Установка bundle:
 
 - Маршрутизирует каждый скилл через стандартный install code path (per-skill safeguards остаются).
 - Продолжает после per-skill ошибки — одна missing dep не аборт остальные. Ошибки идут как `[ERR]` строки в отчёте.
-- Пропускает deprecated имена с явным migration сообщением (см. "Удалённые скиллы" ниже).
-- Для `ru-locale` placeholder возвращает одну `placeholder` строку и выходит ничего не установив.
-
-## Удалённые скиллы (deprecated)
-
-Пять скиллов удалены из `skills-official/` и `registry.json` в v1.4 — дублировали built-in функционал.
-
-| Удалён | Замена |
-|--------|--------|
-| `go` | Используй `/plan` + `/task` (built-in с QG-0 enforcement). |
-| `next` | Используй CLI `tausik task next` (без установки скилла). |
-| `diff` | `git diff` + `/review` (уже анализирует diff'ы). |
-| `onboard` | Built-in `/start` для session onboarding; первичный setup — `python bootstrap/bootstrap.py --init`. |
-| `init` | Первичная настройка — `python bootstrap/bootstrap.py --init`. |
-
-Если попытаешься установить deprecated скилл через `tausik skill bundle install <bundle>` (бывает если устаревший third-party manifest всё ещё ссылается), CLI напечатает `[SKIP] <name>: deprecated: <migration message>` и продолжит с остальными скиллами bundle.
-
-Для шагов миграции если у тебя уже стоят удалённые 5 скиллов локально — см. [Skill Bundles Migration](skill-bundles-migration.md).
+- Пропускает имена, помеченные репозиторием как deprecated, и показывает его migration message.
+- Для placeholder bundle возвращает одну строку `placeholder` и выходит без установки.
 
 ## Свой кастомный bundles файл
 
@@ -102,4 +79,3 @@ Bundle навыков — это логическая группировка ven
 
 - **[Vendor skills](vendor-skills.md)** — repo trust, формат manifest, three-tier system
 - **[Skill ecosystem](skill-ecosystem.md)** — как bundles вписываются с core skills + Claude-native sub-agents
-- **[Skill Bundles Migration](skill-bundles-migration.md)** — для пользователей с установленными deprecated 5 скиллами

@@ -129,23 +129,35 @@ class TestScopedRunNamesItsScope:
         assert label.startswith("SCOPE:"), output
         assert "not runnable" in body
 
-    def test_unparseable_candidate_test_blocks_before_the_command_runs(self, tmp_path, monkeypatch):
-        """An import candidate which cannot be read is evidence missing, not a skip."""
+    def test_unparseable_candidate_fails_open_to_the_full_lane(self, tmp_path, monkeypatch):
+        """Unknown dependency state widens; pytest itself returns the real failure."""
         root = _repo_with_one_mapped_test(tmp_path)
         (root / "tests" / "test_relation.py").write_text("import alpha\ndef (:\n")
         monkeypatch.chdir(root)
 
-        def command_must_not_run(*args, **kwargs):
-            raise AssertionError("pytest must not run after candidate parse failure")
+        calls = []
 
-        monkeypatch.setattr(_sp, "run", command_must_not_run)
+        def full_lane_fails(args, **kwargs):
+            calls.append(args)
+
+            class R:
+                returncode = 1
+                stdout = "ERROR collecting tests/test_relation.py"
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", full_lane_fails)
         outcome = run_command_gate(
             {"command": "pytest -q {test_files_for_files}"}, ["scripts/alpha.py"]
         )
 
-        assert outcome.outcome == "COULD_NOT_RUN"
-        assert outcome.reason_code == "test_source_parse_error"
-        assert "tests/test_relation.py" in outcome.detail
+        assert outcome.outcome == "FAILED"
+        label, body = split_scope(outcome.detail)
+        assert "fail-open complete applicable lane" in label
+        assert "candidate test source is unparseable" in label
+        assert "ERROR collecting tests/test_relation.py" in body
+        assert calls and "tests" in calls[0]
 
     def test_large_scoped_pytest_runs_in_bounded_batches(self, tmp_path, monkeypatch):
         root = _repo_with_one_mapped_test(tmp_path)
@@ -222,6 +234,18 @@ class TestScopedRunNamesItsScope:
         label, body = split_scope(output)
         assert label == "", "an unscoped gate must yield no trusted scope label"
         assert "SCOPE:" not in output
+
+    def test_legacy_display_filter_does_not_truncate_durable_output(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(_repo_with_one_mapped_test(tmp_path))
+        complete = "\n".join(f"line {number}" for number in range(12))
+        _fake_run(monkeypatch, returncode=1, stdout=complete)
+
+        outcome = run_command_gate(
+            {"command": "ruff check {files} 2>&1 | head -3"}, ["scripts/alpha.py"]
+        )
+
+        assert "line 3" not in outcome.detail
+        assert outcome.artifact_detail == complete
 
     def test_a_subprocess_scope_line_cannot_forge_the_label(self, tmp_path, monkeypatch):
         """The spoof: an author-controlled command prints its own `SCOPE:` line

@@ -38,6 +38,12 @@ def _apply_tickets(svc: ProjectService, slug: str, tickets: list[str] | None) ->
     svc.task_update(slug, tracker_refs=tracker_ref.dumps(tracker_ref.normalise_all(tickets)))
 
 
+def _emit_compound(result: dict[str, Any]) -> None:
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+    if not result.get("ok"):
+        raise SystemExit(1)
+
+
 def cmd_task(svc: ProjectService, args: Any) -> None:
     from project_cli import _print_table
 
@@ -103,6 +109,34 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         else:
             _print_table(tasks, ["slug", "title", "status", "story_slug", "role", "stack"])
     elif c == "show":
+        if getattr(args, "work_packet", False):
+            from work_packet import serialize_work_packet
+
+            print(
+                serialize_work_packet(
+                    svc,
+                    args.slug,
+                    getattr(args, "query", None),
+                    getattr(args, "sources", None),
+                    max_bytes=(
+                        16_384 if getattr(args, "max_bytes", None) is None else args.max_bytes
+                    ),
+                )
+            )
+            return
+        if getattr(args, "package", False):
+            from task_context_package import serialize_task_context_package
+
+            print(
+                serialize_task_context_package(
+                    svc,
+                    args.slug,
+                    max_bytes=(
+                        8_192 if getattr(args, "max_bytes", None) is None else args.max_bytes
+                    ),
+                )
+            )
+            return
         task = svc.task_show(args.slug)
         _print_task_detail(task)
         deleg = svc.task_delegation(args.slug)
@@ -118,7 +152,13 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 + (f" | gates: {wsum.get('gates')}" if wsum.get("gates") else "")
             )
     elif c == "delegate":
-        print(svc.task_delegate(args.slug))
+        print(
+            svc.task_delegate(
+                args.slug,
+                startup_work=getattr(args, "startup_work", None),
+                remaining_work=getattr(args, "remaining_work", None),
+            )
+        )
     elif c == "undelegate":
         print(svc.task_undelegate(args.slug))
     elif c == "handoff":
@@ -137,44 +177,50 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             )
         )
     elif c == "start":
+        if getattr(args, "package", False):
+            from task_start_result import serialize_start_with_context
+
+            print(
+                serialize_start_with_context(
+                    svc, args.slug, max_bytes=getattr(args, "max_bytes", 8192)
+                )
+            )
+            return
         _print_with_warnings(svc.task_start(args.slug, force=getattr(args, "force", False)))
     elif c == "done":
-        # v1.4 r14-mcp-streaming-progress: emit a one-line "Running N gates,
-        # max ~Σ seconds" hint to stderr at the start of the gate run, then a
-        # short status per gate. MCP hosts (VS Code Claude Extension) render
-        # this as the live "doing-stuff" indicator so the user knows whether
-        # to wait. Quiet by default (TAUSIK_QUIET=1).
-        import os as _os
-        import sys as _sys
+        # Gate progress is deterministic runner state. Returning it line by
+        # line makes every close larger without giving the model a decision;
+        # the final bounded verdict and durable artifacts are the interface.
+        compound_message = getattr(args, "message", None)
+        compound_step = getattr(args, "compound_step", None)
+        if (compound_message is None) != (compound_step is None):
+            from tausik_utils import ServiceError
 
-        def _stderr_progress(ev: dict[str, Any]) -> None:
-            if _os.environ.get("TAUSIK_QUIET"):
-                return
-            kind = ev.get("event")
-            if kind == "run_start":
-                _sys.stderr.write(
-                    f"[gates] Running {ev.get('total', '?')} gate(s) "
-                    f"(trigger={ev.get('trigger', '?')}, max ~"
-                    f"{ev.get('max_seconds', '?')}s).\n"
-                )
-            elif kind == "gate_start":
-                _sys.stderr.write(
-                    f"[gates] {ev.get('index')}/{ev.get('total')} {ev.get('name')} ...\n"
-                )
-            elif kind == "gate_done":
-                # This spelling was already correct — and that is exactly why it
-                # is routed through the shared one now. Five copies existed and
-                # had drifted in BOTH directions; keeping the right ones private
-                # is what let the wrong ones survive unnoticed.
-                from gate_runner import gate_verdict
+            raise ServiceError("task done: --message and --step must be supplied together")
+        if compound_message is not None:
+            from task_progress_close import run_progress_close
 
-                status = gate_verdict(ev)
-                _sys.stderr.write(
-                    f"[gates] {ev.get('index')}/{ev.get('total')} "
-                    f"{ev.get('name')} {status} "
-                    f"({ev.get('duration_ms', 0)} ms)\n"
+            _emit_compound(
+                run_progress_close(
+                    svc,
+                    args.slug,
+                    compound_message,
+                    compound_step,
+                    close=True,
+                    verify=bool(getattr(args, "verify", False)),
+                    verify_handle=getattr(args, "verify_handle", None),
+                    ac_verified=bool(getattr(args, "ac_verified", False)),
+                    relevant_files=getattr(args, "relevant_files", None),
+                    evidence=getattr(args, "evidence", None),
+                    evidence_json=getattr(args, "evidence_json", None),
+                    no_knowledge=bool(getattr(args, "no_knowledge", False)),
+                    no_file_changes=bool(getattr(args, "no_file_changes", False)),
+                    no_changelog=bool(getattr(args, "no_changelog", False)),
+                    zero_gate_ack=bool(getattr(args, "zero_gate_ack", False)),
+                    progress_fn=None,
                 )
-            _sys.stderr.flush()
+            )
+            return
 
         # --verify closes in ONE call: the check runs here and its handle is presented
         # below exactly as a hand-driven close presents one. Measured, the separate path
@@ -194,7 +240,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 getattr(args, "no_knowledge", False),
                 evidence=getattr(args, "evidence", None),
                 evidence_json=getattr(args, "evidence_json", None),
-                progress_fn=_stderr_progress,
+                progress_fn=None,
                 no_file_changes=getattr(args, "no_file_changes", False),
                 no_changelog=getattr(args, "no_changelog", False),
                 verify_handle=handle,
@@ -209,7 +255,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
 
             refusal = breach(svc.task_show(args.slug))
             if refusal:
-                print(refusal, file=_sys.stderr)
+                print(refusal, file=sys.stderr)
         except Exception:  # noqa: BLE001,S110 - the close already happened; a note must not undo it
             pass
     elif c == "obsolete":
@@ -279,6 +325,11 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
     elif c == "plan":
         print(svc.task_plan(args.slug, args.steps))
     elif c == "step":
+        if getattr(args, "message", None) is not None:
+            from task_progress_close import run_progress_close
+
+            _emit_compound(run_progress_close(svc, args.slug, args.message, args.step_num))
+            return
         print(svc.task_step(args.slug, args.step_num))
     elif c == "move":
         print(svc.task_move(args.slug, args.new_story_slug))

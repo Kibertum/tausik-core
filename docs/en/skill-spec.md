@@ -59,11 +59,10 @@ and `bootstrap.extension_skills`. As of v1.4:
 |----------|--------|--------------------|
 | Core (11) | start, end, task, plan, checkpoint, commit, explore, review, test, ship, debug | Always copied, not selectable |
 | Extension | docs (and any names added under `bootstrap.extension_skills`) | Selected via `--include-official` or `tausik skill install <name>` |
-| Vendor / bundle | 20 skills under `skills-official/registry.json`, grouped into 6 bundles | Pulled per-skill or per-bundle via `tausik skill bundle install <name>` |
+| Official | `docs`, `excel`, `pdf` | Install per-skill |
+| Vendor / bundle | Skills from a third-party catalog | Install per-skill; use a bundle only when the project needs every member |
 
 `init` was removed in v1.4 (replaced by `python bootstrap/bootstrap.py --init`).
-The five legacy skills `/go`, `/next`, `/diff`, `/onboard`, `/init` were removed
-in the same release — see `skill-bundles-migration.md`.
 
 ## Conventions
 

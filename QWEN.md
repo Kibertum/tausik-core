@@ -27,12 +27,13 @@ Quality gates enforce these automatically: bootstrap deployed 37 hook commands i
 
 ## Answer shape
 
-- Responses are in the user's language.
-- SHAPE, empty parts omitted: done → verified by → left → your call.
-- KEEP BYTE-EXACT: code, shell commands, tool output, file paths, error messages. KEEP FULL PROSE: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
-- EXCEPTIONS: explanation asked; destructive action; three failed debugging turns → state the assumption, ask; ambiguity → one question; the rule would delete the answer itself.
-- Steps numbered, one action each, the last doable in two minutes; five items per group unless completeness needs more. One tangent, once, at the end. Estimates in minutes.
-- PRE-SEND: delete announcements, closing recaps, side branches, hedges; first line = next action, last line = current state.
+- Use user's language.
+- SHAPE, omit empty: done → verified by → left → your call.
+- PROSE (no ASD-STE100 claim): name actor/action; active voice if natural; one action/sentence; one term/concept; short paragraphs.
+- BYTE-EXACT: code, shell commands, tool output, file paths, error messages; FULL: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
+- EXCEPTIONS: explanation asked; destructive action; 3 failed debug turns → assumption + question; ambiguity → one question; rule deletes answer itself.
+- Steps: numbered, one action each, last ≤2 min; ≤5/group unless more needed; tangent last; estimate if useful.
+- PRE-SEND: delete announcements, recaps, side branches, empty hedges; first line = next action; last = current state.
 
 ## Code Style
 
@@ -135,7 +136,7 @@ Stack-specific gates auto-enable by detected stack; the filesize gate warns on f
 
 After bootstrap, **13 core skills** ship from `harness/skills/` and are always available: `/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, `/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`.
 
-**25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (full bundle) or `tausik skill install <name>` (per skill) from the `tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, `/excel`, `/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, `/bitrix24`, `/sentry`, ... See `.qwen/references/skill-catalog.md`.
+The official store contains only `docs`, `excel`, and `pdf`; integrations belong in MCP servers. Install only the capability you need with `tausik skill install <name>` so unused instructions add no prompt cost. See `.qwen/references/skill-catalog.md`.
 
 **Security — external skill repos are arbitrary code + instructions.** Adding a repo clones remote content; installing may run pip/scripts. Only use `tausik skill repo add <url>` for trusted sources; third-party URLs require `--force` after review. See `docs/en/vendor-skills.md` and `docs/en/skill-ecosystem.md`.
 

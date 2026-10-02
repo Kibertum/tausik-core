@@ -200,23 +200,11 @@ STACK_SIGNATURES: dict[str, list[tuple[str, str]]] = _load_stack_signatures()
 # Extension skills are now in tausik/skills repo (official) or vendor repos.
 # This list is used only by the analyzer for auto-detection hints.
 ALL_EXTENSION_SKILLS = [
-    "security",
     "docs",
-    "optimize",
-    "audit",
-    "onboard",
-    "retro",
     "pdf",
     "excel",
-    "sentry",
     "ui-ux-pro-max",
-    "ultra",
-    "dispatch",
-    "loop-task",
     "seo",
-    "run",
-    "daily",
-    "init",
 ]
 
 
@@ -292,25 +280,61 @@ def detect_stacks(project_dir: str) -> list[str]:
     return list(set(found))
 
 
-def detect_extension_skills(project_dir: str, core_skills: list[str] | None = None) -> list[str]:
+def detect_extension_skills(
+    project_dir: str,
+    core_skills: list[str] | None = None,
+    available_skills: set[str] | None = None,
+) -> list[str]:
     """Smart-detect which extension skills are useful for this project.
 
-    Skills that are already in core_skills are excluded to avoid duplicates.
+    Skills that are already in core_skills are excluded to avoid duplicates. When
+    ``available_skills`` is supplied, recommendations are limited to sources the
+    current bootstrap can actually deploy; a clean public checkout must not advertise
+    an adjacent-store skill that is not present.
     """
     _core = set(core_skills or [])
     skills: list[str] = []
     # NOTE: no .git -> "diff" mapping — there is no "diff" extension skill in the
     # official registry (git workflow is covered by the built-in commit/review
     # skills). Recommending it produced a phantom "skills not found: diff" warning.
-    # Security
-    if os.path.exists(os.path.join(project_dir, ".env")):
-        skills.append("security")
     # Docs
     for marker in ["docs/", "sphinx/", "mkdocs.yml", "docusaurus.config.js"]:
         if os.path.exists(os.path.join(project_dir, marker)):
             skills.append("docs")
             break
-    return [s for s in set(skills) if s not in _core]
+    detected = set(skills) - _core
+    if available_skills is not None:
+        detected &= available_skills
+    return sorted(detected)
+
+
+def deployable_extension_skills(
+    lib_dir: str,
+    *,
+    include_official: bool = False,
+    explicitly_installed: list[str] | None = None,
+) -> set[str]:
+    """Names bootstrap can deploy without inventing or downloading a source."""
+    available = set(explicitly_installed or [])
+    builtin = os.path.join(lib_dir, "harness", "skills")
+    if os.path.isdir(builtin):
+        available.update(
+            name
+            for name in os.listdir(builtin)
+            if not name.startswith((".", "_")) and os.path.isdir(os.path.join(builtin, name))
+        )
+    if not include_official:
+        return available
+    roots = (lib_dir, os.path.dirname(os.path.abspath(lib_dir)))
+    for root in roots:
+        for dirname in ("skills-official", "skills"):
+            registry = os.path.join(root, dirname, "registry.json")
+            try:
+                with open(registry, encoding="utf-8") as fh:
+                    available.update(json.load(fh).get("skills", {}))
+            except (OSError, ValueError, AttributeError):
+                continue
+    return available
 
 
 def save_tausik_config(
@@ -342,6 +366,12 @@ def save_tausik_config(
     }
     tausik_config["bootstrap"] = config
     tausik_config.setdefault("rag", {})["mode"] = "fts5"
+    # New/bootstrap-refreshed projects use the measured compact advertisement.
+    # An explicit false is a supported opt-out; malformed config stays fail-open
+    # because the runtime treats a non-object `mcp` node as disabled.
+    mcp_config = tausik_config.setdefault("mcp", {})
+    if isinstance(mcp_config, dict):
+        mcp_config.setdefault("compact_tool_list", True)
     _lib = lib_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     scripts_path = os.path.join(_lib, "scripts")
     if scripts_path not in sys.path:
@@ -349,7 +379,7 @@ def save_tausik_config(
     try:
         from project_config import DEFAULT_CONTEXT_TIER as _dct
     except ImportError:
-        _dct = "standard"
+        _dct = "minimal"
     tausik_config.setdefault("context_tier", _dct)
     if stacks:
         try:

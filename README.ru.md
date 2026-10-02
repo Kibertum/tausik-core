@@ -10,9 +10,9 @@ TAUSIK встаёт поверх ИИ-агента, которым вы уже �
 
 **Где это стоит.** Поле называет эту дисциплину *harness engineering*: харнесс — это цикл агента, интерфейс инструментов, управление контекстом и механизмы контроля. TAUSIK — не харнесс: цикл и инструменты принадлежат Claude Code, Cursor, Codex и другим. Это слой проверки и контроля поверх них, и его отличие в том, что без доказательства ничто не считается сделанным.
 
-[![v1.10.1](https://img.shields.io/badge/version-v1.10.1-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.11.0](https://img.shields.io/badge/version-v1.11.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![12771 tests](https://img.shields.io/badge/tests-12771-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
+[![12802 tests](https://img.shields.io/badge/tests-12802-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#доказательство-tausik-построен-на-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -144,7 +144,7 @@ Run `tausik verify --task fix-mobile-button` first.
 - **147 MCP-инструментов** — полный программный доступ к базе проекта.
 - **23 хука реального времени** — гейт задачи, bash firewall, push gate, автоформат, детектор дрифта, аудит памяти и другие.
 - **25 стек-зависимых наборов проверок** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и другие, по тронутым файлам.
-- **13 core-навыков** разворачиваются автоматически; 20 официальных — по запросу через `bootstrap --include-official` или `tausik skill install <name>`.
+- **13 core-навыков** разворачиваются автоматически; в официальном магазине остаются только `docs`, `excel` и `pdf`, которые ставятся по одному и не расходуют контекст без необходимости.
 - **6 автоматических метрик**, **общая локальная база знаний** (`~/.tausik-knowledge`, `--global`), **пакетное выполнение** (`/run plan.md`).
 
 </details>
@@ -171,7 +171,7 @@ Run `tausik verify --task fix-mobile-button` first.
 Каждая функция и каждое исправление TAUSIK прошли через те же контрольные точки, что поставляются в коробке.
 
 - **Каждая задача закрыта с целью и критериями приёмки**, ни одна — без пройденной проверки.
-- **12771 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
+- **12802 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
 - **0 зависимостей ядра** — стандартная библиотека Python 3.11+; MCP-пакеты живут в изолированном `.tausik/venv/`.
 - **Один исходящий запрос** — не чаще раза в день анонимный GET на `api.github.com/repos/Kibertum/tausik-core/releases/latest`, чтобы узнать о новой версии. Без имени проекта, пути и пользователя. Выключается `"updates": {"check": false}` в `.tausik/config.json`. Всё остальное остаётся на вашей машине.
 

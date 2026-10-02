@@ -328,12 +328,9 @@ _CODE_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         "roles_count",
         "roles count (ru)",
     ),
-    # skills: quoted two ways in one breath -- "13 core skills ... 20 official"
-    # -- and neither was checked. AGENTS.md said "12 core" and "25+ official"
-    # against 13 and 20. Anchored on the adjective so "3 skills.md fixtures" is
-    # never caught; the "+"-decorated form ("25+") is deliberately NOT matched,
-    # so a claim written as a lower bound has to be rewritten into a plain count
-    # before anything can check it -- the same rule the table cells follow.
+    # Core skills ship in this repository and are countable here. The external
+    # catalogue is independently versioned, so core deliberately carries no
+    # count for it.
     (
         re.compile(r"\b(\d+)\s+core[-\s]skills?\b", re.IGNORECASE),
         "skills_core_count",
@@ -343,11 +340,6 @@ _CODE_COUNT_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
         re.compile(r"\b(\d+)\s+core[-\s]скилл\w*", re.IGNORECASE),
         "skills_core_count",
         "core-skills count (ru)",
-    ),
-    (
-        re.compile(r"\b(\d+)\s+official[-\s](?:skills?|скилл\w*)\b", re.IGNORECASE),
-        "skills_official_count",
-        "official-skills count",
     ),
 )
 

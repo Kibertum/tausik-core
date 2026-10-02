@@ -1300,20 +1300,8 @@ class TestPytestGateScopeSubstitution:
         assert "tests/test_alpha.py" in rendered
         assert "tests/" not in rendered.replace("tests/test_alpha.py", "")
 
-    def test_scoped_run_with_no_test_mapping_skips(self, tmp_path, monkeypatch):
-        """relevant_files non-empty + no test maps → SKIP, not full-suite fallback.
-
-        Defect fix: previously the gate ran the entire `tests/` suite when a
-        relevant_files set contained sources without matching test_<basename>.py.
-        That defeated scoping and burned 60+s on every task_done. The new
-        contract: scoped runs that miss the mapping return a sentinel so
-        run_gates emits a SKIP entry.
-
-        The sentinel is retired: the skip is now the NOT_APPLICABLE outcome
-        carrying REASON_NO_TEST_MAPPING. It stays NON-BLOCKING — a change that
-        honestly matches no test is a normal case, and turning it red would
-        replace one indistinguishability with another.
-        """
+    def test_scoped_python_source_without_mapping_fails_open(self, tmp_path, monkeypatch):
+        """An unmapped Python source is uncertainty, so pytest runs the full lane."""
         import gate_outcome
 
         (tmp_path / "tests").mkdir()
@@ -1335,13 +1323,9 @@ class TestPytestGateScopeSubstitution:
         monkeypatch.setattr(_sp, "run", fake_run)
         gate = {"command": "pytest -q {test_files_for_files}"}
         outcome = run_command_gate(gate, ["scripts/no_test_for_this.py"])
-        assert outcome.outcome == gate_outcome.NOT_APPLICABLE
-        assert outcome.reason_code == gate_outcome.REASON_NO_TEST_MAPPING
-        assert outcome.blocks is False
-        assert called["ran"] is False, (
-            "subprocess.run must NOT be invoked on a scoped-skip — full suite "
-            "would otherwise run for an unrelated module."
-        )
+        assert outcome.outcome == gate_outcome.PASSED
+        assert "fail-open complete applicable lane" in outcome.detail
+        assert called["ran"] is True
 
     def test_unscoped_call_skips_instead_of_full_suite(self, tmp_path, monkeypatch):
         """v1.3: relevant_files empty → SKIP (was: fall back to tests/).
@@ -1379,8 +1363,8 @@ class TestPytestGateScopeSubstitution:
         assert outcome.blocks is False
         assert called["ran"] is False
 
-    def test_run_gates_translates_scoped_skip_into_skipped_result(self, tmp_path, monkeypatch):
-        """run_gates converts the sentinel into a skipped=True result entry."""
+    def test_run_gates_reports_execution_for_fail_open_fallback(self, tmp_path, monkeypatch):
+        """run_gates reports execution, not SKIP, for fail-open fallback."""
         (tmp_path / "tests").mkdir()
         monkeypatch.chdir(tmp_path)
 
@@ -1416,10 +1400,10 @@ class TestPytestGateScopeSubstitution:
         assert len(results) == 1
         r = results[0]
         assert r["name"] == "pytest"
-        assert r.get("skipped") is True
+        assert r.get("skipped") is False
         assert r["passed"] is True
-        assert "scoped run" in r["output"]
-        assert called["ran"] is False
+        assert "fail-open complete applicable lane" in r.get("scope", "")
+        assert called["ran"] is True
 
     def test_pytest_default_uses_new_substitution(self):
         """Regression: default pytest gate command uses the new substitution token."""
@@ -1442,7 +1426,7 @@ class TestGateRunnerCliVerdict:
         # so it would no longer be an all-skipped run. This unmapped top-level path
         # maps to nothing — basename or cross-cutting — which is what this test needs.
         proc = subprocess.run(
-            [sys.executable, runner, "review", "--files", "zzz_unmapped_dir/no_such_file.py"],
+            [sys.executable, runner, "review", "--files", "zzz_unmapped_dir/no_such_file.md"],
             capture_output=True,
             text=True,
             encoding="utf-8",

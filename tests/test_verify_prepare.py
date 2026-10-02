@@ -87,6 +87,21 @@ class TestAGreenIsNeverProducedOverAnUnpreparedTree:
         assert run.calls[0] == ["ruff", "format", "a.py", "b.py"]  # type: ignore[attr-defined]
         assert "." not in run.calls[0][2:], "no tree-wide target sneaks in"  # type: ignore[attr-defined]
 
+    def test_formatter_receives_only_python_files(self):
+        """Ruff accepts other suffixes but may rewrite their syntax as if it were Python."""
+        run = _runner()
+        said = prep.run(".", ["a.py", "tausik/gates.json", "notes.md"], runner=run)
+        assert run.calls[0] == ["ruff", "format", "a.py"]  # type: ignore[attr-defined]
+        assert "gates.json" not in " ".join(" ".join(call) for call in run.calls)  # type: ignore[attr-defined]
+        assert said[0].startswith("PREPARED: ruff format")
+
+    def test_non_python_scope_skips_formatter_but_still_redeploys(self):
+        run = _runner()
+        said = prep.run(".", ["tausik/gates.json"], runner=run)
+        assert said[0].startswith("NOT PREPARED: ruff format")
+        assert len(run.calls) == 1  # type: ignore[attr-defined]
+        assert "bootstrap.py" in " ".join(run.calls[0])  # type: ignore[attr-defined]
+
     def test_with_no_declared_scope_that_step_is_skipped_and_says_so(self):
         """NEGATIVE. Running it tree-wide instead would edit files nobody declared — Rule 2
         by another route — and skipping it in silence reads exactly like success."""

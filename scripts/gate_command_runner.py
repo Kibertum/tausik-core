@@ -20,6 +20,7 @@ import shlex
 import subprocess
 
 import gate_outcome as _outcome
+from affected_test_selection import select_affected_tests, write_selection_evidence
 from gate_outcome import GateOutcome
 from gate_shellless_exec import (  # noqa: F401 — re-exported: three test modules import these by their old home
     _exec_pipeline,
@@ -33,8 +34,7 @@ from gate_test_resolver import (
     count_test_files,
     deferred_global_crosscutting_for_relevant,
     direct_import_count_for_relevant,
-    parse_errors_for_relevant,
-    resolve_test_files_for_relevant,
+    test_roots,
 )
 from tausik_utils import cli_invocation
 
@@ -115,7 +115,14 @@ def split_scope(output: str) -> tuple[str, str]:
 
 
 def _scope_label(
-    test_files: list[str], total: int, *, direct_imports: int = 0, deferred_global: int = 0
+    test_files: list[str],
+    total: int,
+    *,
+    direct_imports: int = 0,
+    deferred_global: int = 0,
+    mode: str = "affected",
+    evidence_path: str = "",
+    fallback_reason: str | None = None,
 ) -> str:
     """One ASCII line stating WHAT a scoped pytest run actually covered.
 
@@ -128,6 +135,13 @@ def _scope_label(
 
     ASCII only: this line is read in Windows consoles that mangle UTF-8.
     """
+    if mode == "full":
+        reason = f"; reason: {fallback_reason}" if fallback_reason else ""
+        evidence = f"; selection evidence: {evidence_path}" if evidence_path else ""
+        return (
+            f"{SCOPE_PREFIX} fail-open complete applicable lane over {len(test_files)} "
+            f"test file(s){reason}{evidence}"
+        )
     named = ", ".join(test_files[:_SCOPE_LABEL_MAX_NAMED])
     rest = len(test_files) - _SCOPE_LABEL_MAX_NAMED
     if rest > 0:
@@ -138,10 +152,11 @@ def _scope_label(
         if deferred_global
         else ""
     )
+    evidence = f"; selection evidence: {evidence_path}" if evidence_path else ""
     return (
         f"{SCOPE_PREFIX} scoped run over {len(test_files)}{denominator} test "
         f"file(s) mapped from relevant_files (direct-import subject tests: {direct_imports}) "
-        f"-- NOT the full suite{deferred}: {named}"
+        f"-- NOT the full suite{deferred}{evidence}: {named}"
     )
 
 
@@ -255,25 +270,22 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
             )
 
     if "{test_files_for_files}" in cmd:
-        test_files = resolve_test_files_for_relevant(files)
-        parse_errors = parse_errors_for_relevant(files)
-        if parse_errors:
-            named = ", ".join(parse_errors[:10])
-            more = "" if len(parse_errors) <= 10 else f" (+{len(parse_errors) - 10} more)"
+        selection = select_affected_tests(files)
+        if selection.mode == "unavailable":
             return _outcome.could_not_run(
-                _outcome.REASON_TEST_SOURCE_PARSE_ERROR,
-                f"Could not parse candidate test source(s): {named}{more}.",
-                remedy="Fix the named test source before relying on scoped verification.",
+                _outcome.REASON_TEST_SELECTION_UNAVAILABLE,
+                selection.fallback_reason or "No applicable test lane could be resolved.",
+                remedy="Configure testing.roots or add a tests/ directory before verification.",
             )
-        # Scoped-only semantics:
-        #   - relevant_files non-empty + no test mapping → SKIP (scoped run for
-        #     a module without test_<basename>.py — running the full suite for
-        #     an unrelated module defeats the scoping promise).
+        test_files = list(selection.test_files)
+        # Selection semantics: Python/selector uncertainty fails open to the
+        # complete applicable lane; a non-code path with no dependency evidence
+        # stays a legitimate NOT_APPLICABLE result.
         #   - relevant_files empty → SKIP (was: fall back to full suite).
         #     MCP task_done has a 10s budget; the suite always exceeds it and
         #     burns budget for zero verification value. Forces callers to pass
         #     relevant_files to opt in to actual verification.
-        if not test_files:
+        if selection.mode == "none":
             # Both branches are LEGITIMATE emptiness, so both stay non-blocking
             # — the task's negative constraint is explicit that a change which
             # honestly matches no test must not be turned red. What changes is
@@ -287,8 +299,8 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
             if files:
                 return _outcome.not_applicable(
                     _outcome.REASON_NO_TEST_MAPPING,
-                    "No test file maps to relevant_files via "
-                    "tests/test_<basename>.py heuristic; gate skipped (scoped run).",
+                    "No changed-test, source, fixture, observed or declared dependency "
+                    "maps to a test file; gate skipped (scoped run).",
                 )
             return _outcome.not_applicable(
                 _outcome.REASON_NO_SCOPE_DECLARED,
@@ -299,21 +311,35 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
                     f"Declare the scope: `{_CLI} verify --task <slug> --relevant-files <paths...>`."
                 ),
             )
+        evidence_path = write_selection_evidence(selection, files)
         scope_label = _scope_label(
             test_files,
             count_test_files(),
             direct_imports=direct_import_count_for_relevant(files),
             deferred_global=len(deferred_global_crosscutting_for_relevant(files)),
+            mode=selection.mode,
+            evidence_path=evidence_path,
+            fallback_reason=selection.fallback_reason,
         )
-        batches = [
-            test_files[offset : offset + _SCOPED_PYTEST_BATCH_SIZE]
-            for offset in range(0, len(test_files), _SCOPED_PYTEST_BATCH_SIZE)
-        ]
-        batch_commands = [
-            cmd.replace("{test_files_for_files}", " ".join(shlex.quote(t) for t in batch))
-            for batch in batches
-        ]
-        cmd = " && ".join(batch_commands)
+        if selection.mode == "full":
+            roots = [
+                os.path.relpath(path, os.getcwd()).replace("\\", "/")
+                for path in test_roots(os.getcwd())
+            ]
+            cmd = cmd.replace(
+                "{test_files_for_files}", " ".join(shlex.quote(root) for root in roots)
+            )
+            batch_commands = None
+        else:
+            batches = [
+                test_files[offset : offset + _SCOPED_PYTEST_BATCH_SIZE]
+                for offset in range(0, len(test_files), _SCOPED_PYTEST_BATCH_SIZE)
+            ]
+            batch_commands = [
+                cmd.replace("{test_files_for_files}", " ".join(shlex.quote(t) for t in batch))
+                for batch in batches
+            ]
+            cmd = " && ".join(batch_commands)
 
     # A DELETED file cannot be read by a file gate, and until session #235 the
     # declared list went to the command verbatim: `ruff` was handed a path that
@@ -411,15 +437,21 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
                 # tests.  It cannot certify a wholly empty run, but it cannot
                 # erase tests a prior batch already ran either.
                 if is_pytest and returncode == _PYTEST_NO_TESTS_COLLECTED and saw_test_batch:
-                    raw_output += "\npytest batch collected no tests; prior batch evidence retained\n"
+                    raw_output += (
+                        "\npytest batch collected no tests; prior batch evidence retained\n"
+                    )
                     returncode = 0
                     continue
                 break
-        output = raw_output.strip()
+        artifact_output = raw_output.strip()
+        output = artifact_output
         if line_filter:
             output = _apply_line_filter(output, line_filter)
         if returncode == 0:
-            return _outcome.passed(_scoped(output or "Passed."))
+            return _outcome.passed(
+                _scoped(output or "Passed."),
+                artifact_detail=_scoped(artifact_output or "Passed."),
+            )
         if is_pytest and returncode == _PYTEST_NO_TESTS_COLLECTED:
             # The distinction this task exists for: pytest ran, collected
             # nothing, and said so. Nothing failed — nothing was checked.
@@ -428,7 +460,10 @@ def run_command_gate(gate: dict, files: list[str]) -> GateOutcome:
                 _scoped(output or "No tests were collected."),
                 remedy=_FULL_LANE_REMEDY,
             )
-        return _outcome.failed(_scoped(output or f"Failed with exit code {returncode}."))
+        return _outcome.failed(
+            _scoped(output or f"Failed with exit code {returncode}."),
+            artifact_detail=_scoped(artifact_output or f"Failed with exit code {returncode}."),
+        )
     except subprocess.TimeoutExpired:
         # A gate that ran out of clock produced no verdict either. It kept its
         # blocking behaviour, but it stops being reported as a finding.

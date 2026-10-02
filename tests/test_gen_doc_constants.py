@@ -37,6 +37,19 @@ def test_build_constants_matches_tool_totals():
     assert d["mcp_tools_with_optional_rag"] == n_p + n_r
 
 
+def test_constants_count_the_public_test_surface(monkeypatch: pytest.MonkeyPatch):
+    import gen_doc_constants as subject
+
+    captured = []
+    monkeypatch.setattr(
+        subject,
+        "count_tests",
+        lambda _root, ignored_paths=(): captured.extend(ignored_paths) or 1,
+    )
+    assert subject.build_constants_doc(REPO)["test_count"] == 1
+    assert captured == ["tests/test_ci_lane_dev.py"]
+
+
 def test_constants_json_file_matches_live():
     """Committed ``constants.json`` must match generator (regression guard).
 

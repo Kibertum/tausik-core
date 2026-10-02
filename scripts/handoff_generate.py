@@ -27,6 +27,8 @@ method of its own.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
+import os
 from typing import Any
 
 EMPTY_WINDOW = "в окне сессии записей нет"
@@ -69,6 +71,91 @@ def _last_log(be: Any, slug: str) -> str:
     return str(logs[-1]["message"])[:300] if logs else ""
 
 
+def _json_list(value: object) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    if not isinstance(value, str) or not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except ValueError:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _resume_task(be: Any, task: dict[str, Any]) -> dict[str, Any]:
+    """Recorded task state a new agent needs before it can safely continue.
+
+    This is intentionally a projection of fields already in the task row and
+    journal.  It does not infer that an unchecked plan item was completed.
+    """
+    plan = _json_list(task.get("plan"))
+    if task.get("plan") and (not plan or not all(isinstance(step, dict) for step in plan)):
+        plan_state: dict[str, Any] = {"state": "unreadable"}
+    else:
+        plan_state = {
+            "state": "recorded",
+            "completed": [i + 1 for i, step in enumerate(plan) if step.get("done")],
+            "remaining": [
+                {"number": i + 1, "step": step.get("step", "")}
+                for i, step in enumerate(plan)
+                if not step.get("done")
+            ],
+        }
+    return {
+        "slug": task["slug"],
+        "last_log": _last_log(be, task["slug"]),
+        "goal": task.get("goal") or "",
+        "acceptance_criteria": task.get("acceptance_criteria") or "",
+        "plan": plan_state,
+        "unresolved_risk": {
+            "status": task.get("status"),
+            "blocked_at": task.get("blocked_at"),
+            "risk_score": task.get("risk_score"),
+            "risk": task.get("risk_json"),
+        },
+        "relevant_files": _json_list(task.get("relevant_files")),
+    }
+
+
+def _working_tree(tausik_dir: str | None) -> tuple[str | None, dict[str, Any]]:
+    """A read-only, explicit snapshot of uncommitted files for resumption."""
+    if not tausik_dir:
+        return None, {"state": "unavailable", "reason": "project directory unknown"}
+    root = os.path.dirname(os.path.abspath(tausik_dir))
+    try:
+        from verify_git_diff import uncommitted_changes
+
+        changed = uncommitted_changes(root=root, untracked="all")
+    except Exception as exc:  # noqa: BLE001 -- handoff reports a failed observation
+        return root, {"state": "unavailable", "reason": type(exc).__name__}
+    if changed is None:
+        return root, {"state": "unavailable", "reason": "git status unavailable"}
+    return root, {"state": "recorded", "modified_uncommitted": changed}
+
+
+def _receipt_state(run: dict[str, Any], task: dict[str, Any], root: str | None) -> str:
+    """Whether a green receipt still matches the files it claims to cover."""
+    if run.get("exit_code") != 0:
+        return "red"
+    try:
+        from verify_files_hash import compute_files_hash
+        from verify_recent_lookup import _extract_files_from_cache_command
+
+        files = _extract_files_from_cache_command(str(run.get("command") or ""))
+        if not files:
+            files = [str(p) for p in _json_list(task.get("relevant_files")) if isinstance(p, str)]
+        if not files:
+            return "unverifiable"
+        if root is None:
+            return "unknown"
+        return (
+            "current" if run.get("files_hash") == compute_files_hash(files, root=root) else "stale"
+        )
+    except Exception:  # noqa: BLE001 -- evidence must degrade visibly, never turn green
+        return "unknown"
+
+
 SLOW_LANE_FILE = "slow_lane.json"
 
 
@@ -105,6 +192,7 @@ def slow_lane(tausik_dir: str | None, start: datetime) -> str | None:
 def generate(be: Any, session: dict[str, Any], tausik_dir: str | None = None) -> dict[str, Any]:
     """The handoff of `session`, projected from the records of its window."""
     start, end = _window(session)
+    root, working_tree = _working_tree(tausik_dir)
     tasks = be.task_list() or []
     done = [
         t for t in tasks if t.get("status") == "done" and _in(t.get("completed_at"), start, end)
@@ -116,15 +204,29 @@ def generate(be: Any, session: dict[str, Any], tausik_dir: str | None = None) ->
     receipts: list[dict[str, Any]] = []
     for t in done + active + review:
         for run in be.verification_runs_for_task(t["slug"]):
-            if _in(run.get("ran_at"), start, end):
+            # A completed task belongs to this session's narrative, whereas an
+            # active/review task needs its latest proof across a session boundary:
+            # the replacement must not lose a still-current receipt merely
+            # because it was created before the new agent started.
+            if t.get("status") in ("active", "review") or _in(run.get("ran_at"), start, end):
                 receipts.append(
-                    {"task": t["slug"], "run": run["id"], "passed": run.get("exit_code") == 0}
+                    {
+                        "task": t["slug"],
+                        "run": run["id"],
+                        "passed": run.get("exit_code") == 0,
+                        "state": _receipt_state(run, t, root),
+                    }
                 )
 
+    # A replacement session needs the decisions attached to work that remains
+    # active, even if that decision was recorded in the preceding session.
+    # Project-wide decisions remain bounded by this session's window: widening
+    # that list would leak unrelated history into a handoff.
+    active_slugs = {str(task["slug"]) for task in active}
     decisions = [
         f"#{d['id']} {str(d.get('decision') or '')[:160]}"
         for d in be.decision_list(_LIMIT)
-        if _in(d.get("created_at"), start, end)
+        if _in(d.get("created_at"), start, end) or str(d.get("task_slug") or "") in active_slugs
     ]
     memory = [m for m in be.memory_list(n=_LIMIT) if _in(m.get("created_at"), start, end)]
     exploration = be.exploration_current()
@@ -133,9 +235,10 @@ def generate(be: Any, session: dict[str, Any], tausik_dir: str | None = None) ->
         "generated_from": "journal",
         "window": {"start": session.get("started_at"), "end": session.get("ended_at")},
         "completed": [f"{t['slug']}: {t.get('title', '')}"[:200] for t in done],
-        "in_progress": [{"slug": t["slug"], "last_log": _last_log(be, t["slug"])} for t in active],
+        "in_progress": [_resume_task(be, t) for t in active],
         "in_review": [t["slug"] for t in review],
         "blocked": [t["slug"] for t in blocked],
+        "working_tree": working_tree,
         "verify": receipts[-_LIMIT:],
         "decisions": decisions,
         "knowledge": [

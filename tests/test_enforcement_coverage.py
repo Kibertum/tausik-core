@@ -245,9 +245,7 @@ class TestTheRulesFileMappingIsDerivedNotListed:
     generators."""
 
     @pytest.mark.parametrize("ide", ["claude", "cursor", "qwen", "opencode"])
-    def test_the_derived_path_is_what_the_generator_actually_writes(
-        self, tmp_path: Path, ide: str
-    ):
+    def test_the_derived_path_is_what_the_generator_actually_writes(self, tmp_path: Path, ide: str):
         path = TestTheGeneratedFilesCarryIt()._generate(tmp_path, ide)
         expected = os.path.join(str(tmp_path), sde.host_specific_rules_file(ide) or "")
         assert os.path.normpath(path) == os.path.normpath(expected)
@@ -330,6 +328,30 @@ class TestDoctorSaysItAloud:
 
     def test_an_unscaffolded_project_says_nothing(self, tmp_path: Path):
         assert list(sde.check_enforcement_coverage(str(tmp_path))) == []
+
+    def test_a_local_report_of_a_forbidden_mutation_is_a_warning(self, tmp_path: Path, monkeypatch):
+        import enforcement_evidence
+
+        _write_hooks(tmp_path / ".codex", 1)
+        monkeypatch.setattr(
+            enforcement_evidence,
+            "live_enforcement_status",
+            lambda *_args, **_kwargs: {
+                "installed": True,
+                "hook_fired": True,
+                "routes": {"patch": "local_report_failed"},
+                "observed_at": "2026-10-01T00:00:00Z",
+                "host_version": "test",
+                "framework_version": "test",
+                "status": "local_live_report",
+                "attestation": "local_self_reported",
+            },
+        )
+        rows = list(sde.check_enforcement_coverage(str(tmp_path)))
+        assert any(
+            status == "warn" and label == "Live enforcement report"
+            for status, label, _detail in rows
+        )
 
 
 class TestCodexПлатитЗаСВОЁИмяФайла:

@@ -6,6 +6,11 @@ Until this file, nothing measured whether the agent does. A rule whose
 adherence is never measured is the class of defect release 1.9 is about: a
 check that never ran is indistinguishable from a passing one.
 
+The audit does not pretend to certify controlled prose or ASD-STE100. Actor,
+voice and term meaning are multilingual semantic judgments; a word-count regex
+would produce a precise-looking false verdict. This audit keeps measuring only
+the deterministic pre-send deletions below.
+
 The idea of an eval harness — cases, rubric, runner —
 not its text. The unit is a USER-FACING answer: the last assistant text block
 before the next human message (a tool result is not a human). Scoring runs on

@@ -159,7 +159,7 @@ def _tracked_sources() -> list[str]:
     would still pass while measuring the wrong universe.
     """
     proc = subprocess.run(
-        ["git", "ls-files"],
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
         cwd=_ROOT,
         capture_output=True,
         text=True,
@@ -305,6 +305,16 @@ class TestDeclaredScopesDoNotRot:
 
 class TestInvisibleToEveryEdge:
     """The second detector. Subject: a test NO change can select, by any edge."""
+
+    def test_pending_source_is_visible_without_staging_ignored_files(self, tmp_path, monkeypatch):
+        subprocess.run(["git", "init", "--quiet", str(tmp_path)], check=True, capture_output=True)
+        (tmp_path / "new_source.py").write_text("VALUE = 1\n", encoding="utf-8")
+        (tmp_path / "ignored.py").write_text("SECRET = 1\n", encoding="utf-8")
+        (tmp_path / ".gitignore").write_text("ignored.py\n", encoding="utf-8")
+        monkeypatch.setattr(sys.modules[__name__], "_ROOT", str(tmp_path))
+        sources = _tracked_sources()
+        assert "new_source.py" in sources
+        assert "ignored.py" not in sources
 
     def test_a_test_no_change_can_select_must_declare_or_be_baselined(self):
         """AC3. A new test that nothing selects is not a neutral fact — it is a

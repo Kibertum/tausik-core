@@ -6,7 +6,7 @@ Under decision #257 `publication_scope.published_paths` had one rule —
 whose whole point was to have NO exclusion list. Measured on the day the
 owner ruled: `github/main` carried 2438 files of `tausik/` out of 3576, the
 project's own accounting (tasks, decisions, memory) making up 70 % of what a
-consumer cloned, and the two leak classes the publication guard still declares
+consumer cloned, and the leak classes the publication guard still declares
 as a remainder (internal host, dev-machine paths) lived almost entirely inside
 that accounting. The public line is a release mirror, not a second archive.
 
@@ -31,6 +31,7 @@ Everything else about the act is unchanged and still lives in
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import tempfile
 
@@ -49,12 +50,8 @@ EXCLUDED_FROM_PUBLIC_SNAPSHOT: tuple[str, ...] = (
     "tausik/decisions/",
     "tausik/memory/",
     "tausik/graph-snapshots/",
-    # Internal working documents: the release charter that names decisions by number, and the
-    # GitLab pipeline of the development line. A hand-written direction map stood here too
-    # until it was retired -- beside a GENERATED roadmap it is a second source of truth, and
-    # it drifted two releases behind before anyone read it. The rule went with the file:
-    # excluding a path that does not exist is the same rot, kept in the check instead.
-    "TAUSIK-plan-1.9.md",
+    # Internal working documents and the GitLab pipeline of the development line.
+    "docs/ru/research/release-111-economy-plan-2026-10-01.md",
     ".gitlab-ci.yml",
     # The reader for that pipeline, and its test. Tooling for a host the public
     # repository has no relationship with; `cli_push_ok` imports it optionally so
@@ -62,6 +59,16 @@ EXCLUDED_FROM_PUBLIC_SNAPSHOT: tuple[str, ...] = (
     "scripts/ci_lane_dev.py",
     "tests/test_ci_lane_dev.py",
 )
+
+SANITIZED_PUBLIC_FILES: tuple[str, ...] = ("AGENTS.md", "CLAUDE.md")
+_DYNAMIC_BLOCK = re.compile(
+    r"^<!-- DYNAMIC:START -->.*?^<!-- DYNAMIC:END -->", re.MULTILINE | re.DOTALL
+)
+
+
+def public_text(text: str) -> str:
+    """Keep stable agent guidance but remove development-session state."""
+    return _DYNAMIC_BLOCK.sub("<!-- DYNAMIC:START -->\n<!-- DYNAMIC:END -->", text)
 
 
 #: A file that DESCRIBES a leak class is not an occurrence of it — the same
@@ -78,12 +85,14 @@ MAY_DESCRIBE_LEAKS: frozenset[str] = frozenset(
 )
 
 
-#: The two leak classes the publication guard still declares as a remainder
+#: Leak classes the publication guard still declares as a remainder
 #: on the whole tree (`tests/test_publication_lines.py`); on the snapshot they
 #: must be zero. Extended regular expressions, as `git grep -E` reads them.
 LEAK_CLASSES: dict[str, str] = {
     "internal host": "gitlab\\.yumash\\.ru",
+    "local user path": "[Uu]sers[\\\\/]ayumashev",
     "dev-machine path": "[Dd]:[\\\\/]{1,2}Work",
+    "host transcript path": "\\.claude[\\\\/]projects[\\\\/].*d--Work",
 }
 
 
@@ -163,6 +172,47 @@ def snapshot_tree(repo_root: str, rev: str = "HEAD") -> str:
             )
             if r.returncode != 0:
                 raise PublicationError(f"rm --cached failed: {r.stderr.strip()}")
+        for path in SANITIZED_PUBLIC_FILES:
+            if path not in tracked_at(repo_root, rev):
+                continue
+            source = _git(repo_root, "show", f"{rev}:{path}")
+            if source.returncode != 0:
+                raise PublicationError(f"git show {rev}:{path} failed: {source.stderr.strip()}")
+            cleaned = public_text(source.stdout)
+            blob = subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"],
+                cwd=repo_root,
+                input=cleaned,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                stdin=None,
+                timeout=120,
+            )
+            if blob.returncode != 0:
+                raise PublicationError(f"hash-object failed for {path}: {blob.stderr.strip()}")
+            update = subprocess.run(
+                [
+                    "git",
+                    "update-index",
+                    "--add",
+                    "--cacheinfo",
+                    "100644",
+                    blob.stdout.strip(),
+                    path,
+                ],
+                cwd=repo_root,
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                stdin=subprocess.DEVNULL,
+                timeout=120,
+            )
+            if update.returncode != 0:
+                raise PublicationError(f"update-index failed for {path}: {update.stderr.strip()}")
         r = subprocess.run(
             ["git", "write-tree"],
             cwd=repo_root,
@@ -223,7 +273,7 @@ def snapshot_matches(repo_root: str, snapshot: str, source: str = "HEAD") -> tup
 def leaks_in_snapshot(repo_root: str, rev: str = "HEAD") -> dict[str, list[str]]:
     """The publication guard's leak classes, measured on the SNAPSHOT set.
 
-    `tests/test_publication_lines.py` declares two classes as a remainder on
+    `tests/test_publication_lines.py` declares leak classes as a remainder on
     the whole tree; on the snapshot they are expected at zero, because the
     remainder lives in the excluded accounting. Reads blobs of the source
     REVISION, never the working tree (a snapshot is of a commit) — one
@@ -232,17 +282,17 @@ def leaks_in_snapshot(repo_root: str, rev: str = "HEAD") -> dict[str, list[str]]
     (review, session #256), and a path list on the command line is what
     overflows Windows.
     """
-    kept = set(snapshot_paths(repo_root, rev)[0])
+    snapshot = snapshot_tree(repo_root, rev)
     hits: dict[str, list[str]] = {}
     for name, pattern in LEAK_CLASSES.items():
-        r = _git(repo_root, "grep", "-I", "-l", "-i", "-E", "-e", pattern, rev)
+        r = _git(repo_root, "grep", "-I", "-l", "-i", "-E", "-e", pattern, snapshot)
         # exit 1 = no match; anything above is a real failure
         if r.returncode not in (0, 1):
             raise PublicationError(f"git grep failed: {r.stderr.strip()}")
         found = []
         for line in r.stdout.splitlines():
             path = line.split(":", 1)[1] if ":" in line else line
-            if path in kept and path not in MAY_DESCRIBE_LEAKS:
+            if path not in MAY_DESCRIBE_LEAKS:
                 found.append(path)
         hits[name] = found
     return hits

@@ -4,7 +4,7 @@ Work on tasks from project DB. **Never code without `task start` first.**
 
 ## $ARGUMENTS = slug
 
-1. **Activate.** `tausik_task_start(slug)`. If QG-0 fails — set goal + AC via `tausik_task_update`, retry. No `--force`.
+1. **Activate + load context.** `tausik_task_start(slug, package=true)`. If QG-0 fails — set goal + AC via `tausik_task_update`, retry. No `--force`. Use the returned bounded package; call `task_show(mode=package)` only after an explicit context error.
 2. **Load.** `tausik_task_show(slug)` → goal, AC, plan steps, role, stack.
 3. **Read role + stack.** `harness/roles/{role}.md` and `harness/stacks/{stack}.md`. Search memory: `tausik_memory_search`, `tausik_memory_list type=dead_end`.
 4. **Announce.** Role + title, goal, plan steps as checkboxes, AC numbered.
@@ -39,7 +39,7 @@ Work on tasks from project DB. **Never code without `task start` first.**
 
 | Tool | Required | Optional |
 |---|---|---|
-| `tausik_task_start` | `slug` | — |
+| `tausik_task_start` | `slug` | `package=true` |
 | `tausik_task_done` (preferred) | `slug` | `ac_verified`, `relevant_files`, `evidence`, `no_knowledge` |
 | `tausik_task_done` (legacy) | `slug` | same args |
 | `tausik_task_log` | `slug`, `message` | — |

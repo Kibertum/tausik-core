@@ -62,11 +62,11 @@ This is the manifest file that makes a repo TAUSIK-compatible. Place it in the r
   "format": "tausik-skills",
   "version": 1,
   "skills": {
-    "jira": {
-      "path": "jira/",
-      "description": "Jira issue management — create, update, search issues",
-      "triggers": ["jira", "sprint", "issues", "backlog"],
-      "requires": ["jira-python>=3.0"]
+    "pdf-tools": {
+      "path": "pdf-tools/",
+      "description": "Extract and combine PDF documents",
+      "triggers": ["pdf", "extract pages", "combine documents"],
+      "requires": ["pypdf>=5.0"]
     },
     "seo-audit": {
       "path": "seo/",
@@ -93,7 +93,7 @@ This is the manifest file that makes a repo TAUSIK-compatible. Place it in the r
 | `path` | yes | Relative path to skill directory (must end with `/`) |
 | `description` | yes | One-line description (shown in `skill list`) |
 | `triggers` | no | Keywords that suggest this skill (for agent auto-suggestions) |
-| `requires` | no | pip packages to install (e.g. `["httpx>=0.27", "jira-python"]`) |
+| `requires` | no | pip packages to install (e.g. `["pypdf>=5.0"]`) |
 
 ## SKILL.md Format
 
@@ -101,15 +101,15 @@ Every skill needs a `SKILL.md` file with YAML frontmatter:
 
 ```markdown
 ---
-name: jira
-description: "Jira issue management — create, update, search issues via REST API"
+name: pdf-tools
+description: "Extract and combine PDF documents"
 ---
 
-# /jira — Jira Integration
+# /pdf-tools — PDF Utilities
 
 ## Algorithm
 
-1. Check if JIRA_URL and JIRA_TOKEN are set
+1. Check that the input file exists
 2. ...
 
 ## Examples

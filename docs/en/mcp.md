@@ -19,7 +19,7 @@ There is also an optional `codebase-rag` server documented at the bottom.
 Heavy quality gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) live on a dedicated `verify` trigger. The MCP workflow:
 
 ```
-tausik_task_start(slug=…)        # QG-0
+tausik_task_start(slug=…, package=true) # QG-0 + bounded context in one result
 … work on code …
 tausik_verify(task_slug=…)        # heavy: subprocess gates → caches green
 tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
@@ -37,7 +37,7 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | `tausik_self_check` | MCP-server freshness: startup time, watched-module mtime snapshot vs current on-disk mtimes, `drift_detected` flag, stale modules with `delta_seconds`, sibling MCP project server count. Call from `/start` to catch silent-hang precursors (gotchas #77/#79/#80). | — |
 | `tausik_status` | Project overview: tasks, session, epics. Optional `compact: true` → one-line JSON (default text unchanged). | `compact` (optional) |
 | `tausik_doctor` | 4-group health (venv + DB + MCP + skills + drift) | — |
-| `tausik_metrics` | SENAR metrics: Throughput, FPSR, DER, Dead End Rate, Cost/Task | — |
+| `tausik_metrics` | SENAR metrics, or compact native usage with `host=codex\|kilo` | `host?` |
 | `tausik_usage_event_log` | Append manual row to `usage_events` (does not update session aggregates) | `tokens_input`, `tokens_output`, `tokens_total`, `cost_usd` |
 | `tausik_search` | Full-text search across tasks, memory, decisions | `query` |
 
@@ -47,9 +47,9 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 |---|---|---|
 | `tausik_task_add` | Create task (optionally in a story) | `slug`, `title` |
 | `tausik_task_quick` | Quick creation with auto-slug | `title` |
-| `tausik_task_start` | Start work (QG-0: requires goal + AC + negative scenario) | `slug` |
+| `tausik_task_start` | Start work; optionally return bounded context in the same result | `slug`, optional `package` |
 | `tausik_task_done` | Complete (QG-2: `ac_verified=true`, scoped pytest, verify cache). Returns structured JSON: `blocking_failures`, per-gate results, cache status. | `slug` |
-| `tausik_task_show` | Full task information | `slug` |
+| `tausik_task_show` | Full task information, or bounded context with `mode=package` | `slug`; optional `mode` |
 | `tausik_task_list` | List tasks with filters (status enum: `planning,active,blocked,review,done`) | — |
 | `tausik_task_update` | Update fields (title/goal/AC/scope/notes/stack/complexity/role/tier/call_budget) | `slug` |
 | `tausik_task_plan` | Set plan steps | `slug`, `steps[]` |
@@ -97,7 +97,7 @@ Pre-1.4 there was a parallel `tausik_task_done_v2` alias for the structured-JSON
 | `tausik_session_list` | List sessions | — |
 | `tausik_session_handoff` | Save handoff data | `handoff` (object) |
 | `tausik_session_last_handoff` | The live handoff, or session `session_id`'s | `session_id` (opt.) |
-| `tausik_session_open` (v1.5) | Compound RPC: session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. The `session` and `self_check` sections are projected to the rendered fields only (no `watched_modules`/`current_mtimes`, no duplicated handoff) — use `tausik_self_check` for full telemetry. | — |
+| `tausik_session_open` (v1.5) | Compound RPC: host-context policy + session start + status + handoff + active/blocked tasks + self_check in one envelope. Powers `/start` Phase 1. `host_context` reports same-thread reopen state, native usage availability, advisory/hard pressure and the fresh-window prompt. Session and self_check are projected; large handoffs use a 4096-byte UTF-8 summary with explicit omissions and a full-recovery call. If `_projection.requires_full_handoff` is true, read the full handoff before resuming work. The bound applies to the handoff section, not the whole envelope. Full telemetry: `tausik_self_check`; full handoff: `tausik_session_last_handoff`. | — |
 
 Session time is gap-based **active time** (paused after 10-min idle gap), not wall clock, and it is advice, never a refusal (1.10). See `session-active-time.md`.
 
@@ -369,18 +369,19 @@ The bootstrap step generates IDE-specific MCP launchers under `harness/<ide>/mcp
 
 ## Context economy: schemas on demand
 
-`mcp.compact_tool_list` in `.tausik/config.json` (**off** by default). When on,
-full schemas stay with a 21-tool core; the other 126 appear as a name and the
+`mcp.compact_tool_list` in `.tausik/config.json` is enabled by bootstrap unless
+the project explicitly sets it to `false`. Without generated config, the server
+fails open to the full list. When on, full schemas stay with a 23-tool core; the other 124 appear as a name and the
 first 60 characters of their description. Any of those schemas is one call away:
 `tausik_tool_schema(name=...)`, with `query` matching a substring and an empty
 argument returning the name list.
 
-Measured in session #275: the advertised list drops from 14,337 to 8,600 tokens
-— 40% — and that price is paid on EVERY request. The 60-character cut is also a
-measurement rather than a preference: the full first line saves 27%, name-only
-saves 52%, but name-only removes the cue an agent uses to decide whose schema to
-ask for, and the saving goes back out as an extra turn.
+Measured on a fresh 147-tool stdio surface on 2026-10-02, the minified UTF-8
+list drops from 54,566 to 33,752 bytes (-38.1%). The 60-character cut is also a
+measurement rather than a preference: name-only is smaller, but removes the cue
+an agent uses to decide whose schema to ask for and can spend the saving on an
+extra turn. The complete project-controlled inventory is in
+[context-economy.md](context-economy.md).
 
-Off by default on purpose: the cost of being wrong is an extra turn in every
-conversation, and the consumer pays it. Turn it on after checking turns-per-task
-in your own logs.
+Set the flag to `false` to opt out after checking turns-per-task in your own
+logs. Missing, malformed or unreadable config always returns the full list.

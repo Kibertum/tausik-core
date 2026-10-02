@@ -49,15 +49,13 @@ def verify_lines(svc: Any, report: dict[str, Any], task_slug: str | None, scope:
             return ["internal error: verify cache hit with no --task; caches are per-task only."]
         return cache_hit_lines(svc, task_slug, hit)
 
-    from gate_runner import format_results
+    from verify_compact_output import compact_lines, write_evidence
 
     results = report.get("results") or []
+    evidence, evidence_error = write_evidence(svc, report, task_slug, scope)
     lines = [
-        f"Verify (scope={scope}, task={task_slug or '-'}): "
-        f"passed={report['passed']} status={report['status']} "
-        f"trigger={report['trigger']}",
+        *compact_lines(report, task_slug, scope, evidence, evidence_error),
         *_status_explained(report),
-        format_results(results),
     ]
     duration_ms = report.get("duration_ms")
     if duration_ms is not None:

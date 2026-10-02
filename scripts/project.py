@@ -57,7 +57,6 @@ def main() -> None:
     from project_cli_role import cmd_role
     from project_cli_verify import cmd_verify
     from project_cli_audit import cmd_audit
-    from project_cli_changelog import cmd_changelog
     from project_cli_metrics import cmd_metrics
     from project_cli_doc import cmd_doc, cmd_update_claudemd
     from project_cli_explore import cmd_explore
@@ -107,7 +106,6 @@ def main() -> None:
         "verify": cmd_verify,
         "roadmap": cmd_roadmap,
         "search": cmd_search,
-        "changelog": cmd_changelog,
         "metrics": cmd_metrics,
         "hud": cmd_hud,
         "suggest-model": cmd_suggest_model,

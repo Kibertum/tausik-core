@@ -210,9 +210,9 @@ class TestEnvelopeProjection:
         """AC3 — the handoff ships once, parsed, not twice with one copy escaped."""
         assert "handoff" not in fat_env["session"]
         assert "tasks_done" not in fat_env["session"]
-        # The parsed section still carries it — this is a de-duplication, not a loss.
+        # Continuation survives even when generated history needs a summary.
         assert fat_env["handoff"] is not None
-        assert "Закрыта задача" in json.dumps(fat_env["handoff"], ensure_ascii=False)
+        assert fat_env["handoff"]["next_steps"] == self._cyrillic_handoff()["next_steps"]
 
     def test_session_section_is_allowlisted(self, fat_env):
         """AC1/AC3 — allowlist, so a heavy field added upstream can't re-inflate."""
@@ -228,6 +228,45 @@ class TestEnvelopeProjection:
         """AC4 — the regression guard itself."""
         size = len(json.dumps(fat_env, ensure_ascii=False))
         assert size <= self.BUDGET, f"session_open envelope grew to {size} chars"
+
+    @pytest.mark.parametrize("oversized_warning", [False, True])
+    def test_generated_history_is_bounded_and_fully_recoverable(
+        self, seeded, monkeypatch, oversized_warning
+    ):
+        handoff = {
+            "warnings": ["Не публиковать без разрешения" * (1000 if oversized_warning else 1)],
+            "next_steps": ["Resume the blocked enforcement task"],
+            "completed": [f"task-{i}: completed work" for i in range(100)],
+            "working_tree": {"modified_uncommitted": [f"scripts/file_{i}.py" for i in range(500)]},
+            "verify": [{"run": i, "state": "stale"} for i in range(100)],
+            "in_progress": [{"slug": "active-task", "acceptance_criteria": "AC " * 3000}],
+        }
+        original = json.dumps(handoff, ensure_ascii=False)
+        monkeypatch.setattr(seeded, "session_last_handoff", lambda *args: handoff)
+        envelope = json.loads(_handle_tool(seeded, "tausik_session_open", {}))
+        summary = envelope["handoff"]
+        assert len(json.dumps(summary, ensure_ascii=False, indent=2).encode("utf-8")) <= 4096
+        assert len(json.dumps(envelope, ensure_ascii=False, indent=2).encode("utf-8")) < 8192
+        assert summary["next_steps"] == handoff["next_steps"]
+        meta = summary["_projection"]
+        assert meta["omitted_fields"] >= 3
+        assert meta["omitted_items"]["completed"] == 97
+        assert meta["requires_full_handoff"] is oversized_warning
+        assert meta["omitted_items"]["warnings"] == int(oversized_warning)
+        if not oversized_warning:
+            assert summary["warnings"] == handoff["warnings"]
+        recovery = meta["full"]
+        full = json.loads(_handle_tool(seeded, recovery["tool"], recovery["arguments"]))
+        assert full == handoff
+        assert json.dumps(handoff, ensure_ascii=False) == original
+
+    @pytest.mark.parametrize(
+        "handoff", [None, {"error": "handoff timed out"}, {"warnings": ["Stop"]}]
+    )
+    def test_small_and_failed_handoffs_keep_their_meaning(self, seeded, monkeypatch, handoff):
+        monkeypatch.setattr(seeded, "session_last_handoff", lambda *args: handoff)
+        envelope = json.loads(_handle_tool(seeded, "tausik_session_open", {}))
+        assert envelope["handoff"] == handoff
 
     def test_budget_guard_has_teeth(self):
         """AC4 — prove the ceiling FAILS on regression, rather than passing vacuously.

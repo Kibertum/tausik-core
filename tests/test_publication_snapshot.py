@@ -70,12 +70,14 @@ def repo(tmp_path):
     _write(root, "README.md", "# project\n")
     _write(root, "scripts/tool.py", "print('hi')\n")
     _write(root, "docs/en/x.md", "x\n")
+    _write(root, "AGENTS.md", "stable\n<!-- DYNAMIC:START -->\nprivate\n<!-- DYNAMIC:END -->\n")
+    _write(root, "CLAUDE.md", "stable\n<!-- DYNAMIC:START -->\nprivate\n<!-- DYNAMIC:END -->\n")
     _write(root, "tausik/gates.json", "{}\n")
     _write(root, "tausik/policy.json", "{}\n")
     _write(root, "tausik/tasks/some-task.md", "task\n")
     _write(root, "tausik/decisions/d1.md", "decision\n")
     _write(root, "tausik/memory/m1.md", "memory\n")
-    _write(root, "TAUSIK-plan-1.9.md", "plan\n")
+    _write(root, "docs/ru/research/release-111-economy-plan-2026-10-01.md", "private plan\n")
     _write(root, ".gitlab-ci.yml", "stages: []\n")
     public_head = _commit(root, "public head")
     _write(root, "scripts/tool.py", "print('hi again')\n")
@@ -97,7 +99,7 @@ class TestTheExclusionListIsOneDeclaration:
             "tausik/tasks/other-task.md",
             "tausik/decisions/d1.md",
             "tausik/memory/m1.md",
-            "TAUSIK-plan-1.9.md",
+            "docs/ru/research/release-111-economy-plan-2026-10-01.md",
             ".gitlab-ci.yml",
         }
         assert {
@@ -129,7 +131,7 @@ class TestTheExclusionListIsOneDeclaration:
             "tausik/decisions/",
             "tausik/memory/",
             "tausik/graph-snapshots/",
-            "TAUSIK-plan-1.9.md",
+            "docs/ru/research/release-111-economy-plan-2026-10-01.md",
             ".gitlab-ci.yml",
             "scripts/ci_lane_dev.py",
             "tests/test_ci_lane_dev.py",
@@ -139,9 +141,14 @@ class TestTheExclusionListIsOneDeclaration:
         assert snap.is_excluded("tausik/tasks/x.md")
         assert snap.is_excluded("tausik\\tasks\\x.md")
         assert not snap.is_excluded("tausik/gates.json")
-        assert snap.is_excluded("TAUSIK-plan-1.9.md")
-        assert not snap.is_excluded("docs/TAUSIK-plan-1.9.md")
-        assert not snap.is_excluded("TAUSIK-plan-1.9.md.bak")
+        assert not snap.is_excluded("old-release-plan.md")
+
+    def test_dynamic_state_is_removed_but_static_agent_guidance_remains(self, repo):
+        root, _ = repo
+        tree = snap.snapshot_tree(str(root), "HEAD")
+        for path in snap.SANITIZED_PUBLIC_FILES:
+            body = _git(root, "show", f"{tree}:{path}").stdout
+            assert body == "stable\n<!-- DYNAMIC:START -->\n<!-- DYNAMIC:END -->\n"
 
 
 class TestTheSnapshotIsBuiltFromObjects:
@@ -219,7 +226,7 @@ class TestIdenticalIsATreeComparison:
         ).stdout.strip()
         ok, why = snap.snapshot_matches(str(root), whole, "HEAD")
         assert not ok
-        assert "tausik/tasks/some-task.md" in why and "TAUSIK-plan-1.9.md" in why
+        assert "tausik/tasks/some-task.md" in why
 
 
 class TestRefusalsAreLoud:
@@ -236,7 +243,7 @@ class TestRefusalsAreLoud:
 
 class TestTheLiveTree:
     """The real repository: the ratchet JSONs travel, the projection does not,
-    and the two leak classes the publication guard declares as a remainder are
+    and the leak classes the publication guard declares as a remainder are
     ZERO on the snapshot — the remainder lives in what stays behind."""
 
     def test_the_ratchet_files_are_kept_and_the_projection_is_not(self):
@@ -248,7 +255,7 @@ class TestTheLiveTree:
         )
         assert not any(p.startswith("tausik/tasks/") for p in kept)
         assert any(p.startswith("tausik/tasks/") for p in left)
-        assert "TAUSIK-plan-1.9.md" in left and ".gitlab-ci.yml" in left
+        assert ".gitlab-ci.yml" in left
 
     def test_no_leak_class_survives_on_the_snapshot(self):
         """Over the WORKING tree restricted to the snapshot set, so the ratchet
@@ -257,11 +264,7 @@ class TestTheLiveTree:
         wrong for a gate that runs before the commit exists)."""
         import re
 
-        BS = chr(92)
-        classes = {
-            "internal host": re.compile("gitlab" + BS + ".yumash" + BS + ".ru", re.I),
-            "dev-machine path": re.compile("[Dd]:[" + BS + BS + "/]{1,2}Work", re.I),
-        }
+        classes = {name: re.compile(pattern, re.I) for name, pattern in snap.LEAK_CLASSES.items()}
         kept, _ = snap.snapshot_paths(_ROOT, "HEAD")
         hits: dict[str, list[str]] = {name: [] for name in classes}
         for rel in kept:
@@ -271,6 +274,8 @@ class TestTheLiveTree:
                 text = Path(os.path.join(_ROOT, rel)).read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
+            if rel in snap.SANITIZED_PUBLIC_FILES:
+                text = snap.public_text(text)
             for name, rx in classes.items():
                 if rx.search(text):
                     hits[name].append(rel)

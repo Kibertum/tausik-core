@@ -37,14 +37,12 @@ def build():
 
 @pytest.mark.parametrize("ide", ["claude", "cursor", "qwen"])
 def test_overrides_block_present_for_known_ide(build, ide):
-    body = build("p", ["python"], "agent", ".claude", ide=ide)
-    assert f"## IDE-specific overrides ({ide})" in body, (
-        f"override section missing for ide={ide}"
-    )
+    body = build("p", ["python"], "agent", ".claude", ide=ide, context_tier="standard")
+    assert f"## IDE-specific overrides ({ide})" in body, f"override section missing for ide={ide}"
 
 
 def test_claude_override_carries_claude_specific_text(build):
-    body = build("p", ["python"], "agent", ".claude", ide="claude")
+    body = build("p", ["python"], "agent", ".claude", ide="claude", context_tier="standard")
     # Sanity: pull a short, stable phrase from harness/overrides/claude/rules.md
     # so we know the actual file content reached the rendered body, not just
     # the section header.
@@ -52,7 +50,7 @@ def test_claude_override_carries_claude_specific_text(build):
 
 
 def test_cursor_override_section_appears_before_dynamic_block(build):
-    body = build("p", ["python"], "agent", ".cursor", ide="cursor")
+    body = build("p", ["python"], "agent", ".cursor", ide="cursor", context_tier="standard")
     cursor_idx = body.find("## IDE-specific overrides (cursor)")
     dynamic_idx = body.find("<!-- DYNAMIC:START -->")
     assert cursor_idx > 0
@@ -63,17 +61,24 @@ def test_cursor_override_section_appears_before_dynamic_block(build):
 
 
 def test_no_override_block_when_ide_is_none(build):
-    body = build("p", ["python"], "agent", ".claude", ide=None)
+    body = build("p", ["python"], "agent", ".claude", ide=None, context_tier="standard")
     assert "## IDE-specific overrides" not in body
 
 
 def test_unknown_ide_yields_no_section(build):
-    body = build("p", ["python"], "agent", ".claude", ide="totally-not-a-real-ide")
+    body = build(
+        "p",
+        ["python"],
+        "agent",
+        ".claude",
+        ide="totally-not-a-real-ide",
+        context_tier="standard",
+    )
     assert "## IDE-specific overrides" not in body
 
 
 def test_default_ide_arg_is_none_for_backward_compat(build):
     """Existing callers (e.g. AGENTS.md) that didn't pass `ide` keep working."""
-    body = build("p", ["python"], "agent", ".claude")
+    body = build("p", ["python"], "agent", ".claude", context_tier="standard")
     assert "## IDE-specific overrides" not in body
     assert "Hard Constraints" in body

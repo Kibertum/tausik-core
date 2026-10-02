@@ -17,13 +17,13 @@ logger = logging.getLogger(__name__)
 
 # --- Agent rule pack size (bootstrap templates: CLAUDE.md / AGENTS.md / .cursorrules) ---
 CONTEXT_TIER_VALUES = frozenset({"minimal", "standard", "full"})
-DEFAULT_CONTEXT_TIER = "standard"
+DEFAULT_CONTEXT_TIER = "minimal"
 
 
 def resolve_context_tier(cfg: dict | None) -> str:
     """Return normalized ``context_tier`` from the root of ``.tausik/config.json``.
 
-    Missing or null → ``standard``. Invalid string → ``ValueError``.
+    Missing or null → ``minimal``. Invalid string → ``ValueError``.
     """
 
     if not cfg:

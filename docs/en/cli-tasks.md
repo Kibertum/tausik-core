@@ -36,7 +36,8 @@ metrics log-usage              # Append one manual usage_events row (--task-slug
 metrics cost [--since ISO] [--until ISO]   # SUM tokens/cost + COUNT rows grouped by task (NULL slug excluded)
 metrics answers [--last N] [--json]   # Shape of the agent's final answers: words (median/p90), verdict-first %, list share, filler
 metrics calls [--last N]             # Tool calls per closed task by kind (read/edit/run/script/ceremony/other), per complexity
-metrics tokens [--last N] [--rebuild] [--json]   # Context volume per tool over the last N sessions
+metrics tokens [--host claude|codex|kilo] [--last N] [--rebuild] [--json]
+                                                   # Native host usage; Claude keeps the legacy per-tool view
                                 # Source: .tausik/token_metrics.jsonl, written by the SessionEnd hook
                                 #   scripts/hooks/session_metrics.py, which walks the transcript and
                                 #   splits message-level usage across the tool_use blocks in a message.
@@ -94,7 +95,9 @@ task undepends <slug> --after <slug>  # Withdraw a declared order
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
           [--full] [--top-n N] [--max-lines N]   # >25 rows roll up by status/role; --full = full table
 task show <slug>                # Full info: plan, notes, decisions, defect_of, AC
-task start <slug>               # planning -> active (QG-0: requires goal + AC + negative scenario);
+task show <slug> --package      # Bounded deterministic agent context (default 8192 B)
+task show <slug> --package --max-bytes 4096
+task start <slug> [--package]   # planning -> active; package returns bounded context in this call
                                 #   session time and call capacity are advice in the output, not a refusal (1.10, #376)
                                 #   --force is retired: the flag is refused with the reason
 task obsolete <slug> --reason "..."   # close a task time resolved: kept on record, no QG-2, left out of
@@ -173,7 +176,9 @@ The edge TRAVELS in the projection (`depends_on` in the task frontmatter),
 because it is intent rather than telemetry: a plan that evaporates on clone is
 the defect the mechanism was built against.
 
-**Optional Claude model hints:** When `.tausik/config.json` contains `{"task_next":{"model_hint":true}}`, `task next` and `hud` print an extra non-blocking line recommending a Claude model from task complexity (same mapping as `suggest-model`). Opt-in only; missing key or `false` preserves previous behavior.
+**Optional model hints:** When `.tausik/config.json` contains `{"task_next":{"model_hint":true}}`, `task next` and `hud` print an extra non-blocking route from task complexity. The route uses the active model family when it is known (Claude, OpenAI/Codex or GLM); otherwise it falls back to the configured default family. Opt-in only; missing key or `false` preserves previous behavior.
+
+`task delegate` can apply that route only by creating a fresh bounded worker context. Claude Code and Codex expose model selection for a spawned sub-agent; Kilo/GLM remains advisory until its host-side spawn surface is verified. The running coordinator is never reported as switched. A selected route becomes `applied` only when the worker starts the delegated task; an abandoned or failed spawn remains `selected`. Delegation depth is capped at one, and the coordinator retains verification, evidence and closure.
 
 **Allowed stacks (DEFAULT_STACKS, 25):** python, fastapi, django, flask, react, next, vue, nuxt, svelte, typescript, javascript, go, rust, java, kotlin, swift, flutter, laravel, php, blade, ansible, terraform, helm, kubernetes, docker. Custom stacks are added via `.tausik/config.json` → `custom_stacks`.
 

@@ -211,5 +211,10 @@ def test_every_host_registers_the_one_declared_set(host, request):
 
     live = request.getfixturevalue(host)
     live_hooks = live.get("hooks", live) if host != "codex_hooks" else live
+    if host == "codex_hooks":
+        adapter = live_hooks["PreToolUse"].pop()
+        assert adapter["matcher"] == "apply_patch|Bash|PowerShell"
+        assert len(adapter["hooks"]) == 1
+        assert "codex_write_gate.py" in adapter["hooks"][0]["command"]
     reference = build_hooks_dict(lambda script, suffix="": f"X/{script}{suffix}")
     assert _shape(live_hooks) == _shape(reference)

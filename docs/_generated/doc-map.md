@@ -56,7 +56,6 @@ generated from those declarations.
 | `receipts.md` | user | en, ru |
 | `testing-principles.md` | user | en, ru |
 | `verify-glossary.md` | user | en, ru |
-| `zero-defect.md` | user | en, ru |
 
 ## configuration
 
@@ -77,7 +76,6 @@ generated from those declarations.
 | `claude-md-guide.md` | maintainer | en, ru |
 | `kilo-zai.md` | user | en, ru |
 | `skill-adaptation.md` | user | en, ru |
-| `skill-bundles-migration.md` | maintainer | en, ru |
 | `skill-bundles.md` | user | en, ru |
 | `skill-ecosystem.md` | user | en, ru |
 | `skill-profiles.md` | user | en, ru |
@@ -112,6 +110,8 @@ generated from those declarations.
 
 | Page | Reader | Languages |
 |---|---|---|
+| `codex-economy-baseline.md` | maintainer | en, ru |
+| `context-economy.md` | maintainer | en, ru |
 | `i18n-strategy.md` | maintainer | en, ru |
 | `publishing.md` | maintainer | en, ru |
 | `renar-11-deltas.md` | maintainer | en, ru |
@@ -125,6 +125,7 @@ generated from those declarations.
 | Page | Reader | Languages |
 |---|---|---|
 | `whats-new-1.10.md` | user | en, ru |
+| `whats-new-1.11.md` | user | en, ru |
 | `whats-new-1.8.md` | user | en, ru |
 | `whats-new-1.9.md` | user | en, ru |
 
@@ -133,6 +134,7 @@ generated from those declarations.
 | Page | Reader | Languages |
 |---|---|---|
 | `at-generation-procedure.md` | agent | en |
+| `package-layout-2.0.md` | maintainer | en, ru |
 | `plan-review.md` | agent | en, ru |
 | `plan-stacks.md` | agent | en, ru |
 | `skill-patterns.md` | agent | en, ru |
@@ -151,4 +153,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-75 page(s), 74 carried by both languages.
+77 page(s), 76 carried by both languages.

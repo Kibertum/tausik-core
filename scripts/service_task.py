@@ -42,16 +42,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
     be: SQLiteBackend
 
     def _project_task(self, slug: str) -> None:
-        """Re-serialize ONE task to `tausik/`. Fail-open — never raises.
-
-        Called from every task mutator. Only `task_done` used to export, so a
-        task created, re-specced, started, blocked or journalled on a branch did
-        not travel with it; the tree only caught up on the next full
-        `tausik state export`, which is why `status` reported no divergence.
-        Claim/unclaim are deliberately absent: `claimed_by` is not one of the
-        columns `state_export.export_one` serializes, so they cannot change the
-        projection.
-        """
+        """Re-serialize one task to ``tausik/``; the helper is fail-open."""
         from state_triggers import auto_export_entity
 
         auto_export_entity(cast("ProjectService", self), "tasks", slug)
@@ -144,16 +135,28 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         task["relevant_memory"] = lines_for_task(self.be, slug, task)
         return task
 
-    def task_start(self, slug: str, _internal_force: bool = False, force: bool = False) -> str:
+    def task_start(
+        self,
+        slug: str,
+        _internal_force: bool = False,
+        force: bool = False,
+        *,
+        include_memory: bool = True,
+    ) -> str:
         task = self._require_task(slug)
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
         if task["status"] == "active":
             from memory_relevance import lines_for_task
+            from service_delegate import resume_recognition_message
 
-            return "\n".join(
-                [f"Task '{slug}' is already active (resumed).", *lines_for_task(self.be, slug)]
-            )
+            messages = [f"Task '{slug}' is already active (resumed)."]
+            notice = resume_recognition_message(self.be, slug, task.get("complexity"))
+            if notice:
+                messages.append(notice)
+            if include_memory:
+                messages.extend(lines_for_task(self.be, slug))
+            return "\n".join(messages)
         if force:
             raise ServiceError(_FORCE_RETIRED)
         qg0_warnings: list[str] = []
@@ -186,14 +189,11 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             msgs.append(rec_msg)
         from memory_relevance import lines_for_task
 
-        msgs.extend(lines_for_task(self.be, slug))
-        try:
-            from model_routing_session import record_active_task_recommendation
-            from project_config import find_tausik_dir
+        if include_memory:
+            msgs.extend(lines_for_task(self.be, slug))
+        from service_delegate import record_task_recommendation
 
-            record_active_task_recommendation(find_tausik_dir(), slug, task.get("complexity"))
-        except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
-            pass
+        record_task_recommendation(self.be, slug, task.get("complexity"))
         return "\n".join(msgs) if len(msgs) > 1 else msgs[0]
 
     def task_done(
@@ -227,10 +227,9 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             raise ServiceError(_format_task_done_failures(report))
         try:
             from model_routing_adherence import finalize_close
-            from project_config import find_tausik_dir
             from state_triggers import auto_export_entity
 
-            finalize_close(find_tausik_dir(), slug)  # routing telemetry (best-effort)
+            finalize_close(self.tausik_dir(), slug)  # routing telemetry (best-effort)
             # cast: mixin is a composed ProjectService at runtime (see service_knowledge)
             auto_export_entity(cast("ProjectService", self), "tasks", slug)
         except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive

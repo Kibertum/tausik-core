@@ -167,7 +167,9 @@ class TestНовыйПроектЗакрываетПервуюЗадачу:
             ],
             consumer,
         )
-        assert "[PASS] pytest" in verify.stdout, verify.stdout[-800:]
+        assert "tests(passed=2, skipped=unknown, deselected=unknown)" in verify.stdout, (
+            verify.stdout[-800:]
+        )
 
         # ОДНОСТРОЧНЫЕ записи, по одной на критерий. Многострочный аргумент
         # через `.cmd`-обёртку на Windows отвергается её же защитой командной

@@ -67,8 +67,8 @@ class TestBootstrapSkillsCoverage:
         sys.path.insert(0, os.path.join(_repo_root, "bootstrap"))
         from bootstrap_templates import ANSWER_SHAPE
 
-        assert "KEEP BYTE-EXACT" in ANSWER_SHAPE
-        assert "KEEP FULL PROSE" in ANSWER_SHAPE
+        assert "- BYTE-EXACT:" in ANSWER_SHAPE
+        assert "FULL:" in ANSWER_SHAPE
         assert "acceptance-criteria evidence" in ANSWER_SHAPE
         assert not os.path.isdir(os.path.join(_builtin_skills_dir, "i-have-adhd"))
 
@@ -175,7 +175,7 @@ class TestBootstrapSkillsCoverage:
         deployed = tmp_path / ".claude" / "skills"
         deployed_names = {p.name for p in deployed.iterdir() if p.is_dir()}
         # These come from registry/extension lists, not harness/skills/.
-        external_examples = {"audit", "init", "diff", "docs"}
+        external_examples = {"docs", "excel", "pdf"}
         present = external_examples & deployed_names
         assert present, (
             "External/registry skills appear to have been stripped — "
@@ -185,7 +185,7 @@ class TestBootstrapSkillsCoverage:
 
     def test_default_excludes_official_stubs(self, tmp_path):
         """v14b-skill-core-cleanup negative scenario: without --include-official,
-        registry skills (audit/diff/docs/jira/...) must NOT appear in the
+        registry skills (docs/excel/pdf) must NOT appear in the
         deployed set. Only built-in source skills + explicitly installed.
         """
         result = _run_bootstrap(str(tmp_path))
@@ -195,7 +195,7 @@ class TestBootstrapSkillsCoverage:
         deployed_names = {p.name for p in deployed.iterdir() if p.is_dir()}
         # These come strictly from skills-official/registry.json — should NOT
         # be present without --include-official.
-        registry_only = {"audit", "jira", "presale", "bitrix24", "sentry", "ultra"}
+        registry_only = {"docs", "excel", "pdf"}
         leaked = registry_only & deployed_names
         assert not leaked, (
             f"Registry stubs leaked into default deploy: {sorted(leaked)}. "

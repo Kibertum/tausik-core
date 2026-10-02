@@ -161,38 +161,6 @@ def detect_extension_skills(project_dir: str) -> dict[str, str]:
     if src_count >= 5:
         skills["review"] = f"{src_count}+ source files"
 
-    # --- security ---
-    security_keywords = [
-        "jwt",
-        "oauth",
-        "auth",
-        "bcrypt",
-        "password",
-        "token",
-        "stripe",
-        "payment",
-        "credit_card",
-        "api_key",
-        "secret_key",
-    ]
-    env_file = os.path.join(project_dir, ".env")
-    env_example = os.path.join(project_dir, ".env.example")
-    has_env = os.path.isfile(env_file) or os.path.isfile(env_example)
-    has_security_code = False
-    # Check a few key files for security keywords
-    for ext in [".py", ".js", ".ts", ".go", ".rs", ".php"]:
-        for fpath in _find_files(project_dir, [ext], limit=10):
-            if _file_contains(fpath, security_keywords):
-                has_security_code = True
-                break
-        if has_security_code:
-            break
-
-    if has_env and has_security_code:
-        skills["security"] = "auth/security patterns + .env detected"
-    elif has_security_code:
-        skills["security"] = "auth/security patterns in code"
-
     # --- pdf ---
     pdf_files = _find_files(project_dir, [".pdf"], limit=1)
     if pdf_files:
@@ -232,16 +200,6 @@ def detect_extension_skills(project_dir: str) -> dict[str, str]:
             pass
     if has_docs_dir or big_readme:
         skills["docs"] = "docs directory or large README"
-
-    # --- sentry (via .mcp.json) ---
-    mcp_json = os.path.join(project_dir, ".mcp.json")
-    if os.path.isfile(mcp_json):
-        if _file_contains(mcp_json, ["sentry"]):
-            skills["sentry"] = "Sentry MCP configured"
-
-    # --- optimize ---
-    if src_count >= 50:
-        skills["optimize"] = f"{src_count}+ source files (large project)"
 
     return skills
 

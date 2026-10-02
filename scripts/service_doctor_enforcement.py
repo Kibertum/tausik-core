@@ -131,6 +131,30 @@ def check_enforcement_coverage(project_dir: str) -> Iterator[tuple[str, str, str
         )
     yield ("ok", _LABEL, summary)
 
+    from enforcement_evidence import live_enforcement_status
+
+    live_items = []
+    live_warning = False
+    for item in covered + bare:
+        host = item.split(":", 1)[0]
+        live = live_enforcement_status(project_dir, host)
+        routes = live["routes"]
+        live_warning |= "local_report_failed" in routes.values()
+        if live["status"] == "unknown":
+            live_items.append(f"{host}=unknown")
+            continue
+        route_text = ",".join(f"{name}={value}" for name, value in routes.items())
+        live_items.append(
+            f"{host}={live['status']}[{route_text}; at={live['observed_at']}; "
+            f"host={live['host_version']}; framework={live['framework_version']}]"
+        )
+    yield (
+        "warn" if live_warning else "ok",
+        "Live enforcement report",
+        "; ".join(live_items)
+        + " — local self-report only; configuration alone proves no pre-write denial",
+    )
+
     # By RULE, not by host. "cursor: none" is true and coarse: on a host with no
     # interception every task closure, knowledge write and task opening is still
     # refused, because those go through our own tools. Saying only the first half

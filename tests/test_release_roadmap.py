@@ -26,7 +26,12 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 
-from conftest import DORMANT_WITHOUT_LIVE_DB, canonical_schema_db  # noqa: E402
+from conftest import (  # noqa: E402
+    DORMANT_ON_PUBLIC_SNAPSHOT,
+    DORMANT_WITHOUT_LIVE_DB,
+    IS_PUBLIC_SNAPSHOT,
+    canonical_schema_db,
+)
 
 import release_roadmap  # noqa: E402
 import release_roadmap_composition  # noqa: E402
@@ -462,7 +467,10 @@ class TestWriteAndCheck:
         assert "stale" in capsys.readouterr().out
 
 
-@pytest.mark.skipif(not os.path.isfile(PROJECT_DB), reason=DORMANT_WITHOUT_LIVE_DB)
+@pytest.mark.skipif(
+    IS_PUBLIC_SNAPSHOT or not os.path.isfile(PROJECT_DB),
+    reason=(DORMANT_ON_PUBLIC_SNAPSHOT if IS_PUBLIC_SNAPSHOT else DORMANT_WITHOUT_LIVE_DB),
+)
 class TestCommittedMapIsCurrent:
     """The control the PDF never had: does the published map still match the project?"""
 

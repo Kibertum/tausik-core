@@ -34,6 +34,10 @@ from typing import Any, Final
 
 _FILENAME: Final[str] = "routing_adherence.jsonl"
 _SCHEMA_VERSION: Final[int] = 1
+_ROUTE_SCHEMA_VERSION: Final[int] = 2
+_ROUTE_OUTCOMES: Final[frozenset[str]] = frozenset(
+    {"recommended", "selected", "applied", "rejected", "unavailable"}
+)
 
 
 def _path(tausik_dir: str) -> str:
@@ -93,6 +97,45 @@ def record_adherence(
         return None
     except Exception as e:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         print(f"WARN [routing_adherence]: record failed: {e}", file=sys.stderr)
+        return None
+
+
+def record_route_outcome(
+    tausik_dir: str,
+    slug: str,
+    route: dict[str, Any],
+    outcome: str,
+) -> dict[str, Any] | None:
+    """Append an execution-route outcome without treating advice as application."""
+    if _disabled() or not slug or outcome not in _ROUTE_OUTCOMES:
+        return None
+    row = {
+        "schema_version": _ROUTE_SCHEMA_VERSION,
+        "kind": "route_outcome",
+        "slug": str(slug).strip(),
+        "outcome": outcome,
+        "host": route.get("host"),
+        "family": route.get("family"),
+        "model": route.get("model"),
+        "reasoning_effort": route.get("reasoning_effort"),
+        "speed_mode": route.get("speed_mode"),
+        "risk": route.get("risk"),
+        "quality_signal": route.get("quality_signal"),
+        "route_reason": route.get("route_reason"),
+        "escalation_reason": route.get("escalation_reason"),
+        "capability": route.get("capability"),
+        "recorded_at": _utcnow_iso(),
+    }
+    try:
+        os.makedirs(tausik_dir, exist_ok=True)
+        with open(_path(tausik_dir), "a", encoding="utf-8") as f:
+            f.write(json.dumps(row) + "\n")
+        return row
+    except OSError as e:
+        print(
+            f"WARN [routing_adherence]: route write failed for {tausik_dir}: {e}",
+            file=sys.stderr,
+        )
         return None
 
 

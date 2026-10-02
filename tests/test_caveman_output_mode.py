@@ -119,7 +119,7 @@ class TestCarveOuts:
             assert "acceptance" in body or "evidence" in body, mode
             assert "decision" in body, mode
             assert "spec" in body or "adapt" in body, mode
-            assert "never shortened" in body or "keep full" in body, mode
+            assert "never shortened" in body or "full:" in body, mode
 
     def test_the_shape_ships_with_the_mode_off(self):
         """The reason this whole split exists: measured median 522 words against a budget of

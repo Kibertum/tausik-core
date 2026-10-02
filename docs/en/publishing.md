@@ -82,7 +82,7 @@ byte for byte, and a machine checks that equality, not a memory.
 Before #368 EVERYTHING git tracked went out, `tausik/` included — the
 project's own accounting. Measured in session #251: `github/main` carried
 2438 files of `tausik/` out of 3576, 70 % of what a consumer cloned — and the
-two leak classes declared below as a remainder lived in that accounting.
+the declared leak classes lived in that accounting.
 
 The exclusions are now ONE declared constant,
 `publication_snapshot.EXCLUDED_FROM_PUBLIC_SNAPSHOT`, held by
@@ -91,9 +91,13 @@ The exclusions are now ONE declared constant,
 | Stays on the development line | Why |
 |---|---|
 | `tausik/tasks/`, `tausik/stories/`, `tausik/epics/`, `tausik/decisions/`, `tausik/memory/`, `tausik/graph-snapshots/` | the state projection that carries state between machines on a branch; of no use to a consumer of the framework |
-| `TAUSIK-plan-1.9.md` | an internal working document (the release charter) |
+| `docs/ru/research/release-111-economy-plan-2026-10-01.md` | internal release planning with development-tracker links; the measured results remain public elsewhere |
 | `.gitlab-ci.yml` | the development line's pipeline |
 | `scripts/ci_lane_dev.py`, `tests/test_ci_lane_dev.py` | the reader for that pipeline: tooling for a host the public repository has no relationship with. `cli_push_ok` imports it OPTIONALLY, so the published tree works without it and stays silent rather than complaining |
+
+`AGENTS.md` and `CLAUDE.md` remain public, but the snapshot empties their generated
+`DYNAMIC` blocks. Stable agent guidance ships; the current development session,
+task names and host transcript path do not.
 
 The ratchet files `tausik/*.json` (`gates`, `policy`, `published_tags`,
 `spec_coverage`) **travel**: gates and tests read them. Measured on the 1.9

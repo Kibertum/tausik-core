@@ -183,7 +183,7 @@ def generate_claude_md(
     project_dir: str,
     project_name: str,
     stacks: list[str],
-    context_tier: str = "standard",
+    context_tier: str = "minimal",
     output_mode: str = "off",
 ) -> None:
     """Generate CLAUDE.md — load-bearing instructions for Claude Code.
@@ -218,7 +218,7 @@ def generate_agents_md(
     project_dir: str,
     project_name: str,
     stacks: list[str],
-    context_tier: str = "standard",
+    context_tier: str = "minimal",
     output_mode: str = "off",
 ) -> None:
     """Generate AGENTS.md — universal agent onboarding (OpenCode/Codex/Cursor/Claude compatible).
@@ -257,7 +257,7 @@ def generate_cursorrules(
     project_dir: str,
     project_name: str,
     stacks: list[str],
-    context_tier: str = "standard",
+    context_tier: str = "minimal",
     output_mode: str = "off",
 ) -> None:
     """Generate .cursorrules for Cursor IDE — same constraints as CLAUDE.md.

@@ -185,7 +185,25 @@ def cmd_team(svc: ProjectService, args: Any) -> None:
 def cmd_session(svc: ProjectService, args: Any) -> None:
     c = args.session_cmd
     if c == "start":
-        print(svc.session_start(getattr(args, "host_id", None)))
+        host_id = getattr(args, "host_id", None)
+        if host_id:
+            from service_host_context import native_identity, open_session
+
+            host, native_thread = native_identity()
+            result = open_session(
+                svc,
+                host=host or "unknown-host",
+                thread_id=host_id or native_thread,
+            )
+            session = result.get("session")
+            if isinstance(session, dict):
+                result["session"] = {
+                    key: session.get(key)
+                    for key in ("id", "started_at", "ended_at", "host_session_id")
+                }
+            print(json.dumps(result, ensure_ascii=False, default=str))
+        else:
+            print(svc.session_start())
     elif c == "end":
         print(svc.session_end(args.summary, getattr(args, "host_id", None)))
     elif c == "current":

@@ -194,6 +194,17 @@ def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:
         __import__("project_parser_answers").run(args)
         return True
     if sub == "tokens":
+        if getattr(args, "host", "claude") in {"codex", "kilo"}:
+            import json
+
+            from project_root import root_from_service
+            from service_token_metrics import native_usage_report
+
+            root = root_from_service(svc)
+            if root is None:
+                raise ValueError("Cannot resolve project root for native usage")
+            print(json.dumps(native_usage_report(root, args.host), ensure_ascii=False))
+            return True
         from service_token_metrics import print_cli
 
         print_cli(

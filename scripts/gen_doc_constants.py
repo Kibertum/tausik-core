@@ -38,6 +38,7 @@ from doc_drift_scanners import (
     scan_version_refs,
 )
 from mcp_tool_counts import mcp_counts_flat, mcp_descriptions_digest
+from publication_snapshot import EXCLUDED_FROM_PUBLIC_SNAPSHOT
 from pytest_test_count import count_tests
 
 __all__ = [
@@ -103,21 +104,11 @@ def build_constants_doc(repo_root: Path) -> dict[str, object]:
     # them out and were outside every closed-list control until session #213.
     payload.update(closed_lists_flat())
     payload["mcp_descriptions_hash"] = mcp_descriptions_digest(repo_root)
-    # `skills_official_count` comes from `skills-official/`, a SEPARATE and
-    # gitignored repository, so a clean clone — every CI runner — simply has no
-    # source for it. `code_counts_flat` omits the key there rather than calling
-    # it zero, and the previously recorded value stands: the alternative was a
-    # red CI on every checkout and, through the auto-fixer, "0 official skills"
-    # written into three documents from a merely absent file.
-    if "skills_official_count" not in payload:
-        _restore_prior(
-            payload,
-            "skills_official_count",
-            repo_root,
-            "skills-official/registry.json is absent or unreadable",
-        )
     try:
-        payload["test_count"] = count_tests(repo_root)
+        public_test_exclusions = tuple(
+            path for path in EXCLUDED_FROM_PUBLIC_SNAPSHOT if path.startswith("tests/")
+        )
+        payload["test_count"] = count_tests(repo_root, public_test_exclusions)
     except (ValueError, FileNotFoundError, subprocess.TimeoutExpired) as e:
         # Preserve prior value rather than crash; surfaced in --check via
         # constants drift if the on-disk value diverges from a future re-run.

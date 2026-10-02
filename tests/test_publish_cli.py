@@ -56,7 +56,6 @@ def repo(tmp_path):
     (root / "README.md").write_text("# p\n", encoding="utf-8")
     (root / "tausik" / "tasks").mkdir(parents=True)
     (root / "tausik" / "tasks" / "t.md").write_text("t\n", encoding="utf-8")
-    (root / "TAUSIK-plan-1.9.md").write_text("x\n", encoding="utf-8")
     _git(root, "add", "-A")
     _git(root, "commit", "-m", "public head")
     head = _git(root, "rev-parse", "HEAD").stdout.strip()
@@ -134,7 +133,7 @@ class TestTheHappyPathReportsAndWritesNoRef:
         before = _git(root, "rev-list", "--all", "--count").stdout.strip()
         code, out = _run(root, _ns(parent=head, dry_run=True))
         assert code == 0
-        assert "published: 1 file(s)" in out and "excluded:  2 file(s)" in out
+        assert "published: 1 file(s)" in out and "excluded:  1 file(s)" in out
         assert "DRY RUN" in out and "filtered tree:" in out
         assert _git(root, "rev-list", "--all", "--count").stdout.strip() == before
 

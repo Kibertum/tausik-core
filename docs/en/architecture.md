@@ -44,13 +44,18 @@ the Backend handles only CRUD and SQL. CLI and MCP are two equal entry points.
               |
   +---------------------------+
   | SQLite (WAL mode)         |  <- .tausik/tausik.db
-  | 27 tables + 8 FTS5 indexes|
+  | schema v67                |
   +---------------------------+
 ```
 
 ## Key Modules
 
 ### Scripts (Business Logic)
+
+TAUSIK 1.11 still has a flat deployment layout: 563 files under `scripts/`, 502
+at its root. This is historical compatibility, not the 2.0 target. See
+**[TAUSIK 2.0 package layout](package-layout-2.0.md)** for the measured boundary,
+migration baseline, and rollout.
 
 Modules in `scripts/`, each <=500 lines (`filesize` gate; raised from 400 as an
 interim measure by decision #190, because the tighter cap was deforming the
@@ -68,10 +73,10 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
 | `service_roles.py` | Hybrid role storage (DB metadata + harness/roles/*.md) |
 | `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
-| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 27 tables + 8 FTS5 indexes) |
+| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, schema v67) |
 | `backend_session_metrics.py` | Gap-based active-time computation |
 | `backend_tier_metrics.py` | call_budget vs call_actual tier metrics |
-| `backend_migrations.py` / `_legacy.py` | Schema migrations through v27 |
+| `backend_migrations.py` / `_legacy.py` / `_v*.py` | Schema migrations through v67; 34 version modules remain for 1.11 upgrade compatibility |
 | `project_config.py` + `default_gates.py` | Config loader, gates config, auto-enable |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Skill install/uninstall from repositories |
@@ -176,7 +181,7 @@ own (all of them, today). A per-IDE copy would be a mirror waiting to drift — 
 exist under `harness/cursor/` and was deleted in v1.7.0.
 ```
 harness/
-+-- skills/           # 14 core auto-deployed + 20 in skills-official/ (opt-in via --include-official)
++-- skills/           # 13 core auto-deployed; external skills installed per skill
 +-- roles/            # 7 roles (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 +-- stacks/           # Stack guides
 +-- overrides/        # IDE-specific overrides (claude/, cursor/, qwen/)
@@ -203,7 +208,7 @@ matrix emits an abstract rank; the active family resolves it to a real model —
 so a z.ai GLM session routes to GLM models with no code change. See
 [Kilo + z.ai](kilo-zai.md).
 
-## DB: Tables (Schema v37)
+## DB: Selected Tables (Schema v67)
 
 | Table | Purpose |
 |-------|---------|
@@ -330,10 +335,11 @@ proven gates. This is a deliberate lightweight-adoption policy, not "unfinished 
 ## Orchestrator-worker (model auto-switch via sub-agents)
 
 The main session is the **coordinator** (planning, AC, review). A task of
-complexity ≤ medium can be **delegated** to a **worker sub-agent** spawned via
-the Agent tool with `model=recommended` — the only programmatic model-selection
-Claude Code exposes (Anthropic orchestrator-workers pattern). TAUSIK provides
-the delegation **scaffolding/state**; the agent performs the actual spawn.
+complexity ≤ medium can be **delegated** to a **worker sub-agent** spawned with
+the recommended model, reasoning effort and standard speed. This is the model
+selection surface exposed by Claude Code and Codex; TAUSIK provides the
+delegation **scaffolding/state**, while the host agent performs the actual spawn.
+Kilo/GLM routes are advisory until that host surface is live-verified.
 
 | Step | Command / mechanism |
 |---|---|
@@ -345,6 +351,10 @@ the delegation **scaffolding/state**; the agent performs the actual spawn.
 
 Delegation state is CLI-first (no MCP surface, to avoid doc-count drift) and
 lives entirely in the `meta` table (`delegation:<slug>`, `worker_summary:<slug>`).
+Route telemetry uses separate outcomes (`selected`, `applied`, `rejected`,
+`unavailable`). Selection alone is not application: worker-mode recognition at
+`task start` is the event that records `applied`. The coordinator cannot be
+switched mid-session and keeps QG-0/QG-2, evidence and task closure.
 
 ## Hooks (anti-drift, see [hooks.md](hooks.md))
 

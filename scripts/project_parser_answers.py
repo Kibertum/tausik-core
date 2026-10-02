@@ -12,6 +12,12 @@ def add(metrics_sub: Any) -> None:
         "words, verdict-first share, list share, filler (terse-answers-measured-first)",
     )
     ma.add_argument("--last", type=int, default=10, help="Last N transcripts (default: 10)")
+    ma.add_argument(
+        "--host",
+        choices=("claude", "codex"),
+        default="claude",
+        help="Transcript host (default: claude; host windows are never blended)",
+    )
     ma.add_argument("--json", action="store_true", dest="as_json", help="Machine-readable output")
 
 
@@ -31,15 +37,22 @@ def run(args: Any) -> None:
 
     tdir = find_tausik_dir()
     project_dir = os.path.dirname(tdir) if tdir else os.getcwd()
-    paths = newest_project_transcripts(project_dir, int(getattr(args, "last", 10) or 10))
+    host = getattr(args, "host", "claude")
+    if host == "codex":
+        from call_mix import codex_transcripts
+
+        paths = codex_transcripts(project_dir, int(getattr(args, "last", 10) or 10))
+    else:
+        paths = newest_project_transcripts(project_dir, int(getattr(args, "last", 10) or 10))
     report, skipped = measure(paths)
     summary = report.summary()
     if getattr(args, "as_json", False):
-        print(json.dumps({**summary, "skipped": skipped}, ensure_ascii=False))
+        print(json.dumps({"host": host, **summary, "skipped": skipped}, ensure_ascii=False))
         return
     if not paths:
-        print("No host transcripts found for this project.")
+        print(f"No {host} transcripts found for this project.")
         return
+    print(f"host: {host}")
     for key, value in summary.items():
         print(f"{key}: {value}")
     for line in skipped:

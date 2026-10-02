@@ -110,12 +110,22 @@ class TestGeneratedFilesNotFlagged:
 
 
 class TestTempCleanup:
-    def test_no_temp_dirs_left_behind(self, tmp_path):
+    def test_no_temp_dirs_left_behind(self, tmp_path, monkeypatch):
         # AC7: the throwaway scaffold is removed even across a normal run.
-        before = {n for n in os.listdir(tempfile.gettempdir()) if n.startswith("tausik-drift-")}
+        import bootstrap_check as subject
+
+        created = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def tracked_mkdtemp(*args, **kwargs):
+            path = real_mkdtemp(*args, **kwargs)
+            created.append(path)
+            return path
+
+        monkeypatch.setattr(subject.tempfile, "mkdtemp", tracked_mkdtemp)
         check_deployed_trees(_lib(tmp_path, "v2"), _project(tmp_path, deployed="v1"), ["claude"])
-        after = {n for n in os.listdir(tempfile.gettempdir()) if n.startswith("tausik-drift-")}
-        assert after <= before  # nothing new left over
+        assert created
+        assert all(not os.path.exists(path) for path in created)
 
 
 class TestGateWiring:

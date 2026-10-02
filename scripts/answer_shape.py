@@ -11,7 +11,8 @@ long answers. Before a mechanism is built, the answers are MEASURED:
   owner also reads and which also costs tokens.
 
 `score(text)` is the unit the UserPromptSubmit budget check reuses; `measure(paths)` is the
-report `tausik metrics answers` prints.
+report `tausik metrics answers` prints.  Claude-compatible records and native Codex
+``response_item`` records share this reader; a caller keeps their host windows separate.
 """
 
 from __future__ import annotations
@@ -54,6 +55,21 @@ VERDICT_MAX_WORDS = 25
 #: cannot declare itself evidence by saying so.
 _FENCE = re.compile(r"^\s*(```|~~~)")
 _TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+
+_FORMAT_INTENT = re.compile(
+    r"\b(explain|compare|comparison|diagram|flow|sequence|hierarchy|architecture|table|"
+    r"interactive|html|visuali[sz]e|video)\b|"
+    r"\b(объясн\w*|сравн\w*|диаграм\w*|схем\w*|поток\w*|последовательност\w*|"
+    r"иерарх\w*|архитектур\w*|таблиц\w*|интерактив\w*|визуализ\w*|видео)\b",
+    re.I,
+)
+
+FORMAT_RULE = (
+    "**[TAUSIK explanation format]** Use the smallest useful form: prose by default; "
+    "a table for 3+ exact mappings/comparisons; Mermaid for hierarchy, sequence, or 3+ "
+    "linked parts; HTML only on request or a named interaction need; video only on request, "
+    "never auto-selected. If uncertain, unsupported, inaccessible, or not clearer, use prose."
+)
 
 
 def evidence_words(text: str) -> int:
@@ -142,6 +158,17 @@ def _records(path: str) -> Iterable[dict]:
 
 
 def _is_human(rec: dict) -> bool:
+    """Whether a record starts an owner-visible turn on a supported host."""
+    payload = rec.get("payload") or {}
+    if (
+        rec.get("type") == "response_item"
+        and payload.get("type") == "message"
+        and payload.get("role") == "user"
+    ):
+        return any(
+            isinstance(block, dict) and block.get("type") in {"input_text", "input_image"}
+            for block in (payload.get("content") or [])
+        )
     msg = rec.get("message") or {}
     if rec.get("type") != "user" or msg.get("role") != "user" or rec.get("isMeta"):
         return False
@@ -154,6 +181,18 @@ def _is_human(rec: dict) -> bool:
 
 
 def _assistant_text(rec: dict) -> str:
+    """Owner-visible assistant prose, excluding tool and collaborator messages."""
+    payload = rec.get("payload") or {}
+    if (
+        rec.get("type") == "response_item"
+        and payload.get("type") == "message"
+        and payload.get("role") == "assistant"
+    ):
+        return "\n".join(
+            block.get("text", "")
+            for block in (payload.get("content") or [])
+            if isinstance(block, dict) and block.get("type") == "output_text"
+        ).strip()
     msg = rec.get("message") or {}
     if rec.get("type") != "assistant":
         return ""
@@ -234,18 +273,24 @@ def last_final_answer(transcript_path: str, tail_bytes: int = 2_000_000) -> str 
 #: projects and not this one, and the budget line spoke only after a long answer was read.
 #: tests/test_answer_rules_every_prompt.py holds this byte-equal to ANSWER_SHAPE.
 ANSWER_RULES = (
-    "- Responses are in the user's language.\n"
-    "- SHAPE, empty parts omitted: done → verified by → left → your call.\n"
-    "- KEEP BYTE-EXACT: code, shell commands, tool output, file paths, error messages. KEEP FULL PROSE: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.\n"
-    "- EXCEPTIONS: explanation asked; destructive action; three failed debugging turns → state the assumption, ask; ambiguity → one question; the rule would delete the answer itself.\n"
-    "- Steps numbered, one action each, the last doable in two minutes; five items per group unless completeness needs more. One tangent, once, at the end. Estimates in minutes.\n"
-    "- PRE-SEND: delete announcements, closing recaps, side branches, hedges; first line = next action, last line = current state.\n"
+    "- Use user's language.\n"
+    "- SHAPE, omit empty: done → verified by → left → your call.\n"
+    "- PROSE (no ASD-STE100 claim): name actor/action; active voice if natural; one action/sentence; one term/concept; short paragraphs.\n"
+    "- BYTE-EXACT: code, shell commands, tool output, file paths, error messages; FULL: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.\n"
+    "- EXCEPTIONS: explanation asked; destructive action; 3 failed debug turns → assumption + question; ambiguity → one question; rule deletes answer itself.\n"
+    "- Steps: numbered, one action each, last ≤2 min; ≤5/group unless more needed; tangent last; estimate if useful.\n"
+    "- PRE-SEND: delete announcements, recaps, side branches, empty hedges; first line = next action; last = current state.\n"
 )
 
 
 def rules_line() -> str:
     """The answer rules as the prompt hook injects them, before the answer is written."""
     return "**[TAUSIK answer rules]** Apply to the answer you are about to write:\n" + ANSWER_RULES
+
+
+def explanation_format_rule(prompt: str) -> str | None:
+    """Return the conditional format matrix for explanation-shaped prompts."""
+    return FORMAT_RULE if _FORMAT_INTENT.search(prompt or "") else None
 
 
 def budget_nudge(text: str | None, budget: int = DEFAULT_BUDGET_WORDS) -> str | None:

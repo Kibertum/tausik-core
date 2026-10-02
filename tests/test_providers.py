@@ -15,7 +15,7 @@ from providers.base import Provider
 
 def test_available_lists_runtime_providers():
     avail = providers.available()
-    assert avail == ["claude", "cursor", "kilo", "qwen"]
+    assert avail == ["claude", "codex", "cursor", "kilo", "qwen"]
 
 
 def test_zai_is_not_a_provider():
@@ -25,7 +25,7 @@ def test_zai_is_not_a_provider():
         providers.get("zai")
 
 
-@pytest.mark.parametrize("slug", ["claude", "cursor", "kilo", "qwen"])
+@pytest.mark.parametrize("slug", ["claude", "codex", "cursor", "kilo", "qwen"])
 def test_base_contract(slug):
     p = providers.get(slug)
     assert isinstance(p, Provider)
@@ -69,7 +69,7 @@ def test_kilo_unknown_returns_none(monkeypatch):
 
 def test_reset_repopulates():
     providers.reset()
-    assert providers.available() == ["claude", "cursor", "kilo", "qwen"]
+    assert providers.available() == ["claude", "codex", "cursor", "kilo", "qwen"]
 
 
 def test_malformed_module_does_not_empty_registry(tmp_path):
@@ -79,7 +79,7 @@ def test_malformed_module_does_not_empty_registry(tmp_path):
         f.write("this is !!! not valid python\n")
     try:
         providers.reset()
-        assert providers.available() == ["claude", "cursor", "kilo", "qwen"]
+        assert providers.available() == ["claude", "codex", "cursor", "kilo", "qwen"]
     finally:
         os.remove(broken)
         import shutil

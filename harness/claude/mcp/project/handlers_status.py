@@ -73,9 +73,19 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
     return render_status_mcp(view)
 
 
-def _handle_metrics(svc: Any) -> str:
+def _handle_metrics(svc: Any, args: dict | None = None) -> str:
     """Transport. The copy this replaces answered with ONE summary line while the
     CLI printed the whole SENAR report — and MCP is the surface agents prefer."""
+    if args and args.get("host") in {"codex", "kilo"}:
+        import json
+
+        from project_root import root_from_service
+        from service_token_metrics import native_usage_report
+
+        root = root_from_service(svc)
+        if root is None:
+            raise ValueError("Cannot resolve project root for native usage")
+        return json.dumps(native_usage_report(root, args["host"]), ensure_ascii=False)
     from render_metrics import metrics_lines
 
     return "\n".join(metrics_lines(svc))
@@ -170,7 +180,7 @@ STATUS_HANDLERS = {
     "tausik_health": lambda svc, args: _handle_health(svc),
     "tausik_self_check": lambda svc, args: _handle_self_check(),
     "tausik_status": lambda svc, args: _handle_status(svc, args),
-    "tausik_metrics": lambda svc, args: _handle_metrics(svc),
+    "tausik_metrics": lambda svc, args: _handle_metrics(svc, args),
     "tausik_usage_event_log": _do_usage_event_log,
     "tausik_search": lambda svc, args: _handle_search(svc, args),
     "tausik_snippet_search": _do_snippet_search,

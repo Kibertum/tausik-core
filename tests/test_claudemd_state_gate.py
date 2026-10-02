@@ -30,7 +30,11 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from conftest import DORMANT_WITHOUT_LIVE_DB  # noqa: E402
+from conftest import (  # noqa: E402
+    DORMANT_ON_PUBLIC_SNAPSHOT,
+    DORMANT_WITHOUT_LIVE_DB,
+    IS_PUBLIC_SNAPSHOT,
+)
 
 from gate_claudemd_state import (  # noqa: E402
     block_carries_memory_tail,
@@ -122,6 +126,7 @@ class TestTheRealTreeIsIntact:
     """The repository's own files, as they stand right now."""
 
     @pytest.mark.parametrize("name", ["CLAUDE.md", "AGENTS.md"])
+    @pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
     def test_the_dynamic_block_carries_a_memory_tail(self, name):
         assert block_carries_memory_tail(_real_block(name), SENTINEL), (
             f"{name} carries a DYNAMIC block with no memory tail — it was not "
@@ -139,6 +144,7 @@ class TestTheWipeIsCaught:
     """The negative scenario, on real bytes."""
 
     @pytest.mark.parametrize("name", ["CLAUDE.md", "AGENTS.md"])
+    @pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
     def test_replacing_the_block_with_an_empty_project_reds(self, name):
         """Both sides of the same file: intact passes, wiped fails."""
         intact = _real_block(name)

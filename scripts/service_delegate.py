@@ -1,6 +1,6 @@
 """Orchestrator-worker delegation state — `tausik task delegate` (v15-ow-delegate-cli).
 
-The main session (Opus coordinator) marks a complexity<=medium task as delegable
+The main coordinator session marks a complexity<=medium task as delegable
 to a worker sub-agent: TAUSIK records the intent (recommended model + parent
 session) in the `meta` kv table — no schema migration, fully additive. The agent
 performs the actual Agent-tool spawn; the worker/hook reads the record back.
@@ -10,6 +10,7 @@ Complex tasks are refused — they stay with the coordinator.
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError, utcnow_iso
@@ -25,6 +26,14 @@ def _delegation_key(slug: str) -> str:
     return f"{_DELEGATION_PREFIX}{slug}"
 
 
+def _backend_tausik_dir(be: Any) -> str | None:
+    """Resolve telemetry beside the backend, never beside the process cwd."""
+    db_path = getattr(be, "db_path", None)
+    if not isinstance(db_path, str) or not db_path:
+        return None
+    return os.path.dirname(os.path.abspath(db_path))
+
+
 def start_recognition_message(be: Any, slug: str, complexity: str | None) -> str | None:
     """task_start recognition line: worker-mode notice for a delegated task, else
     the model-recommendation banner (or None). All best-effort — never raises."""
@@ -38,17 +47,69 @@ def start_recognition_message(be: Any, slug: str, complexity: str | None) -> str
         except (TypeError, ValueError):
             deleg = None
         if isinstance(deleg, dict):
+            if not deleg.get("applied"):
+                deleg["applied"] = True
+                try:
+                    be.meta_set(_delegation_key(slug), json.dumps(deleg))
+                    from model_routing_adherence import record_route_outcome
+
+                    tausik_dir = _backend_tausik_dir(be)
+                    if tausik_dir:
+                        record_route_outcome(tausik_dir, slug, deleg, "applied")
+                except Exception:  # noqa: BLE001,S110 — telemetry cannot block task start
+                    pass
             return worker_mode_notice(slug, deleg)
     try:
         from project_config import is_task_start_model_banner_enabled
 
         if is_task_start_model_banner_enabled():
+            from agent_model_source import resolve
             from model_routing import format_task_start_banner
+            from skill_profile_detect import detect_ide
 
-            return format_task_start_banner(complexity)
+            host = detect_ide()
+            active = resolve(ide=host)["model_id"] if host else None
+            return format_task_start_banner(complexity, active_model=active)
     except Exception:  # noqa: BLE001,S110 — banner is informational, never block start
         pass
     return None
+
+
+def resume_recognition_message(be: Any, slug: str, complexity: str | None) -> str | None:
+    """Recognize a worker that resumes the task activated by its coordinator."""
+    try:
+        if not be.meta_get(_delegation_key(slug)):
+            return None
+    except Exception:  # noqa: BLE001 — recognition is best-effort
+        return None
+    return start_recognition_message(be, slug, complexity)
+
+
+def record_task_recommendation(be: Any, slug: str, complexity: str | None) -> None:
+    """Persist the active task route without making task start depend on telemetry."""
+    try:
+        from model_routing_session import record_active_task_recommendation
+        from agent_model_source import resolve
+        from skill_profile_detect import detect_ide
+
+        tausik_dir = _backend_tausik_dir(be)
+        if not tausik_dir:
+            return
+        host = detect_ide()
+        active = resolve(ide=host)["model_id"] if host else None
+        recommendation = record_active_task_recommendation(
+            tausik_dir,
+            slug,
+            complexity,
+            host=host,
+            active_model=active,
+        )
+        if recommendation:
+            from model_routing_adherence import record_route_outcome
+
+            record_route_outcome(tausik_dir, slug, recommendation, "recommended")
+    except Exception:  # noqa: BLE001,S110 — route telemetry never blocks task start
+        pass
 
 
 def clear_delegation_state(be: Any, slug: str) -> None:
@@ -95,16 +156,36 @@ class DelegateMixin:
         except (TypeError, ValueError):
             return None
 
-    def task_delegate(self, slug: str) -> str:
-        """Mark a complexity<=medium task delegated to a worker sub-agent."""
+    def task_delegate(
+        self,
+        slug: str,
+        *,
+        startup_work: int | None = None,
+        remaining_work: int | None = None,
+    ) -> str:
+        """Mark a bounded task delegated to a worker sub-agent.
+
+        ``startup_work`` and ``remaining_work`` are optional estimates in the
+        same caller-defined unit. They deliberately do not borrow ``call_budget``:
+        a usage ceiling is not evidence of work remaining.
+        """
         task = self.be.task_get(slug)
         if task is None:
             raise ServiceError(f"Task '{slug}' not found")
         if task.get("status") == "done":
             raise ServiceError(f"Task '{slug}' is done — nothing to delegate")
+        for active in self.be.task_list(status="active"):
+            active_delegation = self.task_delegation(active["slug"])
+            if active_delegation and active_delegation.get("applied"):
+                raise ServiceError(
+                    f"Worker task '{active['slug']}' is already active — nested or "
+                    "parallel delegation is disabled (max depth 1)."
+                )
+        route = self._recommended_route(task.get("complexity"))
         if task.get("complexity") == "complex":
+            self._record_route(slug, route, "rejected")
             raise ServiceError(
-                f"Task '{slug}' is complex — keep it with the Opus coordinator. "
+                f"Task '{slug}' is complex — keep it with the coordinator. "
                 f"Only complexity<=medium tasks delegate to a worker sub-agent."
             )
         existing = self.task_delegation(slug)
@@ -113,7 +194,21 @@ class DelegateMixin:
                 f"Task '{slug}' already delegated (model={existing.get('display')}, "
                 f"parent session #{existing.get('parent_session') or 'unknown'}). No-op."
             )
-        model, display = self._recommended_model(task.get("complexity"))
+        if route["capability"] != "spawn_subagent":
+            self._record_route(slug, route, "unavailable")
+            raise ServiceError(
+                f"Task '{slug}' route is advisory on host {route['host'] or 'unknown'}; "
+                "TAUSIK did not claim or apply a worker model switch."
+            )
+        estimate = self._worker_estimate(startup_work, remaining_work)
+        if estimate and estimate["startup_work"] > estimate["remaining_work"]:
+            self._record_route(slug, route, "rejected")
+            raise ServiceError(
+                "Worker startup refused: startup work "
+                f"{estimate['startup_work']} exceeds bounded remaining work "
+                f"{estimate['remaining_work']}. Continue in the coordinator."
+            )
+        model, display = route["model"], route["display"]
         sess = self.be.session_current()
         parent = sess.get("id") if sess else None
         record = {
@@ -121,11 +216,23 @@ class DelegateMixin:
             "display": display,
             "parent_session": parent,
             "delegated_at": utcnow_iso(),
+            "family": route["family"],
+            "host": route["host"],
+            "reasoning_effort": route["reasoning_effort"],
+            "speed_mode": route["speed_mode"],
+            "capability": route["capability"],
+            "applied": False,
+            "max_delegation_depth": 1,
+            "route_reason": route.get("route_reason"),
+            "escalation_reason": route.get("escalation_reason"),
+            "work_estimate": estimate,
         }
         self.be.meta_set(_delegation_key(slug), json.dumps(record))
+        self._record_route(slug, route, "selected")
         return (
             f"Task '{slug}' delegated to a worker sub-agent. Spawn it via the Agent "
-            f"tool with model={display} ({model}); the worker runs "
+            f"tool with model={display} ({model}), reasoning={route['reasoning_effort']}, "
+            f"speed={route['speed_mode']}; the worker runs "
             f"`tausik task start {slug}`, honours its scope, and reports back via "
             f"task_log. Parent session #{parent}."
         )
@@ -201,14 +308,53 @@ class DelegateMixin:
         return f"Task '{slug}' delegation cleared."
 
     @staticmethod
-    def _recommended_model(complexity: str | None) -> tuple[str, str]:
-        try:
-            from model_routing_matrix import suggest_model
-
-            spec = suggest_model(complexity)
-            return (
-                spec.get("model") or _DEFAULT_MODEL[0],
-                spec.get("display") or _DEFAULT_MODEL[1],
+    def _worker_estimate(
+        startup_work: int | None, remaining_work: int | None
+    ) -> dict[str, int] | None:
+        """Validate paired work estimates without treating a budget as work."""
+        if startup_work is None and remaining_work is None:
+            return None
+        if startup_work is None or remaining_work is None:
+            raise ServiceError(
+                "Worker work estimates require both startup_work and remaining_work."
             )
+        if (
+            isinstance(startup_work, bool)
+            or isinstance(remaining_work, bool)
+            or not isinstance(startup_work, int)
+            or not isinstance(remaining_work, int)
+            or startup_work < 0
+            or remaining_work < 0
+        ):
+            raise ServiceError(
+                "Worker work estimates must be non-negative integers in the same unit."
+            )
+        return {"startup_work": startup_work, "remaining_work": remaining_work}
+
+    @staticmethod
+    def _recommended_route(complexity: str | None) -> dict[str, Any]:
+        try:
+            from agent_model_source import AUTO
+            from model_route import route_work
+
+            return route_work(complexity, host=AUTO)
         except Exception:  # noqa: BLE001 — routing is advisory; fall back to a safe default
-            return _DEFAULT_MODEL
+            return {
+                "model": _DEFAULT_MODEL[0],
+                "display": _DEFAULT_MODEL[1],
+                "family": None,
+                "host": None,
+                "reasoning_effort": "medium",
+                "speed_mode": "standard",
+                "capability": "advisory",
+            }
+
+    def _record_route(self, slug: str, route: dict[str, Any], outcome: str) -> None:
+        try:
+            from model_routing_adherence import record_route_outcome
+
+            tausik_dir = _backend_tausik_dir(self.be)
+            if tausik_dir:
+                record_route_outcome(tausik_dir, slug, route, outcome)
+        except Exception:  # noqa: BLE001,S110 — telemetry never controls delegation
+            pass
