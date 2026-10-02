@@ -82,7 +82,7 @@ The CLI never touches the DB directly. Service validates; backend executes.
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #273 (active) | Branch: v1-11 | TAUSIK: 1.11.0
+Session: none | Branch: v1-11 | TAUSIK: 1.11.0
 Tasks: 1751/1840 done, 8 obsolete, 4 active, 1 blocked
 Active: public-snapshot-tests-read-excluded-files, r111-economy-hardening-acceptance, r111-verification-cycle-replay, audit-and-trim-111-public-release-snapshot
 Blocked: memory-tail-by-relevance-not-recency
