@@ -15,6 +15,11 @@ from project_backend import SQLiteBackend
 from project_service import ProjectService, ServiceError
 
 
+@pytest.fixture(autouse=True)
+def _spawn_capable_host(monkeypatch):
+    monkeypatch.setattr("skill_profile_detect.detect_ide", lambda: "codex")
+
+
 @pytest.fixture
 def svc(tmp_path):
     be = SQLiteBackend(str(tmp_path / "t.db"))

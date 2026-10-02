@@ -9,6 +9,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Delegation behavior tests now declare a spawn-capable host explicitly, so a
+  clean GitHub Actions checkout exercises the same contract as a developer
+  checkout without weakening the advisory fallback for unknown hosts.
+
 ## [1.11.0] — 2026-10-02
 
 ### Token economy without weaker evidence
