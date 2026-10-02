@@ -45,3 +45,6 @@ AC-1 GitLab contains the full v1-11 development commit and no force push is used
 Revert the GitLab release commit; remove the GitHub release/tag only if publication validation fails; restore closed owner issues from the recorded list. Never rewrite remote history.
 
 ## Journal
+
+- 2026-10-02T16:12:43Z [implementation] — Published development commit 90791fa1 and annotated v1.11.0 tag to GitLab; published verified snapshot e48255c1 and GitHub Release v1.11.0; official store main is 3f73f5e with docs/excel/pdf only and 3/3 Ed25519 verification; closed 96 owner GitHub issues plus GitLab #10 and created GitHub #206 for package-first 2.0.
+- 2026-10-02T16:25:16Z [implementation] — Site published from v1.11.0 docs at commit f6b896fe; GitLab pipeline #8726 succeeded and live site returns 1.11.0. Existing KIB-56 Metrika/cookie-consent work was preserved during rebase.

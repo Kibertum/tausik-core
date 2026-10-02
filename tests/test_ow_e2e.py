@@ -21,6 +21,11 @@ from scope_acl import match_path
 from scope_write_gate import delegated_missing_scope
 
 
+@pytest.fixture(autouse=True)
+def _spawn_capable_host(monkeypatch):
+    monkeypatch.setattr("skill_profile_detect.detect_ide", lambda: "codex")
+
+
 @pytest.fixture
 def svc(tmp_path):
     be = SQLiteBackend(str(tmp_path / "t.db"))

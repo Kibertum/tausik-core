@@ -16,6 +16,11 @@ from project_cli_aidd_validate import cmd_aidd_validate
 from project_service import ProjectService
 
 
+@pytest.fixture(autouse=True)
+def _spawn_capable_host(monkeypatch):
+    monkeypatch.setattr("skill_profile_detect.detect_ide", lambda: "codex")
+
+
 @pytest.fixture
 def svc(tmp_path):
     be = SQLiteBackend(str(tmp_path / "t.db"))

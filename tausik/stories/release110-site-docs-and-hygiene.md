@@ -1,7 +1,7 @@
 ---
 slug: release110-site-docs-and-hygiene
 title: "1.10 H. Полный рефакторинг сайта, всей документации и гигиена проекта"
-status: active
+status: done
 epic: release-110-deferred-from-19
 ---
 

@@ -19,6 +19,11 @@ from project_backend import SQLiteBackend
 from project_service import ProjectService, ServiceError
 
 
+@pytest.fixture(autouse=True)
+def _spawn_capable_host(monkeypatch):
+    monkeypatch.setattr("skill_profile_detect.detect_ide", lambda: "codex")
+
+
 _TASK = {
     "slug": "feat-x",
     "goal": "do x",

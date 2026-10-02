@@ -14,6 +14,11 @@ from project_service import ProjectService
 from service_delegate import worker_mode_notice
 
 
+@pytest.fixture(autouse=True)
+def _spawn_capable_host(monkeypatch):
+    monkeypatch.setattr("skill_profile_detect.detect_ide", lambda: "codex")
+
+
 @pytest.fixture
 def svc(tmp_path):
     be = SQLiteBackend(str(tmp_path / "t.db"))
