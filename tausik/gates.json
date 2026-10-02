@@ -168,7 +168,6 @@
       "tests/test_session_end_metrics_hook.py",
       "tests/test_session_model_id.py",
       "tests/test_severity_scale.py",
-      "tests/test_skill_cli_help.py",
       "tests/test_stack_registry.py",
       "tests/test_stress.py",
       "tests/test_supply_eol.py",
