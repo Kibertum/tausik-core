@@ -38,7 +38,8 @@ def _run(args: list[str], cwd: Path = REPO) -> subprocess.CompletedProcess:
         [str(PYTHON), str(PROJECT_PY), *args],
         cwd=str(cwd),
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
 
@@ -57,7 +58,7 @@ def project(tmp_path: Path) -> Path:
     `init` — единственная команда, которой позволено создать проект, поэтому
     подготовка идёт через публичный вход, а не раскладыванием файлов руками.
     """
-    r = _run(["init"], cwd=tmp_path)
+    r = _run(["init", "--here"], cwd=tmp_path)
     assert r.returncode == 0, f"`tausik init` в tmp_path не отработал: {r.stderr}"
     assert (tmp_path / ".tausik").is_dir(), "init не создал .tausik в tmp_path"
     return tmp_path

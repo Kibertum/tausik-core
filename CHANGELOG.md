@@ -9,9 +9,9 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-- Delegation behavior tests now declare a spawn-capable host explicitly, so a
-  clean GitHub Actions checkout exercises the same contract as a developer
-  checkout without weakening the advisory fallback for unknown hosts.
+- GitHub Actions tests now declare their host and temporary-project boundaries
+  explicitly, so clean and reused xdist workers exercise the same contracts as
+  a developer checkout without weakening unknown-host or nested-project guards.
 
 ## [1.11.0] — 2026-10-02
 

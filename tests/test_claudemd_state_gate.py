@@ -176,6 +176,7 @@ class TestTheWipeIsCaught:
         )
 
 
+@pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
 class TestStalenessIsNotDrift:
     """The gate must survive the state every session is in between refreshes."""
 

@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 
 import pytest
@@ -144,7 +145,7 @@ class TestMCPServerStartup:
             # Timeout is acceptable — server might be waiting for more input
             pass
 
-    def test_server_without_project_still_answers_the_host(self, tmp_path):
+    def test_server_without_project_still_answers_the_host(self, request):
         """Without --project the project is resolved per request (a4219bdf), so a launch
         outside any project must still list tools and answer a call with the way out —
         a host that cannot list tools reads the server as dead. The old contract, a
@@ -166,6 +167,8 @@ class TestMCPServerStartup:
         ]
         env = os.environ.copy()
         env.pop("TAUSIK_DIR", None)
+        outside_pytest_tree = tempfile.TemporaryDirectory(prefix="tausik-mcp-no-project-")
+        request.addfinalizer(outside_pytest_tree.cleanup)
         proc = subprocess.Popen(
             [PYTHON, SERVER],
             stdin=subprocess.PIPE,
@@ -174,7 +177,7 @@ class TestMCPServerStartup:
             text=True,
             encoding="utf-8",
             errors="replace",
-            cwd=str(tmp_path),
+            cwd=outside_pytest_tree.name,
             env=env,
         )
         # stdin stays OPEN until the tools/call reply is in: at EOF the server shuts down,
