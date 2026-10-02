@@ -61,7 +61,12 @@ def _utcnow_iso() -> str:
 
 
 def record_active_task_recommendation(
-    tausik_dir: str, slug: str, complexity: str | None
+    tausik_dir: str,
+    slug: str,
+    complexity: str | None,
+    *,
+    host: str | None = None,
+    active_model: str | None = None,
 ) -> dict[str, Any] | None:
     """Persist the recommendation for the currently-active task.
 
@@ -77,15 +82,23 @@ def record_active_task_recommendation(
         # it as None so the consumer doesn't trust an arbitrary string.
         complexity = None
     try:
-        from model_routing import suggest_model
+        from model_route import route_work
 
-        s = suggest_model(complexity)
+        s = route_work(complexity, host=host, active_model=active_model)
         payload = {
             "schema_version": _SCHEMA_VERSION,
             "slug": slug.strip(),
             "complexity": complexity,
             "model": s["model"],
             "display": s["display"],
+            "family": s["family"],
+            "host": s["host"],
+            "reasoning_effort": s["reasoning_effort"],
+            "speed_mode": s["speed_mode"],
+            "capability": s["capability"],
+            "route_reason": s.get("route_reason"),
+            "escalation_reason": s.get("escalation_reason"),
+            "applied": False,
             "recorded_at": _utcnow_iso(),
         }
         os.makedirs(tausik_dir, exist_ok=True)

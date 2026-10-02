@@ -62,11 +62,11 @@ my-skills/
   "format": "tausik-skills",
   "version": 1,
   "skills": {
-    "jira": {
-      "path": "jira/",
-      "description": "Jira issue management — create, update, search issues",
-      "triggers": ["jira", "sprint", "issues", "backlog"],
-      "requires": ["jira-python>=3.0"]
+    "pdf-tools": {
+      "path": "pdf-tools/",
+      "description": "Extract and combine PDF documents",
+      "triggers": ["pdf", "extract pages", "combine documents"],
+      "requires": ["pypdf>=5.0"]
     },
     "seo-audit": {
       "path": "seo/",
@@ -93,7 +93,7 @@ my-skills/
 | `path` | да | Относительный путь к директории скилла (должен заканчиваться на `/`) |
 | `description` | да | Однострочное описание (показывается в `skill list`) |
 | `triggers` | нет | Ключевые слова для автопредложений агента |
-| `requires` | нет | pip-пакеты для установки (например `["httpx>=0.27", "jira-python"]`) |
+| `requires` | нет | pip-пакеты для установки (например `["pypdf>=5.0"]`) |
 
 ## Формат SKILL.md
 
@@ -101,15 +101,15 @@ my-skills/
 
 ```markdown
 ---
-name: jira
-description: "Jira issue management — create, update, search issues via REST API"
+name: pdf-tools
+description: "Extract and combine PDF documents"
 ---
 
-# /jira — Jira Integration
+# /pdf-tools — PDF Utilities
 
 ## Algorithm
 
-1. Check if JIRA_URL and JIRA_TOKEN are set
+1. Check that the input file exists
 2. ...
 
 ## Examples

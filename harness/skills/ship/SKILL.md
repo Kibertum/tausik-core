@@ -27,7 +27,10 @@ Use `tausik_task_show` with `slug={slug}` to load AC, plan steps, goal.
 
 ### 3. Verify Plan Completion
 
-Check all plan steps are done. If not — warn which steps are incomplete. Ask: "Mark remaining steps done, or complete them first?"
+Check that the implementation steps are done. Persist each completed step with
+`tausik_task_step(message=...)`. Exactly one final verification/closure step may
+remain pending for the compound close in step 8; any other incomplete work stops
+the ship workflow.
 
 ### 4. Review Changes (full /review)
 
@@ -45,9 +48,10 @@ subagent_type: "general-purpose",
 model: "sonnet")
 ```
 
-> **Subagent model (phase=code-review):** review runs on **Sonnet 4.6** (`model="sonnet"`).
-> Omitting `model=` is fine (inherits the session model) — a cost hint, not a requirement.
-> Mapping: `docs/ru/research/model-routing-matrix.md`.
+> **Subagent route (phase=code-review):** use the balanced family tier: Sonnet on
+> Claude, Terra on Codex, or the configured GLM equivalent. Escalate one tier for
+> security/deep review or after a HIGH finding. If the host cannot select a worker
+> model, inherit the session and report the route as advisory.
 
 **If review verdict = FAIL (CRITICAL/HIGH issues):** Stop. Show issues. Do NOT proceed to commit. User must fix first.
 **If review verdict = PASS or PASS WITH ISSUES (MEDIUM/LOW only):** Continue.
@@ -65,8 +69,9 @@ subagent_type: "general-purpose",
 model: "sonnet")
 ```
 
-> **Subagent model (phase=code-review):** test/verification is a Sonnet-tier job
-> (`model="sonnet"`). Omitting `model=` is fine — inherits the session model.
+> **Subagent route (phase=verification):** use the same balanced family tier as
+> review. A failed verification escalates the diagnostic worker one tier; the
+> coordinator still runs the final verify and closes the task.
 
 **If tests fail:** Stop. Show failures. Do NOT proceed. User must fix first.
 **If tests pass:** Continue.
@@ -90,6 +95,11 @@ tausik_verify(task_slug={slug})
 
 **Opt-out (CI/inline):** if the project sets `{"task_done": {"auto_verify": true}}` in `.tausik/config.json`, you can skip step 5b — `task_done` will run the verify gates inline. This is rare; prefer the explicit verify call so the user sees timings and can interrupt.
 
+If the final plan step is the verification/closure step, defer this verify until
+after the required commit and run it through the step 8 compound close
+(`verify=true`). Do not run both paths. A red compound verification returns its
+diagnostic and leaves the task open.
+
 ### 6. Verify Acceptance Criteria
 
 Walk each AC from the task:
@@ -97,7 +107,9 @@ Walk each AC from the task:
 - Verify it's met (check code, test output)
 - Build evidence string
 
-Log evidence: `tausik_task_log` with `slug={slug}`, `message="AC verified: 1. [criterion] ✓ [evidence] 2. [criterion] ✓ [evidence]"`
+Build the evidence string for the close call. If using the separate verify path,
+it may also be logged now. If using compound close, supply it as `evidence` so
+the existing close operation records it once.
 
 ### 7. Commit (delegates to /commit)
 
@@ -109,7 +121,7 @@ Reference task slug in the commit message body.
 
 ### 8. Close Task
 
-**Only after successful commit AND step 5b verify green.**
+**Only after successful commit and either a green step 5b verify or the compound verification below.**
 
 **Preferred (v1.4+):** `tausik_task_done` — returns a structured JSON report with `stage` ("closed" | "blocked"), per-gate results, and a `blocking_failures` array the agent can iterate to fix issues without re-parsing prose. Use this whenever the project's MCP server exposes it.
 
@@ -122,6 +134,23 @@ tausik_task_done(
 ```
 
 **Fallback (legacy v1):** if the MCP server bundled with the project predates 1.3.7 and `tausik_task_done` is not in the tool list, fall back to `tausik_task_done` with the same arguments. v1 raises a single aggregated error string (1.4 fix, see CHANGELOG) — read it, fix, retry. Do **not** loop on failures silently.
+
+When one final verification/closure step remains, fold the deterministic
+transitions into that same call:
+
+```
+tausik_task_done(
+  slug={slug},
+  compound='{"message":"Final verification complete","step":N,"verify":true}',
+  ac_verified=True,
+  evidence={ac_evidence},
+  relevant_files=[...]
+)
+```
+
+The service executes `task_log`, `task_step`, verification, and `task_done` in
+that order. Earlier successful transitions remain durable if a later stage
+refuses. Supply either `verify=true` in `compound` or `verify_handle`, never both.
 
 Verify-First Contract: both v1 and v2 look up the cached green from step 5b. If you skipped step 5b on a project with verify-trigger gates, `task_done` will refuse to close — go back, run `tausik_verify`, then retry.
 

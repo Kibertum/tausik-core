@@ -2,8 +2,8 @@
 slug: km-memory-lint-report
 title: "memory lint как отчёт: все проверки реализованы, НИ ОДНА не блокирует"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+epic: release-112-knowledge
+story: release112-knowledge
 complexity: medium
 role: developer
 stack: python

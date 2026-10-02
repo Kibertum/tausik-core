@@ -2,8 +2,8 @@
 slug: l26-memory-decay
 title: "Забывание и консолидация памяти вместо только компакции"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+epic: release-112-knowledge
+story: release112-knowledge
 complexity: complex
 role: architect
 stack: python

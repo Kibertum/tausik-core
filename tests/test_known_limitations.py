@@ -99,19 +99,14 @@ def test_both_languages_carry_the_same_gaps():
     [("CLAUDE.md", "docs/ru/known-limitations.md"), ("AGENTS.md", "docs/en/known-limitations.md")],
 )
 def test_the_entry_points_point_at_the_page(doc, link):
-    """AC6's second half: both onboarding documents must lead a reader here."""
-    assert link in (_REPO / doc).read_text(encoding="utf-8"), f"{doc} does not name {link}"
-
-
-@pytest.mark.parametrize("doc", ["CLAUDE.md", "AGENTS.md"])
-def test_the_entry_points_carry_a_pointer_and_not_a_copy(doc):
-    """The drift this guards against is the one that already cost a defect here.
+    """Both onboarding documents carry the pointer and not a drifting copy.
 
     A pointer cannot disagree with the page; a copied gap can, and then the reader has
     two answers and no way to tell which is current. So the gap MARKERS may appear on the
     page and nowhere else.
     """
     text = (_REPO / doc).read_text(encoding="utf-8")
+    assert link in text, f"{doc} does not name {link}"
     for marker in (*_REQUIRED["ru"], *_REQUIRED["en"]):
         assert marker not in text, (
             f"{doc} carries '{marker}' — that is a copy of the register, not a pointer to "

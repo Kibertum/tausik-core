@@ -75,9 +75,7 @@ skill catalog [<repo>] [--json] # Discovery: name/category/repo/description acro
 # Profile + bundle helpers (v1.5)
 skill rebuild [--force]         # Re-merge SKILL.md variants for the active (ide, model) profile;
                                 # idempotent (sha256 cache skips unchanged files).
-skill bundle list               # List the 6 logical bundles defined in skills-official/bundles.json
-                                # (integrations, data-formats, quality-pro, automation, workflow-helpers,
-                                # ru-locale) + their skill counts.
+skill bundle list               # List bundles declared by configured third-party skill repos.
 skill bundle show <name>        # Show one bundle's contents (skill names + descriptions).
 skill bundle install <name>     # Install every skill in the bundle (per-skill error continues).
 skill bundle uninstall <name>   # Uninstall every skill in the bundle.
@@ -255,20 +253,8 @@ per COMPLETED TASK rather than per request: one extra turn costs on the order of
 half a million cache_read tokens, and a change that saves request tokens at the
 price of a turn loses by about two orders of magnitude.
 
-## Per-task changelog entries
+## Changelog entries
 
-A task writes its own `changelog.d/<slug>.md` rather than a line in the shared
-`CHANGELOG`. The shared file is one for everybody and every entry goes to the head of
-one section, so parallel work conflicts on every closed task in both languages. A file
-named after the task cannot collide.
-
-A fragment carries BOTH languages: the project ships a pair, and half a pair is not an
-entry.
-
-```bash
-changelog assemble                 # what would be folded; writes nothing
-changelog assemble --apply         # fold into both CHANGELOGs and delete the fragments
-```
-
-The closing gate accepts a fragment in place of a line in the shared file. The old way
-still works: a task that edits `CHANGELOG` directly closes as before.
+User-visible changes go directly into both `CHANGELOG.md` and `CHANGELOG.ru.md`.
+The closing gate requires substantive additions in every configured changelog; use
+`--no-changelog` only for work that changes no shipped behaviour.

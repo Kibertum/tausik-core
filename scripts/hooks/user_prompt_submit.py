@@ -122,6 +122,17 @@ def _answer_rules() -> str | None:
         return None
 
 
+def _explanation_format(prompt: str) -> str | None:
+    """Add the format matrix only when the human asks for explanation or visualization."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from answer_shape import explanation_format_rule
+
+        return explanation_format_rule(prompt)
+    except Exception:  # noqa: BLE001 — an advisory line must never break the prompt hook
+        return None
+
+
 def main() -> int:
     # hook-stderr-encoding-locale-dependent: this hook's messages contain
     # non-ASCII, and their readability must not depend on how it was
@@ -158,6 +169,9 @@ def main() -> int:
     rules = _answer_rules()
     if rules:
         nudges.append(rules)
+    format_rule = _explanation_format(prompt)
+    if format_rule:
+        nudges.append(format_rule)
 
     if not nudges:
         return 0

@@ -61,7 +61,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_list",
-        "description": "List tasks with optional filters. Returns slug, title, status, stack, complexity, role for each task",
+        "description": "List tasks with filters.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -94,10 +94,20 @@ TOOLS = [
     },
     {
         "name": "tausik_task_show",
-        "description": "Show full task details by slug — includes goal, AC, plan steps, decisions, notes, and status",
+        "description": "Show task.",
         "inputSchema": {
             "type": "object",
-            "properties": {"slug": {"type": "string"}},
+            "properties": {
+                "slug": {"type": "string"},
+                "mode": {
+                    "type": "string",
+                    "enum": ["full", "package"],
+                },
+                "packet": {
+                    "type": "string",
+                    "description": "JSON {query,sources,max_bytes} requests a work packet.",
+                },
+            },
             "required": ["slug"],
         },
     },
@@ -154,16 +164,19 @@ TOOLS = [
     },
     {
         "name": "tausik_task_start",
-        "description": "Start a task. QG-0: needs goal + acceptance_criteria",
+        "description": "Start task; QG-0 needs goal + AC",
         "inputSchema": {
             "type": "object",
-            "properties": {"slug": {"type": "string"}},
+            "properties": {
+                "slug": {"type": "string"},
+                "package": {"type": "boolean", "description": "Include bounded context"},
+            },
             "required": ["slug"],
         },
     },
     {
         "name": "tausik_task_done",
-        "description": "Complete task (QG-2). Returns structured JSON: ok, stage status, gate results, blocking_failures for agent remediation. Auto-closes parent story/epic when all tasks done.",
+        "description": "Complete task (QG-2); returns gates and blocking failures; auto-closes parents.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -217,7 +230,11 @@ TOOLS = [
                 },
                 "evidence_json": {
                     "type": "string",
-                    "description": 'Structured AC evidence as JSON: \'{"ac_evidence":[{"n":1,"status":"pass","evidence":"tests/foo.py::test_bar"}, ...]}\'. Converted to canonical prose. Mutually exclusive with evidence.',
+                    "description": "JSON ac_evidence array; mutually exclusive with evidence.",
+                },
+                "compound": {
+                    "type": "string",
+                    "description": "JSON {message,step,verify}.",
                 },
             },
             "required": ["slug"],
@@ -330,6 +347,7 @@ TOOLS = [
             "properties": {
                 "slug": {"type": "string"},
                 "step_num": {"type": "integer", "description": "Step number (1-based)"},
+                "message": {"type": "string", "description": "Progress log"},
             },
             "required": ["slug", "step_num"],
         },
@@ -988,8 +1006,15 @@ TOOLS = [
     },
     {
         "name": "tausik_metrics",
-        "description": "Project metrics: completion %, velocity, session hours",
-        "inputSchema": {"type": "object", "properties": {}},
+        "description": "Project or host usage metrics.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "enum": ["codex", "kilo"],
+                }
+            },
+        },
     },
     {
         "name": "tausik_usage_event_log",

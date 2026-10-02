@@ -1,4 +1,4 @@
-# Дорожная карта TAUSIK 1.10
+# Дорожная карта TAUSIK 1.11
 
 <!-- ПОРОЖДЁННЫЙ ФАЙЛ. Руками не редактируется: перевыпуск —
      `tausik doc roadmap`, проверка свежести — `tausik doc roadmap --check`.
@@ -6,58 +6,48 @@
 
 ## Вопрос версии
 
-Задано решением #406 от 2026-09-29:
+Задано решением #410 от 2026-10-01:
 
-> 1.10 ОСТАНОВЛЕН И ПЕРЕСОБИРАЕТСЯ. Указание владельца, смена #278: качество не устраивает. Три приоритета в порядке владельца: (1) фреймворк непонятен извне; (2) экономия токенов; (3) качество ответа. Отдельно названо: i-have-adhd обещан два релиза подряд и по-прежнему игнорируется. Тег не ставится до пересборки состава.
+> 1.11 APPROVED by owner, 2026-10-01: urgent measured economy without quality loss. Main hosts: Claude Code, Kilo/GLM, Codex; Codex-first savings. Optional Cursor/OpenRouter: +25 calls maximum, not a release blocker.
+>
+> Composition: release111-measurement, release111-context-and-workflow, release111-release-proof
+>
+> 13 product tasks. Minimal contract and native Codex baseline first, then context/workflow savings without waiting for GLM; all three hosts pass live checks before release. Preserve QG-0/QG-2. 30% is a fixed-model token target, not promised quota savings. Approved version map/report: docs/ru/research/release-111-economy-plan-2026-10-01.md. Apply its GitHub roadmap changes; 1.12/1.13 remain candidates, 2.0 global install. Admin work outside product scope. GitLab #10 messages/closure and git commit/push not authorized. #409 stays in force.
 
-## Что входит в 1.10
+## Что входит в 1.11
 
-Состав — из последнего решения, ОБЪЯВИВШЕГО его строкой «Состав:»: #408 от 2026-09-29; решения после него, которые лишь упоминают истории, состав не меняют. Счётчики сняты с живой базы в момент перевыпуска этого файла.
+Состав — из последнего решения, ОБЪЯВИВШЕГО его строкой «Состав:»: #411 от 2026-10-01; решения после него, которые лишь упоминают истории, состав не меняют. Счётчики сняты с живой базы в момент перевыпуска этого файла.
 
 | История | Статус | Осталось | Заблокировано | Закрыто |
 |---|---|---|---|---|
-| `release110-sessions-are-not-gates`<br>1.10 E. Сессия — окно хоста, а не ворота: гигиена контекста стала сигналом, непрерывность — механизмом | done | 0 | 0 | 11 |
-| `release110-verification-is-cheap`<br>1.10 A. Проверка соразмерна правке: ад тестов лечится механизмом — стоимость ленты, дубли, немые отказы, ноты закрытия | done | 0 | 0 | 18 |
-| `release110-the-update-reaches-the-user`<br>1.10 B. Обновление доходит до пользователя: проверка с GitHub, и README про сеть — правда | done | 0 | 0 | 5 |
-| `release110-tracker-promises`<br>1.10 C. Обещания трекерам: GitLab #8, #10-patch-0004, #11 (решения #362/#366/#370) | done | 0 | 0 | 3 |
-| `release110-rag-and-memory-tell-the-truth`<br>1.10 D. RAG и память говорят о себе правду: подсказки по замеру, счётчик без ×1,8, знание с происхождением | done | 0 | 0 | 9 |
-| `release110-senar-15-claimed-honestly`<br>1.10 F. SENAR 1.5 Core заявлен честно: матрица по редакции, метрики с методом, детектор дрейфа стандарта | done | 0 | 0 | 6 |
-| `release110-renar-11-first-party-and-spec-uc`<br>1.10 G. RENAR 1.1: детектор смотрит в источник, SPEC-UC двенадцатый, подтверждение первой стороной — по решению владельца | done | 0 | 0 | 3 |
-| `release110-site-docs-and-hygiene`<br>1.10 H. Полный рефакторинг сайта, всей документации и гигиена проекта | active | 1 | 1 | 34 |
-| `release110-open-defects`<br>1.10 I. Открытые дефекты: ни один известный баг трекеров и линии разработки не переезжает в следующую версию | done | 0 | 0 | 50 |
-| `release110-terse-answers`<br>1.10 J. Ответ агента короткий и структурный: замер, а не текст-пожелание | done | 0 | 0 | 8 |
-| `release110-owner-priorities`<br>1.10 owner priorities (#406): understandable from outside, token economy, answer quality | done | 1 | 0 | 19 |
-| **Итого** | | **2** | **1** | **166** |
+| `release111-measurement`<br>1.11: real usage, host identity and provider adapters | done | 0 | 0 | 4 |
+| `release111-context-and-workflow`<br>1.11: bounded context and fewer model round trips | done | 0 | 0 | 8 |
+| `release111-release-proof`<br>1.11: independent quality and economy proof | done | 0 | 0 | 7 |
+| **Итого** | | **0** | **0** | **19** |
 
 ## Что в релиз НЕ входит
 
-Истории эпиков (release-110-deferred-from-19), которых решение о составе не называет.
+Истории эпиков (release-111-economy-draft), которых решение о составе не называет.
 
 **Открытые — отложенная цена.** Они не отменены — они не в этой версии, и их остаток здесь для того, чтобы граница релиза была видна вместе с ценой, которую она отложила.
 
 | История | Статус | Осталось |
 |---|---|---|
-| `deferred-110-architecture-and-research` | open | 9 |
-| `deferred-110-audit-hygiene` | active | 13 |
-| `deferred-110-knowledge-lifecycle` | active | 18 |
-| `deferred-110-outward-loop-and-test-authorship` | active | 10 |
+| `release111-economy-hardening` | active | 2 |
 
 **Закрытые, составом не названные.** Их работа в дереве релиза, но обещанием релиза она не объявлена; отложенной цены у них нет.
 
 | История | Закрыто |
 |---|---|
-| `deferred-110-context-and-output-shape` | 0 |
-| `generated-code-is-lean-and-ascii` | 3 |
-| `harness-costs-less-per-task` | 7 |
-| `release110-docs-are-legible-to-an-outsider` | 3 |
+| `release111-administration` | 2 |
 
 ## Траектория объёма
 
-Решение #408 траекторию не записало — не «ноль точек», а не записало. Ряд восстанавливается по журналу решений об объёме.
+Решение #411 траекторию не записало — не «ноль точек», а не записало. Ряд восстанавливается по журналу решений об объёме.
 
 ## TAUSIK-roadmap.pdf — снимок, который сознательно не переиздаётся
 
-PDF собран 2026-08-12 и на стр. 4 объявляет вопросом 1.10 «Работает ли у чужих?». Решение о переопределении версии принято позже и этот вопрос с версии сняло, так что снимок разошёлся с релизом по существу, а не по формулировке.
+PDF собран 2026-08-12 и на стр. 4 объявляет вопросом 1.11 «Работает ли у чужих?». Решение о переопределении версии принято позже и этот вопрос с версии сняло, так что снимок разошёлся с релизом по существу, а не по формулировке.
 
 Снимок НЕ переиздаётся и НЕ удаляется: он — датированная запись того, чем релиз считался в момент сборки, и переписать её значило бы стереть историю решения. Под git он не ставится (правило в `.gitignore`) — бинарник со своей копией тех же утверждений есть второе место, где им расходиться, и ничего за ним не следит.
 

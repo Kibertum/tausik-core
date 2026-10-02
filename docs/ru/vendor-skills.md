@@ -15,7 +15,7 @@ TAUSIK поддерживает внешние пакеты навыков из 
 .tausik/tausik skill repo add https://github.com/Kibertum/tausik-skills
 
 # 2. Установить навык (копирует файлы + ставит pip-зависимости)
-.tausik/tausik skill install jira
+.tausik/tausik skill install pdf
 
 # 3. Перезапустить IDE для загрузки нового навыка
 ```
@@ -48,10 +48,10 @@ TAUSIK поставляется с `Kibertum/tausik-skills` как предус�
 
 ```bash
 # Установить: клонировать репо (если нужно) → скопировать навык → установить pip-зависимости
-.tausik/tausik skill install jira
+.tausik/tausik skill install pdf
 
 # Удалить: убрать файлы и запись в конфигурации
-.tausik/tausik skill uninstall jira
+.tausik/tausik skill uninstall pdf
 
 # Список: активные, установленные и доступные из репозиториев
 .tausik/tausik skill list
@@ -104,10 +104,10 @@ skill install <name>
 
 ```bash
 # Убрать из контекста (файлы остаются в vendor)
-.tausik/tausik skill deactivate jira
+.tausik/tausik skill deactivate pdf
 
 # Загрузить обратно в контекст
-.tausik/tausik skill activate jira
+.tausik/tausik skill activate pdf
 ```
 
 ## Формат tausik-skills.json
@@ -119,11 +119,11 @@ TAUSIK-совместимые репозитории должны содержа
   "format": "tausik-skills",
   "version": 1,
   "skills": {
-    "jira": {
-      "path": "jira/",
-      "description": "Jira issue management",
-      "triggers": ["jira", "sprint", "issues"],
-      "requires": ["jira-python>=3.0"]
+    "pdf": {
+      "path": "pdf/",
+      "description": "Read and create PDF documents",
+      "triggers": ["pdf", "document"],
+      "requires": []
     }
   }
 }
@@ -161,7 +161,7 @@ pip-зависимости из поля `requires` автоматически �
 
 ## Legacy: skills.json + bootstrap
 
-Старый механизм через `skills.json` + `bootstrap --update-deps` продолжает работать для обратной совместимости. Формат см. в `skills.example.json`. Для новых проектов рекомендуется `skill repo add` + `skill install`.
+Старый механизм через `skills.json` + `bootstrap --update-deps` продолжает работать для обратной совместимости. Формат см. в `skills.example.json`; пример не активен, пока вы явно не скопируете его в `skills.json`. Чистый bootstrap не скачивает внешние навыки. Для новых проектов рекомендуется `skill repo add` + `skill install`.
 
 Не путайте два манифеста: `tausik-skills.json` (выше) лежит в *репозитории навыков* и читается командой `skill install`; `skills.json` лежит в *этом* репозитории и читается командой `bootstrap --update-deps`, которая скачивает тарболы с GitHub и раскладывает `scripts/` каждого репозитория в `scripts/vendor_<name>/`. Это чужой Python рядом с вашим собственным, поэтому важно, на что именно указывает запись.
 

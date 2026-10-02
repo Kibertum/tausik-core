@@ -247,6 +247,9 @@ def run_gates(
         # else (filesize, a spoofed "SCOPE:" line in tool stdout) yields an empty
         # scope and untouched body.
         scope, body = split_scope(outcome.detail)
+        _artifact_scope, artifact_body = split_scope(
+            outcome.artifact_detail if outcome.artifact_detail is not None else outcome.detail
+        )
         # The remedy is re-attached after the split so it cannot be mistaken for
         # gate stdout, and so a reader of the stored row sees the way out.
         output = "\n".join(part for part in (body, outcome.remedy) if part)
@@ -265,6 +268,7 @@ def run_gates(
             "reason_code": outcome.reason_code,
             "passed": outcome.legacy_passed,
             "output": output,
+            "artifact_output": artifact_body,
             "scope": scope,
             "skipped": outcome.legacy_skipped,
             "duration_ms": int((time.monotonic() - start_ms) * 1000),

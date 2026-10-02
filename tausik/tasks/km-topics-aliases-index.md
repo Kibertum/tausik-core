@@ -2,8 +2,8 @@
 slug: km-topics-aliases-index
 title: "Темы, алиасы и индекс тем в инъекции вместо обрезанных последних записей"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+epic: release-112-knowledge
+story: release112-knowledge
 complexity: complex
 role: developer
 stack: python

@@ -2,8 +2,8 @@
 slug: phase-is-silent-about-a-203-star-neighbour
 title: "PHASE молчит о соседе на 203 звезды, и читатель решит, что PHASE его дублирует"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-outward-loop-and-test-authorship
+epic: release-113-evidence
+story: release113-outward
 complexity: simple
 role: tech-writer
 stack: null

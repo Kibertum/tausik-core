@@ -1,1 +1,0 @@
-Keeps changelog.d/ in git between releases; `tausik changelog assemble` skips dot-files.

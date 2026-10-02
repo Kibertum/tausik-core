@@ -44,6 +44,10 @@ class Step:
     #: rather than run tree-wide: a prepare that edits undeclared files is a scope breach
     #: wearing a convenience's clothes.
     takes_files: bool = False
+    #: File suffixes accepted by a file-taking command. Passing JSON or Markdown to
+    #: `ruff format` can rewrite valid data as Python-like syntax, so selection belongs
+    #: to the preparation contract rather than to caller discipline.
+    suffixes: tuple[str, ...] | None = None
     #: A path that must exist under the root for this step to MEAN anything. Absent, the
     #: step does not apply and is skipped out loud — it has not failed. A project that
     #: installs TAUSIK as a dependency has no `bootstrap/` of its own, and treating that
@@ -61,6 +65,7 @@ STEPS: tuple[Step, ...] = (
         because="the ruff_format gate goes red on unformatted files, and formatting is "
         "deterministic — running it is not a judgement about the code",
         takes_files=True,
+        suffixes=(".py", ".pyi"),
     ),
     Step(
         name="bootstrap redeploy",
@@ -98,14 +103,19 @@ def run(
                 "step does not apply here. It has not failed."
             )
             continue
-        if step.takes_files and not targets:
+        step_targets = (
+            [f for f in targets if not step.suffixes or Path(f).suffix in step.suffixes]
+            if step.takes_files
+            else []
+        )
+        if step.takes_files and not step_targets:
             said.append(
-                f"NOT PREPARED: {step.name} — no declared scope to apply it to, and "
-                "applying it tree-wide would edit files nobody declared."
+                f"NOT PREPARED: {step.name} — no supported file in the declared scope, "
+                "and applying it tree-wide would edit files nobody declared."
             )
             continue
         proc = runner(
-            list(step.argv) + (targets if step.takes_files else []),
+            list(step.argv) + (step_targets if step.takes_files else []),
             cwd=str(root),
             capture_output=True,
             text=True,

@@ -18,8 +18,8 @@ def test_defaults_present():
 
 
 def test_load_families_non_dict_returns_defaults():
-    assert list(mp.load_families("not-a-dict").keys()) == ["claude", "glm"]
-    assert list(mp.load_families(None).keys()) == ["claude", "glm"]
+    assert list(mp.load_families("not-a-dict").keys()) == ["claude", "glm", "openai"]
+    assert list(mp.load_families(None).keys()) == ["claude", "glm", "openai"]
 
 
 def test_load_families_merges_and_extends():
@@ -59,6 +59,7 @@ def test_vendor_of():
     assert mp.vendor_of("glm-4.6", fams) == "glm"
     assert mp.vendor_of("claude-opus-4-8", fams) == "claude"
     assert mp.vendor_of("claude-opus-4-9-future", fams) == "claude"  # token fallback
+    assert mp.vendor_of("gpt-5.6-sol", fams) == "openai"
     assert mp.vendor_of(None, fams) is None
     assert mp.vendor_of("totally-unknown-xyz", fams) is None
 

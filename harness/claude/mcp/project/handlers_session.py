@@ -170,6 +170,71 @@ def _project_self_check(section: Any) -> Any:
     return out
 
 
+def _project_handoff(section: Any) -> Any:
+    """Bound automatic context; the explicit handoff tool keeps the full record.
+
+    Keep whole values, never clipped prose. Omitted continuation instructions
+    require an explicit full read before resuming work. Generated inventories
+    (working tree, verify history, task ACs) belong in that opt-in read.
+    """
+
+    def size(value: Any) -> int:
+        return len(json.dumps(value, ensure_ascii=False, indent=2, default=str).encode("utf-8"))
+
+    budget = 4096
+    if not isinstance(section, dict) or "error" in section or size(section) <= budget:
+        return section
+    meta: dict[str, Any] = {
+        "mode": "summary",
+        "source_bytes": size(section),
+        "max_bytes": budget,
+        "omitted_fields": len(section),
+        "omitted_items": {},
+        "requires_full_handoff": False,
+        "full": {"tool": "tausik_session_last_handoff", "arguments": {}},
+    }
+    out: dict[str, Any] = {"_projection": meta}
+    for key in (
+        "warnings",
+        "next_steps",
+        "empty",
+        "window",
+        "written_at",
+        "completed",
+        "key_files",
+    ):
+        if key not in section:
+            continue
+        value = section[key]
+        if isinstance(value, list):
+            out[key] = []
+            meta["omitted_fields"] -= 1
+            meta["omitted_items"][key] = len(value)
+            candidates = value[-3:] if key == "completed" else value
+            for item in candidates:
+                out[key].append(item)
+                meta["omitted_items"][key] -= 1
+                if size(out) > budget:
+                    out[key].pop()
+                    meta["omitted_items"][key] += 1
+            if key in ("warnings", "next_steps") and meta["omitted_items"][key]:
+                meta["requires_full_handoff"] = True
+            # An empty list and its omission count still cost bytes.
+            if size(out) > budget:
+                del out[key]
+                del meta["omitted_items"][key]
+                meta["omitted_fields"] += 1
+        else:
+            out[key] = value
+            meta["omitted_fields"] -= 1
+            if size(out) > budget:
+                del out[key]
+                meta["omitted_fields"] += 1
+                if key in ("warnings", "next_steps"):
+                    meta["requires_full_handoff"] = True
+    return out
+
+
 def _handle_session_open(svc: Any, args: dict | None = None) -> str:
     """v14b-session-open-compound-rpc — single envelope for /start Phase 1.
 
@@ -183,12 +248,23 @@ def _handle_session_open(svc: Any, args: dict | None = None) -> str:
     """
     args = args or {}
 
-    # 1. Session — start (idempotent) + current dict snapshot.
+    # 1. Session — one service policy owns host binding and context ceilings.
     def _session() -> Any:
-        svc.session_start()  # text return ignored — we rebuild from session_current
-        return svc.session_current()
+        from service_host_context import open_session
 
-    session_data = _section_with_timeout("session", _session)
+        return open_session(svc)
+
+    session_result = _section_with_timeout("session", _session)
+    if isinstance(session_result, dict) and "error" not in session_result:
+        session_data = session_result.get("session")
+        host_context = session_result.get("host_context")
+    else:
+        session_data = session_result
+        host_context = (
+            {"level": "unavailable", "error": session_result.get("error")}
+            if isinstance(session_result, dict)
+            else {"level": "unavailable"}
+        )
 
     # 2. Status (compact JSON identical to tausik_status compact:true).
     status_data = _section_with_timeout(
@@ -240,8 +316,9 @@ def _handle_session_open(svc: Any, args: dict | None = None) -> str:
     return json.dumps(
         {
             "session": _project(session_data, _SESSION_ENVELOPE_KEYS),
+            "host_context": host_context,
             "status": status_data,
-            "handoff": handoff,
+            "handoff": _project_handoff(handoff),
             "tasks": tasks,
             "self_check": _project_self_check(self_check_data),
             "sync_suggested": sync_suggested,

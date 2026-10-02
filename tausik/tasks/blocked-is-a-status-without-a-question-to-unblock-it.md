@@ -2,8 +2,8 @@
 slug: blocked-is-a-status-without-a-question-to-unblock-it
 title: "blocked — статус без вопроса: чем разблокировать задачу, знает только текст журнала"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+epic: release-112-knowledge
+story: release112-workflow
 complexity: medium
 role: backend
 stack: null

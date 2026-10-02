@@ -1,7 +1,7 @@
 """Detect IDE + model from environment for TAUSIK skill profile resolution.
 
 Two independent axes (B8-pre axis decision):
-- IDE: claude-code / cursor / qwen-code / codex (host harness)
+- IDE: claude-code / cursor / qwen-code / codex / kilo (host harness)
 - Model: opus / sonnet / haiku / gpt-4 / gpt-5 / gpt-5-5 / qwen (LLM)
 
 Both detections are best-effort and pure — return None on uncertainty,
@@ -21,7 +21,7 @@ import os
 import re
 from typing import Final
 
-VALID_IDES: Final[frozenset[str]] = frozenset({"claude", "cursor", "qwen", "codex"})
+VALID_IDES: Final[frozenset[str]] = frozenset({"claude", "cursor", "qwen", "codex", "kilo"})
 
 VALID_MODELS: Final[frozenset[str]] = frozenset(
     {"opus", "sonnet", "haiku", "gpt-4", "gpt-5", "gpt-5-5", "qwen"}
@@ -37,6 +37,10 @@ _IDE_ENV_MARKERS: Final[tuple[tuple[str, str], ...]] = (
     ("qwen", "QWEN_HOME"),
     ("codex", "CODEX_SANDBOX_DIR"),
     ("codex", "CODEX_HOME"),
+    ("codex", "CODEX_THREAD_ID"),
+    ("codex", "CODEX_SESSION_ID"),
+    ("kilo", "KILO_MODEL"),
+    ("kilo", "KILO_CONFIG"),
 )
 
 _MODEL_ENV_VARS: Final[tuple[str, ...]] = (

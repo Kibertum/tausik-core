@@ -156,9 +156,13 @@ class TestНаборОдинНаДваХоста:
         codex = bootstrap_codex.build_codex_hooks(str(tmp_path / ".codex"))
         assert set(codex) == set(reference), "у codex не тот набор СОБЫТИЙ, что у claude"
         for event in reference:
-            assert [e.get("matcher") for e in codex[event]] == [
+            shared = codex[event][:-1] if event == "PreToolUse" else codex[event]
+            assert [e.get("matcher") for e in shared] == [
                 e.get("matcher") for e in reference[event]
             ], f"событие {event}: набор матчеров разошёлся"
+        adapter = codex["PreToolUse"][-1]
+        assert adapter["matcher"] == "apply_patch|Bash|PowerShell"
+        assert "codex_write_gate.py" in adapter["hooks"][0]["command"]
 
     def test_каждое_событие_поддержано_хостом(self, live):
         """Хук на событие, которого у хоста нет, — не ложь, но и не гейт.

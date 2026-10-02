@@ -19,13 +19,20 @@ from bootstrap_generate import (
     generate_cursorrules,
 )
 from bootstrap_qwen import generate_qwen_md
+from bootstrap_rules_upgrade import TEST_DISCIPLINE, TEST_DISCIPLINE_MARKER
+from bootstrap_templates import (
+    ANSWER_SHAPE,
+    ANSWER_SHAPE_MARKER,
+)
 
 
 class TestGenerateClaudeMd:
     """Verify generated CLAUDE.md is load-bearing (hard constraints before soft guidance)."""
 
     def _generate_and_read(self, tmp_path, name="demo", stacks=None):
-        generate_claude_md(str(tmp_path), name, stacks if stacks is not None else [])
+        generate_claude_md(
+            str(tmp_path), name, stacks if stacks is not None else [], context_tier="standard"
+        )
         path = tmp_path / "CLAUDE.md"
         assert path.exists(), "CLAUDE.md not created"
         return path.read_text(encoding="utf-8")
@@ -100,13 +107,22 @@ class TestGenerateClaudeMd:
         for phrase in forbidden:
             assert phrase not in text, f"Dogfooding leakage: {phrase!r} should not be in template"
 
-    def test_preserves_existing_file(self, tmp_path):
-        """Must NOT overwrite an existing CLAUDE.md."""
+    def test_preserves_existing_file_and_adds_the_missing_answer_contract_once(self, tmp_path):
         existing = "# My custom CLAUDE.md\nCustom content here.\n"
         (tmp_path / "CLAUDE.md").write_text(existing, encoding="utf-8")
         generate_claude_md(str(tmp_path), "proj", ["python"])
+        generate_claude_md(str(tmp_path), "proj", ["python"])
         result = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
-        assert result == existing, "Existing CLAUDE.md was overwritten"
+        assert result.startswith(existing), "Existing CLAUDE.md prose was overwritten"
+        assert result.count(ANSWER_SHAPE_MARKER) == 1
+        assert ANSWER_SHAPE in result
+        assert result.count(TEST_DISCIPLINE_MARKER) == 1
+        assert TEST_DISCIPLINE in result
+
+        invalid = b"# user rules\n\xff\n"
+        (tmp_path / "CLAUDE.md").write_bytes(invalid)
+        generate_claude_md(str(tmp_path), "proj", ["python"])
+        assert (tmp_path / "CLAUDE.md").read_bytes() == invalid
 
     def test_empty_stacks_renders_not_detected(self, tmp_path):
         """stacks=[] must not produce empty 'Stack: '."""
@@ -133,6 +149,7 @@ SHARED_HARD_MARKERS = [
     "QG-0 Context Gate",
     "QG-2 Implementation Gate",
     "MCP-first",
+    "A test asserts behaviour",
     "Context pressure is a signal, not a gate",
     "## SENAR Rules Compliance",
     "<!-- DYNAMIC:START -->",
@@ -179,7 +196,7 @@ class TestGenerateQwenMd:
     ],
 )
 def test_generator_contains_shared_hard_markers(tmp_path, gen_func, filename):
-    gen_func(str(tmp_path), "proj", ["python"])
+    gen_func(str(tmp_path), "proj", ["python"], context_tier="standard")
     text = (tmp_path / filename).read_text(encoding="utf-8")
     for marker in SHARED_HARD_MARKERS:
         assert marker in text, f"{filename} missing shared marker: {marker!r}"
@@ -194,11 +211,17 @@ def test_generator_contains_shared_hard_markers(tmp_path, gen_func, filename):
         pytest.param(generate_qwen_md, "QWEN.md", id="qwen_md_preserves_existing"),
     ],
 )
-def test_generator_preserves_existing(tmp_path, gen_func, filename):
-    existing = f"# Custom {filename}\n"
-    (tmp_path / filename).write_text(existing, encoding="utf-8")
+def test_generator_preserves_existing_and_adds_answer_contract_once(tmp_path, gen_func, filename):
+    existing = f"# Custom {filename}\r\nUser prose.\r\n".encode()
+    (tmp_path / filename).write_bytes(existing)
     gen_func(str(tmp_path), "proj", ["python"])
-    assert (tmp_path / filename).read_text(encoding="utf-8") == existing
+    gen_func(str(tmp_path), "proj", ["python"])
+    result = (tmp_path / filename).read_bytes()
+    assert result.startswith(existing)
+    assert result.count(ANSWER_SHAPE_MARKER.encode()) == 1
+    assert ANSWER_SHAPE.replace("\n", "\r\n").encode() in result
+    assert result.count(TEST_DISCIPLINE_MARKER.encode()) == 1
+    assert TEST_DISCIPLINE.replace("\n", "\r\n").encode() in result
 
 
 # Module-level: G15 cross-class merge — 5 header/subdir markers across 3 generators
@@ -207,7 +230,12 @@ def _gen_to_text(tmp_path):
     """Run a generator and return generated file content."""
 
     def _run(gen_func, filename, stacks=None):
-        gen_func(str(tmp_path), "proj", stacks if stacks is not None else ["python"])
+        gen_func(
+            str(tmp_path),
+            "proj",
+            stacks if stacks is not None else ["python"],
+            context_tier="standard",
+        )
         return (tmp_path / filename).read_text(encoding="utf-8")
 
     return _run
@@ -259,10 +287,10 @@ class TestSyncAcrossIdes:
 
     def test_constraint_parity(self, tmp_path):
         """CLAUDE.md, AGENTS.md, .cursorrules, QWEN.md must share hard constraint text."""
-        generate_claude_md(str(tmp_path), "proj", ["python"])
-        generate_agents_md(str(tmp_path), "proj", ["python"])
-        generate_cursorrules(str(tmp_path), "proj", ["python"])
-        generate_qwen_md(str(tmp_path), "proj", ["python"])
+        generate_claude_md(str(tmp_path), "proj", ["python"], context_tier="standard")
+        generate_agents_md(str(tmp_path), "proj", ["python"], context_tier="standard")
+        generate_cursorrules(str(tmp_path), "proj", ["python"], context_tier="standard")
+        generate_qwen_md(str(tmp_path), "proj", ["python"], context_tier="standard")
 
         claude = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
         agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")

@@ -9,7 +9,6 @@ handlers.py merges it with `_DISPATCH.update(...)`.
 from __future__ import annotations
 
 import json
-import sys
 from typing import Any
 
 from handlers_render import render_list
@@ -38,6 +37,14 @@ def _do_task_quick(svc: Any, args: dict) -> str:
         args.get("stack"),
         args.get("acceptance"),
     )
+
+
+def _do_task_start(svc: Any, args: dict) -> str:
+    if args.get("package"):
+        from task_start_result import serialize_start_with_context
+
+        return serialize_start_with_context(svc, args["slug"])
+    return svc.task_start(args["slug"])
 
 
 def _order() -> Any:
@@ -73,23 +80,37 @@ def _do_task_done(svc: Any, args: dict) -> str:
     wraps the same report into the legacy str-or-raise contract.
     """
 
-    def _progress(ev: dict) -> None:
-        event = ev.get("event")
-        idx = ev.get("index", "?")
-        total = ev.get("total", "?")
-        name = ev.get("name", "?")
-        if event == "gate_start":
-            print(f"[gate {idx}/{total}] running {name}...", file=sys.stderr, flush=True)
-            return
-        status = "PASS" if ev.get("passed") else "FAIL"
-        if ev.get("skipped"):
-            status = "SKIP"
-        dur = ev.get("duration_ms", 0)
-        print(
-            f"[gate {idx}/{total}] {status} {name} ({dur} ms)",
-            file=sys.stderr,
-            flush=True,
+    if args.get("compound") is not None:
+        try:
+            request = json.loads(args["compound"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("compound must be a JSON object") from exc
+        allowed = {"message", "step", "verify"}
+        if not isinstance(request, dict) or set(request) - allowed:
+            raise ValueError("compound permits only message, step and verify")
+        from task_progress_close import run_progress_close
+
+        result = run_progress_close(
+            svc,
+            args["slug"],
+            request.get("message"),
+            request.get("step"),
+            close=True,
+            verify=request.get("verify", False),
+            verify_handle=args.get("verify_handle"),
+            ac_verified=args.get("ac_verified", False),
+            relevant_files=args.get("relevant_files"),
+            evidence=args.get("evidence"),
+            evidence_json=args.get("evidence_json"),
+            no_knowledge=args.get("no_knowledge", False),
+            no_file_changes=args.get("no_file_changes", False),
+            no_changelog=args.get("no_changelog", False),
+            zero_gate_ack=bool(args.get("gates_not_applicable", False)),
+            # Per-gate progress is deterministic runner state, not a model
+            # decision boundary. The final bounded report carries the result.
+            progress_fn=None,
         )
+        return json.dumps(result, ensure_ascii=False)
 
     result = svc._task_done_report(
         args["slug"],
@@ -98,7 +119,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
         no_knowledge=args.get("no_knowledge", False),
         evidence=args.get("evidence"),
         evidence_json=args.get("evidence_json"),
-        progress_fn=_progress,
+        progress_fn=None,
         no_file_changes=args.get("no_file_changes", False),
         no_changelog=args.get("no_changelog", False),
         # Read explicitly: the MCP dispatch does no schema validation, so an
@@ -108,6 +129,9 @@ def _do_task_done(svc: Any, args: dict) -> str:
         verify_handle=args.get("verify_handle"),
         zero_gate_ack=bool(args.get("gates_not_applicable", False)),
     )
+    from verify_compact_output import compact_task_done_report
+
+    result = compact_task_done_report(svc, result, args["slug"])
     return json.dumps(result, ensure_ascii=False)
 
 
@@ -122,6 +146,14 @@ def _handle_task_logs(svc: Any, args: dict) -> str:
     from render_task import task_logs_lines
 
     return "\n".join(task_logs_lines(svc, args["slug"], args.get("phase")))
+
+
+def _do_task_step(svc: Any, args: dict) -> str:
+    if args.get("message") is None:
+        return svc.task_step(args["slug"], args["step_num"])
+    from task_progress_close import serialize_progress_close
+
+    return serialize_progress_close(svc, args["slug"], args["message"], args["step_num"])
 
 
 def _handle_task_list(svc: Any, args: dict) -> str:
@@ -140,6 +172,28 @@ def _handle_task_list(svc: Any, args: dict) -> str:
 
 
 def _handle_task_show(svc: Any, args: dict) -> str:
+    if args.get("packet") is not None:
+        from work_packet import serialize_work_packet
+
+        try:
+            request = json.loads(args["packet"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("packet must be a JSON object") from exc
+        if not isinstance(request, dict) or set(request) - {"query", "sources", "max_bytes"}:
+            raise ValueError("packet permits only query, sources and max_bytes")
+        return serialize_work_packet(
+            svc,
+            args["slug"],
+            request.get("query"),
+            request.get("sources"),
+            max_bytes=request.get("max_bytes", 16_384),
+        )
+    if args.get("mode") == "package":
+        from task_context_package import serialize_task_context_package
+
+        return serialize_task_context_package(
+            svc, args["slug"], max_bytes=args.get("max_bytes", 8192)
+        )
     task = svc.task_show(args["slug"])
     lines = [
         f"Task: {task['slug']}",
@@ -177,13 +231,13 @@ TASK_HANDLERS = {
     "tausik_task_undepends": lambda svc, args: _order().task_undepends(
         svc, args["slug"], args["after"]
     ),
-    "tausik_task_start": lambda svc, args: svc.task_start(args["slug"]),
+    "tausik_task_start": _do_task_start,
     "tausik_task_done": _do_task_done,
     "tausik_task_block": lambda svc, args: svc.task_block(args["slug"], args.get("reason")),
     "tausik_task_unblock": lambda svc, args: svc.task_unblock(args["slug"]),
     "tausik_task_update": _do_task_update,
     "tausik_task_plan": lambda svc, args: svc.task_plan(args["slug"], args["steps"]),
-    "tausik_task_step": lambda svc, args: svc.task_step(args["slug"], args["step_num"]),
+    "tausik_task_step": _do_task_step,
     "tausik_task_delete": lambda svc, args: svc.task_delete(args["slug"]),
     "tausik_task_review": lambda svc, args: svc.task_review(args["slug"]),
     "tausik_task_move": lambda svc, args: svc.task_move(args["slug"], args["new_story_slug"]),

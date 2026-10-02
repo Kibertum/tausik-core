@@ -11,7 +11,6 @@ sys.path.insert(0, SCRIPTS_DIR)
 
 AGENTS_DIR = os.path.join(os.path.dirname(__file__), "..", "harness")
 BOOTSTRAP_DIR = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
-SKILLS_OFFICIAL_DIR = os.path.join(os.path.dirname(__file__), "..", "skills-official")
 
 # Built-in skills (always in core)
 BUILTIN_SKILLS = [
@@ -27,21 +26,6 @@ BUILTIN_SKILLS = [
     "ship",
     "debug",
 ]
-
-# Official skills (may be in skills-official/ or separate repo)
-has_official = os.path.isdir(SKILLS_OFFICIAL_DIR)
-
-
-def _skill_path(skill: str) -> str | None:
-    """Resolve skill path: built-in → official."""
-    p = os.path.join(AGENTS_DIR, "skills", skill, "SKILL.md")
-    if os.path.isfile(p):
-        return p
-    p = os.path.join(SKILLS_OFFICIAL_DIR, skill, "SKILL.md")
-    if os.path.isfile(p):
-        return p
-    return None
-
 
 # === Role Profiles ===
 
@@ -128,95 +112,6 @@ class TestBuiltinSkills:
         assert "Suggest next" in content or "/" in content, (
             f"Built-in skill '{skill}' missing workflow hints"
         )
-
-
-# === Official Skills (skipped if skills-official/ not present) ===
-
-
-@pytest.mark.skipif(not has_official, reason="skills-official/ not available")
-class TestOfficialSkills:
-    # v14b-skill-bundles-marketplace: 5 skills removed (go, next, diff, onboard, init)
-    # — each duplicated built-in functionality. See docs/{en,ru}/skill-bundles-migration.md.
-    OFFICIAL_SKILLS = [
-        "audit",
-        "bitrix24",
-        "confluence",
-        "daily",
-        "dispatch",
-        "docs",
-        "excel",
-        "jira",
-        "loop-task",
-        "optimize",
-        "pdf",
-        "presale",
-        "retro",
-        "run",
-        "security",
-        "sentry",
-        "ultra",
-    ]
-
-    @pytest.mark.parametrize("skill", OFFICIAL_SKILLS)
-    def test_official_skill_exists(self, skill):
-        path = os.path.join(SKILLS_OFFICIAL_DIR, skill, "SKILL.md")
-        assert os.path.isfile(path), f"Missing official skill: {skill}"
-
-    @pytest.mark.parametrize("skill", OFFICIAL_SKILLS)
-    def test_official_skill_has_frontmatter(self, skill):
-        path = os.path.join(SKILLS_OFFICIAL_DIR, skill, "SKILL.md")
-        with open(path, encoding="utf-8") as f:
-            content = f.read()
-        assert content.startswith("---"), f"Official skill '{skill}' missing frontmatter"
-        assert "context:" in content, f"Official skill '{skill}' missing context field"
-        assert "effort:" in content, f"Official skill '{skill}' missing effort field"
-
-    @pytest.mark.parametrize("skill", OFFICIAL_SKILLS)
-    def test_official_skill_has_algorithm(self, skill):
-        path = os.path.join(SKILLS_OFFICIAL_DIR, skill, "SKILL.md")
-        with open(path, encoding="utf-8") as f:
-            content = f.read()
-        assert "## Algorithm" in content or "### 1." in content, (
-            f"Official skill '{skill}' missing algorithm structure"
-        )
-
-    @pytest.mark.parametrize("skill", OFFICIAL_SKILLS)
-    def test_official_skill_has_workflow_hints(self, skill):
-        """Official skills should reference other skills for workflow continuity."""
-        path = os.path.join(SKILLS_OFFICIAL_DIR, skill, "SKILL.md")
-        with open(path, encoding="utf-8") as f:
-            content = f.read()
-        import re
-
-        has_hint = (
-            "Suggest next" in content
-            or "suggest next" in content
-            or bool(re.search(r"/\w+", content))  # references like /review, /task
-        )
-        assert has_hint, f"Official skill '{skill}' missing workflow hints"
-
-    @pytest.mark.parametrize("skill", OFFICIAL_SKILLS)
-    def test_official_skill_responds_in_user_language(self, skill):
-        path = os.path.join(SKILLS_OFFICIAL_DIR, skill, "SKILL.md")
-        with open(path, encoding="utf-8") as f:
-            content = f.read()
-        assert "user's language" in content.lower(), (
-            f"Official skill '{skill}' missing user language instruction"
-        )
-
-    def test_registry_json_exists(self):
-        path = os.path.join(SKILLS_OFFICIAL_DIR, "registry.json")
-        assert os.path.isfile(path), "Missing registry.json in skills-official/"
-
-    def test_registry_json_covers_all_skills(self):
-        import json
-
-        path = os.path.join(SKILLS_OFFICIAL_DIR, "registry.json")
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        skills = data.get("skills", {})
-        for skill in self.OFFICIAL_SKILLS:
-            assert skill in skills, f"registry.json missing skill: {skill}"
 
 
 # === Workflow Hints (cross-cutting, uses resolver) ===

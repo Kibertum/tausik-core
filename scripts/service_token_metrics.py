@@ -25,6 +25,19 @@ from typing import Any
 _JSONL_RELPATH = os.path.join(".tausik", "token_metrics.jsonl")
 
 
+def native_usage_report(project_dir: str, host: str) -> dict[str, Any]:
+    """One native host report shared by CLI and MCP transports."""
+    if host == "codex":
+        from usage_codex_report import report as codex_report
+
+        return codex_report(project_dir)
+    if host == "kilo":
+        from usage_kilo import report as kilo_report
+
+        return kilo_report(project_dir)
+    raise ValueError(f"Unsupported native usage host: {host}")
+
+
 def _percentile(sorted_values: list[int], pct: float) -> int:
     """Linear-interpolation percentile on a pre-sorted list. Empty → 0."""
     if not sorted_values:

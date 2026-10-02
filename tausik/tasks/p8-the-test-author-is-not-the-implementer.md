@@ -2,8 +2,8 @@
 slug: p8-the-test-author-is-not-the-implementer
 title: "P8 изоляция авторства: тест заморожен до реализации и пишется не тем агентом, что код"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+epic: release-113-evidence
+story: release113-proof
 complexity: complex
 role: architect
 stack: python

@@ -127,11 +127,6 @@ TABLE_SUBJECT_EXEMPT: dict[str, str] = {
         "same prose sentence as mcp_rag_tools, and bound by the same pair of "
         "patterns rather than by a column"
     ),
-    "skills_official_count": (
-        "the opt-in catalogue is quoted in prose beside the core count, never as "
-        "its own column — bound by the official-skills entries in "
-        "_CODE_COUNT_PATTERNS"
-    ),
     "stacks_count": (
         "no column, and its prose patterns reach no document either — see "
         "STATED_ONLY_WHERE_NOTHING_READS"

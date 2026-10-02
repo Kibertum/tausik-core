@@ -25,7 +25,8 @@ class TestSkillHints:
 
     def test_ship_documents_sonnet_subagents(self):
         text = _read("harness", "skills", "ship", "SKILL.md")
-        assert "Subagent model (phase=code-review)" in text
+        assert "Subagent route (phase=code-review)" in text
+        assert "Terra on Codex" in text
         assert 'model: "sonnet"' in text
 
     def test_debug_documents_gatefixer_model(self):

@@ -56,3 +56,5 @@ AC-1 Each of the 4 tests passes or skips with a named reason on the public snaps
 git revert
 
 ## Journal
+
+- 2026-10-01T19:50:27Z [implementation] — Cross-cutting hook encoding gate found two subprocess reads in untracked tests/test_cold_start_drill.py using parent locale. Added explicit UTF-8 to both while preserving drill behavior.

@@ -251,8 +251,6 @@ def add_skill(sub: argparse._SubParsersAction) -> None:
 
 def add_metrics(sub: argparse._SubParsersAction) -> None:
     """`tausik metrics`, `hud`, `suggest-model` subparsers."""
-    __import__("project_parser_changelog").add(sub)
-
     metrics_p = sub.add_parser("metrics", help="Project metrics and velocity")
     metrics_p.add_argument(
         "--cost",
@@ -306,6 +304,9 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
     mt = metrics_sub.add_parser(
         "tokens",
         help="Per-tool token aggregates (p50/p90) over last N sessions from .tausik/token_metrics.jsonl",
+    )
+    mt.add_argument(
+        "--host", choices=["claude", "codex", "kilo"], default="claude", help="Usage source"
     )
     mt.add_argument(
         "--last",

@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT
+
 _REPO = Path(__file__).resolve().parents[1]
 
 # These cases read THIS repository's own history as their fixture (a file deleted long
@@ -42,7 +44,12 @@ _SHALLOW = (
     == "true"
 )
 needs_history = pytest.mark.skipif(
-    _SHALLOW, reason="shallow clone: this fixture is the repo's own history"
+    _SHALLOW or IS_PUBLIC_SNAPSHOT,
+    reason=(
+        DORMANT_ON_PUBLIC_SNAPSHOT
+        if IS_PUBLIC_SNAPSHOT
+        else "shallow clone: this fixture is the repo's own history"
+    ),
 )
 if str(_REPO / "scripts") not in sys.path:
     sys.path.insert(0, str(_REPO / "scripts"))

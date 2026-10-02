@@ -2,8 +2,8 @@
 slug: memory-lint-cannot-see-an-unlinked-contradiction
 title: "memory lint не видит противоречия, между которыми никто не провёл ребро"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+epic: release-112-knowledge
+story: release112-knowledge
 complexity: medium
 role: backend
 stack: null

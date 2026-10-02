@@ -2,8 +2,8 @@
 slug: renar-first-party-confirmation-is-available
 title: "Подтверждение первой стороной (RENAR 1.1 §1.4.4): выход из «несоответствие по декларации» — при замороженном концепте и подписи ответственного лица"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-outward-loop-and-test-authorship
+epic: release-113-evidence
+story: release113-proof
 complexity: complex
 role: backend
 stack: python

@@ -1,24 +1,41 @@
 ---
 slug: schema-migrations-of-the-release-run-as-one-campaign
 title: "Десять миграций схемы в одном релизе, написанных независимо, — отдельный риск, а не сумма задач"
-status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-audit-hygiene
+status: done
+epic: release-111-economy-draft
+story: release111-release-proof
 complexity: medium
 role: architect
 stack: python
-tier: null
-call_budget: null
+tier: moderate
+call_budget: 45
 defect_of: null
-scope: null
+scope: "Only schema changes actually proposed by 1.11; migration order; backup/restore; state roundtrip"
 scope_exclude: null
-relevant_files: []
-scope_paths: []
+relevant_files:
+  - "scripts/backend_schema.py"
+  - "scripts/backend_migrations*.py"
+  - "tests/test_release111_upgrade.py"
+  - "docs/en/upgrade.md"
+  - "docs/ru/upgrade.md"
+scope_paths:
+  - "scripts/backend_schema.py"
+  - "scripts/backend_migrations*.py"
+  - "tests/test_release111_upgrade.py"
+  - "docs/en/upgrade.md"
+  - "docs/ru/upgrade.md"
+  - "tausik/"
+  - "changelog.d/"
+  - ".tausik/planning/release-111/"
 scope_tools: []
-depends_on: []
-completed_at: null
-resolution: null
-resolution_reason: null
+depends_on:
+  - "1-11-establish-a-codex-usage-baseline-that-can"
+  - r111-compound-workflow-results
+  - r111-glm-host-usage-adapter
+  - r111-runtime-observation-contract
+completed_at: "2026-10-01T18:19:51Z"
+resolution: obsolete
+resolution_reason: "Stale premise: 1.11 has zero portable TAUSIK schema deltas (v67→v67). No migration number, upgrade campaign, reverse migration or new schema test is applicable; adding them would create ceremony without behavior."
 tracker_refs:
   - "github#156"
 started_model_id: null
@@ -41,10 +58,17 @@ cost_budget_usd: null
 
 ## Acceptance Criteria
 
+AC-1 Inventory actual 1.11 schema changes before allocation; do not assume the old 47-to-55 forecast is current or force deferred memory/TC migrations into 1.11. AC-2 Reserve non-conflicting migration order and verify upgrade from supported 1.10 state plus repeated bootstrap; previous telemetry remains explicitly compatible/legacy. AC-3 Each new persisted portable entity has export/import roundtrip where applicable; local usage data remains local by policy. AC-4 Negative: interrupted/failed upgrade preserves or restores the original database, never silently marks missing usage zero; backward path is a tested reverse migration or documented tested backup restoration. AC-5 The release names exact old/new schema versions and publishes one coherent upgrade/rollback procedure.
+
 ## Plan
+
+[{"step": "Inventory 1.11 schema deltas with the observation-contract design before code changes.", "done": false}, {"step": "Reserve migration order and implement/verify backup, upgrade and reverse/restore behavior.", "done": false}, {"step": "Check supported 1.10 upgrades, repeated runs and export/import boundaries; record actual version span.", "done": false}]
 
 ## Rollback
 
-Правила и резервирование номеров — документ плюс тест на дубли версий. Откат: git revert; уже применённые миграции не затрагиваются.
+Revert only this task's changes; preserve pre-change behavior and historical evidence. For migrations verify database backup restoration.
 
 ## Journal
+
+- 2026-10-01T15:22:08Z [planning] — Execution ordering corrected: final upgrade campaign must follow actual persisted usage/workflow designs, not precede them. Observation contract requires no schema migration; current source is schema 67, so legacy 47-to-55 forecast is not applicable. Added baseline/GLM/workflow predecessors to prevent premature release proof.
+- 2026-10-01T18:19:50Z [planning] — Inventory evidence: current and HEAD SCHEMA_VERSION are both 67; no diff exists in backend_schema, backend_migrations*, backend_init, knowledge_db, migration/schema/upgrade tests. 1.11 usage/routing/context changes use read-only native sources, local sidecars or existing meta. Existing v62→67 upgrade/backup protections remain unchanged.

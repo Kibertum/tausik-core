@@ -2,8 +2,8 @@
 slug: km-stable-identity-backfill
 title: "Стабильная идентичность записей памяти: entry_uuid, origin_id, created_at_sha (eager backfill)"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+epic: release-112-knowledge
+story: release112-knowledge
 complexity: medium
 role: developer
 stack: python

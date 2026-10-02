@@ -4,19 +4,12 @@ from __future__ import annotations
 
 import os
 
-import pytest
-
-
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 def _read(*parts: str) -> str:
     with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
         return f.read()
-
-
-def _exists(*parts: str) -> bool:
-    return os.path.exists(os.path.join(ROOT, *parts))
 
 
 class TestPlanSkill:
@@ -33,16 +26,6 @@ class TestPlanSkill:
         text = _read("harness", "skills", "plan", "SKILL.md").lower()
         for label in ("trivial", "light", "moderate", "substantial", "deep"):
             assert label in text, f"missing tier label: {label}"
-
-
-class TestGoSkill:
-    def test_mentions_estimation(self):
-        # /go skill source is in skills-official/ — gitignored external repo.
-        # Skip if not vendored locally (CI does not clone tausik-skills).
-        if not _exists("skills-official", "go", "SKILL.md"):
-            pytest.skip("skills-official/ not vendored (external repo)")
-        text = _read("skills-official", "go", "SKILL.md").lower()
-        assert "tier" in text or "call_budget" in text
 
 
 class TestClaudeMd:

@@ -108,6 +108,23 @@ the two host-interception rows must carry the trust precondition in both
 languages, because a `hard` that is true only under a condition the reader was
 not told is a claim wider than the mechanism.
 
+### Codex model routing in 1.11
+
+TAUSIK recommends a model when a task starts and records the observed native
+model, reasoning effort and standard/realtime mode in task-cost evidence. The
+root session is not switched underneath an active conversation. A different
+model is selected only for a fresh worker, where the task boundary provides a
+clean context boundary. For Codex workers, bounded simple or medium work defaults
+to GPT-5.6 Terra; declared `complex` work and the named bounded failures
+`verify_failed`, `review_high`, or `retry_exhausted` use GPT-5.6 Sol; GPT-6 Astra
+requires separately declared `risk=high`. A worker is refused only when paired
+same-unit `startup_work` and `remaining_work` estimates show startup exceeds
+work left; a call budget remains a usage ceiling, not a work estimate. Unknown
+estimates stay unknown. These rules never switch the active task identity. They
+are routing defaults, not an economy claim:
+1.11 has no matched Astra/Sol/Terra corpus, so raw medians across different tasks
+must not be read as a model multiplier.
+
 ## Using GigaChat (Sber)
 
 GigaChat models can be used via OpenCode with liteLLM:
@@ -169,3 +186,14 @@ missing `input` or `output` are dropped with a warning — half a tariff is not 
 tariff, and a price that cannot be read is reported as **unknown**, never as
 `$0.00`. `tausik metrics` names any model it carries tokens for but cannot
 price, instead of folding those tokens into a confident zero.
+
+### Codex 1.11 live evidence boundary
+
+On Windows, Codex CLI 0.153.4 passed the isolated 2026-10-01 matrix after the
+write adapter fix: six forbidden writes rejected before mutation and three
+allowed writes completed. The adapter reads patch command targets and bounded
+literal PowerShell write cmdlets, invokes shared task/scope gates, and returns
+an explicit JSON deny decision. Exit-only rejection did not stop the observed
+Windows patch. This is a version-bound local report, not installation proof.
+All calls used code-mode; standalone transport and arbitrary shell programs
+remain unknown. See [the evidence report](../ru/research/codex-live-enforcement-2026-10-01.md).

@@ -88,7 +88,7 @@ class TestReExportsUnchanged:
             is tausik_constants.lookup_llm_usd_per_million_tokens
         )
         assert project_config.CONTEXT_TIER_VALUES is tausik_constants.CONTEXT_TIER_VALUES
-        assert project_config.DEFAULT_CONTEXT_TIER == "standard"
+        assert project_config.DEFAULT_CONTEXT_TIER == "minimal"
         assert project_config.DEFAULT_SESSION_MAX_MINUTES == 180
         assert project_config.DEFAULT_SESSION_WARN_THRESHOLD_MINUTES == 150
         assert project_config.DEFAULT_SESSION_IDLE_THRESHOLD_MINUTES == 10

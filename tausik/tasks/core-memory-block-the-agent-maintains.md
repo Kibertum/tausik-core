@@ -2,8 +2,8 @@
 slug: core-memory-block-the-agent-maintains
 title: "Ядро памяти, которое агент правит сам, вместо хвоста по недавности"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-knowledge-lifecycle
+epic: release-112-knowledge
+story: release112-knowledge
 complexity: complex
 role: architect
 stack: python

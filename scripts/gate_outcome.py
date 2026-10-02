@@ -85,6 +85,7 @@ REASON_COMMAND_NOT_RUNNABLE = "command_not_runnable"
 REASON_TIMED_OUT = "timed_out"
 REASON_RUNNER_ERROR = "runner_error"
 REASON_TEST_SOURCE_PARSE_ERROR = "test_source_parse_error"
+REASON_TEST_SELECTION_UNAVAILABLE = "test_selection_unavailable"
 # The configured command failed validation. The gate the user asked for did not
 # run, and running the built-in default in its place would report one check's
 # verdict under another check's name (GitLab #9).
@@ -137,6 +138,7 @@ class GateOutcome:
     detail: str = ""
     reason_code: str = ""
     remedy: str = ""
+    artifact_detail: str | None = None
 
     def __post_init__(self) -> None:
         if self.outcome not in OUTCOMES:
@@ -215,14 +217,14 @@ _VERDICT_LABELS = {
 # outcomes cannot be built without their reason.
 
 
-def passed(detail: str = "") -> GateOutcome:
+def passed(detail: str = "", *, artifact_detail: str | None = None) -> GateOutcome:
     """The check ran and found nothing wrong."""
-    return GateOutcome(PASSED, detail=detail)
+    return GateOutcome(PASSED, detail=detail, artifact_detail=artifact_detail)
 
 
-def failed(detail: str = "") -> GateOutcome:
+def failed(detail: str = "", *, artifact_detail: str | None = None) -> GateOutcome:
     """The check ran and found something wrong."""
-    return GateOutcome(FAILED, detail=detail)
+    return GateOutcome(FAILED, detail=detail, artifact_detail=artifact_detail)
 
 
 def not_applicable(reason_code: str, detail: str = "", remedy: str = "") -> GateOutcome:

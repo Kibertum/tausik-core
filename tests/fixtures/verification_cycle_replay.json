@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "topology": {
+    "source": ".tausik/planning/release-111/round-topology-20261001.json",
+    "source_sha256": "ba1a3d6b2a89f0ac3e3d7c6435dd7a070331a33ac8f18ba0e4b8c39085a9f1b9",
+    "sequence": ["verification", "verification"],
+    "occurrences": 111,
+    "accepted_windows": 18,
+    "accepted_response_rounds": 1566
+  },
+  "pair": {
+    "task": "r111-compact-verification-output",
+    "native_trace": "rollout-2026-10-02T00-16-21-01a0f953-4c72-7cf1-8cc1-7696a4597355.jsonl",
+    "rounds": [18, 19],
+    "relationship": "independent",
+    "before": [
+      {
+        "id": "preflight",
+        "kind": "verification",
+        "verdict": "PASS",
+        "counts": {"passed": 80, "skipped": "unknown", "deselected": "unknown"},
+        "failures": [],
+        "evidence": ["pytest-count:80", "ruff:pass", "git-diff:reviewed"]
+      },
+      {
+        "id": "canonical-verify-3315",
+        "kind": "verification",
+        "verdict": "FAIL",
+        "counts": {"passed": "unknown", "skipped": "unknown", "deselected": "unknown"},
+        "failures": ["ruff_format", "bootstrap_drift"],
+        "evidence": ["verify-3315.log", "sha256:f2ee088fff9486ee8b166b8ec33d2ea835f1de42919c756f3d450fd3b600f75e"]
+      }
+    ],
+    "compound_preserves": [
+      {
+        "id": "canonical-verify-3315",
+        "kind": "verification",
+        "verdict": "FAIL",
+        "counts": {"passed": "unknown", "skipped": "unknown", "deselected": "unknown"},
+        "failures": ["ruff_format", "bootstrap_drift"],
+        "evidence": ["verify-3315.log", "sha256:f2ee088fff9486ee8b166b8ec33d2ea835f1de42919c756f3d450fd3b600f75e"]
+      }
+    ]
+  },
+  "expected": {
+    "claim_reduction": false,
+    "missing_result_ids": ["preflight"]
+  }
+}

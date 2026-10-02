@@ -8,7 +8,8 @@ Work on tasks from project DB.
 ### $ARGUMENTS = task slug
 
 1. **Activate task (QG-0 enforced — NO `--force`):**
-   - `tausik_task_start(slug)` (CLI: `.tausik/tausik task start {slug}`)
+   - `tausik_task_start(slug, package=true)` (CLI: `.tausik/tausik task start {slug} --package`)
+   - Use the returned bounded context; call `task_show(mode=package)` only after an explicit context error.
    - If QG-0 fails (missing goal or AC): set them via `tausik_task_update(slug, goal=..., acceptance_criteria=...)`, then retry.
 
 2. **Load task context:** `tausik_task_show(slug)` → goal, AC, plan steps, role, complexity, stack.
@@ -71,7 +72,7 @@ Prefer MCP over CLI. Key tools:
 
 | Tool | Required | Optional |
 |---|---|---|
-| `tausik_task_start` | `slug` | — |
+| `tausik_task_start` | `slug` | `package=true` |
 | `tausik_task_done` (v1.4+) | `slug` | `ac_verified`, `relevant_files`, `evidence`, `no_knowledge` |
 | `tausik_task_done` (legacy) | `slug` | same args |
 | `tausik_task_log` | `slug`, `message` | — |

@@ -52,8 +52,7 @@
   "roles_count": 7,
   "schema_version": 1,
   "skills_core_count": 13,
-  "skills_official_count": 20,
   "stacks_count": 25,
-  "tausik_version": "1.10.1",
-  "test_count": 12771
+  "tausik_version": "1.11.0",
+  "test_count": 12802
 }

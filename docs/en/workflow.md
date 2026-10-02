@@ -111,6 +111,7 @@ and cannot close a task without verification.
 - Goal or AC is a placeholder ("the acceptance criteria have 0 word(s) of substance") → write what is checked and how
 - No negative scenario in AC → add a criterion like "Returns error on invalid input"
 - A session above the advisory threshold is advice, not a refusal: save state with `/checkpoint` or hand off with `/end`
+- The host-thread budget is separate from session time. Native Codex response/input/context signals trigger an automatic checkpoint and fresh-window prompt at advisory level; hard level refuses continuation. Reopening TAUSIK inside the same host thread does not reset it. Missing native usage is shown as unavailable and fails open.
 
 **QG-2 blocks task completion:**
 - AC not verified → log evidence: `task log <slug> "AC verified: 1. ... ✓ 2. ... ✓"`

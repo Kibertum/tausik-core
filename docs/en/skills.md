@@ -6,9 +6,9 @@
 
 Skills are intent-based instructions that define agent behaviour. You don't memorize names or syntax — you write what you want, and the agent picks the right skill. Slash-prefix (`/plan`, `/ship`) explicitly invokes one.
 
-After bootstrap, **14 core skills** ship with TAUSIK from `harness/skills/`. Additional **official / vendor skills** (20) are available on demand: install per-skill via `tausik skill install <name>`, or expand the whole bundle via `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md). **Bulk install by group:** [Skill Bundles](skill-bundles.md).
+After bootstrap, **13 core skills** ship with TAUSIK from `harness/skills/`. The official store contains only `docs`, `excel`, and `pdf`. Install one only when needed with `tausik skill install <name>` so unused instructions add no prompt cost. **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md).
 
-> **v1.4.x default change.** Before v1.4.x bootstrap auto-deployed all 38 source + registry skills (~1,520 tok in the system-reminder list). The default now ships 14 core skills; re-run bootstrap with `--include-official` if you want the full set surfaced to the agent. **v1.4.0 also dropped 5 redundant skills** (`/go`, `/next`, `/diff`, `/onboard`, `/init`) — bringing the vendor count to 20. See **[Skill Bundles Migration](skill-bundles-migration.md)**.
+> **Token rule since v1.4.** Before v1.4, bootstrap exposed the whole catalog and spent about 1,520 tokens on its reminder list. The default now exposes only core skills. `--include-official` remains a local-checkout compatibility switch, but per-skill installation is the supported economical path.
 
 **Multi-host variants:** skills can ship optional **`variants/<profile>.md`** overlays — see [Skill profiles & variants](skill-profiles.md).
 
@@ -44,65 +44,14 @@ These are always available after bootstrap — the workflow primitives every TAU
 | `/test` | Run or write tests, track coverage |
 | `/debug` | Reproduce → isolate root cause → fix |
 
-## Official / Vendor Skills (20)
+## Official / Vendor Skills
 
-Not auto-deployed by default. Two ways to surface them:
+The official catalog is a separate repository and is not part of the core release. It deliberately contains only three neutral document skills: `docs`, `excel`, and `pdf`. Integrations belong in MCP servers or third-party repositories; company-specific roles do not belong in TAUSIK.
 
-- **Per-skill (recommended).** `tausik skill install <name>` from `skills-official/` or the `tausik-skills` repo, then `tausik skill activate <name>`. Adds only what you ask for to the system-reminder list.
-- **Whole bundle.** Re-run `python .tausik-lib/bootstrap/bootstrap.py --include-official` (alias: `--include-vendor`). Generates lightweight stubs for every entry in `skills-official/registry.json`. Use when you want the v1.3.x behaviour (~38 skills always visible).
-
-### Quality / Discipline (opt-in)
-
-| Skill | When |
-|-------|------|
-| `/zero-defect` | Session-scoped precision mode for high-stakes work (auth/payment/migration). Slows velocity 2–3× but reduces defects. Maestro-inspired. |
-| `/skill-test` | Meta tool for skill authors — auto-generate and run scenarios for any skill |
-
-### Document Extraction (opt-in)
-
-| Skill | When |
-|-------|------|
-| `/markitdown` | Convert DOCX/PPTX/XLSX/HTML/EPUB/PDF to markdown via the markitdown CLI (requires `pip install markitdown`) |
-
-Installed from the `tausik-skills` repo. Use `tausik skill install <name>` to add, `tausik skill activate <name>` to enable.
-
-### Productivity / Wrap-up
-
-| Skill | When |
-|-------|------|
-| `/daily` | Today's summary: completed tasks, commits, time |
-| `/run` | Autonomous batch execution of a markdown plan |
-| `/loop-task` | Autonomous task execution loop with fresh context |
-| `/dispatch` | Orchestrate parallel worker agents on independent tasks |
-
-### Analysis
-
-| Skill | When |
-|-------|------|
-| `/audit` | Code-quality audit — static analysis, metrics, actionable report |
-| `/security` | Security audit (OWASP Top 10, secrets scan) |
-| `/optimize` | Performance optimization — bottleneck analysis |
-| `/ultra` | Deep 10-point analysis for complex architectural decisions |
-| `/retro` | Retrospective on recent work |
-| `/presale` | Presale estimation — capacity planning + proposal |
-
-### Integrations (external services via MCP)
-
-| Skill | When |
-|-------|------|
-| `/jira` | Jira issue management (create/update/search) via MCP |
-| `/bitrix24` | Bitrix24 CRM — tasks, deals, contacts via webhook API |
-| `/confluence` | Confluence publishing — create/update pages |
-| `/sentry` | Sentry error monitoring via MCP |
-
-### Documentation / Extraction
-
-| Skill | When |
-|-------|------|
-| `/markitdown` | Convert DOCX/PPTX/XLSX/HTML/EPUB/PDF to markdown via the markitdown CLI (requires `pip install markitdown`) |
-| `/excel` | Read/analyze/generate Excel/CSV |
-| `/pdf` | Read/extract/analyze PDF documents |
-| `/docs` | Generate or update documentation (jsdoc/docstrings) |
+- Install one capability with `tausik skill install <name>` and activate it only when needed.
+- Use `skill bundle` only for a third-party repository that declares one and only when every member is required.
+- Avoid `--include-official` in normal projects. It exposes every entry found in a local catalog checkout and increases the repeated prompt prefix.
+- The official repository does not publish a bundle.
 
 ## Lifecycle
 
@@ -134,14 +83,12 @@ among the changed files. Local scaffolds whose directory starts with `_` or `.`
 
 ### Bulk install via bundles
 
-`tausik skill install <name>` installs one skill at a time. For groups (integrations, data-formats, quality-pro, automation, workflow-helpers), use **bundles** instead — see **[Skill Bundles](skill-bundles.md)**:
+`tausik skill install <name>` installs one skill at a time. A repository may publish optional **bundles**; inspect them before bulk installation — see **[Skill Bundles](skill-bundles.md)**:
 
 ```bash
 .tausik/tausik skill bundle list                    # discover bundles
-.tausik/tausik skill bundle install integrations    # install jira/bitrix24/confluence/sentry in one call
+.tausik/tausik skill bundle install <name>           # install every member of that bundle
 ```
-
-> **v1.4 deprecations:** `/go`, `/next`, `/diff`, `/onboard`, `/init` were removed — each duplicated built-in functionality. Migration table in **[Skill Bundles Migration](skill-bundles-migration.md)**.
 
 ## What's Next
 

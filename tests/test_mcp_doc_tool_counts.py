@@ -75,7 +75,9 @@ def test_readme_mcp_hero_bullets_match_code():
         m = rx.search(text)
         assert m, f"{rel}: missing **N MCP…** hero bullet"
         assert int(m.group(1)) == n_project, f"{rel}: total mismatch"
-        assert "brain" not in text[m.start() : m.end() + 40], f"{rel}: hero bullet still adds a brain count"
+        assert "brain" not in text[m.start() : m.end() + 40], (
+            f"{rel}: hero bullet still adds a brain count"
+        )
 
 
 def test_docs_readme_index_mcp_count_matches_code():
@@ -92,16 +94,10 @@ def test_docs_readme_index_mcp_count_matches_code():
     assert int(row.group(1)) == main_expected
 
 
-def test_agents_md_mcp_counts_match_code():
-    """AGENTS.md — Documentation Map, model/host table, repo tree stay aligned with TOOLS."""
-    n_project, n_rag = _code_counts()
+def test_agents_md_points_to_the_canonical_mcp_inventory():
+    """Compact implicit rules delegate volatile inventory counts to canonical docs."""
     text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
-    assert f"**{n_project}**" in text, "AGENTS.md: host table must carry the main count"
-    assert str(n_project + n_rag) in text, (
-        "AGENTS.md: missing total-with-RAG count (main + codebase-rag)"
-    )
-    tree = re.search(rf"tausik-project\s*\({n_project}\)\s+main", text, re.IGNORECASE | re.MULTILINE)
-    assert tree, "AGENTS.md: repository tree line must echo tausik-project (N) main"
+    assert "docs/en/mcp.md" in text
     assert "tausik-brain" not in text.split("<!-- DYNAMIC:START -->")[0], (
         "AGENTS.md static text still names the retired brain server"
     )

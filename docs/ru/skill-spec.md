@@ -59,11 +59,10 @@ Instructions...
 |----------|--------|--------------------|
 | Core (11) | start, end, task, plan, checkpoint, commit, explore, review, test, ship, debug | Всегда копируются, не выбираемы |
 | Extension | docs (и любые имена, добавленные под `bootstrap.extension_skills`) | Выбирается через `--include-official` или `tausik skill install <name>` |
-| Vendor / bundle | 20 скиллов под `skills-official/registry.json`, сгруппированы в 6 бандлов | Подтягиваются per-skill или per-bundle через `tausik skill bundle install <name>` |
+| Official | `docs`, `excel`, `pdf` | Ставятся по одному |
+| Vendor / bundle | Навыки из стороннего каталога | Ставятся по одному; бандл — только когда проекту нужны все его элементы |
 
 `init` был удалён в v1.4 (заменён на `python bootstrap/bootstrap.py --init`).
-Пять legacy-скиллов `/go`, `/next`, `/diff`, `/onboard`, `/init` были удалены
-в том же релизе — см. `skill-bundles-migration.md`.
 
 ## Соглашения
 

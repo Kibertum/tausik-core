@@ -229,6 +229,15 @@ class TestRulesFile:
         body = Path(path).read_text(encoding="utf-8")
         assert "myproj" in body
         assert "task start" in body  # hard constraint from the shared template
+        assert "## Answer shape" in body
+        assert "A test asserts behaviour" in body
+
+        Path(path).write_text("# User OpenCode rules\n", encoding="utf-8")
+        generate_opencode_rules(project_dir, "myproj", ["python"])
+        upgraded = Path(path).read_text(encoding="utf-8")
+        assert upgraded.startswith("# User OpenCode rules\n")
+        assert upgraded.count("## Answer shape") == 1
+        assert upgraded.count("## Test discipline") == 1
 
     def test_config_and_rules_agree_on_the_path(self, project):
         """The `instructions` entry must point at the file we actually wrote."""

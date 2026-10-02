@@ -39,7 +39,7 @@ def _body() -> str:
     Через настоящий сборщик, а не склейкой констант: проверяется, что секция
     ВОШЛА в сборку, а склейка вручную доказала бы только существование строки.
     """
-    return bt.build_full_body("proj", ["python"], "Claude", ".claude")
+    return bt.build_full_body("proj", ["python"], "Claude", ".claude", context_tier="standard")
 
 
 CROSSCUTTING_SCOPE = ["bootstrap/"]

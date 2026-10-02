@@ -44,13 +44,18 @@
               ↓
   ┌─────────────────────────┐
   │ SQLite (WAL mode)       │  ← .tausik/tausik.db
-  │ 27 таблиц + 8 FTS5      │
+  │ схема v67               │
   └─────────────────────────┘
 ```
 
 ## Ключевые модули
 
 ### Скрипты (бизнес-логика)
+
+В TAUSIK 1.11 пока сохраняется плоская поставка: 563 файла в `scripts/`, из них
+502 — в корне. Это историческая совместимость, а не цель 2.0. Измеренные границы,
+baseline миграций и порядок перехода описаны в
+**[пакетной архитектуре TAUSIK 2.0](package-layout-2.0.md)**.
 
 Модули в `scripts/`, каждый ≤500 строк (гейт `filesize`; поднято с 400 как
 промежуточная мера решением #190 — более тесный лимит деформировал архитектуру,
@@ -69,10 +74,10 @@
 | `service_verification.py` | Scoped pytest gate + verify cache (10 min TTL) |
 | `service_roles.py` | Гибридное хранение ролей (DB-метаданные + harness/roles/*.md) |
 | `service_stack_ops.py` | Stack scaffold, lint, diff, reset |
-| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, 27 таблиц + 8 FTS5-индексов) |
+| `project_backend.py` + `backend_*.py` | SQLite + FTS5 backend (WAL mode, schema v67) |
 | `backend_session_metrics.py` | Gap-based active-time computation |
 | `backend_tier_metrics.py` | call_budget vs call_actual tier-метрики |
-| `backend_migrations.py` / `_legacy.py` | Миграции схемы до v37 |
+| `backend_migrations.py` / `_legacy.py` / `_v*.py` | Миграции схемы до v67; 34 version-модуля остаются для совместимости обновлений 1.11 |
 | `project_config.py` + `default_gates.py` | Загрузчик конфигурации, настройка шлюзов, автовключение |
 | `gate_runner.py` + `gate_stack_dispatch.py` + `gate_test_resolver.py` | Scoped pytest mapping + dispatch |
 | `skill_manager.py` + `skill_repos.py` | Установка/удаление навыков из репозиториев |
@@ -118,7 +123,7 @@
 | `harness/claude/mcp/project/handlers_<домен>.py` | Обработчики по доменам: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Каждый модуль экспортирует `<DOMAIN>_HANDLERS`, `handlers.py` сливает их в `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Общий рендер списков (`render_list`) — пустой результат обязан читаться как «ничего нет», а не как пустая строка |
 
-Полный MCP-surface: **146 project-инструментов** (опциональный
+Полный MCP-surface: **147 project-инструментов** (опциональный
 `codebase-rag` добавляет ещё 7; не в основном счёте).
 
 **ЦЕНА ЭТОЙ ПОВЕРХНОСТИ ПЛАТИТСЯ НА КАЖДОМ ХОДУ, И ОНА РАЗНАЯ ПО ХОСТАМ.**
@@ -176,7 +181,7 @@ project-сервера весят 56 108 байт (порядка 14 000 ток�
 такое лежало в `harness/cursor/` и удалено в v1.7.0.
 ```
 harness/
-├── skills/           # 14 core auto-deployed + 20 в skills-official/ (opt-in через --include-official)
+├── skills/           # 13 core auto-deployed; внешние ставятся по одному
 ├── roles/            # 7 ролей (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)
@@ -203,7 +208,7 @@ TAUSIK разделяет *где* он работает и *какая моде
 поэтому сессия на z.ai GLM уезжает к GLM-моделям без единой правки кода. См.
 [Kilo + z.ai](kilo-zai.md).
 
-## БД: Таблицы (Schema v37)
+## БД: Избранные таблицы (Schema v67)
 
 | Таблица | Назначение |
 |---------|------------|
@@ -334,10 +339,11 @@ TAUSIK — лёгкий zero-dep фреймворк, поэтому [RENAR](http
 ## Orchestrator-worker (авто-переключение модели через сабагентов)
 
 Главная сессия — **координатор** (планирование, AC, ревью). Задачу complexity ≤
-medium можно **делегировать** **воркеру-сабагенту**, поднятому через Agent tool с
-`model=recommended` — единственный программный механизм выбора модели в Claude
-Code (паттерн orchestrator-workers от Anthropic). TAUSIK даёт **scaffolding/state**
-делегирования; сам spawn делает агент.
+medium можно **делегировать** **воркеру-сабагенту** с рекомендованными моделью,
+reasoning effort и standard speed. Такую поверхность выбора модели дают Claude
+Code и Codex; TAUSIK хранит **scaffolding/state** делегирования, а сам spawn
+делает агент хоста. Маршруты Kilo/GLM остаются advisory, пока поверхность этого
+хоста не подтверждена живой проверкой.
 
 | Шаг | Команда / механизм |
 |---|---|
@@ -349,6 +355,11 @@ Code (паттерн orchestrator-workers от Anthropic). TAUSIK даёт **sca
 
 Состояние делегирования — CLI-first (без MCP, чтобы избежать doc-count drift) и
 целиком в таблице `meta` (`delegation:<slug>`, `worker_summary:<slug>`).
+Телеметрия маршрута отдельно хранит `selected`, `applied`, `rejected` и
+`unavailable`. Сам выбор ещё не означает применение: `applied` записывается,
+когда воркер входит в worker mode через `task start`. Работающая сессия
+координатора программно не переключается; QG-0/QG-2, доказательства и закрытие
+задачи остаются у координатора.
 
 ## Hooks (anti-drift, см. [hooks.md](hooks.md))
 

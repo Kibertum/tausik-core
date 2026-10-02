@@ -36,7 +36,8 @@ metrics log-usage              # Одна строка manual в usage_events (-
 metrics cost [--since ISO] [--until ISO]   # SUM токенов/cost и COUNT по task (slug NULL исключены)
 metrics answers [--last N] [--json]   # Форма итоговых ответов агента: слова (медиана/p90), вердикт первой строкой %, доля списков, «вода»
 metrics calls [--last N]             # Вызовы инструментов на закрытую задачу по видам (чтение/правка/запуск/скрипт/обряд/прочее), по сложности
-metrics tokens [--last N] [--rebuild] [--json]   # Объём контекста по инструментам за последние N смен
+metrics tokens [--host claude|codex|kilo] [--last N] [--rebuild] [--json]
+                                                   # Нативный расход хоста; для Claude остаётся прежний вид по инструментам
                                 # Источник: .tausik/token_metrics.jsonl — его пишет SessionEnd hook
                                 #   scripts/hooks/session_metrics.py, обходя транскрипт и раскладывая
                                 #   message-level usage по tool_use внутри сообщения.
@@ -93,12 +94,22 @@ task undepends <slug> --after <slug>  # Снять объявленный пор
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
           [--full] [--top-n N] [--max-lines N]   # >25 строк — свёртка по статусу/роли; --full = полная таблица
 task show <slug>                # Полная информация: план, заметки, решения, defect_of, AC
-task start <slug>               # planning → active (QG-0: требует goal + AC + negative scenario);
+task show <slug> --package      # Ограниченный детерминированный контекст (8192 Б)
+task show <slug> --package --max-bytes 4096
+task show <slug> --work-packet --query "..." [--source PATH ...] [--max-bytes N]
+                                # Один bounded JSON: task context, FTS, memory и полные
+                                # scope-checked UTF-8 источники. Каждый результат имеет адрес;
+                                # непоместившиеся/нечитаемые/out-of-scope источники перечислены
+                                # в omitted, без тихого усечения. До половины ceiling (макс. 8192 Б)
+                                # заранее выделено целому task context; лимит указан в allocations.
+                                # Не более 16 --source.
+task start <slug> [--package]   # planning → active; package возвращает bounded context в этом вызове
                                 #   время сессии и ёмкость вызовов — совет в выводе, не отказ (1.10, #376)
                                 #   --force отозван: флаг отвечает отказом с причиной
 task obsolete <slug> --reason "..."   # закрыть задачу, которую решило время: запись остаётся, без QG-2,
                                 #   вне FPSR/DER/cycle/lead/калибровки; причина >=10 символов; только CLI (#390)
 task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ...] [--evidence "..."]
+                 [--message "final progress" --step N [--verify]]
                  [--verify-handle <run_id>.<nonce>]
                                 # QG-2: --ac-verified подтверждает проверку AC (требует evidence в notes
                                 #       ИЛИ --evidence inline). v1.5 Verify-First Contract: heavy gates
@@ -148,7 +159,8 @@ task undelegate <slug>          # Очистить делегирование
 task handoff <slug>             # Печать детерминированного handoff-контракта воркера (JSON: goal/AC/scope/model/skills) для spawn через Agent tool
 task summary-back <slug> "<summary>" [--changed F] [--gates S] [--ac-evidence E] [--follow-ups U]  # Воркер -> координатор структурный результат
 task plan <slug> <шаг1> <шаг2> ...   # Задать шаги плана
-task step <slug> <номер_шага>  # Отметить шаг N выполненным (нумерация с 1)
+task step <slug> <номер_шага> [--message "Step N done: ..."]
+                                # --message композирует log → step через существующие операции сервиса
 task log <slug> <сообщение>    # Таймстемп-заметка (crash-safe журнал)
 task logs <slug> [--phase PHASE] # Чтение структурированных логов (planning/implementation/review/testing/done)
 task reason-step <slug> <kind> <content>  # RENAR шаг рассуждения (kind: intent|premise|action|verification)
@@ -157,6 +169,12 @@ task move <slug> <new_story>   # Переместить задачу в друг
 task claim <slug> <agent_id>   # Мульти-агент: занять задачу
 task unclaim <slug>            # Освободить задачу
 ```
+
+Составной переход не вводит отдельное состояние задачи. `task step --message` выполняет
+`task_log`, затем `task_step`. Финальное `task done --message ... --step N --verify`
+добавляет тот же scoped verify и `task_done`. При отказе успешные ранние переходы
+остаются записанными, JSON называет точную стадию отказа, а CLI завершается с ненулевым кодом.
+`--verify` и `--verify-handle` взаимоисключающие: переданный stale handle не заменяется новым прогоном.
 
 ### Порядок работ выражается рёбрами, а не номерами
 
@@ -182,7 +200,9 @@ available tasks»: очередь пуста; очередь есть, но ка
 намерение, а не телеметрия: план, исчезающий при клонировании, и есть тот дефект,
 ради которого механизм построен.
 
-**Опциональные подсказки модели Claude:** если в `.tausik/config.json` задано `{"task_next":{"model_hint":true}}`, команды `task next` и `hud` выводят дополнительную строку с рекомендуемой моделью по сложности задачи (та же логика, что у `suggest-model`). Только opt-in; без ключа или при `false` поведение как раньше.
+**Опциональные подсказки модели:** если в `.tausik/config.json` задано `{"task_next":{"model_hint":true}}`, команды `task next` и `hud` выводят дополнительный неблокирующий маршрут по сложности задачи. Маршрут использует семейство активной модели, когда оно известно (Claude, OpenAI/Codex или GLM); иначе берёт семейство по умолчанию из конфига. Только opt-in; без ключа или при `false` поведение как раньше.
+
+`task delegate` применяет маршрут только через новый ограниченный контекст воркера. Claude Code и Codex позволяют выбрать модель создаваемого сабагента; Kilo/GLM остаётся advisory, пока не подтверждена поверхность spawn самого хоста. Работающая сессия координатора никогда не помечается как переключённая. Выбранный маршрут становится `applied` лишь после старта делегированной задачи воркером; неудачный или отменённый spawn остаётся `selected`. Глубина делегирования ограничена единицей, а verify, доказательства и закрытие остаются у координатора.
 
 **Допустимые стеки (DEFAULT_STACKS, 25):** python, fastapi, django, flask, react, next, vue, nuxt, svelte, typescript, javascript, go, rust, java, kotlin, swift, flutter, laravel, php, blade, ansible, terraform, helm, kubernetes, docker. Custom-стеки добавляются через `.tausik/config.json` → `custom_stacks`.
 

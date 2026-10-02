@@ -251,7 +251,10 @@ class TestTaskStartIntegration:
             scope="x.py",  # satisfy the Rule 2 hard gate (v15-scope-rule2-hardgate)
         )
 
-    def test_banner_appears_in_task_start_output(self, tmp_path):
+    def test_banner_appears_in_task_start_output(self, tmp_path, monkeypatch):
+        # This test covers the legacy Claude banner and must not inherit the
+        # model of a Codex/Kilo process running the suite.
+        monkeypatch.setenv("TAUSIK_AGENT_MODEL", "claude-opus-4-8")
         svc = _make_service(tmp_path)
         try:
             self._seed_task(svc, "t-banner", "complex")

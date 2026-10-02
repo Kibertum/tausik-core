@@ -30,9 +30,15 @@ for _p in (
 from bootstrap_config import SCAFFOLD_IDES  # noqa: E402
 
 CROSSCUTTING_SCOPE = [
-    "docs/",
+    "docs/en/agent-quickstart.md",
+    "docs/ru/agent-quickstart.md",
     "harness/claude/mcp/project/",
     "scripts/gate_qg0_check.py",
+    "scripts/gate_ac_check.py",
+    "scripts/render_verify.py",
+    "scripts/project_parser.py",
+    "scripts/project_parser_ops.py",
+    "bootstrap/bootstrap_config.py",
     "scripts/hooks/task_gate.py",
 ]
 

@@ -2,8 +2,8 @@
 slug: intoto-predicate-work-closure
 title: "Предикат work-closure в in-toto: гейты как условие закрытия работы"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-architecture-and-research
+epic: release-113-evidence
+story: release113-proof
 complexity: complex
 role: architect
 stack: null

@@ -121,11 +121,45 @@ def add_task(sub: argparse._SubParsersAction) -> None:
 
     ts = task_sub.add_parser("show")
     ts.add_argument("slug")
+    show_mode = ts.add_mutually_exclusive_group()
+    show_mode.add_argument("--package", action="store_true", help="Emit bounded JSON agent context")
+    show_mode.add_argument(
+        "--work-packet",
+        action="store_true",
+        dest="work_packet",
+        help="Compose task context, search, memory and scoped source reads as bounded JSON",
+    )
+    ts.add_argument("--query", default=None, help="Retrieval query for --work-packet")
+    ts.add_argument(
+        "--source",
+        action="append",
+        default=None,
+        dest="sources",
+        help="Project-relative source address for --work-packet (repeatable)",
+    )
+    ts.add_argument(
+        "--max-bytes",
+        type=int,
+        default=None,
+        help="Serialized UTF-8 ceiling (package: 8192; work packet: 16384)",
+    )
 
     tdelegate = task_sub.add_parser(
         "delegate", help="Mark a complexity<=medium task delegated to a worker sub-agent"
     )
     tdelegate.add_argument("slug")
+    tdelegate.add_argument(
+        "--startup-work",
+        type=int,
+        default=None,
+        help="Optional worker startup estimate; requires --remaining-work in the same unit",
+    )
+    tdelegate.add_argument(
+        "--remaining-work",
+        type=int,
+        default=None,
+        help="Optional bounded work remaining; requires --startup-work in the same unit",
+    )
     tundelegate = task_sub.add_parser("undelegate", help="Clear a task's delegation")
     tundelegate.add_argument("slug")
     thandoff = task_sub.add_parser(
@@ -145,6 +179,12 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tstart = task_sub.add_parser("start")
     tstart.add_argument("slug")
     tstart.add_argument(
+        "--package",
+        action="store_true",
+        help="Start and return the bounded task context in one result",
+    )
+    tstart.add_argument("--max-bytes", type=int, default=8192)
+    tstart.add_argument(
         "--force",
         action="store_true",
         help="Retired in 1.10: session capacity is a signal, not a gate; passing this flag is refused with the reason (decision #376)",
@@ -163,6 +203,18 @@ def add_task(sub: argparse._SubParsersAction) -> None:
 
     tdone = task_sub.add_parser("done")
     tdone.add_argument("slug")
+    tdone.add_argument(
+        "--message",
+        default=None,
+        help="With --step, log final progress and advance that step before closure",
+    )
+    tdone.add_argument(
+        "--step",
+        type=int,
+        default=None,
+        dest="compound_step",
+        help="With --message, include the final plan step in this closure call",
+    )
     tdone.add_argument(
         "--ac-verified",
         action="store_true",
@@ -320,6 +372,11 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tstep = task_sub.add_parser("step")
     tstep.add_argument("slug")
     tstep.add_argument("step_num", type=int)
+    tstep.add_argument(
+        "--message",
+        default=None,
+        help="Log progress and mark the step in one deterministic call",
+    )
 
     tquick = task_sub.add_parser("quick", help="Quick-create task (auto-slug)")
     tquick.add_argument("title", help="Task title")

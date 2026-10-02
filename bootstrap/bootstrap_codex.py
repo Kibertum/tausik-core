@@ -1,32 +1,14 @@
-"""Codex scaffold: хуки, которые ДЕЙСТВИТЕЛЬНО срабатывают.
+"""Codex scaffold with absolute hook commands and an explicit write adapter.
 
-ЗАМЕР, СДЕЛАННЫЙ НА САМОМ БИНАРЕ, А НЕ ПО ДОКУМЕНТАЦИИ (смена #241). В
-`codex.exe` присутствуют строки `hooks.json`, `.codex/hooks`, `PreToolUse`,
-`PostToolUse`, `SessionStart`, `UserPromptSubmit`, а также `hook_event_name`,
-`hookSpecificOutput` и `permissionDecision` — то есть у Codex есть API хуков с
-тем же протоколом обмена, что у Claude Code. Тикет GitLab #17 исходил из
-обратного и предлагал держать Rule 1 инструкцией; предпосылка устарела, и Rule 1
-здесь ЖЁСТКИЙ.
+Hook configuration and binary symbols do not prove enforcement. Live host
+checks must establish trust, dispatch, denial before mutation and allowed writes.
+Codex patch payloads contain command text; Windows shell payloads can be named
+Bash even for PowerShell. The adapter bridges the observed bounded forms to
+shared task/scope gates and emits the native JSON permission decision.
 
-И ЭТОТ ЖЕ ЗАМЕР НАШЁЛ ЖИВОЙ ДЕФЕКТ, ради которого модуль и написан именно так. В
-проекте уже лежал `.codex/hooks.json` — не наш, bootstrap его не создавал, — где
-каждая команда имела вид ``python -X utf8 ${CLAUDE_PROJECT_DIR}/.claude/...``.
-Строки `CLAUDE_PROJECT_DIR` в бинаре Codex НЕТ. Переменная раскрывается в пустоту,
-путь превращается в `/.claude/scripts/hooks/task_gate.py` и не находится. Под
-Codex молча не работал НИ ОДИН гейт — ни Rule 1, ни ACL области, ни firewall, ни
-сканер секретов — при том что файл на диске выглядел подключённым.
-
-ПОЭТОМУ ПУТИ ЗДЕСЬ АБСОЛЮТНЫЕ. Ни одной переменной: в бинаре нет ни
-`CODEX_PROJECT_ROOT`, ни `workspaceFolder`, ни любого другого имени рабочей
-области — проверено тем же способом, что и наличие остальных строк. Это то же
-решение и по той же причине, что у OpenCode (gotcha #201). Цена известна и
-принята: переименование каталога проекта требует повторного bootstrap. Цена
-альтернативы измерена выше — тринадцать гейтов, выглядящих подключёнными.
-
-НАБОР ХУКОВ НЕ КОПИРУЕТСЯ, А БЕРЁТСЯ ИЗ ОБЩЕГО ОБЪЯВЛЕНИЯ `build_hooks_dict`.
-Второй список означал бы, что хук, добавленный одному хосту, молча не появится у
-другого, и разошлись бы они не сразу, а через несколько релизов. Различие между
-хостами ровно одно — как строится строка команды, — и оно передаётся параметром.
+Shared hooks come from build_hooks_dict; host-specific adaptation stays here.
+Absolute paths avoid relying on another host's environment variables. Moving a
+project requires bootstrap again. See the versioned live enforcement evidence.
 """
 
 from __future__ import annotations
@@ -81,7 +63,23 @@ def build_codex_hooks(target_dir: str, venv_python: str | None = None) -> dict[s
         # напрямую, а не через обёртку CLI, и не наследует её PYTHONUTF8.
         return f"{python_exe} -X utf8 {hooks_dir}/{script}{suffix}"
 
-    return build_hooks_dict(_hook_cmd)
+    hooks = build_hooks_dict(_hook_cmd)
+    # Live 0.153.4 payloads differ from Claude's canonical Write/PowerShell shapes.
+    # Keep shared registrations intact and add one narrowly scoped adapter.
+    project = os.path.dirname(os.path.abspath(target_dir)).replace("\\", "/")
+    hooks["PreToolUse"].append(
+        {
+            "matcher": "apply_patch|Bash|PowerShell",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": _hook_cmd("codex_write_gate.py", f' --project "{project}"'),
+                    "timeout": 10,
+                }
+            ],
+        }
+    )
+    return hooks
 
 
 def _load_existing(path: str) -> dict[str, Any]:

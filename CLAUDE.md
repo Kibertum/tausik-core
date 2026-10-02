@@ -32,12 +32,13 @@ TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23.
 
 ## Answer shape (#407)
 
-- Responses are in the user's language.
-- SHAPE, empty parts omitted: done → verified by → left → your call.
-- KEEP BYTE-EXACT: code, shell commands, tool output, file paths, error messages. KEEP FULL PROSE: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
-- EXCEPTIONS: explanation asked; destructive action; three failed debugging turns → state the assumption, ask; ambiguity → one question; the rule would delete the answer itself.
-- Steps numbered, one action each, the last doable in two minutes; five items per group unless completeness needs more. One tangent, once, at the end. Estimates in minutes.
-- PRE-SEND: delete announcements, closing recaps, side branches, hedges; first line = next action, last line = current state.
+- Use user's language.
+- SHAPE, omit empty: done → verified by → left → your call.
+- PROSE (no ASD-STE100 claim): name actor/action; active voice if natural; one action/sentence; one term/concept; short paragraphs.
+- BYTE-EXACT: code, shell commands, tool output, file paths, error messages; FULL: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
+- EXCEPTIONS: explanation asked; destructive action; 3 failed debug turns → assumption + question; ambiguity → one question; rule deletes answer itself.
+- Steps: numbered, one action each, last ≤2 min; ≤5/group unless more needed; tangent last; estimate if useful.
+- PRE-SEND: delete announcements, recaps, side branches, empty hedges; first line = next action; last = current state.
 
 ## Память
 
@@ -59,25 +60,25 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #279 (active) | Branch: v1-10 | TAUSIK: 1.10.0
-Tasks: 1696/1783 done, 6 obsolete, 2 active, 4 blocked
-Active: reading-code-costs-a-third-of-calls, answer-rules-are-in-every-prompt-not-only-consumers
-Blocked: we-say-discipline-layer-field-says-harness-engineering, memory-tail-by-relevance-not-recency, site-is-rebuilt-from-the-core-docs-of-the-release, github-milestones-follow-the-rebuilt-composition
+Session: #281 (active) | Branch: v1-11 | TAUSIK: 1.10.1
+Tasks: 1740/1829 done, 8 obsolete, 5 active, 2 blocked
+Active: public-snapshot-tests-read-excluded-files, r111-economy-hardening-acceptance, r111-verification-cycle-replay, audit-and-trim-111-public-release-snapshot, prepare-clean-111-release-snapshot
+Blocked: memory-tail-by-relevance-not-recency, site-is-rebuilt-from-the-core-docs-of-the-release
 Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\2fb2646a-10b7-4fc5-8fb4-be2e70726533.jsonl
 
 ### Memory tail
 Context (5):
+- #851 1.11 Codex economy: cache is already high; next leverage is rounds and routing
+- #812 1.11: distinguish model/speed subscription cost from token double counting
+- #809 1.11 primary hosts: Claude Code, Kilo/GLM and Codex; bounded Cursor/OpenRouter
+- #808 1.11: measured Codex consumption; optimize accepted-task cost with quality held constant
 - #806 Счёт делает КЭШ, а не выход: 94,2% против 5,8%
-- #804 Цена задачи: в долларах упала вдвое, в токенах выросла вдвое — это прайс, а не мы
-- #800 Перетряска документации 1.10: два пункта из пяти отменены замером
-- #798 Цена задачи в ходах выросла впятеро за полгода: медиана 6 → 32, а рычаг — Bash, 87,6% вызовов
-- #746 Расход токенов TAUSIK почти целиком в cache_read: 99,5% входа, и главный рычаг — число ходов
 Decisions (5):
-- #408 1.10 ПЕРЕСОБРАН под три приоритета владельца (#406), утверждено владельцем в смене #279. Новая история release110-owner-
-- #407 Дисциплина ответа TAUSIK — НАША, а не вендоренная. Принципы (вести с действия, нумеровать многошаговое, потолок пунктов 
-- #406 1.10 ОСТАНОВЛЕН И ПЕРЕСОБИРАЕТСЯ. Указание владельца, смена #278: качество не устраивает. Три приоритета в порядке владе
-- #405 Сайт живёт в ОТДЕЛЬНОМ репозитории tausik-site и ТОЛЬКО на GitLab. Публикации сайта на GitHub нет. Указание владельца, с
-- #404 Код и комментарии пишутся ПО-АНГЛИЙСКИ. Указание владельца, смена #278. Отменяет часть конвенции #745 «докстринг и комме
+- #417 Economy recovery order: host-context guard, affected-test selection, bounded validation output, evidence-based test prun
+- #416 1.11 continues with an economy-hardening wave aimed at model rounds and repeated prefix
+- #415 1.11 economy acceptance reuses real Codex work and forbids synthetic benchmark fan-out
+- #414 1.11 validates economy primarily on Codex; Kilo/GLM is accepted theoretically
+- #413 1.11 transport rule: one ProjectService implementation, two thin wrappers; skills choose the workflow, fresh MCP is pref
 Conventions (5):
 - #799 Переименовал тест — ответь на цитаты в том же заходе, иначе регистр покраснеет следующей проверкой
 - #792 Потолок без запаса есть запрет: у бюджета контекста должен быть проверяемый остаток, а не только пре
@@ -85,9 +86,9 @@ Conventions (5):
 - #777 Намеренный пробел объявляется тремя строками: что НЕ гарантировано, почему живём, что держит границу
 - #776 Отчёт о прогоне называет и deselected, иначе «11592 passed» скрывает выключенную ленту
 Dead ends (3):
-- #805 Подготовка берёт корень как root_from_service(svc) or '.'
-- #802 Подготовка перед проверкой прогоняет ruff format по всему дереву
-- #801 Сборщик coherence, разрешающий каждую цитату вида tests/файл.py::имя по всему дереву
+- #860 Close the read-only audit immediately after a no-tests-expected verify
+- #859 Create an unreferenced candidate commit with a generated temporary index in one PowerShell command
+- #857 Apply the router, hook, tests, docs, and changelog in one patch
 
 **Shared knowledge — from other projects (11):**
 - [decision] v139-D (клиентский mux) НЕ делается в 1.3.9 как «фикс троттлинга». Предпосылка задачи неверна для на
@@ -95,9 +96,9 @@ Dead ends (3):
 - [decision] Коэффициент калибровки на окне n=10 непригоден для прогноза срока релиза: за одну сессию #153 он про
 - [convention] Windows: команду с вложенными кавычками писать ФАЙЛОМ, а не однострочником
 - [convention] TAUSIK 1.8: verify --task без --relevant-files не сертифицирует закрытие задачи
-- [gotcha] Windows named pipe: GENERIC_WRITE включает FILE_CREATE_PIPE_INSTANCE; сервер проверять через GetName
-- [gotcha] Bash-heredoc съедает обратный слэш: regex-escape превращается в управляющий байт и grep его не показ
-- [gotcha] PowerShell Set-Content -Encoding utf8 добавляет BOM и ломает bash-скрипт; here-string не идёт в stdi
+- [gotcha] Windows PowerShell: одиночный CimInstance не даёт Count
+- [gotcha] TAUSIK 1.10: подготовка verify (ruff format) портит JSON-файлы
+- [gotcha] TAUSIK 1.10: verify в не-Python проекте — ruff format и 60-секундный конверт
 - [pattern] Смоук интерактива без Playwright: headless Chrome + CDP из Node 22+
 - [pattern] Установка TAUSIK в новый клиентский проект — рецепт и подводные камни
 - [pattern] Проверять содержимое ответа, а не только HTTP-код

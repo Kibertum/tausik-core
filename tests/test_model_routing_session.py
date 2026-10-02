@@ -54,6 +54,20 @@ def test_record_complex_persists_opus(tausik_dir):
     assert payload["model"] == "claude-opus-4-8"
 
 
+def test_codex_route_reason_is_persisted_for_a_natural_task_start(tausik_dir):
+    payload = mrs.record_active_task_recommendation(
+        tausik_dir,
+        "bounded-fix",
+        "medium",
+        host="codex",
+        active_model="gpt-5.6-sol",
+    )
+    assert payload is not None
+    assert payload["model"] == "gpt-5.6-terra"
+    assert payload["route_reason"] == "bounded simple/medium worker work defaults to Terra"
+    assert payload["escalation_reason"] is None
+
+
 def test_record_unknown_complexity_normalized_to_none(tausik_dir):
     # Banner falls back to Sonnet for unknown complexity; we should record
     # complexity as None rather than echoing the bogus string back.

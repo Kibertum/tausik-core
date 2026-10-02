@@ -286,10 +286,10 @@ class TestTheBuilderMapCannotGoStale:
         assert hm.cross_check_against_disk(str(_REPO)) == []
 
 
-class TestTheFourHostRegistriesStillDisagreeAndItIsPinned:
+class TestHostRegistryDivergenceIsPinned:
     """AC8. The gate does not pretend there is one registry. Collapsing them is
-    `four-ide-registries-collapse-into-one`, deferred to 1.10; what is held here
-    is that the divergence does not WIDEN unnoticed while that waits."""
+    `four-ide-registries-collapse-into-one`; what is held here is that the
+    remaining divergence does not WIDEN unnoticed while that waits."""
 
     def test_the_measured_divergence_is_exactly_what_was_recorded(self):
         from bootstrap_config import IDE_DIRS
@@ -302,22 +302,19 @@ class TestTheFourHostRegistriesStillDisagreeAndItIsPinned:
             "IDE_DIRS and IDE_REGISTRY agreed when this was measured; if they no "
             "longer do, the gate's host set has drifted from bootstrap's"
         )
-        assert set(VALID_IDES) == {"claude", "codex", "cursor", "qwen"}, (
+        assert set(VALID_IDES) == {"claude", "codex", "cursor", "kilo", "qwen"}, (
             "the skill-profile registry changed. If a host was ADDED, good — move "
             "this pin. If one was removed, that is a regression."
         )
-        assert set(providers.available()) == {"claude", "cursor", "kilo", "qwen"}
+        assert set(providers.available()) == {"claude", "codex", "cursor", "kilo", "qwen"}
 
-    def test_two_scaffolded_hosts_still_cannot_be_selected_as_a_profile(self):
-        """The live consequence, pinned so it cannot be forgotten: kilo and
-        opencode are fully scaffolded and `config set ide_profile <them>` is
-        refused. Fixing it is the 1.10 task; noticing it silently stop being true
-        is worth as much as noticing it get worse."""
+    def test_remaining_scaffolded_host_cannot_be_selected_as_a_profile(self):
+        """Kilo is selectable in 1.11; opencode remains the measured gap."""
         from bootstrap_config import SCAFFOLD_IDES
         from skill_profile_detect import VALID_IDES
 
         unselectable = sorted(set(SCAFFOLD_IDES) - set(VALID_IDES))
-        assert unselectable == ["kilo", "opencode"], (
+        assert unselectable == ["opencode"], (
             f"the set of scaffolded-but-unselectable hosts changed to {unselectable}; "
             "update four-ide-registries-collapse-into-one and this pin together"
         )

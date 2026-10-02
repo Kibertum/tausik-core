@@ -2,8 +2,8 @@
 slug: isolation-model-for-parallel-agents
 title: "Модель изоляции параллельных агентов не названа: общее производное дерево и один гейт коммита на всех"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-architecture-and-research
+epic: v2-global-mcp
+story: v2gm-core
 complexity: medium
 role: architect
 stack: python

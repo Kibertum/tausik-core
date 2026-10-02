@@ -23,6 +23,7 @@ from bootstrap_config import (
     ALL_EXTENSION_SKILLS,
     IDE_DIRS,
     SCAFFOLD_IDES,
+    deployable_extension_skills,
     detect_extension_skills,
     detect_stacks,
     parse_strict_model_profile_env,
@@ -106,7 +107,7 @@ def bootstrap_ide(
     stacks: list[str],
     vendor_skills: dict[str, str] | None = None,
     venv_python: str | None = None,
-    context_tier: str = "standard",
+    context_tier: str = "minimal",
     *,
     full_cfg: dict | None = None,
     include_official_stubs: bool = False,
@@ -254,7 +255,9 @@ def main() -> None:
     # v14b-skill-core-cleanup gating decisions (computed once, passed per IDE).
     include_official_stubs = bool(args.include_official or args.include_vendor)
     if not include_official_stubs:
-        print("  Official-skill stubs: opt-in (use --include-official to deploy them)")
+        print(
+            "  Official-skill stubs: excluded (install external skills per skill to save context)"
+        )
 
     stacks = detect_stacks(project_dir)
     if stacks:
@@ -262,7 +265,16 @@ def main() -> None:
         config["stacks"] = stacks
 
     if args.smart and not args.no_detect:
-        ext = detect_extension_skills(project_dir, config.get("core_skills", []))
+        available = deployable_extension_skills(
+            lib_dir,
+            include_official=include_official_stubs,
+            explicitly_installed=config.get("installed_skills", []),
+        )
+        ext = detect_extension_skills(
+            project_dir,
+            config.get("core_skills", []),
+            available_skills=available,
+        )
         if ext:
             print(f"  Extension skills detected: {', '.join(ext)}")
             config["extension_skills"] = ext
@@ -309,14 +321,6 @@ def main() -> None:
             get_ide_target,
         )
         return
-
-    skills_json = os.path.join(lib_dir, "skills.json")
-    skills_example = os.path.join(lib_dir, "skills.example.json")
-    if not os.path.exists(skills_json) and os.path.exists(skills_example):
-        import shutil
-
-        shutil.copy2(skills_example, skills_json)
-        print("  Copied skills.example.json → skills.json (edit to customize vendor skills)")
 
     vendor_dir = os.path.join(project_dir, ".tausik", "vendor")
     vendor_skills: dict[str, str] = {}

@@ -252,6 +252,42 @@ def jsonl_files(paths: Iterable[str]) -> list[Path]:
     return out
 
 
+def codex_schema_observation(paths: Iterable[str]) -> dict[str, Any]:
+    """Report only what native Codex journals expose about tool-schema loading.
+
+    Absence of a ``tools`` field does not prove deferred loading.  Codex may keep
+    schemas outside the journal, so that case is deliberately ``unknown``.
+    """
+    turns = 0
+    tool_fields = 0
+    explicit: list[bool] = []
+    for path in jsonl_files(paths):
+        for row in _iter_jsonl(path):
+            if row.get("type") != "turn_context" or not isinstance(row.get("payload"), dict):
+                continue
+            turns += 1
+            payload = row["payload"]
+            tool_fields += int("tools" in payload)
+            if isinstance(payload.get("tools_deferred"), bool):
+                explicit.append(payload["tools_deferred"])
+    if explicit and all(explicit):
+        state = "deferred"
+    elif explicit and not any(explicit):
+        state = "eager"
+    else:
+        state = "unknown"
+    return {
+        "turn_context_records": turns,
+        "records_with_tools_field": tool_fields,
+        "deferral_state": state,
+        "reason": (
+            "native journal has no explicit tools_deferred signal"
+            if state == "unknown"
+            else "native journal explicitly reports tools_deferred"
+        ),
+    }
+
+
 # --- the report ---------------------------------------------------------------------------
 
 
@@ -317,10 +353,18 @@ def main(argv: list[str] | None = None) -> int:
     cost = cost_of(text)
     history = tail_ids_in_history(args.repo, args.rules) | tail_ids(text)
     usage = usage_report(args.paths, history)
+    codex = codex_schema_observation(args.paths)
     if args.json:
-        print(json.dumps({"cost": cost, "usage": usage}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps({"cost": cost, "usage": usage, "codex": codex}, ensure_ascii=False, indent=2)
+        )
     else:
         print(render(cost, usage))
+        print(
+            "Codex tool-schema deferral: "
+            f"{codex['deferral_state']} ({codex['reason']}; "
+            f"{codex['turn_context_records']} turn_context record(s))."
+        )
     return 0
 
 

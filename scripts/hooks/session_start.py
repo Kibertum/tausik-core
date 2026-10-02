@@ -18,6 +18,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _common import profile_dir as _common_profile_dir
 from _common import tausik_path as _tausik_path
 
+MAX_CONTEXT_BYTES = 2_048
+
 
 def _run_tausik(cmd: str, args: list[str], project_dir: str, timeout: int = 4) -> str:
     """Run tausik CLI; return stdout on success, empty string on any failure."""
@@ -200,36 +202,30 @@ def build_context(project_dir: str) -> str:
     if not tausik_cmd:
         return ""
 
-    status = _run_tausik(tausik_cmd, ["status"], project_dir)
-    active = _run_tausik(tausik_cmd, ["task", "list", "--status", "active"], project_dir)
-    blocked = _run_tausik(tausik_cmd, ["task", "list", "--status", "blocked"], project_dir)
-    memory_block = _run_tausik(tausik_cmd, ["memory", "block"], project_dir)
+    status = _run_tausik(tausik_cmd, ["status", "--compact"], project_dir)
     rag = _rag_summary(project_dir)
 
-    parts = ["# TAUSIK Session Context (auto-injected)\n"]
+    parts = ["# TAUSIK Session Contract\n"]
     if status:
-        parts.append(f"\n{status}\n")
-    parts.append(f"\n{rag}\n")
+        parts.append(f"{status}\n")
 
-    def _has_tasks(out: str) -> bool:
-        return bool(out) and "(none)" not in out and "No tasks" not in out
-
-    if _has_tasks(active):
-        parts.append(f"\n## Active tasks\n```\n{active}\n```\n")
-    if _has_tasks(blocked):
-        parts.append(f"\n## Blocked tasks\n```\n{blocked}\n```\n")
-    if memory_block:
-        parts.append(f"\n{memory_block}\n")
-
-    parts.append(
-        "\n**Reminders:**\n"
-        "- `task start <slug>` is required before any Write/Edit (SENAR Rule 9.1).\n"
-        "- Run `/start` for the full dashboard (handoff, metrics, explorations, audit).\n"
-        "- Log progress with `task log`; document dead ends with `dead-end`.\n"
+    contract = (
+        "**Reminders:** SENAR Rule 9.1: define goal+AC and run `task start` before edits; "
+        "log material progress; "
+        "run `verify` and record AC evidence before `task done --ac-verified`.\n"
+        "Load work context with `task show <slug> --package` (MCP: "
+        "`tausik_task_show` mode=package); use `/start` for the dashboard.\n"
         "- Project knowledge → `tausik memory add`, NOT `~/.claude/*/memory/` "
         "(blocked by PreToolUse hook; bypass only with `confirm: cross-project`).\n"
     )
-    return "".join(parts)
+    prefix = "".join(parts)
+    required = prefix + contract
+    if len(required.encode()) > MAX_CONTEXT_BYTES:
+        return required + "OVERFLOW: required session contract exceeds budget; nothing truncated.\n"
+    candidate = prefix + f"{rag}\n" + contract
+    if len(candidate.encode()) <= MAX_CONTEXT_BYTES:
+        return candidate
+    return required + "OMITTED: optional RAG status exceeded the context budget.\n"
 
 
 def _spawn_update_check(project_dir: str) -> None:

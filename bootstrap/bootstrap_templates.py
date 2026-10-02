@@ -22,6 +22,7 @@ from bootstrap_templates_tiers import (
     MINIMAL_TIER_FOOTER,
     MINIMAL_WORKFLOW,
 )
+import bootstrap_rules_upgrade as rules_upgrade
 
 # Whether the constraints below are CHECKED on this host is derived from what
 # bootstrap deployed, not asserted here. The probe lives in scripts/ because that
@@ -232,17 +233,13 @@ RESPONSE_LANGUAGE = ""  # traded into ANSWER_SHAPE: the sentence survives, the s
 # block that ships every session whether or not anyone asks for it.
 ANSWER_SHAPE = """## Answer shape
 
-- Responses are in the user's language.
-- SHAPE, empty parts omitted: done → verified by → left → your call.
-- KEEP BYTE-EXACT: code, shell commands, tool output, file paths, error messages. KEEP FULL PROSE: \
-acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
-- EXCEPTIONS: explanation asked; destructive action; three failed debugging turns → \
-state the assumption, ask; ambiguity → one question; the rule would \
-delete the answer itself.
-- Steps numbered, one action each, the last doable in two minutes; five items per \
-group unless completeness needs more. One tangent, once, at the end. Estimates in minutes.
-- PRE-SEND: delete announcements, closing recaps, side branches, hedges; \
-first line = next action, last line = current state.
+- Use user's language.
+- SHAPE, omit empty: done → verified by → left → your call.
+- PROSE (no ASD-STE100 claim): name actor/action; active voice if natural; one action/sentence; one term/concept; short paragraphs.
+- BYTE-EXACT: code, shell commands, tool output, file paths, error messages; FULL: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
+- EXCEPTIONS: explanation asked; destructive action; 3 failed debug turns → assumption + question; ambiguity → one question; rule deletes answer itself.
+- Steps: numbered, one action each, last ≤2 min; ≤5/group unless more needed; tangent last; estimate if useful.
+- PRE-SEND: delete announcements, recaps, side branches, empty hedges; first line = next action; last = current state.
 """
 
 #: Ceiling on the always-injected shape. Same argument as the caveman cap below: this block
@@ -253,7 +250,7 @@ first line = next action, last line = current state.
 #: file's own budgets (180 lines, body chars) instead of paying for them, so the block was
 #: rewritten to carry the same terms in 776. Any future growth states its own number here
 #: and pays for itself inside the file's budget, or does not happen.
-ANSWER_SHAPE_MAX_CHARS = 776
+ANSWER_SHAPE_MAX_CHARS = 773
 
 ANSWER_SHAPE_MARKER = "## Answer shape"
 
@@ -289,15 +286,33 @@ CAVEMAN_DIRECTIVE_MARKER = "## Output economy (caveman mode)"
 
 
 def warn_output_mode_not_applied(path: str, output_mode: str) -> bool:
-    """Warn when a requested output_mode cannot reach an already-existing rules file.
+    """Reconcile the universal answer shape, then warn about an unapplied opt-in mode.
 
-    Every rules generator is preserve-if-exists, so flipping `output_mode: caveman` on a
-    project that was bootstrapped once changes nothing on disk. Staying quiet about that
-    would leave the user believing compression is on while bootstrap prints "Done!" — a
-    silent no-op, the failure class this framework refuses to ship.
+    Existing rules files are user-owned, so their bytes are never rewritten or removed.
+    The unconditional TAUSIK answer contract is the one managed exception: append it once
+    when an older project predates the block. This makes upgrades match fresh projects
+    without asking the user to discover or invoke a skill. Repeated bootstrap is a no-op.
 
-    We warn rather than rewrite: the file is the user's. Returns True when a warning fired.
+    Caveman mode remains opt-in and is not injected into an existing file; for that mode we
+    still warn. Returns True when that warning fired.
     """
+    answer_change = rules_upgrade.reconcile_answer_shape(path, ANSWER_SHAPE_MARKER, ANSWER_SHAPE)
+    if answer_change:
+        print(f"  Existing {os.path.basename(path)}: {answer_change} canonical answer shape")
+    has_test_rule = rules_upgrade.markdown_contains_any(
+        path,
+        (
+            rules_upgrade.TEST_DISCIPLINE_MARKER,
+            "## Testing discipline",
+            "A test asserts behaviour",
+            "\u0422\u0435\u0441\u0442 \u2014 \u043d\u0430 \u043f\u043e\u0432\u0435\u0434\u0435\u043d\u0438\u0435",
+        ),
+    )
+    if not has_test_rule and rules_upgrade.reconcile_markdown_block(
+        path, rules_upgrade.TEST_DISCIPLINE_MARKER, rules_upgrade.TEST_DISCIPLINE
+    ):
+        print(f"  Existing {os.path.basename(path)}: added canonical test discipline")
+
     if (output_mode or "off").strip().lower() != "caveman":
         return False
     try:
@@ -338,11 +353,9 @@ def build_skills_section(ide_subdir: str) -> str:
         f"After bootstrap, **13 core skills** ship from `harness/skills/` and are always available: "
         f"`/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, "
         f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`.\n\n"
-        f"**25+ official/vendor skills** are opt-in via `python .tausik-lib/bootstrap/bootstrap.py "
-        f"--include-official` (full bundle) or `tausik skill install <name>` (per skill) from the "
-        f"`tausik-skills` repo or `skills-official/`: `/audit`, `/zero-defect`, `/markitdown`, "
-        f"`/excel`, `/pdf`, `/docs`, `/security`, `/onboard`, `/retro`, `/ultra`, `/jira`, "
-        f"`/bitrix24`, `/sentry`, ... See `{ide_subdir}/references/skill-catalog.md`.\n\n"
+        f"The official store contains only `docs`, `excel`, and `pdf`; integrations belong in MCP servers. "
+        f"Install only the capability you need with `tausik skill install <name>` so unused instructions add no prompt cost. "
+        f"See `{ide_subdir}/references/skill-catalog.md`.\n\n"
         f"**Security — external skill repos are arbitrary code + instructions.** "
         f"Adding a repo clones remote content; installing may run pip/scripts. "
         f"Only use `tausik skill repo add <url>` for trusted sources; third-party URLs "
@@ -390,7 +403,7 @@ def build_full_body(
     agent_name: str,
     ide_subdir: str,
     ide: str | None = None,
-    context_tier: str = "standard",
+    context_tier: str = "minimal",
     output_mode: str = "off",
     project_dir: str | None = None,
 ) -> str:
@@ -404,7 +417,7 @@ def build_full_body(
     /QWEN.md.
 
     ``context_tier`` (from ``.tausik/config.json``) selects how verbose the
-    generated rules are: ``minimal`` (short), ``standard`` (default), or
+    generated rules are: ``minimal`` (default and short), ``standard``, or
     ``full`` (standard + extra pointers for framework work).
 
     ``output_mode`` is ORTHOGONAL to ``context_tier``: the tier sizes the INPUT
@@ -412,7 +425,7 @@ def build_full_body(
     the CAVEMAN_DIRECTIVE is appended in every tier (it applies regardless of how
     verbose the rules themselves are). Any non-``caveman`` value is a no-op.
     """
-    tier = (context_tier or "standard").strip().lower()
+    tier = (context_tier or "minimal").strip().lower()
     if tier not in ("minimal", "standard", "full"):
         tier = "standard"
 

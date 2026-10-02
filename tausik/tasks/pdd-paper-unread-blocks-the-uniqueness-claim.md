@@ -2,8 +2,8 @@
 slug: pdd-paper-unread-blocks-the-uniqueness-claim
 title: "Ближайший академический сосед не прочитан, а обзор запретил публиковать вывод без этой оси"
 status: planning
-epic: release-110-deferred-from-19
-story: deferred-110-outward-loop-and-test-authorship
+epic: release-113-evidence
+story: release113-proof
 complexity: simple
 role: architect
 stack: null

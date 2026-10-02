@@ -18,7 +18,7 @@ import json
 import os
 
 import pytest
-from conftest import DORMANT_WITHOUT_LIVE_DB
+from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, DORMANT_WITHOUT_LIVE_DB, IS_PUBLIC_SNAPSHOT
 
 import spec_completeness as sc
 from spec_completeness import Finding, audit, check_body, reach
@@ -273,8 +273,8 @@ PROJECT_DB = os.path.join(
 
 
 @pytest.mark.skipif(
-    not os.path.isfile(PROJECT_DB),
-    reason=DORMANT_WITHOUT_LIVE_DB,
+    IS_PUBLIC_SNAPSHOT or not os.path.isfile(PROJECT_DB),
+    reason=(DORMANT_ON_PUBLIC_SNAPSHOT if IS_PUBLIC_SNAPSHOT else DORMANT_WITHOUT_LIVE_DB),
 )
 def test_the_live_repository_reports_exactly_the_gap_it_has():
     """Pinned rather than asserted green, because the control's first real

@@ -75,7 +75,7 @@ _THRIFT = (
 @pytest.fixture(scope="module")
 def body() -> str:
     """The standard-tier body, through the real assembler."""
-    return bt.build_full_body("proj", ["python"], "Claude", ".claude")
+    return bt.build_full_body("proj", ["python"], "Claude", ".claude", context_tier="standard")
 
 
 class TestNoEmphasisSurvives:
@@ -138,7 +138,7 @@ class TestTheRulesThemselvesSurvivedTheEdit:
                 id="db_rule_says_why",
             ),
             pytest.param(
-                "Responses are in the user's language.",
+                "Use user's language.",
                 "deleting it would have been one line cheaper and wrong: that a model "
                 "defaults to the user's language cannot be shown from here",
                 id="response_language_kept_as_a_statement",

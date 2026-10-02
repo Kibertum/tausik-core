@@ -1,7 +1,7 @@
 ---
 name: run
 description: "Run the release composition task by task, without stopping."
-effort: deep
+effort: slow
 context: inline
 ---
 
@@ -86,12 +86,10 @@ bypasses them is a driver that closes tasks the gates would have refused.
 
 Then do the work: Read/Edit/Bash/Glob/Grep as the task requires.
 
-**Delegate what `task start` tells you to, and nothing else.** The banner prints a `DELEGATE`
-line only for a task the complexity score rates `simple` while the session runs a more
-expensive model. Measured over 218 closes: 195 ran on the premium tier, 47 of them on simple
-work — printed every time, followed almost never, because the host cannot switch a running
-session's model. A subagent can be STARTED on one, and begins with a fresh context while this
-session re-sends roughly half a million tokens of prefix per call.
+**Delegate what `task start` tells you to, and nothing else.** Codex workers use Terra
+for bounded simple/medium work, Sol for declared complexity or named quality failure, and Astra
+only for declared high risk. A startup-work refusal means continue in the coordinator; never
+present advice as an applied switch or switch active-task identity.
 
 **The closure is not delegated.** The subagent does the work and reports; verification, the
 evidence lines and `task done` stay here. A receipt signed by a worker nobody reviewed is the

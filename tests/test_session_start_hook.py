@@ -8,11 +8,31 @@ it has context to share.
 from __future__ import annotations
 
 import json
+import importlib
 import os
 import subprocess
 import sys
 
 _HOOK_PATH = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks", "session_start.py")
+
+
+def test_context_uses_one_compact_state_call_and_stays_bounded(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(os.path.dirname(_HOOK_PATH)))
+    hook = importlib.import_module("session_start")
+    calls = []
+    monkeypatch.setattr(hook, "_tausik_path", lambda project_dir: "tausik")
+    monkeypatch.setattr(
+        hook,
+        "_run_tausik",
+        lambda cmd, args, project_dir: calls.append(args) or '{"tasks_active":1}',
+    )
+    monkeypatch.setattr(hook, "_rag_summary", lambda project_dir: "RAG: ready")
+
+    context = hook.build_context(str(tmp_path))
+
+    assert calls == [["status", "--compact"]]
+    assert len(context.encode()) <= hook.MAX_CONTEXT_BYTES
+    assert "task show <slug> --package" in context
 
 
 def _run_hook(project_dir: str, extra_env: dict | None = None) -> subprocess.CompletedProcess:
@@ -23,7 +43,8 @@ def _run_hook(project_dir: str, extra_env: dict | None = None) -> subprocess.Com
         [sys.executable, _HOOK_PATH],
         input="{}",
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         timeout=15,
         env=env,
     )
@@ -59,7 +80,8 @@ class TestSessionStartHook:
             [sys.executable, _HOOK_PATH],
             input="",
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=15,
             env=env,
         )
@@ -97,7 +119,8 @@ class TestSessionStartHook:
             [sys.executable, _HOOK_PATH],
             input="{}",
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=15,
             env=env,
             cwd=str(tmp_path),

@@ -3,7 +3,7 @@ slug: r-is-longmemeval-applicable-to-project-fact-memory
 title: "R: применим ли LongMemEval к памяти о фактах проекта, или ответ «неприменимо» и его надо сказать вслух"
 status: planning
 epic: release-110-deferred-from-19
-story: deferred-110-architecture-and-research
+story: unscheduled-research
 complexity: medium
 role: architect
 stack: null

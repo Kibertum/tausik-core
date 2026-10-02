@@ -25,22 +25,24 @@ _COLLECT_SUMMARY_RE = re.compile(r"^(\d+)\s+tests?\s+collected\b", re.MULTILINE)
 _COLLECT_TIMEOUT_S = 60
 
 
-def count_tests(repo_root: Path) -> int:
+def count_tests(repo_root: Path, ignored_paths: tuple[str, ...] = ()) -> int:
     """Return total pytest test count (no marker filter).
 
     Spawns ``pytest --collect-only -q --override-ini="addopts="`` from
     ``repo_root`` and parses the trailing ``N tests collected`` line. Raises
     ``ValueError`` if the summary cannot be located or pytest exits non-zero.
     """
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "--collect-only",
+        "-q",
+        "--override-ini=addopts=",
+        *(f"--ignore={path}" for path in ignored_paths),
+    ]
     proc = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "--collect-only",
-            "-q",
-            "--override-ini=addopts=",
-        ],
+        command,
         cwd=str(repo_root),
         capture_output=True,
         text=True,

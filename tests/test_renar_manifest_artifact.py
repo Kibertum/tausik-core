@@ -33,7 +33,11 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 
-from conftest import DORMANT_WITHOUT_LIVE_DB  # noqa: E402
+from conftest import (  # noqa: E402
+    DORMANT_ON_PUBLIC_SNAPSHOT,
+    DORMANT_WITHOUT_LIVE_DB,
+    IS_PUBLIC_SNAPSHOT,
+)
 
 from renar_conformance import generate  # noqa: E402
 
@@ -90,8 +94,8 @@ def test_header_names_where_previous_versions_live():
 
 
 @pytest.mark.skipif(
-    not os.path.isfile(PROJECT_DB),
-    reason=DORMANT_WITHOUT_LIVE_DB,
+    IS_PUBLIC_SNAPSHOT or not os.path.isfile(PROJECT_DB),
+    reason=(DORMANT_ON_PUBLIC_SNAPSHOT if IS_PUBLIC_SNAPSHOT else DORMANT_WITHOUT_LIVE_DB),
 )
 def test_committed_manifest_is_not_stale():
     """Substantive fields must match what the live DB yields today.

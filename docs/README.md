@@ -33,6 +33,7 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | **[Artifact graph](en/graph.md)** | What changes with what, and on what evidence |
 | **[Symbol index](en/symbol-index.md)** | A definition, its file:line and callers, in one call |
 | **[Architecture](en/architecture.md)** | How the framework works inside |
+| **[2.0 package layout](en/package-layout-2.0.md)** | Why `scripts/` is flat today and how it will become packages |
 | **[Roles](en/roles.md)** | Free-text roles (developer, qa, architect…) |
 | **[Stacks](en/stacks.md)** | Tech stacks and stack-scoped gates |
 
@@ -43,7 +44,6 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | **[Verify glossary](en/verify-glossary.md)** | Opt-out vs bypass vs test shim — single terminology |
 | **[Testing principles](en/testing-principles.md)** | When to add tests, scoped pytest, anti-patterns |
 | **[Doctor](en/doctor.md)** | Health-check command — venv + DB + drift + gates |
-| **[Zero-defect mode](en/zero-defect.md)** | High-stakes precision mode for security/migration |
 | **[Dev doc checks](en/dev-doc-checks.md)** | Doc-constants drift + audit scripts how-to |
 
 ### Configuration
@@ -134,8 +134,9 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 | **[Намеренные пробелы](ru/known-limitations.md)** | Что НЕ гарантировано: пробелы с названной причиной, открытые дефекты, вне области |
 | **[Контракт агента](ru/agent-contract.md)** | Расширенная справка агента: механика QG-2, оценка, Rule 4/7, стеки |
 | **[CLI-команды](ru/cli.md)** | Справочник команд терминала |
-| **[MCP-инструменты](ru/mcp.md)** | 152 инструмента для AI-агента |
+| **[MCP-инструменты](ru/mcp.md)** | 147 project-инструментов для AI-агента |
 | **[Архитектура](ru/architecture.md)** | Как устроен фреймворк внутри |
+| **[Пакетная архитектура 2.0](ru/package-layout-2.0.md)** | Почему `scripts/` плоский и как он станет пакетами |
 | **[Роли](ru/roles.md)** | Free-text роли (developer, qa, architect…) |
 | **[Стэки](ru/stacks.md)** | Технологические стэки и stack-scoped gates |
 
@@ -146,7 +147,6 @@ These are agent-facing specifications consumed by AI assistants — not user-fac
 | **[Глоссарий verify](ru/verify-glossary.md)** | Opt-out, bypass и тестовый shim — единая терминология |
 | **[Принципы тестирования](ru/testing-principles.md)** | Когда писать тесты, scoped pytest, анти-паттерны |
 | **[Doctor](ru/doctor.md)** | Health-check: venv + DB + drift + gates |
-| **[Zero-defect режим](ru/zero-defect.md)** | High-stakes precision для security/миграций |
 | **[Dev doc checks](ru/dev-doc-checks.md)** | Doc-constants drift + audit скрипты |
 
 ### Конфигурация

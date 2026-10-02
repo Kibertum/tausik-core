@@ -35,6 +35,10 @@ from bootstrap_templates import (  # noqa: E402
     ANSWER_SHAPE_MAX_CHARS,
     build_full_body,
 )
+from bootstrap_rules_upgrade import (  # noqa: E402
+    _LEGACY_ANSWER_SHAPE_BODY,
+    reconcile_answer_shape,
+)
 
 CROSSCUTTING_SCOPE = ["bootstrap/"]
 
@@ -53,13 +57,13 @@ SHAPE_PARTS = {
 EXCEPTIONS = {
     "explanation requested": r"explanation",
     "destructive needs confirmation": r"destructive",
-    "three failed debugging turns": r"three failed debugging turns",
+    "three failed debugging turns": r"3 failed debug turns",
     "genuine ambiguity": r"ambiguity",
     "rule would delete the answer": r"answer itself",
 }
 PRE_SEND_DELETIONS = {
     "intent announcement": r"announc",
-    "closing recap": r"closing",
+    "closing recap": r"recap",
     "side branch": r"side ?(branch|bar)",
     "empty hedge": r"hedge",
 }
@@ -157,6 +161,35 @@ def test_the_keep_lists_survived_the_rewrite(directive):
     on: a shape that compressed code or AC evidence would be a regression."""
     for term in ("code", "shell commands", "tool output", "file paths", "error messages"):
         assert term in directive, term
+
+
+def test_controlled_prose_is_multilingual_guidance_not_a_compliance_claim(directive):
+    terms = (
+        "no ASD-STE100 claim",
+        "name actor/action",
+        "active voice if natural",
+        "one action/sentence",
+        "one term/concept",
+        "short paragraphs",
+    )
+    assert all(term in directive for term in terms)
+
+
+def test_existing_rules_upgrade_only_the_exact_legacy_contract(tmp_path, directive):
+    legacy = tmp_path / "legacy.md"
+    legacy.write_text(
+        "# User rules\n\n## Answer shape\n\n" + _LEGACY_ANSWER_SHAPE_BODY,
+        encoding="utf-8",
+    )
+    custom = tmp_path / "custom.md"
+    custom.write_text(
+        "# User rules\n\n## Answer shape\n\n- My custom answer rule.\n", encoding="utf-8"
+    )
+
+    assert reconcile_answer_shape(str(legacy), "## Answer shape", directive) == "upgraded"
+    assert "PROSE (no ASD-STE100 claim)" in legacy.read_text(encoding="utf-8")
+    assert reconcile_answer_shape(str(custom), "## Answer shape", directive) is None
+    assert "My custom answer rule" in custom.read_text(encoding="utf-8")
     for term in (
         "acceptance-criteria evidence",
         "decisions",

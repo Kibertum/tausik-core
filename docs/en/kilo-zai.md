@@ -4,24 +4,39 @@
 
 <!-- doc-map: reader=user; zone=ide-and-skills -->
 
-TAUSIK runs on **z.ai GLM** models under any Anthropic-compatible host. GLM is a
-**model family** (axis-2) — pure data in `model_profiles`, not
-code — so it is **independent of which host you run in**. The simplest and most
-capable path is **Claude Code**: the host is unchanged, so every SENAR gate keeps
-firing and only the `model` field reads `glm-*`.
+TAUSIK treats **z.ai GLM** as a model family and the program that runs it as a
+separate host. Routing profiles are portable data; enforcement and usage evidence
+remain host-specific. Claude Code and Kilo therefore need separate validation.
 
 - **Host** (axis-1) = Claude Code / Kilo / Cursor / Qwen — owns the bootstrap
   directory, the MCP config, and active-model detection.
 - **Model family** (axis-2) = Claude vs z.ai GLM — pure data. Switching or adding
   GLM models needs **no code change**.
 
-z.ai's endpoint is **Anthropic-compatible**, so the session transcript looks
-exactly like Claude's — routing, verdicts, and cost all work unchanged.
+An Anthropic-compatible endpoint does not make another host's transcript, gates,
+quota or cost semantics identical to Claude Code. TAUSIK only claims the surfaces
+measured on each host.
 
 > **Subscription, not per-token.** The z.ai **GLM Coding Plan** (from ~$10/mo) is
 > a flat-fee subscription with usage quotas — not pay-as-you-go API billing. Same
 > spirit as running Claude Code on a Max/Pro plan; you keep working on a
 > subscription rather than metered tokens.
+
+### Kilo usage evidence in 1.11
+
+Kilo 7.8.1 exposes a documented local SQLite session store. TAUSIK reads it in
+read-only mode with `tausik metrics tokens --host kilo --json` or MCP
+`tausik_metrics({"host":"kilo"})`. The two surfaces share one implementation,
+deduplicate resumed responses and reconcile the five disjoint Kilo counters against
+session totals. The sanitized project cache contains no prompts, credentials or raw
+paths.
+
+The report records observed Kilo, provider and model versions. Subscription quota,
+task attribution and price remain unknown because the source does not expose them.
+The adapter has been reconciled against real Kilo sessions. A deliberate GLM smoke
+reached Kilo Gateway but failed before generation with HTTP 402; the report therefore
+shows one failed GLM record and zero completed GLM responses. Live parity remains
+pending credits or a configured z.ai subscription.
 
 ---
 
@@ -55,9 +70,9 @@ set `"default_family": "glm"` in `.tausik/config.json` (see §4).
 > and not a pay-as-you-go wallet. z.ai documents the Coding Plan for Claude Code,
 > but pin this down first.
 
-The **same two env vars** also drive **Kilo** and any other Anthropic-compatible
-host — the sections below cover Kilo-specific bootstrap. Available GLM models
-today include `glm-4.5-air`, `glm-4.6`, and the `glm-5.x` line (§4).
+Kilo configures providers through its own host surface; do not infer its active
+provider from Claude Code environment variables. The sections below cover
+Kilo-specific bootstrap and model detection.
 
 ## 2. Bootstrap TAUSIK for Kilo
 

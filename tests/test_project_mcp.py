@@ -114,6 +114,19 @@ class TestTaskCRUD:
         result = _handle_tool(seeded, "tausik_task_start", {"slug": "t1"})
         assert "started" in result
 
+    def test_task_start_can_return_context_in_same_result(self, seeded):
+        seeded.task_update(
+            "t1",
+            goal="Test goal",
+            acceptance_criteria="1. Context returned. Negative: omissions are explicit.",
+        )
+        result = json.loads(
+            _handle_tool(seeded, "tausik_task_start", {"slug": "t1", "package": True})
+        )
+        assert result["ok"] is True
+        assert result["started"] is True
+        assert result["context"]["required"]["status"] == "active"
+
     def test_task_done_returns_structured_json(self, seeded):
         seeded.task_start("t1", _internal_force=True)
         result = _handle_tool(seeded, "tausik_task_done", {"slug": "t1"})
@@ -121,6 +134,68 @@ class TestTaskCRUD:
         assert payload["slug"] == "t1"
         assert payload["ok"] is True
         assert payload["gates_passed"] is True
+
+    def test_task_done_does_not_stream_gate_progress_to_model_context(self):
+        class Service:
+            def _task_done_report(self, _slug, **kwargs):
+                assert kwargs["progress_fn"] is None
+                return {
+                    "ok": False,
+                    "slug": "work",
+                    "gates_passed": False,
+                    "gates": [],
+                    "blocking_failures": [{"stage": "plan", "message": "unfinished"}],
+                }
+
+        from handlers_task import _do_task_done
+
+        payload = json.loads(_do_task_done(Service(), {"slug": "work"}))
+        assert payload["blocking_failures"][0]["message"] == "unfinished"
+
+    def test_task_done_persists_full_gate_output_but_returns_a_bounded_failure(self, tmp_path):
+        huge = "lint progress\n" * 2_000 + "fatal.py:1: failure"
+
+        class Service:
+            def tausik_dir(self):
+                return str(tmp_path / ".tausik")
+
+            def _task_done_report(self, _slug, **_kwargs):
+                return {
+                    "ok": False,
+                    "slug": "work",
+                    "gates_passed": False,
+                    "cache_status": "miss",
+                    "gates": [
+                        {
+                            "name": "ruff",
+                            "outcome": "FAILED",
+                            "passed": False,
+                            "skipped": False,
+                            "severity": "block",
+                            "output": huge,
+                        }
+                    ],
+                    "blocking_failures": [
+                        {
+                            "stage": "gates",
+                            "gate": "ruff",
+                            "output": huge,
+                            "message": "QG-2 Implementation Gate failed: ruff",
+                        }
+                    ],
+                }
+
+        from handlers_task import _do_task_done
+
+        result = _do_task_done(Service(), {"slug": "work"})
+        payload = json.loads(result)
+
+        assert len(result.encode("utf-8")) < 3_000
+        assert result.count("lint progress") <= 4
+        assert huge not in result
+        assert "Actionable failures: showing 1/1" in payload["validation_summary"]
+        evidence = payload["blocking_failures"][0]["evidence"]
+        assert huge in (tmp_path / evidence).read_text(encoding="utf-8")
 
     def test_task_block_unblock(self, seeded):
         seeded.task_start("t1", _internal_force=True)
