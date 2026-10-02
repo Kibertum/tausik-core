@@ -60,10 +60,10 @@ CLI: ВСЕГДА `.tausik/tausik <команда>`. НИКОГДА `python scri
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #281 (active) | Branch: v1-11 | TAUSIK: 1.10.1
-Tasks: 1740/1829 done, 8 obsolete, 5 active, 2 blocked
-Active: public-snapshot-tests-read-excluded-files, r111-economy-hardening-acceptance, r111-verification-cycle-replay, audit-and-trim-111-public-release-snapshot, prepare-clean-111-release-snapshot
-Blocked: memory-tail-by-relevance-not-recency, site-is-rebuilt-from-the-core-docs-of-the-release
+Session: #273 (active) | Branch: v1-11 | TAUSIK: 1.11.0
+Tasks: 1751/1840 done, 8 obsolete, 4 active, 1 blocked
+Active: public-snapshot-tests-read-excluded-files, r111-economy-hardening-acceptance, r111-verification-cycle-replay, audit-and-trim-111-public-release-snapshot
+Blocked: memory-tail-by-relevance-not-recency
 Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\2fb2646a-10b7-4fc5-8fb4-be2e70726533.jsonl
 
 ### Memory tail
@@ -86,9 +86,9 @@ Conventions (5):
 - #777 Намеренный пробел объявляется тремя строками: что НЕ гарантировано, почему живём, что держит границу
 - #776 Отчёт о прогоне называет и deselected, иначе «11592 passed» скрывает выключенную ленту
 Dead ends (3):
-- #860 Close the read-only audit immediately after a no-tests-expected verify
-- #859 Create an unreferenced candidate commit with a generated temporary index in one PowerShell command
-- #857 Apply the router, hook, tests, docs, and changelog in one patch
+- #866 Put the host fixture in global conftest.py
+- #865 Place pytestmark before deferred project imports
+- #864 Run final canonical verify with --no-prepare
 
 **Shared knowledge — from other projects (11):**
 - [decision] v139-D (клиентский mux) НЕ делается в 1.3.9 как «фикс троттлинга». Предпосылка задачи неверна для на
