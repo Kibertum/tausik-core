@@ -41,9 +41,88 @@ def test_package_carries_required_intent_and_commands(svc):
     assert required["relevant_files"] == ["scripts/a.py", "tests/test_a.py"]
     assert required["plan"] == []
     assert required["verification"]["verify"].endswith("--task work")
+    assert required["review_route"]["depth"] == "L2"
+    assert "assurance_profiles" in required["review_route"]["missing_inputs"]
     assert package["bytes"] <= package["max_bytes"]
     encoded = json.dumps(package, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     assert package["bytes"] == len(encoded.encode())
+
+
+def test_package_exposes_residual_assurance_without_fabricating_l1(svc):
+    svc.task_update(
+        "work",
+        assurance_profiles=["declarative"],
+        assurance_impact={
+            "level": "low",
+            "blast_radius": "local",
+            "reversibility": "reversible",
+        },
+    )
+    assurance = build_task_context_package(svc, "work")["required"]["assurance"]
+    assert assurance["profiles"] == ["declarative"]
+    assert assurance["observed_evidence"] == []
+    assert assurance["depth"] == "L2"
+    assert "behavior" in assurance["residual_gaps"]
+    route = build_task_context_package(svc, "work")["required"]["review_route"]
+    assert route["depth"] == "L2"
+    assert route["execution"]["reviewer_invocations"] == 1
+
+
+def test_review_route_reads_the_service_project_config_not_ambient_cwd(svc, tmp_path, monkeypatch):
+    service_tausik = Path(svc.tausik_dir())
+    service_tausik.mkdir(parents=True, exist_ok=True)
+    (service_tausik / "config.json").write_text(
+        json.dumps({"review": {"extreme_hard_floor": True}}), encoding="utf-8"
+    )
+    ambient = tmp_path / "ambient"
+    (ambient / ".tausik").mkdir(parents=True)
+    (ambient / ".tausik" / "config.json").write_text(
+        json.dumps({"review": {"extreme_hard_floor": False}}), encoding="utf-8"
+    )
+    monkeypatch.chdir(ambient)
+    svc.task_update(
+        "work",
+        assurance_profiles=["executable"],
+        assurance_impact={
+            "level": "high",
+            "blast_radius": "broad",
+            "reversibility": "conditional",
+            "security_boundary": True,
+        },
+    )
+
+    route = build_task_context_package(svc, "work")["required"]["review_route"]
+
+    assert route["depth"] == "L3"
+    assert route["deep"] is True
+    assert route["execution"]["reviewer_invocations"] == 7
+
+
+def test_assurance_uses_target_project_stack_override_not_ambient_cwd(svc, tmp_path, monkeypatch):
+    service_tausik = Path(svc.tausik_dir())
+    target_stack = service_tausik / "stacks" / "python"
+    target_stack.mkdir(parents=True)
+    (target_stack / "stack.json").write_text(
+        json.dumps(
+            {
+                "name": "python",
+                "extends": "builtin:python",
+                "assurance_profiles": ["executable"],
+                "assurance_impact": {"governance_boundary": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    ambient = tmp_path / "ambient-stack"
+    (ambient / ".tausik" / "stacks").mkdir(parents=True)
+    monkeypatch.chdir(ambient)
+    svc.task_update("work", stack="python")
+
+    package = build_task_context_package(svc, "work")["required"]
+
+    assert package["assurance"]["profiles"] == ["executable"]
+    assert package["assurance"]["hard_floor"] == "L3"
+    assert package["review_route"]["depth"] == "L3"
 
 
 def test_fingerprint_changes_with_task_context(svc):
@@ -114,3 +193,34 @@ def test_mcp_task_show_exposes_package_without_adding_a_tool(svc, monkeypatch):
     schema = next(tool for tool in TOOLS if tool["name"] == "tausik_task_show")["inputSchema"]
     assert result["required"]["slug"] == "work"
     assert schema["properties"]["mode"]["enum"] == ["full", "package"]
+
+
+def test_mcp_task_update_accepts_assurance_declarations(svc, monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[1] / "harness/claude/mcp/project"))
+    from handlers_task import _do_task_update
+    from tools import TOOLS
+
+    _do_task_update(
+        svc,
+        {
+            "slug": "work",
+            "assurance_profiles": ["declarative"],
+            "assurance_impact": {
+                "level": "low",
+                "blast_radius": "local",
+                "reversibility": "reversible",
+            },
+        },
+    )
+    task = svc.task_show("work")
+    schema = next(tool for tool in TOOLS if tool["name"] == "tausik_task_update")
+    assert json.loads(task["assurance_profiles"]) == ["declarative"]
+    assert json.loads(task["assurance_impact"])["reversibility"] == "reversible"
+    assert {"assurance_profiles", "assurance_impact"} <= schema["inputSchema"]["properties"].keys()
+
+
+def test_task_update_rejects_non_string_assurance_impact_enum(svc):
+    from tausik_utils import ServiceError
+
+    with pytest.raises(ServiceError, match="assurance_impact.level must be one of"):
+        svc.task_update("work", assurance_impact={"level": []})

@@ -79,6 +79,21 @@ def test_an_l3_on_a_different_family_is_recorded_with_both_models():
     )
 
 
+def test_codex_models_use_the_same_separation_contract():
+    svc = _Svc()
+    _record(
+        svc,
+        "--type",
+        "L3",
+        "--author-model",
+        "gpt-5.6-sol",
+        "--reviewer-model",
+        "gpt-6-astra",
+    )
+    assert svc.be.rows[0]["author_model"] == "gpt-5.6-sol"
+    assert svc.be.rows[0]["reviewer_model"] == "gpt-6-astra"
+
+
 @pytest.mark.parametrize("level", ["L1", "L2"])
 def test_l1_and_l2_need_no_models(level):
     svc = _Svc()

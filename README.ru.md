@@ -10,9 +10,9 @@ TAUSIK встаёт поверх ИИ-агента, которым вы уже �
 
 **Где это стоит.** Поле называет эту дисциплину *harness engineering*: харнесс — это цикл агента, интерфейс инструментов, управление контекстом и механизмы контроля. TAUSIK — не харнесс: цикл и инструменты принадлежат Claude Code, Cursor, Codex и другим. Это слой проверки и контроля поверх них, и его отличие в том, что без доказательства ничто не считается сделанным.
 
-[![v1.11.0](https://img.shields.io/badge/version-v1.11.0-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.11.1](https://img.shields.io/badge/version-v1.11.1-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![12802 tests](https://img.shields.io/badge/tests-12802-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
+[![12920 tests](https://img.shields.io/badge/tests-12920-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#доказательство-tausik-построен-на-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -171,9 +171,9 @@ Run `tausik verify --task fix-mobile-button` first.
 Каждая функция и каждое исправление TAUSIK прошли через те же контрольные точки, что поставляются в коробке.
 
 - **Каждая задача закрыта с целью и критериями приёмки**, ни одна — без пройденной проверки.
-- **12802 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
+- **12920 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
 - **0 зависимостей ядра** — стандартная библиотека Python 3.11+; MCP-пакеты живут в изолированном `.tausik/venv/`.
-- **Один исходящий запрос** — не чаще раза в день анонимный GET на `api.github.com/repos/Kibertum/tausik-core/releases/latest`, чтобы узнать о новой версии. Без имени проекта, пути и пользователя. Выключается `"updates": {"check": false}` в `.tausik/config.json`. Всё остальное остаётся на вашей машине.
+- **Одна объявленная точка проверки обновлений** — каждая попытка начать сессию отправляет анонимный GET на `api.github.com/repos/Kibertum/tausik-core/releases/latest`; более новая версия блокирует старт. Запрос не содержит имя проекта, путь, пользователя, версию схемы или установленную версию. `"updates": {"check": false}` в `.tausik/config.json` не отправляет запрос и разрешает старт с явным предупреждением о непроверенной версии. Отдельная кэшируемая проверка остаётся не чаще раза в сутки.
 
 ## Стандарт, на котором это стоит
 
@@ -181,7 +181,7 @@ TAUSIK conforms to SENAR v1.5 Core, self-declared, as of 2026-09-23. [SENAR](htt
 
 ## Что нового
 
-**[Что изменилось в 1.10 →](docs/ru/whats-new-1.10.md)**, включая несовместимые изменения и что делать с каждым. Раньше: **[1.9 →](docs/ru/whats-new-1.9.md)**, **[1.8 →](docs/ru/whats-new-1.8.md)**. Нашли расхождение документации и поведения? [Заведите issue](https://github.com/Kibertum/tausik-core/issues).
+**[Что изменилось в 1.11 →](docs/ru/whats-new-1.11.md)**, включая измеренные улучшения и их честные ограничения. Раньше: **[1.10 →](docs/ru/whats-new-1.10.md)**, **[1.9 →](docs/ru/whats-new-1.9.md)**, **[1.8 →](docs/ru/whats-new-1.8.md)**. Нашли расхождение документации и поведения? [Заведите issue](https://github.com/Kibertum/tausik-core/issues).
 
 ## Лицензия
 

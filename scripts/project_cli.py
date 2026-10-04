@@ -188,6 +188,11 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
         host_id = getattr(args, "host_id", None)
         if host_id:
             from service_host_context import native_identity, open_session
+            from update_check import session_start_release_check
+
+            version_check = session_start_release_check(svc)
+            if version_check.get("warning"):
+                print(f"WARNING: {version_check['warning']}", file=sys.stderr)
 
             host, native_thread = native_identity()
             result = open_session(
@@ -203,7 +208,9 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
                 }
             print(json.dumps(result, ensure_ascii=False, default=str))
         else:
-            print(svc.session_start())
+            from update_check import checked_session_start
+
+            print(checked_session_start(svc))
     elif c == "end":
         print(svc.session_end(args.summary, getattr(args, "host_id", None)))
     elif c == "current":

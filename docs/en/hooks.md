@@ -6,6 +6,8 @@
 
 TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **23 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 24 gates in total (v1.4 introduced `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, and `task_cost_budget_check.py`; 1.8 added `scope_write_gate.py` and `bash_write_gate.py`; 1.9 added `read_ledger_gate.py`, off by default).
 
+The default `governance_profile: "full"` deploys the table below. An explicit project-level `"memory-only"` profile deploys only `memory_pretool_block.py` and `memory_posttool_audit.py` on hook-capable hosts, removes the OpenCode QG-0 plugin, and retains TAUSIK MCP/RAG/data. Use this profile for repositories where project memory is useful but TAUSIK task/verify ceremony is not. It is never inferred from an infrastructure stack. See [configuration](configuration.md#governance-footprint) for the guarantees deliberately lost.
+
 ## What Are Hooks
 
 Hooks are scripts that run automatically with every agent action. They decide whether an action can be performed (PreToolUse), what to do afterward (PostToolUse), or what to record on session/agent boundaries (SessionStart, Stop, UserPromptSubmit). Shared helpers live in `scripts/hooks/_common.py` (not a hook itself); the regex set in `scripts/hooks/memory_markers.py` is a library imported by `memory_posttool_audit.py` and the brain-scrubbing pipeline.
@@ -151,7 +153,7 @@ Agent: tausik task done my-button --ac-verified
 
 For testing or debugging: set `TAUSIK_SKIP_HOOKS=1`.
 
-In `.claude/settings.json` hooks are generated automatically during bootstrap. To disable a specific hook, remove it from the `hooks` section. To re-generate the file, run `python .tausik-lib/bootstrap/bootstrap.py --refresh`.
+Hooks are generated automatically during bootstrap. Do not maintain a hand-trimmed generated hook list: the next bootstrap replaces it. Select the supported project-wide `governance_profile: "memory-only"` when only memory routing/audit should remain, then re-run bootstrap. Use `"full"` to restore the complete declaration.
 
 ## What's Next
 

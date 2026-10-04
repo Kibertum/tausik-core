@@ -295,6 +295,8 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             "tier",
             "cost_budget_usd",
             "token_budget",
+            "assurance_profiles",
+            "assurance_impact",
         ):
             v = getattr(args, k, None)
             if v is not None:

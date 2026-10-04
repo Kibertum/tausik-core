@@ -212,6 +212,15 @@ def test_memory_tail_truncates_long_text():
     assert len(long_line) < 200, "decision lines must be truncated to ~120 chars"
 
 
+def test_memory_tail_truncation_never_leaves_trailing_whitespace():
+    from service_knowledge_aggregates import build_compact_memory_tail as _build_memory_tail
+
+    text = "x" * 119 + " " + "remainder"
+    out = _build_memory_tail(_BeStub(decisions=[{"id": 1, "decision": text}]))
+
+    assert all(line == line.rstrip() for line in out)
+
+
 def test_memory_tail_only_decisions_no_conventions_or_deadends():
     from service_knowledge_aggregates import build_compact_memory_tail as _build_memory_tail
 

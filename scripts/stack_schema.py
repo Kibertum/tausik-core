@@ -38,6 +38,8 @@ _TOP_LEVEL_KEYS = frozenset(
         "gates",
         "guide_path",
         "extensions_extra",
+        "assurance_profiles",
+        "assurance_impact",
     }
 )
 
@@ -71,60 +73,49 @@ def validate_decl(decl: Any, source: str = "<unknown>") -> list[str]:
     for k in decl:
         if k not in _TOP_LEVEL_KEYS:
             errors.append(
-                f"{prefix}unknown top-level field {k!r}. "
-                f"Allowed: {sorted(_TOP_LEVEL_KEYS)}"
+                f"{prefix}unknown top-level field {k!r}. Allowed: {sorted(_TOP_LEVEL_KEYS)}"
             )
 
     # version
     if "version" in decl and not isinstance(decl["version"], str):
-        errors.append(
-            f"{prefix}'version' must be a string, got {type(decl['version']).__name__}"
-        )
+        errors.append(f"{prefix}'version' must be a string, got {type(decl['version']).__name__}")
 
     # extends
     if "extends" in decl and decl["extends"] is not None:
         ext = decl["extends"]
         if not isinstance(ext, str):
-            errors.append(
-                f"{prefix}'extends' must be a string or null, got {type(ext).__name__}"
-            )
+            errors.append(f"{prefix}'extends' must be a string or null, got {type(ext).__name__}")
         elif not _EXTENDS_RE.match(ext):
-            errors.append(
-                f"{prefix}'extends' must match 'builtin:NAME' pattern, got {ext!r}"
-            )
+            errors.append(f"{prefix}'extends' must match 'builtin:NAME' pattern, got {ext!r}")
 
     # detect
     errors.extend(_validate_detect(decl.get("detect"), prefix))
 
     # extensions
-    errors.extend(
-        _validate_str_list(decl.get("extensions"), "extensions", prefix, _EXT_RE)
-    )
+    errors.extend(_validate_str_list(decl.get("extensions"), "extensions", prefix, _EXT_RE))
     # extensions_extra (same shape)
     errors.extend(
-        _validate_str_list(
-            decl.get("extensions_extra"), "extensions_extra", prefix, _EXT_RE
-        )
+        _validate_str_list(decl.get("extensions_extra"), "extensions_extra", prefix, _EXT_RE)
     )
 
     # filenames
-    errors.extend(
-        _validate_str_list(decl.get("filenames"), "filenames", prefix, _FILENAME_RE)
-    )
+    errors.extend(_validate_str_list(decl.get("filenames"), "filenames", prefix, _FILENAME_RE))
 
     # path_hints
-    errors.extend(
-        _validate_str_list(decl.get("path_hints"), "path_hints", prefix, _PATH_HINT_RE)
-    )
+    errors.extend(_validate_str_list(decl.get("path_hints"), "path_hints", prefix, _PATH_HINT_RE))
 
     # gates
     errors.extend(_validate_gates(decl.get("gates"), prefix))
 
+    from assurance_policy import validate_impact, validate_profiles
+
+    errors.extend(f"{prefix}{error}" for error in validate_profiles(decl.get("assurance_profiles")))
+    errors.extend(f"{prefix}{error}" for error in validate_impact(decl.get("assurance_impact")))
+
     # guide_path
     if "guide_path" in decl and not isinstance(decl["guide_path"], str):
         errors.append(
-            f"{prefix}'guide_path' must be a string, got "
-            f"{type(decl['guide_path']).__name__}"
+            f"{prefix}'guide_path' must be a string, got {type(decl['guide_path']).__name__}"
         )
 
     return errors
@@ -142,9 +133,7 @@ def _validate_detect(detect: Any, prefix: str) -> list[str]:
     for i, entry in enumerate(detect):
         loc = f"detect[{i}]"
         if not isinstance(entry, dict):
-            errors.append(
-                f"{prefix}{loc}: must be an object, got {type(entry).__name__}"
-            )
+            errors.append(f"{prefix}{loc}: must be an object, got {type(entry).__name__}")
             continue
         # required: file, type
         if "file" not in entry:
@@ -161,8 +150,7 @@ def _validate_detect(detect: Any, prefix: str) -> list[str]:
         # optional: keyword
         if "keyword" in entry and not isinstance(entry["keyword"], str):
             errors.append(
-                f"{prefix}{loc}.keyword: must be a string, got "
-                f"{type(entry['keyword']).__name__}"
+                f"{prefix}{loc}.keyword: must be a string, got {type(entry['keyword']).__name__}"
             )
         # reject unknown fields
         for k in entry:
@@ -171,9 +159,7 @@ def _validate_detect(detect: Any, prefix: str) -> list[str]:
     return errors
 
 
-def _validate_str_list(
-    value: Any, field: str, prefix: str, item_re: re.Pattern
-) -> list[str]:
+def _validate_str_list(value: Any, field: str, prefix: str, item_re: re.Pattern) -> list[str]:
     if value is None:
         return []
     errors: list[str] = []
@@ -182,14 +168,10 @@ def _validate_str_list(
     seen: set[str] = set()
     for i, item in enumerate(value):
         if not isinstance(item, str):
-            errors.append(
-                f"{prefix}{field}[{i}]: must be a string, got {type(item).__name__}"
-            )
+            errors.append(f"{prefix}{field}[{i}]: must be a string, got {type(item).__name__}")
             continue
         if not item_re.match(item):
-            errors.append(
-                f"{prefix}{field}[{i}]: must match {item_re.pattern}, got {item!r}"
-            )
+            errors.append(f"{prefix}{field}[{i}]: must match {item_re.pattern}, got {item!r}")
         if item in seen:
             errors.append(f"{prefix}{field}[{i}]: duplicate entry {item!r}")
         seen.add(item)
@@ -205,8 +187,7 @@ def _validate_gates(gates: Any, prefix: str) -> list[str]:
     for gname, gcfg in gates.items():
         if not isinstance(gname, str) or not _GATE_NAME_RE.match(gname):
             errors.append(
-                f"{prefix}gates: gate name must match {_GATE_NAME_RE.pattern}, "
-                f"got {gname!r}"
+                f"{prefix}gates: gate name must match {_GATE_NAME_RE.pattern}, got {gname!r}"
             )
             continue
         # null = disable inherited gate; allowed.
@@ -214,8 +195,7 @@ def _validate_gates(gates: Any, prefix: str) -> list[str]:
             continue
         if not isinstance(gcfg, dict):
             errors.append(
-                f"{prefix}gates.{gname}: must be an object or null, got "
-                f"{type(gcfg).__name__}"
+                f"{prefix}gates.{gname}: must be an object or null, got {type(gcfg).__name__}"
             )
             continue
         errors.extend(_validate_gate_cfg(gcfg, prefix, gname))
@@ -251,16 +231,19 @@ def _validate_gate_cfg(gcfg: dict, prefix: str, gname: str) -> list[str]:
         if list_field in gcfg:
             v = gcfg[list_field]
             if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
-                errors.append(
-                    f"{prefix}gates.{gname}.{list_field}: must be a list of strings"
-                )
+                errors.append(f"{prefix}gates.{gname}.{list_field}: must be a list of strings")
     for int_field in ("timeout", "max_lines"):
         if int_field in gcfg:
             v = gcfg[int_field]
             if not isinstance(v, int) or isinstance(v, bool) or v < 1:
-                errors.append(
-                    f"{prefix}gates.{gname}.{int_field}: must be a positive integer"
-                )
+                errors.append(f"{prefix}gates.{gname}.{int_field}: must be a positive integer")
+    if "evidence_capabilities" in gcfg:
+        from assurance_policy import validate_capabilities
+
+        errors.extend(
+            f"{prefix}gates.{gname}.{error}"
+            for error in validate_capabilities(gcfg["evidence_capabilities"])
+        )
     return errors
 
 

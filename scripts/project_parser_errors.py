@@ -15,6 +15,14 @@ from __future__ import annotations
 import argparse
 import sys
 
+from tausik_version import __version__
+
+
+def add_version_flag(parser: argparse.ArgumentParser) -> None:
+    """Register a database-free release query on the root parser."""
+    parser.add_argument("--version", action="version", version=f"TAUSIK {__version__}")
+
+
 # Known-good invocations for the commands agents most often get wrong.
 # EVERY entry is parsed against the real parser by
 # tests/test_cli_examples_parse.py — an entry here is a claim, not a comment,

@@ -1,20 +1,15 @@
-"""TAUSIK Claude Code hooks block builder.
+"""TAUSIK shared hooks block builder.
 
-Extracted from bootstrap_generate.py for filesize compliance
-(v14b-filesize-debt-paydown). Public surface:
-
-    build_hooks_dict(_hook_cmd) -> dict
-
-Returns the same hooks block previously inlined in
-generate_settings_claude. Caller passes a `_hook_cmd(script, suffix="")`
-closure that knows how to format the absolute python path. The hooks
-list / contract is unchanged — purely a relocation.
+Hosts supply `_hook_cmd(script, suffix="")`; this module owns the declaration.
 """
 
 from __future__ import annotations
 
 import os
 from typing import Any, Callable
+
+from bootstrap_governance import MEMORY_ONLY_HOOKS as MEMORY_ONLY_HOOKS
+from bootstrap_governance import filter_memory_hooks
 
 
 class HooksNotDeployedError(RuntimeError):
@@ -158,13 +153,20 @@ def with_mcp_registrations(hooks: dict[str, Any]) -> dict[str, Any]:
     return hooks
 
 
-def build_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
+def build_hooks_dict(
+    hook_cmd: Callable[..., str], governance_profile: str = "full"
+) -> dict[str, Any]:
     """Build the `hooks` block of .claude/settings.json.
 
     `hook_cmd(script, suffix="")` returns the formatted command string
     (`python <abs path>/<script><suffix>`).
     """
-    return with_mcp_registrations(_builtin_hooks_dict(hook_cmd))
+    hooks = with_mcp_registrations(_builtin_hooks_dict(hook_cmd))
+    if governance_profile == "full":
+        return hooks
+    if governance_profile != "memory-only":
+        raise ValueError(f"unknown governance profile: {governance_profile!r}")
+    return filter_memory_hooks(hooks, _script_of)
 
 
 def _builtin_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:

@@ -241,7 +241,7 @@ Track L1/L2/L3 review runs and surface the **ADR** (Adversarial Defect Rate) met
 
 ```bash
 review record --task <slug> --type {L1|L2|L3} \
-              [--critical N] [--warnings N] [--reason "..."] [--notes "..."]
+              [--critical N] [--high N] [--warnings N] [--reason "..."] [--notes "..."]
               # --critical > 0 without --reason is refused: CRITICAL is recorded
               # with its reason (SENAR 1.5 §10.15(f); scale: severity-scale.md)
               [--reviewer-model M] [--author-model M]
@@ -252,7 +252,7 @@ review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
 review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
 ```
 
-The `/review` skill calls `review record --type L3` automatically (it spawns 6 adversarial reviewer subagents in a separate context). `tausik metrics` includes an `Adversarial Review` block once any L3 reviews exist.
+The `/review` skill records L3 only when at least one adversarial reviewer runs on a different model family from the author; fresh same-family contexts qualify as L2. `tausik metrics` includes an `Adversarial Review` block once any valid L3 reviews exist.
 
 ## A bypassed gate leaves a record (SENAR 1.5 §8.6(j))
 

@@ -54,6 +54,7 @@ by hand WITHOUT the CHECK (test-ddl-drift-verification-runs).
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 from risk_model import LEVEL_HIGH, WEIGHTS
@@ -109,19 +110,53 @@ def _delegation_hint() -> str:
         return ""
 
 
-def has_l3_review(conn: sqlite3.Connection, slug: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM reviews WHERE task_slug = ? AND UPPER(run_type) = 'L3' LIMIT 1",
-        (slug,),
-    ).fetchone()
-    return row is not None
+def has_l3_review(
+    conn: sqlite3.Connection,
+    slug: str,
+    project_root: str | Path | None = None,
+) -> bool:
+    """Return whether the current task state has a valid external L3 review."""
+    from review_routing import build_review_route, review_record_blockers
+
+    route = build_review_route(
+        {
+            "depth": "L3",
+            "profiles": [],
+            "reasons": ["measured-high closure escalation requires L3 before close"],
+            "hard_floor": None,
+            "required_evidence": [],
+            "observed_evidence": [],
+            "residual_gaps": [],
+            "impact": {},
+        }
+    )
+    return not review_record_blockers(conn, slug, route, project_root)
 
 
-def _block_enabled() -> bool:
+def _target_tausik_dir(
+    conn: sqlite3.Connection | None, project_root: str | Path | None
+) -> str | None:
+    if project_root is not None:
+        return str(Path(project_root).resolve() / ".tausik")
+    if conn is None:
+        return None
+    row = conn.execute("PRAGMA database_list").fetchone()
+    db_path = str(row[2] or "") if row else ""
+    if not db_path:
+        return None
+    return str(Path(db_path).resolve().parent)
+
+
+def _block_enabled(
+    conn: sqlite3.Connection | None = None, project_root: str | Path | None = None
+) -> bool:
     try:
         from project_config import load_config
 
-        risk_cfg = load_config().get("risk", {})
+        tausik_dir = _target_tausik_dir(conn, project_root)
+        if tausik_dir is None:
+            return True
+        risk_cfg = load_config(tausik_dir).get("risk", {})
         if isinstance(risk_cfg, dict):
             return bool(risk_cfg.get("l3_block_on_high", True))
     except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
@@ -130,7 +165,10 @@ def _block_enabled() -> bool:
 
 
 def check_l3_required(
-    conn: sqlite3.Connection, slug: str, risk: dict[str, Any] | None
+    conn: sqlite3.Connection,
+    slug: str,
+    risk: dict[str, Any] | None,
+    project_root: str | Path | None = None,
 ) -> tuple[bool, str]:
     """(blocking, note) for a computed closure risk. Never raises.
 
@@ -145,7 +183,7 @@ def check_l3_required(
         ms = measured_score(risk)
         if ms is None or ms < LEVEL_HIGH:
             return False, ""
-        if has_l3_review(conn, slug):
+        if has_l3_review(conn, slug, project_root):
             return False, (
                 f"L3 escalation satisfied: measured risk {ms} >= {LEVEL_HIGH}, "
                 f"recorded L3 review found"
@@ -158,10 +196,10 @@ def check_l3_required(
             f"(SENAR Rule 10.15 selective escalation, Rule 4 external validation)."
             f"{_delegation_hint()} Then record the verdict — "
             f"`tausik review record --task {slug} --type L3 "
-            f"--critical <n> --warnings <n> [--reason ...]` — and re-run task done. "
+            f"--critical <n> --high <n> --warnings <n> [--reason ...]` — and re-run task done. "
             f"Opt out: config risk.l3_block_on_high=false."
         )
-        if not _block_enabled():
+        if not _block_enabled(conn, project_root):
             # l26-bypass-telemetry: an under-evidenced closure is being let through by
             # config instead of blocked — record it so the downgrade is
             # countable. Written on a SEPARATE short-lived connection (commit +
@@ -177,7 +215,7 @@ def check_l3_required(
             return False, f"WARNING (l3_block_on_high=false): {message}"
         return True, message
     except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
-        return False, ""
+        return True, "Under-evidenced closure: L3 review validation failed"
 
 
 def _emit_l3_downgrade(conn: sqlite3.Connection, slug: str, ms: float) -> None:

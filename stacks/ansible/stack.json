@@ -8,6 +8,7 @@
   ],
   "filenames": ["ansible.cfg"],
   "path_hints": ["/playbooks/", "/roles/"],
+  "assurance_profiles": ["declarative"],
   "gates": {
     "ansible-lint": {
       "enabled": false,
@@ -17,6 +18,7 @@
       "description": "Ansible playbook linter — lint/syntax only, NOT policy-as-code (OPA/Sentinel/Checkov NOT included).",
       "stacks": ["ansible"],
       "timeout": 120
+      ,"evidence_capabilities": ["syntax"]
     }
   }
 }

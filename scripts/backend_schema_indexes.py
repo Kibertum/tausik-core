@@ -99,4 +99,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_model ON sessions(model_id);
 CREATE INDEX IF NOT EXISTS idx_task_deps_on ON task_deps(depends_on_slug);
 CREATE INDEX IF NOT EXISTS idx_task_deps_task ON task_deps(task_slug);
 CREATE INDEX IF NOT EXISTS idx_usage_events_tool ON usage_events(tool_name, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_benchmark_task ON benchmark_observations(task_slug);
+CREATE INDEX IF NOT EXISTS idx_benchmark_cohort
+    ON benchmark_observations(tausik_version, host, provider, model, reasoning_effort, speed_mode);
+CREATE INDEX IF NOT EXISTS idx_benchmark_observed ON benchmark_observations(observed_at);
 """

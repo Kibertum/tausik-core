@@ -8,6 +8,7 @@
 ## Инициализация
 
 ```bash
+--version                      # Напечатать установленную версию TAUSIK; проект и база не нужны
 init --name <slug>             # Инициализация проекта (создаёт .tausik/tausik.db)
 init --template aidd [--force] # Скаффолдит AIDD-слои (idea.md/vision.md/conventions.md) в корень проекта.
 demo [--keep]                  # Посмотреть, как TAUSIK ловит ложное «тесты прошли», в одноразовой песочнице: без сети, без ключа LLM, ваш проект не трогается
@@ -24,7 +25,7 @@ aidd validate                  # Проверяет claim'ы из conventions.md
                                #   ok / drift / unverifiable. Exit 1 при hard drift, 2 если нет conventions.md,
                                #   0 иначе. Пустой/непарсимый claim → unverifiable, никогда не падает. Только stdlib.
 status [--compact]             # Обзор проекта + SENAR; --compact → JSON одной строкой
-update-check [--now]           # Спросить GitHub (не чаще раза в сутки, отсоединённо из SessionStart), вышла ли новая версия; status её называет
+update-check [--now]           # Обновить кэш status/doctor (не чаще раза в сутки без --now); старт сессии всегда проверяет заново
 metrics                        # Метрики SENAR: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
 metrics target NAME min|max VALUE --basis "..."   # Задать цель; без --basis отказ (SENAR §9.4(c))
                                 # Отчёт печатает метод, популяцию и период каждой цифры,
@@ -36,6 +37,8 @@ metrics log-usage              # Одна строка manual в usage_events (-
 metrics cost [--since ISO] [--until ISO]   # SUM токенов/cost и COUNT по task (slug NULL исключены)
 metrics answers [--last N] [--json]   # Форма итоговых ответов агента: слова (медиана/p90), вердикт первой строкой %, доля списков, «вода»
 metrics calls [--last N]             # Вызовы инструментов на закрытую задачу по видам (чтение/правка/запуск/скрипт/обряд/прочее), по сложности
+metrics cohorts [--json]             # Естественные accepted-task когорты по версии TAUSIK и модели
+metrics compare [selectors] [--json] # Сравнить две естественные когорты версии/модели/времени
 metrics tokens [--host claude|codex|kilo] [--last N] [--rebuild] [--json]
                                                    # Нативный расход хоста; для Claude остаётся прежний вид по инструментам
                                 # Источник: .tausik/token_metrics.jsonl — его пишет SessionEnd hook
@@ -211,7 +214,7 @@ available tasks»: очередь пуста; очередь есть, но ка
 ## Сессии
 
 ```bash
-session start [--host-id ID]    # Начать сессию; с --host-id — сессию хоста, идемпотентно (1.10, #376)
+session start [--host-id ID]    # Свежая проверка релиза, затем старт; новая версия запрещает, unknown предупреждает; --host-id идемпотентен
 session end [--summary TEXT] [--host-id ID]  # Завершить активную; с --host-id — ровно сессию этого хоста
 session current                 # Показать активную сессию
 session list [--limit N]        # Последние сессии (default: 10); столбец handoff показывает, у каких он записан

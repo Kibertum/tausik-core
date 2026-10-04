@@ -23,7 +23,10 @@ If no active task — check git status for uncommitted changes and offer just co
 
 ### 2. Get Task Context
 
-Use `tausik_task_show` with `slug={slug}` to load AC, plan steps, goal.
+Use `tausik_task_show` with `slug={slug}, mode="package"` to load AC, plan
+steps, goal, and `required.review_route`. The route is produced by the
+canonical dispatcher; do not infer depth from stack, role, file names, or skill
+prose.
 
 ### 3. Verify Plan Completion
 
@@ -32,29 +35,35 @@ Check that the implementation steps are done. Persist each completed step with
 remain pending for the compound close in step 8; any other incomplete work stops
 the ship workflow.
 
-### 4. Review Changes (full /review)
+### 4. Execute `required.review_route`
 
-Run the full `/review` skill — NOT a lightweight check. Use the Agent tool to launch review in a subagent.
+Follow the route verbatim. Keep deterministic gates in every lane.
 
-**Auto-escalate to deep mode** when the diff touches security-sensitive code (auth, payment, crypto, session handling, PII, secrets management) OR >5 files across multiple modules OR the task role is `security`/`architect`. In that case, append `deep` to the review scope so `/review` runs two sequential critic passes (see `harness/skills/review/SKILL.md` → "Adversarial Mode (built-in) → Deep mode").
+> **Subagent route (phase=code-review):** use the exact reviewer depth, context,
+> model-family separation, and invocation count returned by `required.review_route`.
+> Use Terra on Codex for the focused balanced reviewer; the equivalent Claude
+> Agent call declares `model: "sonnet"`.
 
-**How to invoke:** Read `harness/skills/review/SKILL.md` yourself first, then pass the FULL contents as part of the Agent prompt (subagents cannot read files — they need instructions inline):
+- **L1**: run every selected profile checklist and the deterministic gates.
+  Launch zero reviewer subagents. Record L1 with zero invocations.
+- **L2**: launch exactly one focused reviewer in a fresh context. It checks the
+  residual gaps, AC wiring, changed behavior, and selected profile checklists.
+  Record L2 with `reviewer_context=fresh`.
+- **L3**: launch exactly one external reviewer on a different model family via
+  `tausik-external-reviewer`. Separate context on the author's model is still
+  L2. If a different model is unavailable, stop; never downgrade.
+- **L3-deep**: launch the multi-agent `/review` flow only when the dispatcher
+  returns `deep=true`. That occurs only for an explicit deep audit or a
+  configured extreme hard floor.
 
-```
-Agent(prompt: "[Paste full contents of review SKILL.md here]
-Review scope: git diff (unstaged + staged changes) [append 'deep' if critical].
-Task: {slug}, Goal: {goal}, AC: {AC}, Stack: {stack}.",
-subagent_type: "general-purpose",
-model: "sonnet")
-```
+For every lane, persist the actual depth, author/reviewer models, selected
+profiles, route reasons, hard floor, reviewer invocation count, and available
+task usage through `tausik review record`. HIGH or CRITICAL findings stop
+shipping. After a substantive repair, re-run deterministic verification and
+re-review the repaired files before recording a passing run.
 
-> **Subagent route (phase=code-review):** use the balanced family tier: Sonnet on
-> Claude, Terra on Codex, or the configured GLM equivalent. Escalate one tier for
-> security/deep review or after a HIGH finding. If the host cannot select a worker
-> model, inherit the session and report the route as advisory.
-
-**If review verdict = FAIL (CRITICAL/HIGH issues):** Stop. Show issues. Do NOT proceed to commit. User must fix first.
-**If review verdict = PASS or PASS WITH ISSUES (MEDIUM/LOW only):** Continue.
+Do not treat lint or schema validation as evidence of behavior, idempotence,
+rollback, or postconditions. Only capabilities in the signed receipt count.
 
 ### 5. Run Tests (full /test)
 
@@ -101,6 +110,10 @@ after the required commit and run it through the step 8 compound close
 diagnostic and leaves the task open.
 
 ### 6. Verify Acceptance Criteria
+
+Reload the task in package mode before evaluating AC. A measured-high closure
+may raise an earlier L1/L2 route to L3. If the route increased, execute and
+record the stronger review before continuing.
 
 Walk each AC from the task:
 - State the criterion

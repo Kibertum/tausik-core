@@ -18,8 +18,8 @@ ONCE at bootstrap, not every turn". Answered by running things, session #230:
     twenty-five times over.
 
 WHAT THE MEASUREMENT DID FIND is what this file guards. All five generators that
-write a rules file — claude, agents, cursorrules, qwen, opencode — call
-`warn_output_mode_not_applied` today. Nothing stops a sixth from forgetting, and
+write a rules file — claude, agents, cursorrules, qwen, opencode — call the shared
+`write_generated_rules`, which owns `warn_output_mode_not_applied`. Nothing stops a sixth from forgetting, and
 a host whose generator stays silent leaves the user believing compression is on
 while nothing was written: the silent no-op the framework refuses to ship, and
 precisely the "guarantees are not Claude-only" promise.
@@ -44,6 +44,7 @@ CROSSCUTTING_SCOPE = ["bootstrap/"]
 #: generator inside the check.
 _BODY_BUILDERS = ("build_full_body", "build_rules_body")
 _WARNING = "warn_output_mode_not_applied"
+_SHARED_WRITER = "write_generated_rules"
 
 
 def _called_names(node: ast.AST) -> set[str]:
@@ -72,7 +73,7 @@ def rules_generators(root: Path) -> dict[str, bool]:
     A generator both calls a body builder and writes the result. Requiring the
     write excludes the builder itself and any helper that merely composes text.
     """
-    writes = {"write", "write_text", "open"}
+    writes = {"write", "write_text", "open", _SHARED_WRITER}
     found: dict[str, bool] = {}
     for path in sorted(root.glob("*.py")):
         try:
@@ -87,7 +88,7 @@ def rules_generators(root: Path) -> dict[str, bool]:
             called = _called_names(node)
             if not (called & set(_BODY_BUILDERS)) or not (called & writes):
                 continue
-            found[f"{path.name}::{node.name}"] = _WARNING in called
+            found[f"{path.name}::{node.name}"] = bool({_WARNING, _SHARED_WRITER} & called)
     return found
 
 
@@ -102,7 +103,7 @@ class TestEveryRulesGeneratorWarns:
     def test_none_of_them_is_silent(self):
         silent = sorted(name for name, warns in rules_generators(_BOOTSTRAP).items() if not warns)
         assert not silent, (
-            f"these generators write a rules file without calling {_WARNING}: {silent}. "
+            f"these generators bypass {_SHARED_WRITER}/{_WARNING}: {silent}. "
             "On that host `output_mode: caveman` would be accepted, written nowhere, and "
             "reported as done — the user believes compression is on while the rules file "
             "was preserved untouched."
@@ -142,6 +143,73 @@ class TestTheCheckWouldNoticeASilentGenerator:
         flag helpers that write no rules at all."""
         root = self._plant(tmp_path, "def generate_something_else(p):\n    return 1\n")
         assert rules_generators(root) == {}
+
+
+class TestGeneratedRulesOwnership:
+    def test_customized_legacy_rules_are_preserved_on_profile_switch(self, tmp_path, capsys):
+        import sys
+
+        sys.path.insert(0, str(_BOOTSTRAP))
+        from bootstrap_governance import write_generated_rules
+
+        path = tmp_path / "CLAUDE.md"
+        custom = (
+            "# CLAUDE.md\n\nCustom production approval.\n"
+            "<!-- DYNAMIC:START -->\nold\n<!-- DYNAMIC:END -->\n"
+        )
+        path.write_text(custom, encoding="utf-8")
+        write_generated_rules(str(path), "# CLAUDE.md\n\nmemory only\n", "off", "memory-only")
+        assert path.read_text(encoding="utf-8") == custom
+        assert "was not applied to custom CLAUDE.md" in capsys.readouterr().out
+
+    def test_pristine_owned_rules_can_be_refreshed(self, tmp_path):
+        import sys
+
+        sys.path.insert(0, str(_BOOTSTRAP))
+        from bootstrap_governance import GENERATED_HASH_PREFIX, write_generated_rules
+
+        path = tmp_path / "AGENTS.md"
+        write_generated_rules(str(path), "# AGENTS.md\n\nversion one\n", "off", "full")
+        assert GENERATED_HASH_PREFIX in path.read_text(encoding="utf-8")
+        write_generated_rules(str(path), "# AGENTS.md\n\nversion two\n", "off", "full")
+        assert "version two" in path.read_text(encoding="utf-8")
+
+    def test_custom_text_invalidates_the_ownership_stamp(self, tmp_path, capsys):
+        import sys
+
+        sys.path.insert(0, str(_BOOTSTRAP))
+        from bootstrap_governance import write_generated_rules
+
+        path = tmp_path / "QWEN.md"
+        write_generated_rules(str(path), "# QWEN.md\n\nmanaged\n", "off", "full")
+        path.write_text(path.read_text(encoding="utf-8") + "custom approval\n", encoding="utf-8")
+        write_generated_rules(str(path), "# QWEN.md\n\nnew managed\n", "off", "full")
+        after = path.read_text(encoding="utf-8")
+        assert "custom approval" in after
+        assert "new managed" not in after
+        assert "Existing QWEN.md" in capsys.readouterr().out
+
+    def test_dynamic_state_updates_do_not_break_static_ownership(self, tmp_path):
+        import sys
+
+        sys.path.insert(0, str(_BOOTSTRAP))
+        from bootstrap_governance import write_generated_rules
+
+        path = tmp_path / "CLAUDE.md"
+        original = "# CLAUDE.md\n\nrules\n<!-- DYNAMIC:START -->\none\n<!-- DYNAMIC:END -->\n"
+        refreshed = (
+            "# CLAUDE.md\n\nnew rules\n<!-- DYNAMIC:START -->\nthree\n<!-- DYNAMIC:END -->\n"
+        )
+        write_generated_rules(str(path), original, "off", "full")
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("\none\n", "\ntwo\n"),
+            encoding="utf-8",
+        )
+        write_generated_rules(str(path), refreshed, "off", "full")
+        after = path.read_text(encoding="utf-8")
+        assert "new rules" in after
+        assert "\ntwo\n" in after
+        assert "\nthree\n" not in after
 
 
 class TestTheDirectiveStaysTheOnlyLeverAndStaysSmall:

@@ -8,6 +8,7 @@ File, start, drive and close work. Part of the command reference. Start, and the
 ## Initialization
 
 ```bash
+--version                      # Print the installed TAUSIK release; needs no project or database
 init --name <slug>             # Initialize project (creates .tausik/tausik.db)
 init --template aidd [--force] # Scaffold AIDD layers (idea.md/vision.md/conventions.md) into project root.
 demo [--keep]                  # Watch TAUSIK catch a false "tests pass" in a throwaway sandbox: no network, no LLM key, your project untouched
@@ -24,7 +25,7 @@ aidd validate                  # Check conventions.md ## Code claims (language/v
                                #   ok / drift / unverifiable. Exit 1 on hard drift, 2 if conventions.md missing,
                                #   0 otherwise. Blank/unparseable claim → unverifiable, never crashes. Stdlib-only.
 status [--compact]             # Project overview + SENAR session duration warning (active vs wall); --compact → one-line JSON
-update-check [--now]           # Ask GitHub (at most daily, detached from SessionStart) whether a newer TAUSIK exists; status names it
+update-check [--now]           # Refresh the status/doctor cache (at most daily unless --now); session start always checks fresh
 metrics                        # SENAR metrics: Throughput, Lead Time, FPSR, DER, Dead End Rate, Cost per Task
 metrics target NAME min|max VALUE --basis "..."   # Set a target; refused without --basis (SENAR §9.4(c))
                                 # The report prints method, population and period per figure,
@@ -36,6 +37,8 @@ metrics log-usage              # Append one manual usage_events row (--task-slug
 metrics cost [--since ISO] [--until ISO]   # SUM tokens/cost + COUNT rows grouped by task (NULL slug excluded)
 metrics answers [--last N] [--json]   # Shape of the agent's final answers: words (median/p90), verdict-first %, list share, filler
 metrics calls [--last N]             # Tool calls per closed task by kind (read/edit/run/script/ceremony/other), per complexity
+metrics cohorts [--json]             # Natural accepted-task cohorts by TAUSIK version and observed model
+metrics compare [selectors] [--json] # Compare two natural version/model/time cohorts
 metrics tokens [--host claude|codex|kilo] [--last N] [--rebuild] [--json]
                                                    # Native host usage; Claude keeps the legacy per-tool view
                                 # Source: .tausik/token_metrics.jsonl, written by the SessionEnd hook
@@ -187,7 +190,7 @@ the defect the mechanism was built against.
 ## Sessions
 
 ```bash
-session start [--host-id ID]    # Start a session; with --host-id the host's session, idempotent (1.10, #376)
+session start [--host-id ID]    # Fresh release check, then start; newer TAUSIK refuses, unknown warns; --host-id is idempotent
 session end [--summary TEXT] [--host-id ID]  # End the active one; with --host-id exactly that host's session
 session current                 # Show active session
 session list [--limit N]        # Recent sessions (default: 10); the handoff column shows which carry one

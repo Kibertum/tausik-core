@@ -228,47 +228,39 @@ def build_context(project_dir: str) -> str:
     return required + "OMITTED: optional RAG status exceeded the context budget.\n"
 
 
-def _spawn_update_check(project_dir: str) -> None:
-    """Refresh the update cache DETACHED: SessionStart never waits on the network.
-
-    `tausik update-check` asks GitHub at most once a day (update_check.py); the
-    answer reaches `status` — and so this context — from the cache.
-    """
-    tausik_cmd = _tausik_path(project_dir)
-    if not tausik_cmd:
-        return
-    kwargs: dict = {
-        "stdin": subprocess.DEVNULL,
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-        "cwd": project_dir,
-    }
-    if sys.platform == "win32":
-        kwargs["creationflags"] = 0x00000008  # DETACHED_PROCESS
-    else:
-        kwargs["start_new_session"] = True
-    try:
-        subprocess.Popen([tausik_cmd, "update-check"], **kwargs)
-    except (OSError, ValueError):
-        pass  # never break the session start
-
-
-def _open_host_session(project_dir: str, payload: object) -> None:
+def _open_host_session(project_dir: str, payload: object) -> str | None:
     """The TAUSIK session IS the host session (decision #376): open it here.
 
     Idempotent per host session id — SessionStart fires again on resume and
     after compaction with the same id, and those must not open a second row.
     A payload without an id (another host, a manual run) opens nothing: the
     CLI path `tausik session start` remains for hosts without the event.
-    Best-effort like the rest of this hook — SessionStart must never block.
+    A release refusal becomes additional context so the host does not treat a
+    missing TAUSIK session as permission to work outside governance.
     """
     host_id = payload.get("session_id") if isinstance(payload, dict) else None
     if not isinstance(host_id, str) or not host_id.strip():
-        return
+        return None
     tausik_cmd = _tausik_path(project_dir)
     if not tausik_cmd:
-        return
-    _run_tausik(tausik_cmd, ["session", "start", "--host-id", host_id.strip()], project_dir)
+        return None
+    try:
+        result = subprocess.run(
+            [tausik_cmd, "session", "start", "--host-id", host_id.strip()],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=4,
+            cwd=project_dir,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
+        return f"TAUSIK SESSION NOT OPENED: version check could not finish ({type(exc).__name__})."
+    if result.returncode == 0:
+        warning = result.stderr.strip()
+        return f"TAUSIK SESSION OPENED WITH WARNING. {warning}" if warning else None
+    detail = result.stderr.strip() or result.stdout.strip() or "session start refused"
+    return f"TAUSIK SESSION START REFUSED. {detail} Do not begin project work."
 
 
 def main() -> int:
@@ -292,11 +284,24 @@ def main() -> int:
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError, ValueError):
         payload = {}
-    _open_host_session(project_dir, payload)
+    session_notice = _open_host_session(project_dir, payload)
+    if session_notice and not session_notice.startswith("TAUSIK SESSION OPENED WITH WARNING."):
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "SessionStart",
+                        "additionalContext": session_notice,
+                    }
+                }
+            )
+        )
+        return 0
 
     _auto_rebuild_skills(project_dir)
-    _spawn_update_check(project_dir)
     context = build_context(project_dir)
+    if session_notice:
+        context = f"{session_notice}\n{context}"
     if not context.strip():
         return 0
 

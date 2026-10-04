@@ -230,6 +230,7 @@ TAUSIK разделяет *где* он работает и *какая моде
 | `roles` | Реестр ролей (гибрид: метаданные + harness/roles/{slug}.md) |
 | `session_activity` | Per-tool-call таймстемпы для gap-based active time |
 | `verification_runs` | Verify cache: file_hash + timestamp для QG-2 reuse (10 min TTL) |
+| `benchmark_observations` | Обезличенные наблюдения естественной работы для когорт версия/модель |
 
 ## Шлюзы качества
 

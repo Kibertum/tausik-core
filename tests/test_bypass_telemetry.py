@@ -334,7 +334,7 @@ class TestL3Downgrade:
         _project_dir, _tdir, be = _make_project(tmp_path)
         import risk_l3_trigger
 
-        monkeypatch.setattr(risk_l3_trigger, "_block_enabled", lambda: False)
+        monkeypatch.setattr(risk_l3_trigger, "_block_enabled", lambda *_args: False)
         blocking, note = risk_l3_trigger.check_l3_required(be._conn, "some-task", self._HIGH_RISK)
         be._conn.commit()
         assert blocking is False
@@ -346,7 +346,7 @@ class TestL3Downgrade:
         _project_dir, _tdir, be = _make_project(tmp_path)
         import risk_l3_trigger
 
-        monkeypatch.setattr(risk_l3_trigger, "_block_enabled", lambda: True)
+        monkeypatch.setattr(risk_l3_trigger, "_block_enabled", lambda *_args: True)
         blocking, _note = risk_l3_trigger.check_l3_required(be._conn, "some-task", self._HIGH_RISK)
         be._conn.commit()
         assert blocking is True
@@ -361,7 +361,7 @@ class TestL3Downgrade:
         _project_dir, _tdir, be = _make_project(tmp_path)
         import risk_l3_trigger
 
-        monkeypatch.setattr(risk_l3_trigger, "_block_enabled", lambda: False)
+        monkeypatch.setattr(risk_l3_trigger, "_block_enabled", lambda *_args: False)
         risk_l3_trigger.check_l3_required(be._conn, "some-task", self._HIGH_RISK)
         # This is exactly what service_task_done does next; it must not raise.
         be._conn.execute("BEGIN IMMEDIATE")

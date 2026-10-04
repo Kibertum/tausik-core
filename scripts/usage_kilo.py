@@ -49,7 +49,7 @@ def _source_path(explicit: str | None) -> Path:
 
 
 def _empty(reason: str, source: Path) -> dict[str, Any]:
-    return {
+    result = {
         "schema_version": 1,
         "host": "kilo",
         "source_available": False,
@@ -76,6 +76,7 @@ def _empty(reason: str, source: Path) -> dict[str, Any]:
             "scope": "project responses; no task, quota, or cost inference",
         },
     }
+    return result
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -308,7 +309,7 @@ def report(
     glm_rows = [
         row for row in rows if "glm" in str(row["identity"]["model"]["value"] or "").casefold()
     ]
-    return {
+    result = {
         "schema_version": 1,
         "host": "kilo",
         "source_available": True,
@@ -339,3 +340,7 @@ def report(
             "scope": "project responses; no task, quota, or cost inference",
         },
     }
+    from benchmark_cohorts import capture_for_project
+
+    result["cohort_capture"] = capture_for_project(Path(project_dir).resolve(), rows)
+    return result

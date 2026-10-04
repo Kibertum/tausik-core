@@ -166,6 +166,102 @@ documentation about cached tokens does not prove that a particular host surfaced
 same value. Task attribution is also unknown because Kilo responses do not carry a
 TAUSIK task slug.
 
+## Natural project cohorts (1.11.1)
+
+`tausik metrics cohorts` (or `tausik_metrics({"view":"cohorts"})`) inventories
+real accepted work before any comparison. Native Codex/Kilo reads upsert only
+normalized response evidence to `benchmark_observations`; repeated reads converge
+by an opaque response hash, while a finalized native response replaces its earlier
+partial counters. The ledger stores identity provenance and input,
+cached-input, cache-write, output and reasoning-output counters. It never stores
+prompts, responses, tool payloads, credentials or raw transcript paths.
+
+Matching task start and completion boundaries supply the TAUSIK version. Missing
+or different boundaries remain `legacy/unclassified`; the importer never guesses
+which side of an upgrade produced a response. Cohorts split when host, provider, model, reasoning
+effort or speed mode changes. Only `done` tasks without an obsolete resolution
+count as accepted. Failed attempts and every review/verification run remain inside
+the task evidence. Task-level evidence for work spanning more than one identity is
+reported once in the unsplit bucket instead of being charged to every cohort.
+Inexact work and exact work that has not been accepted are separate visible buckets.
+
+Missing identity, counters, task linkage or quality evidence stays `null` and
+reduces coverage. Cached input is a subset of input and reasoning output is a
+subset of output; neither is added to its parent total. The inventory includes
+sample dates, task counts, attribution coverage, attempts/retries, verification
+outcome and review depth/invocations. It calculates no API-equivalent USD and
+makes no savings claim; pricing belongs to the subsequent comparison task.
+Elapsed start-to-completion time is not active duration; active duration stays
+unknown unless a source measured it.
+
+### Compare two natural cohorts
+
+Work normally on one TAUSIK version, upgrade, and keep working normally. After
+both sides have enough accepted tasks, compare the naturally accumulated
+cohorts. Do not buy repeated runs, replay prompts, execute a synthetic corpus,
+or fill a version×model matrix.
+
+```bash
+# Same observed model, before and after an upgrade.
+tausik metrics compare \
+  --left-label before --left-version 1.11.0 --left-model gpt-5 \
+  --right-label after --right-version 1.11.1 --right-model gpt-5 \
+  --minimum-sample 5 --save .tausik/reports/1.11.0-vs-1.11.1.json
+
+# Same TAUSIK version, two models that the project actually used.
+tausik metrics compare \
+  --left-version 1.11.1 --left-model gpt-5 \
+  --right-version 1.11.1 --right-model gpt-6
+```
+
+`tausik_metrics` exposes the same operation with `view="comparison"` and a
+`compare` object containing `left`/`right` selectors. Selectors accept `tausik_version`, `provider`,
+`model`, `reasoning_effort`, `speed_mode`, `since`, `until`, and a display
+`label`. A complete Cartesian matrix is never required.
+
+The report aggregates responses per task before calculating median and p90.
+It shows coverage for response rounds, tool calls, measured active duration,
+attempts/retries, total/cached/uncached input, output, reasoning-output subset,
+and total tokens (`input + output`). Cached input remains part of input and
+reasoning remains part of output, so neither subset is double-counted.
+
+API-equivalent USD is optional and never means subscription spend, credits, or
+remaining quota. Supply a dated provider table in `.tausik/config.json`:
+
+```json
+{
+  "api_equivalent_usd_rate_card": {
+    "source": "https://provider.example/pricing/2026-10-01",
+    "as_of": "2026-10-01",
+    "valid_until": "2026-12-31",
+    "unit": "usd_per_million_tokens",
+    "models": {
+      "openai/gpt-5": {
+        "uncached_input": 1.25,
+        "cached_input": 0.125,
+        "output": 10.0
+      }
+    }
+  }
+}
+```
+
+Use the provider's dated rates; the numbers above only illustrate the schema.
+An absent, invalid, expired, or unmatched card yields `null`, never zero.
+Subscription credits and included quota remain separate unknown fields.
+
+Quality stays beside cost: verification failure/retry rates, L1/L2/L3/deep
+review mix, reviewer invocations, confirmed critical/high findings, and defect
+escapes after the declared maturation window. Complexity, assurance profiles,
+and impact form strata. Different pooled task mixes produce a warning. Small
+samples, mixed model/settings, or simultaneous version and model changes make
+the result `inconclusive`; the report never turns an observational difference
+into a causal savings claim or a universal efficiency score.
+
+A saved snapshot contains the selectors, coverage, price provenance, exact
+version/model identities, opaque cohort-membership hashes, and generation
+time. It omits task names and raw conversation content.
+
 ## Limitations
 
 - **Session tokens recorded before 1.10 are overstated and are not re-derived**. Claude Code writes one API message with N content blocks as N transcript entries carrying the same usage, and the meter added it N times: 1.81x on the replay transcript of session #263. Since 1.10 usage is counted once per message id. The overstatement depends on the block count, so old rows cannot be divided by a constant; do not compare them with new ones.

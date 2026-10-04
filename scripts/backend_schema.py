@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 67
+SCHEMA_VERSION = 72
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -85,7 +85,15 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- v67 (a-task-cannot-be-closed-as-obsolete): NULL = delivered, 'obsolete' =
     -- closed because time resolved the finding; left out of delivery metrics.
     resolution TEXT CHECK(resolution IS NULL OR resolution IN ('obsolete')),
-    resolution_reason TEXT
+    resolution_reason TEXT,
+    -- v68: JSON declarations consumed by the technology-neutral assurance policy.
+    assurance_profiles TEXT,
+    assurance_impact TEXT,
+    -- v70: exact framework version observed at lifecycle boundaries. Existing
+    -- rows stay NULL; assigning today's version to historical work would turn
+    -- an unknown cohort into a fabricated one.
+    started_tausik_version TEXT,
+    done_tausik_version TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -145,7 +153,18 @@ CREATE TABLE IF NOT EXISTS reviews (
     critical_findings INTEGER NOT NULL DEFAULT 0,
     warnings INTEGER NOT NULL DEFAULT 0,
     run_at TEXT NOT NULL,
-    notes TEXT
+    notes TEXT,
+    high_findings INTEGER NOT NULL DEFAULT 0,
+    profiles_json TEXT,
+    reasons_json TEXT,
+    hard_floor TEXT,
+    author_model TEXT,
+    reviewer_model TEXT,
+    reviewer_context TEXT,
+    reviewer_invocations INTEGER NOT NULL DEFAULT 0,
+    usage_json TEXT,
+    route_json TEXT,
+    reviewed_state_fingerprint TEXT
 );
 
 CREATE TABLE IF NOT EXISTS brain_events (
@@ -309,6 +328,35 @@ CREATE TABLE IF NOT EXISTS usage_events (
     source TEXT NOT NULL CHECK(source IN ('session_record', 'manual', 'posttool')),
     recorded_at TEXT NOT NULL,
     tool_name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS benchmark_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_key TEXT UNIQUE NOT NULL,
+    task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    tausik_version TEXT,
+    observed_at TEXT,
+    host TEXT, host_version TEXT, provider TEXT, model TEXT,
+    reasoning_effort TEXT, speed_mode TEXT,
+    attribution_confidence TEXT NOT NULL
+        CHECK(attribution_confidence IN ('unknown','project','exact')),
+    response_rounds INTEGER CHECK(response_rounds IS NULL OR response_rounds >= 0),
+    tokens_input INTEGER CHECK(tokens_input IS NULL OR tokens_input >= 0),
+    tokens_cached_input INTEGER CHECK(tokens_cached_input IS NULL OR tokens_cached_input >= 0),
+    tokens_cache_write INTEGER CHECK(tokens_cache_write IS NULL OR tokens_cache_write >= 0),
+    tokens_output INTEGER CHECK(tokens_output IS NULL OR tokens_output >= 0),
+    tokens_reasoning_output INTEGER
+        CHECK(tokens_reasoning_output IS NULL OR tokens_reasoning_output >= 0),
+    tool_calls INTEGER CHECK(tool_calls IS NULL OR tool_calls >= 0),
+    active_duration_ms INTEGER CHECK(active_duration_ms IS NULL OR active_duration_ms >= 0),
+    source_format TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    host_basis TEXT, host_version_basis TEXT, provider_basis TEXT,
+    model_basis TEXT, reasoning_effort_basis TEXT, speed_mode_basis TEXT,
+    CHECK(tokens_cached_input IS NULL OR tokens_input IS NULL
+        OR tokens_cached_input <= tokens_input),
+    CHECK(tokens_reasoning_output IS NULL OR tokens_output IS NULL
+        OR tokens_reasoning_output <= tokens_output)
 );
 """
 

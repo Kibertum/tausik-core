@@ -293,13 +293,12 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
                 f"status='{fields['status']}' must use lifecycle method "
                 f"(task_done/start/block/review) — would bypass QG-2."
             )
-        # Emptiness first: the enum check below reads `if v and ...`, so an
-        # empty string slipped PAST it rather than failing it, and every plain
-        # text field had no check at all. Blanking is refused for the fields a
-        # gate reads; the list and its exclusions live in service_validation.
+        # Validate every field before the enum checks or any write.
         from service_validation import reject_blank_updates
+        from task_assurance_fields import normalize
 
         reject_blank_updates(fields)
+        normalize(fields)
         for name, valid in _update_enums():
             v = fields.get(name)
             if v and v not in valid:

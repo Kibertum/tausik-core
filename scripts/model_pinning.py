@@ -23,8 +23,14 @@ def session_model(be: SQLiteBackend) -> tuple[str | None, str | None]:
 
 def model_start_updates(be: SQLiteBackend) -> dict[str, Any]:
     """tasks columns to set at task_start — pins the model active at start."""
+    from tausik_version import __version__
+
     mid, ver = session_model(be)
-    return {"started_model_id": mid, "started_model_version": ver}
+    return {
+        "started_model_id": mid,
+        "started_model_version": ver,
+        "started_tausik_version": __version__,
+    }
 
 
 def model_done_updates(
@@ -36,6 +42,8 @@ def model_done_updates(
     {started, done} ∪ usage_events.model_id for the task — i.e. the model
     changed at some point between activation and closure.
     """
+    from tausik_version import __version__
+
     slug = task["slug"]
     done_id, done_ver = session_model(be)
     started_id = task.get("started_model_id")
@@ -45,6 +53,7 @@ def model_done_updates(
     updates: dict[str, Any] = {
         "done_model_id": done_id,
         "done_model_version": done_ver,
+        "done_tausik_version": __version__,
         "model_mismatch": mismatch,
     }
     msg = None

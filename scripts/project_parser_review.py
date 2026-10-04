@@ -25,6 +25,7 @@ def add_review(sub: argparse._SubParsersAction) -> None:
     )
     rec.add_argument("--critical", type=int, default=0, help="Number of critical findings")
     rec.add_argument("--warnings", type=int, default=0, help="Number of warnings")
+    rec.add_argument("--high", type=int, default=0, help="Number of HIGH findings")
     rec.add_argument("--notes", default=None, help="Free-form notes (links, summary)")
     rec.add_argument(
         "--reason",
@@ -41,6 +42,24 @@ def add_review(sub: argparse._SubParsersAction) -> None:
         default=None,
         help="L3: the model that wrote the code; default: the model of this session",
     )
+    rec.add_argument(
+        "--reviewer-context",
+        choices=["author", "fresh", "different-model"],
+        default=None,
+        help="Actual context used; L3 requires different-model",
+    )
+    rec.add_argument(
+        "--reviewer-invocations",
+        type=int,
+        default=None,
+        help="Actual reviewer calls (route default when omitted)",
+    )
+    rec.add_argument("--deep", action="store_true", help="Record an explicitly forced deep audit")
+
+    route = rev_sub.add_parser("route", help="Preview the canonical residual-assurance route")
+    route.add_argument("--task", required=True, help="Task slug to route")
+    route.add_argument("--deep", action="store_true", help="Force the explicit L3-deep audit route")
+    route.add_argument("--json", action="store_true", help="Output JSON")
 
     ls = rev_sub.add_parser("list", help="List recent reviews")
     ls.add_argument("--task", default=None, help="Filter by task slug")

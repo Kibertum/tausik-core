@@ -14,7 +14,25 @@ session_open envelope rather than duplicating them.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
+
+
+def _comparison_snapshot_target(tausik_dir: str, requested_name: object) -> Path:
+    """Resolve one new comparison artifact beneath the project-owned store."""
+    name = str(requested_name)
+    candidate = Path(name)
+    if not name or candidate.is_absolute() or len(candidate.parts) != 1 or name in {".", ".."}:
+        raise ValueError(
+            "snapshot_path must be a filename inside the TAUSIK comparison artifact store"
+        )
+    root = (Path(tausik_dir).resolve() / "artifacts" / "benchmark-comparisons").resolve()
+    target = (root / candidate.name).resolve()
+    if target.parent != root:
+        raise ValueError("snapshot_path escapes the TAUSIK comparison artifact store")
+    if target.exists():
+        raise FileExistsError(f"comparison snapshot already exists: {candidate.name}")
+    return target
 
 
 def _handle_health(svc: Any) -> str:
@@ -76,6 +94,31 @@ def _handle_status(svc: Any, args: dict | None = None) -> str:
 def _handle_metrics(svc: Any, args: dict | None = None) -> str:
     """Transport. The copy this replaces answered with ONE summary line while the
     CLI printed the whole SENAR report — and MCP is the surface agents prefer."""
+    if args and args.get("view") == "cohorts":
+        import json
+
+        from benchmark_cohorts import cohort_inventory
+
+        return json.dumps(cohort_inventory(svc.be._conn), ensure_ascii=False)
+    if args and args.get("view") == "comparison":
+        import json
+
+        from benchmark_compare import compare_cohorts, persist_snapshot
+        from project_config import load_config
+
+        options = args.get("compare") or args
+        report = compare_cohorts(
+            svc.be._conn,
+            options.get("left") or {},
+            options.get("right") or {},
+            config=load_config(svc.tausik_dir()),
+            minimum_sample=int(options.get("minimum_sample", 5)),
+            maturation_days=int(options.get("maturation_days", 30)),
+        )
+        if options.get("snapshot_path"):
+            target = _comparison_snapshot_target(svc.tausik_dir(), options["snapshot_path"])
+            persist_snapshot(report, target)
+        return json.dumps(report, ensure_ascii=False)
     if args and args.get("host") in {"codex", "kilo"}:
         import json
 

@@ -41,7 +41,7 @@ The invoking skill provides:
 
 6. **Emit the evidence command** — after the JSON, on its own line, output the exact command the invoker must run to persist your verdict (critical count = len(critical), warnings = len(high)+len(medium)):
    ```
-   tausik review record --task <slug> --type L3 --critical <n> --warnings <n> --reason "<why each critical is critical; omit when n=0>" --author-model <author_model> --reviewer-model <reviewer_model> --notes "external-reviewer; verdict=<verdict>"
+   tausik review record --task <slug> --type L3 --critical <n> --high <n> --warnings <medium+low> --reason "<why each critical is critical; omit when n=0>" --author-model <author_model> --reviewer-model <reviewer_model> --reviewer-context different-model --reviewer-invocations 1 --notes "external-reviewer; verdict=<verdict>"
    ```
 
 ## Rules

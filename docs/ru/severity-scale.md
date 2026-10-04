@@ -36,6 +36,6 @@
 - **CRITICAL записывается с причиной.** `tausik review record --critical N` при N больше нуля отказывает без `--reason`. Причина хранится в записи и видна в `tausik review list`.
 
 ```bash
-tausik review record --task <slug> --type L3 --critical 1 --warnings 2 \
+tausik review record --task <slug> --type L3 --critical 1 --high 1 --warnings 1 \
   --reason "хук fail-open при заблокированной БД: запись проходит без проверки"
 ```

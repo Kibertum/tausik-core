@@ -150,10 +150,15 @@ def _admit(
         packet["overflow"] = True
         packet["omitted"].append(omitted)
         _set_exact_size(packet)
+        while packet["bytes"] > max_bytes and packet[section]:
+            displaced = packet[section].pop()
+            packet["omitted"].append({"address": displaced["address"], "reason": "packet_ceiling"})
+            _set_exact_size(packet)
         if packet["bytes"] > max_bytes:
             raise ValueError("byte ceiling cannot hold required omission metadata")
         return False
     packet[section].append(item)
+    _set_exact_size(packet)
     return True
 
 

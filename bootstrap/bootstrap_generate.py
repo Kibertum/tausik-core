@@ -38,7 +38,12 @@ def _stdio_mcp_server(command: str, args: list[str]) -> dict[str, Any]:
     return {"type": "stdio", "command": command, "args": args}
 
 
-def generate_settings_claude(target_dir: str, project_dir: str, lib_dir: str | None = None) -> None:
+def generate_settings_claude(
+    target_dir: str,
+    project_dir: str,
+    lib_dir: str | None = None,
+    governance_profile: str = "full",
+) -> None:
     """Generate .claude/settings.json for Claude Code.
 
     lib_dir: path to TAUSIK library (submodule). Auto-detected from bootstrap location.
@@ -74,7 +79,7 @@ def generate_settings_claude(target_dir: str, project_dir: str, lib_dir: str | N
                 "Bash(git:*)",
             ]
         },
-        "hooks": build_hooks_dict(_hook_cmd),
+        "hooks": build_hooks_dict(_hook_cmd, governance_profile),
     }
     path = os.path.join(target_dir, "settings.json")
     with open(path, "w", encoding="utf-8") as f:
@@ -185,6 +190,7 @@ def generate_claude_md(
     stacks: list[str],
     context_tier: str = "minimal",
     output_mode: str = "off",
+    governance_profile: str = "full",
 ) -> None:
     """Generate CLAUDE.md — load-bearing instructions for Claude Code.
 
@@ -192,7 +198,7 @@ def generate_claude_md(
     Shared body lives in bootstrap_templates to keep CLAUDE.md / AGENTS.md / .cursorrules / QWEN.md in sync.
     Preserves existing CLAUDE.md if present (user customizations).
     """
-    from bootstrap_templates import build_full_body, warn_output_mode_not_applied
+    from bootstrap_templates import build_full_body, write_generated_rules
 
     body = build_full_body(
         project_name,
@@ -203,15 +209,11 @@ def generate_claude_md(
         context_tier=context_tier,
         output_mode=output_mode,
         project_dir=project_dir,
+        governance_profile=governance_profile,
     )
     content = f"# CLAUDE.md\n\n{body}"
     path = os.path.join(project_dir, "CLAUDE.md")
-    if os.path.exists(path):
-        # Preserving the user's file must not silently drop a mode they asked for.
-        warn_output_mode_not_applied(path, output_mode)
-        return
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
+    write_generated_rules(path, content, output_mode, governance_profile)
 
 
 def generate_agents_md(
@@ -220,13 +222,14 @@ def generate_agents_md(
     stacks: list[str],
     context_tier: str = "minimal",
     output_mode: str = "off",
+    governance_profile: str = "full",
 ) -> None:
     """Generate AGENTS.md — universal agent onboarding (OpenCode/Codex/Cursor/Claude compatible).
 
     Shares the same hard constraints and SENAR rules as CLAUDE.md so no IDE gets a weaker ruleset.
     Preserves existing AGENTS.md if present.
     """
-    from bootstrap_templates import build_full_body, warn_output_mode_not_applied
+    from bootstrap_templates import build_full_body, write_generated_rules
 
     body = build_full_body(
         project_name,
@@ -236,18 +239,14 @@ def generate_agents_md(
         ide=None,
         context_tier=context_tier,
         output_mode=output_mode,
+        governance_profile=governance_profile,
         # project_dir is withheld deliberately. AGENTS.md is read by kilo, codex
         # and others, so no profile on disk answers for it, and the enforcement
         # notice must say UNKNOWN rather than borrow Claude's answer.
     )
     content = f"# AGENTS.md — AI Agent Onboarding\n\n{body}"
     path = os.path.join(project_dir, "AGENTS.md")
-    if os.path.exists(path):
-        # Preserving the user's file must not silently drop a mode they asked for.
-        warn_output_mode_not_applied(path, output_mode)
-        return
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
+    write_generated_rules(path, content, output_mode, governance_profile)
 
 
 # generate_settings_qwen + generate_qwen_md moved to bootstrap_qwen.py
@@ -259,12 +258,13 @@ def generate_cursorrules(
     stacks: list[str],
     context_tier: str = "minimal",
     output_mode: str = "off",
+    governance_profile: str = "full",
 ) -> None:
     """Generate .cursorrules for Cursor IDE — same constraints as CLAUDE.md.
 
     Preserves existing .cursorrules if present.
     """
-    from bootstrap_templates import build_full_body, warn_output_mode_not_applied
+    from bootstrap_templates import build_full_body, write_generated_rules
 
     body = build_full_body(
         project_name,
@@ -275,15 +275,11 @@ def generate_cursorrules(
         context_tier=context_tier,
         output_mode=output_mode,
         project_dir=project_dir,
+        governance_profile=governance_profile,
     )
     content = f"# Cursor Rules\n\n{body}"
     path = os.path.join(project_dir, ".cursorrules")
-    if os.path.exists(path):
-        # Preserving the user's file must not silently drop a mode they asked for.
-        warn_output_mode_not_applied(path, output_mode)
-        return
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
+    write_generated_rules(path, content, output_mode, governance_profile)
 
 
 # generate_skill_catalog moved to bootstrap_catalog.py

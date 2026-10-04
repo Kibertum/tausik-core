@@ -1,7 +1,7 @@
 ---
 slug: r111-economy-hardening-acceptance
 title: "Accept 1.11 economy hardening on natural work"
-status: active
+status: blocked
 epic: release-111-economy-draft
 story: release111-economy-hardening
 complexity: medium
@@ -19,6 +19,8 @@ scope_paths:
   - "docs/ru/research/release111-economy-acceptance-final.md"
   - "changelog.d/economy-hardening-acceptance-111.md"
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on:
   - r111-bounded-work-packet
   - r111-compact-verification-output
@@ -68,3 +70,5 @@ Remove only the acceptance report and changelog fragment; runtime is unchanged.
 - 2026-10-02T11:26:45Z [implementation] — Credit metric now available without changing the quality bar: live Codex report measured 29/30 accepted tasks at 2037.571 configured subscription credits; 1 unknown model stayed explicit; raw input 526,421,076 and cached input 514,842,368 (97.8%). This is consumption evidence, not included-quota remaining, API USD, or a savings claim. AC2/AC3 remain unmet and the task stays active.
 - 2026-10-02T11:59:03Z [implementation] — Systematic-output work completed without weakening quality: controlled prose replaced existing wording and reduced always-loaded answer contract 776→773 chars (verify #3370, 1057 passed). Format routing adds 0 chars to ordinary prompts and 337 chars only to explanation/visualization intent (verify #3372, 741 passed); no artifact/model run, renderer, or telemetry added. Acceptance remains active/unmet pending replay and natural cohort.
 - 2026-10-02T12:06:59Z [implementation] — Release-readiness follow-up: moved the dirty 1.11 worktree safely from v1-10 to new local branch v1-11 without commit/push. Documentation integrity audit passed 729 tests with 12 skipped. Core docs and bilingual changelog cover 1.11 economy features; generated constants intentionally remain 1.10.1 until release cut. Separate tausik/site repository remains unchanged at e7da518 (vendored 1.5.8, manual navigation) and its blocked task still requires a release tag plus owner-authorized GitLab deployment. No additional core change was accepted from this audit; remaining high-value evidence is natural-task rounds/Luna qualification and verification replay, which stay unmet.
+- 2026-10-04T10:04:25Z [implementation] — Natural post-recovery acceptance refreshed on 2026-10-04 without paid or synthetic execution. Exact accepted windows: capture-natural-project-benchmark-cohorts 89 responses / 6 attempts / 5 retries; add-cli-version-flag-and-block-session-start-on-a 124 / 5 / 4; add-memory-only-governance-profile 82 / 2 / 1. Median response rounds = 89, so AC-3 remains explicitly unmet against the <=40 threshold. compare-project-version-model-economics has no exact accepted-window in the current report and remains unknown, not zero. Account quota is separately reported at 86% used; subscription credits remain separate and no API-equivalent USD claim is made here. Updated the bounded HOLD report; docs cross-claim tests passed.
+- 2026-10-04T10:21:37Z [implementation] — Release acceptance evidence refreshed without weakening AC. AC-1 PASS: frozen same-surface prefix 63,333→42,519 bytes (-32.9%). AC-2 FAIL: verification replay still omits the 80-pass preflight result; resolve in r111-verification-cycle-replay by preserving both results or explicit refusal without a savings claim. AC-3 FAIL: natural windows are 89 responses / 6 attempts / 5 retries, 124 / 5 / 4, and 82 / 2 / 1; median 89 > <=40. Observed model is gpt-5.6-sol medium/standard for all three; exact TAUSIK 1.11.0 is present only for the 124/82 windows, while the 89 window remains unknown/legacy. compare-project-version-model-economics has no exact accepted-window and remains unknown, not zero. AC-4 PASS on recorded lanes: default 12,791 passed / 34 skipped / 143 deselected; slow 143 passed / 12,826 deselected. AC-5 PASS: no paid/synthetic run, prompt replay, reconstructed baseline, mandatory version×model matrix, cross-task causal claim, or unsupported savings claim. Domain: dated report now also records API-equivalent USD unknown because no dated rate card is configured, subscription quota separately at 86% used, DER 8.8% versus unchanged <=5.0%, and 99 closures since audit. Negative: unknown identity/cost/window never becomes zero; subscription quota is not API USD. Focused docs tests: 326 passed, 1 skipped. audit_pytest_dedupe.py: 0 COPY, 282 PARALLEL, 7829/7829 able to fail. tausik_verify #3442 PASS for the declared docs scope, but ruff/pytest skipped and the receipt is narrower than the intentionally dirty 272-file worktree; it is not used for QG-2. Verdict remains HOLD.

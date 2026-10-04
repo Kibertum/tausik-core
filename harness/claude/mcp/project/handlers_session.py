@@ -249,9 +249,14 @@ def _handle_session_open(svc: Any, args: dict | None = None) -> str:
     args = args or {}
 
     # 1. Session — one service policy owns host binding and context ceilings.
-    def _session() -> Any:
-        from service_host_context import open_session
+    version_check: dict[str, Any] | None = None
 
+    def _session() -> Any:
+        nonlocal version_check
+        from service_host_context import open_session
+        from update_check import session_start_release_check
+
+        version_check = session_start_release_check(svc)
         return open_session(svc)
 
     session_result = _section_with_timeout("session", _session)
@@ -260,6 +265,13 @@ def _handle_session_open(svc: Any, args: dict | None = None) -> str:
         host_context = session_result.get("host_context")
     else:
         session_data = session_result
+        version_check = {
+            "status": "blocked",
+            "fresh": False,
+            "error": session_result.get("error")
+            if isinstance(session_result, dict)
+            else str(session_result),
+        }
         host_context = (
             {"level": "unavailable", "error": session_result.get("error")}
             if isinstance(session_result, dict)
@@ -317,6 +329,7 @@ def _handle_session_open(svc: Any, args: dict | None = None) -> str:
         {
             "session": _project(session_data, _SESSION_ENVELOPE_KEYS),
             "host_context": host_context,
+            "version_check": version_check,
             "status": status_data,
             "handoff": _project_handoff(handoff),
             "tasks": tasks,
@@ -329,10 +342,16 @@ def _handle_session_open(svc: Any, args: dict | None = None) -> str:
     )
 
 
+def _do_session_start(svc: Any, args: dict) -> str:
+    from update_check import checked_session_start
+
+    return checked_session_start(svc)
+
+
 SESSION_HANDLERS = {
     "tausik_session_current": _do_session_current,
     "tausik_session_list": _do_session_list,
-    "tausik_session_start": lambda svc, args: svc.session_start(),
+    "tausik_session_start": _do_session_start,
     "tausik_session_end": lambda svc, args: svc.session_end(args.get("summary")),
     "tausik_session_extend": lambda svc, args: svc.session_extend(args.get("minutes", 60)),
     "tausik_session_handoff": _do_session_handoff,

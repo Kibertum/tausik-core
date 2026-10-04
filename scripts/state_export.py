@@ -67,6 +67,19 @@ def _json_list(raw: Any) -> list[str]:
     return [str(v) for v in value if isinstance(v, str) and v.strip()]
 
 
+def _json_object(raw: Any) -> str | None:
+    """Canonical JSON object for scalar frontmatter, or None on absence/defect."""
+    if not raw:
+        return None
+    try:
+        value = raw if isinstance(raw, dict) else json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
 def _dedup_preserve(items: list[str]) -> list[str]:
     """Drop duplicates keeping first-seen order (list order is a declared signal)."""
     seen: set[str] = set()
@@ -160,6 +173,8 @@ NOT_PORTABLE: dict[str, str] = {
     "call_actual": "measured on the machine that did the work, not intended by anyone",
     "tokens_actual": "measured on the machine that did the work; the BUDGET travels instead",
     "cost_actual_usd": "measured on the machine that did the work; the BUDGET travels instead",
+    "started_tausik_version": "local runtime identity for benchmark cohorts; runtime telemetry does not travel",
+    "done_tausik_version": "same local benchmark boundary; importing it elsewhere would imply telemetry travelled",
     "notes": "the free-text scratch field of a close; the JOURNAL is the durable record and "
     "it travels in the body of the file",
 }
@@ -183,6 +198,8 @@ def _task_doc(task: dict[str, Any], story_slug: str | None, epic_slug: str | Non
         ("relevant_files", _dedup_preserve(_json_list(task.get("relevant_files")))),
         ("scope_paths", _dedup_preserve(_json_list(task.get("scope_paths")))),
         ("scope_tools", _dedup_preserve(_json_list(task.get("scope_tools")))),
+        ("assurance_profiles", _dedup_preserve(_json_list(task.get("assurance_profiles")))),
+        ("assurance_impact", _json_object(task.get("assurance_impact"))),
         # Ordering is INTENT, so it travels. A plan that evaporates on clone is
         # the very defect task-next-cannot-express-plan-order was filed about.
         ("depends_on", sorted(task.get("_depends_on") or [])),
@@ -296,6 +313,7 @@ def build_tree(svc: ProjectService) -> tuple[dict[str, str], list[str]]:
         "resolution, resolution_reason, tracker_refs, started_model_id, "
         "started_model_version, done_model_id, done_model_version, model_mismatch, "
         "no_file_changes_declared, token_budget, cost_budget_usd "
+        ", assurance_profiles, assurance_impact "
         "FROM tasks"
     )
     task_logs = q("SELECT task_slug, message, phase, created_at, id FROM task_logs")
@@ -395,6 +413,7 @@ def export_one(svc: ProjectService, kind: str, slug: str) -> tuple[str, str] | N
             "resolution, resolution_reason, tracker_refs, started_model_id, "
             "started_model_version, done_model_id, done_model_version, model_mismatch, "
             "no_file_changes_declared, token_budget, cost_budget_usd "
+            ", assurance_profiles, assurance_impact "
             "FROM tasks WHERE slug=?",
             (slug,),
         )

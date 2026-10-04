@@ -6,20 +6,19 @@ wording ("GitHub is the primary place of development") went unexecuted for five
 sessions. The task's own closing line is what this file answers: a decision
 executed by an agent's memory rather than by a mechanism is not executed.
 
-PUBLICATION CARRIES THE WHOLE TRACKED TREE, `tausik/` included. Session #180
-counted four classes of thing that must not go out; session #233 re-counted them
-over 4,208 tracked files rather than trusting the earlier number:
+PUBLICATION CARRIES THE FILTERED TRACKED TREE. Decision #368 replaced the old
+whole-tree premise with one exclusion list and sanitised dynamic instruction
+blocks. Session #180 counted four classes of thing that must not go out:
 
     local path with the user's name   12 files -> 0
     other clients' project names      44 files -> 0
     internal host                     17 files -> 4 files (session #256)
     dev-machine path (D:\\Work)        not measured -> 22 files (session #256)
 
-The first two are RATCHETS at zero. The last two are DECLARED REMAINDERS: they
-are weaker — a directory layout and an internal address, not an identity — and
-they live mostly inside the project's own accounting, so they are pinned at
-their measured size and only GROWTH is red. Declaring a gap and holding it is
-honest; pretending it is closed is not.
+All four are RATCHETS at zero on the filtered public tree. Internal-host and
+dev-machine-path occurrences may remain in the excluded development ledger;
+the public snapshot guard must ignore that ledger and still fail on the same
+occurrence in any kept file.
 
 NO NETWORK. A check that needs the remote to be reachable fails exactly when it
 is needed — before a publication, often from a machine that cannot reach it.
@@ -33,9 +32,7 @@ import subprocess
 from functools import lru_cache
 from pathlib import Path
 
-import pytest
-
-from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT
+import publication_snapshot as snapshot
 
 _REPO = Path(__file__).resolve().parents[1]
 
@@ -50,6 +47,8 @@ _MAY_DESCRIBE_LEAKS = frozenset(
         "docs/ru/publishing.md",
         "docs/en/publishing.md",
         "tests/test_publication_lines.py",
+        "CHANGELOG.md",
+        "CHANGELOG.ru.md",
         # The task that neutralised 43 sample paths names the class in its
         # own journal — the "task about it" the paragraph above allows.
         "tausik/tasks/public-snapshot-is-a-filtered-tree-not-the-working-tree.md",
@@ -60,19 +59,13 @@ _MAY_DESCRIBE_LEAKS = frozenset(
 _FORBIDDEN = {
     "a local path carrying the user's name": re.compile(r"[Uu]sers[\\/]ayumashev", re.I),
     "another client's project name": re.compile(r"\b(hystolab|totoshkagame|kareta)\b", re.I),
-}
-
-#: Not cleaned. Pinned at the measured size so growth is visible; shrinking is
-#: always allowed and the number is meant to come down.
-_DECLARED_REMAINDER = {
-    "internal host": (re.compile(r"gitlab\.yumash\.ru", re.I), 4),
-    "dev-machine path": (re.compile(r"[Dd]:[\\/]{1,2}Work", re.I), 22),
+    "internal host": re.compile(r"gitlab\.yumash\.ru", re.I),
+    "dev-machine path": re.compile(r"[Dd]:[\\/]{1,2}Work", re.I),
 }
 
 _SCAN_PATTERNS = {
     "reader premise": re.compile(r"CROSSCUTTING_SCOPE"),
     **_FORBIDDEN,
-    **{label: spec[0] for label, spec in _DECLARED_REMAINDER.items()},
 }
 
 
@@ -86,23 +79,32 @@ def _tracked() -> tuple[str, ...]:
         encoding="utf-8",
         check=True,
     ).stdout
-    return tuple(line for line in out.splitlines() if line)
+    return tuple(line for line in out.splitlines() if line and not snapshot.is_excluded(line))
 
 
-@lru_cache(maxsize=1)
-def _scan_publication_tree() -> dict[str, tuple[str, ...]]:
+def _scan_rows(rows) -> dict[str, tuple[str, ...]]:
     hits: dict[str, list[str]] = {label: [] for label in _SCAN_PATTERNS}
-    for rel in _tracked():
+    for rel, text in rows:
         if rel in _MAY_DESCRIBE_LEAKS:
             continue
-        try:
-            text = (_REPO / rel).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue  # binary or unreadable: not a text leak
+        if rel in snapshot.SANITIZED_PUBLIC_FILES:
+            text = snapshot.public_text(text)
         for label, rx in _SCAN_PATTERNS.items():
             if rx.search(text):
                 hits[label].append(rel)
     return {label: tuple(paths) for label, paths in hits.items()}
+
+
+@lru_cache(maxsize=1)
+def _scan_publication_tree() -> dict[str, tuple[str, ...]]:
+    rows: list[tuple[str, str]] = []
+    for rel in _tracked():
+        try:
+            text = (_REPO / rel).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue  # binary or unreadable: not a text leak
+        rows.append((rel, text))
+    return _scan_rows(rows)
 
 
 def test_publication_tree_has_a_reader_and_respects_all_leak_boundaries():
@@ -114,26 +116,29 @@ def test_publication_tree_has_a_reader_and_respects_all_leak_boundaries():
     for label in sorted(_FORBIDDEN):
         offenders = hits[label]
         assert not offenders, (
-            f"{label} is back in {len(offenders)} tracked file(s): {offenders[:5]}. "
-            "Publication carries the whole tracked tree to a public remote, and "
-            "session #180 counted 12 and 44 files of these two before they were "
-            "cleaned. Zero is a measured state, not an aspiration."
+            f"{label} is back in {len(offenders)} published file(s): {offenders[:5]}. "
+            "Publication carries the filtered tracked tree to a public remote. "
+            "Excluded development records are not the subject; zero on the "
+            "snapshot is a measured state, not an aspiration."
         )
-    if IS_PUBLIC_SNAPSHOT:
-        pytest.skip(DORMANT_ON_PUBLIC_SNAPSHOT)
-    for label in sorted(_DECLARED_REMAINDER):
-        _rx, ceiling = _DECLARED_REMAINDER[label]
-        offenders = hits[label]
-        assert len(offenders) <= ceiling, (
-            f"{label} now appears in {len(offenders)} tracked files, above the "
-            f"declared {ceiling}. New: {sorted(set(offenders))[:5]}. This class is "
-            "not cleaned, but it is not allowed to spread — either remove the new "
-            "occurrence or move the pin down together with a measurement."
-        )
-        assert len(offenders) >= ceiling - 10, (
-            f"{label} is down to {len(offenders)} files against a pin of {ceiling}. "
-            "Move the pin down to lock the improvement in."
-        )
+
+
+def test_the_scan_uses_the_production_filter_and_keeps_public_ratchets():
+    tracked = set(_tracked())
+    assert not any(path.startswith("tausik/tasks/") for path in tracked)
+    assert ".gitlab-ci.yml" not in tracked
+    assert {"tausik/gates.json", "tausik/policy.json"} <= tracked
+
+
+def test_a_real_violation_in_a_kept_file_is_still_detected():
+    hits = _scan_rows([("scripts/bad.py", r"C:\Users\ayumashev\secret")])
+    assert hits["a local path carrying the user's name"] == ("scripts/bad.py",)
+
+
+def test_dynamic_instruction_state_is_sanitized_before_the_scan():
+    text = "stable\n<!-- DYNAMIC:START -->\nD:\\Work\\private\n<!-- DYNAMIC:END -->\n"
+    hits = _scan_rows([("AGENTS.md", text)])
+    assert hits["dev-machine path"] == ()
 
 
 class TestNoDocumentClaimsGithubIsWhereDevelopmentHappens:

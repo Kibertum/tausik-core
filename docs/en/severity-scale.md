@@ -36,6 +36,6 @@ The standard names CRITICAL, HIGH and MEDIUM. LOW is this project's addition for
 - **CRITICAL is recorded with its reason.** `tausik review record --critical N` with N above zero is refused without `--reason`. The reason is stored with the record and shown by `tausik review list`.
 
 ```bash
-tausik review record --task <slug> --type L3 --critical 1 --warnings 2 \
+tausik review record --task <slug> --type L3 --critical 1 --high 1 --warnings 1 \
   --reason "hook fails open on a locked DB: the write goes through unchecked"
 ```

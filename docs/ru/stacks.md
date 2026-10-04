@@ -2,6 +2,9 @@
 
 # Гайд по стек-плагинам
 
+Декларации глубины review и evidence capabilities гейтов описаны в
+[контракте остаточной уверенности](assurance.md).
+
 <!-- doc-map: reader=user; zone=core-surface -->
 
 > **TL;DR.** Каждый стек — это декларация `stack.json` в `stacks/<name>/`. Фреймворк загружает их через `StackRegistry`. Чтобы добавить новый стек, пишете один JSON-файл; чтобы кастомизировать существующий — кладёте override в `.tausik/stacks/<name>/`.
