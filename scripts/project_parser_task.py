@@ -331,6 +331,18 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tupdate.add_argument("--stack", default=None)
     tupdate.add_argument("--complexity", default=None, choices=sorted(VALID_COMPLEXITIES))
     tupdate.add_argument("--role", default=None)
+    tupdate.add_argument(
+        "--assurance-profiles",
+        default=None,
+        dest="assurance_profiles",
+        help='JSON list of composable profiles, e.g. ["declarative"]',
+    )
+    tupdate.add_argument(
+        "--assurance-impact",
+        default=None,
+        dest="assurance_impact",
+        help="JSON impact object; task values override stack defaults",
+    )
     tupdate.add_argument("--scope", default=None)
     tupdate.add_argument("--scope-exclude", default=None, dest="scope_exclude")
     tupdate.add_argument(

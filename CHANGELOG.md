@@ -9,9 +9,52 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.1] — 2026-10-04
+
+- Projects can now opt into `governance_profile: "memory-only"`. Bootstrap then
+  keeps the TAUSIK project MCP, codebase RAG, database/history and only the two
+  memory-routing/audit hooks, while removing task/scope/verify/session ceremony
+  and the OpenCode QG-0 plugin. Generated rules switch profiles idempotently;
+  custom rules are preserved with a warning. `full` remains the unchanged
+  default, invalid values stop bootstrap, and infrastructure stack detection
+  never weakens governance automatically.
+
+- `tausik --version` now reports the installed release without requiring a
+  project or opening its database. Every public CLI, MCP and host-hook session
+  start performs a fresh anonymous GitHub release check first; a newer SemVer
+  release refuses the start with both versions and the upgrade command. Network,
+  timeout and malformed answers remain explicit unverified states and allow
+  work; `updates.check=false` sends no request and behaves the same way. The
+  standalone status cache remains at most daily.
+
+- `metrics compare` and `tausik_metrics(view="comparison")` now compare two
+  naturally accumulated cohorts by exact TAUSIK version, observed model or
+  explicit time labels. The scorecard keeps token subsets non-overlapping,
+  prices complete evidence only through a dated provider rate card, separates
+  subscription/quota, stratifies task assurance, and returns inconclusive for
+  small, mixed or confounded samples. Privacy-safe snapshots retain membership
+  hashes and provenance without task names or conversation content.
+
+- Natural accepted-task work now accumulates into privacy-safe cohorts keyed by
+  the TAUSIK version and observed host/provider/model/reasoning/speed identity.
+  `metrics cohorts` reports coverage and quality maturity without synthetic runs,
+  guessing legacy identity, double-counting token subsets or storing transcripts.
+  Finalized native responses refresh partial counters; crossed version boundaries
+  and unmeasured active time stay unknown, and multi-identity task overhead is unsplit.
+
+- Review depth can now be derived from composable assurance profiles, declared
+  impact and capabilities proved by passed gates. Security, governance,
+  privileged, destructive and irreversible changes retain a hard L3 floor;
+  lint and schema checks do not stand in for behavioral evidence. `/ship`
+  consumes the canonical route: ordinary work uses zero or one reviewer, while
+  `/review` remains the explicit multi-agent deep audit. Structured review
+  records retain route, identities, invocation count and available usage.
+
 - GitHub Actions tests now declare their host and temporary-project boundaries
   explicitly, so clean and reused xdist workers exercise the same contracts as
   a developer checkout without weakening unknown-host or nested-project guards.
+  Public-boundary ratchets consume the publisher's exclusion list and dynamic
+  sanitization, so development-only ledger files cannot make a valid snapshot red.
 
 ## [1.11.0] — 2026-10-02
 

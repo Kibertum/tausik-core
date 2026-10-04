@@ -13,7 +13,32 @@ columns: memory #136 keeps the reviews table as it is.
 
 from __future__ import annotations
 
+import re
+
+import model_profiles
 from model_routing import _model_family
+
+
+_OPENAI_MODEL = re.compile(r"^gpt-\d+(?:\.\d+)?(?:-(?:luna|terra|sol|astra))?$")
+
+
+def review_model_family(model_id: str | None) -> str | None:
+    """Review-separation family across supported model providers.
+
+    The historical Claude tier tokens remain stable. Known profile models use
+    vendor plus abstract rank. A bare released GPT generation is recognized by
+    its exact normalized id; invented values such as ``gpt-x`` remain unknown.
+    """
+    claude_tier = _model_family(model_id)
+    if claude_tier is not None:
+        return f"claude:{claude_tier}"
+    normalized = model_profiles.normalize_model_id(model_id)
+    hit = model_profiles.reverse_index(model_profiles.DEFAULT_FAMILIES).get(normalized)
+    if hit is not None:
+        return f"{hit[0]}:{hit[1]}"
+    if _OPENAI_MODEL.fullmatch(normalized):
+        return f"openai:{normalized}"
+    return None
 
 
 def resolve_author_model(explicit: str | None) -> str | None:
@@ -33,17 +58,17 @@ def l3_refusal(author_model: str | None, reviewer_model: str | None) -> str | No
     """Why an L3 record must not be written, or None when separation is shown."""
     if not reviewer_model:
         return "L3 needs --reviewer-model: the model that ran the review (SENAR Rule 4)."
-    if _model_family(reviewer_model) is None:
+    if review_model_family(reviewer_model) is None:
         return (
-            f"reviewer model {reviewer_model!r} is not a recognised family "
-            "(haiku/sonnet/opus/fable): independence cannot be shown (SENAR Rule 4)."
+            f"reviewer model {reviewer_model!r} is not a recognised model family: "
+            "independence cannot be shown (SENAR Rule 4)."
         )
-    if _model_family(author_model) is None:
+    if review_model_family(author_model) is None:
         return (
             "the author's model is unknown: pass --author-model <id> "
             "(the model that wrote the code; SENAR Rule 4)."
         )
-    if _model_family(author_model) == _model_family(reviewer_model):
+    if review_model_family(author_model) == review_model_family(reviewer_model):
         return (
             f"reviewer {reviewer_model} and author {author_model} are the same family: "
             "a model cannot validate its own work (SENAR Rule 4). Re-run the review on "

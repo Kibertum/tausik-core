@@ -1,15 +1,6 @@
-"""TAUSIK schema migrations -- version-by-version SQL transformations.
-
-Separated from backend_schema.py to keep files under 400 lines.
-Each migration is a list of SQL statements applied in order.
-SQLite cannot ALTER TABLE to add CASCADE/CHECK -- must rebuild via
-create temp -> copy -> drop -> rename. Migrations are irreversible.
-
-Legacy migrations (v2-v11) are in backend_migrations_legacy.py.
-"""
+"""Versioned, irreversible TAUSIK schema migrations."""
 
 from __future__ import annotations
-
 
 from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
 from backend_schema import SCHEMA_VERSION
@@ -48,6 +39,11 @@ from backend_migrations_v64 import MIGRATION_V64
 from backend_migrations_v65 import MIGRATION_V65
 from backend_migrations_v66 import MIGRATION_V66
 from backend_migrations_v67 import MIGRATION_V67
+from backend_migrations_v68 import MIGRATION_V68
+from backend_migrations_v69 import MIGRATION_V69
+from backend_migrations_v70 import MIGRATION_V70
+from backend_migrations_v71 import MIGRATION_V71
+from backend_migrations_v72 import MIGRATION_V72
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -445,9 +441,13 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     65: MIGRATION_V65,
     # v66: decisions.rejected -- alternatives turned down (backend_migrations_v66.py).
     66: MIGRATION_V66,
-    67: MIGRATION_V67,  # tasks.resolution -- obsolete close
+    67: MIGRATION_V67,  # obsolete resolution
+    68: MIGRATION_V68,  # assurance declarations
+    69: MIGRATION_V69,  # structured residual-assurance review records
+    70: MIGRATION_V70,  # natural accepted-task benchmark observations
+    71: MIGRATION_V71,  # observed/configured provenance for cohort identity
+    72: MIGRATION_V72,  # bind review records to reviewed task/file state
 }
-
 
 # Merged: legacy + current
 MIGRATIONS: dict[int, list[str]] = {**LEGACY_MIGRATIONS, **_CURRENT_MIGRATIONS}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import utcnow_iso
@@ -46,6 +47,7 @@ class BackendCrudMixin:
 
     # Type stubs for mixin
     if TYPE_CHECKING:
+        _conn: sqlite3.Connection
 
         def _q(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]: ...
         def _q1(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None: ...
@@ -82,11 +84,62 @@ class BackendCrudMixin:
         critical_findings: int = 0,
         warnings: int = 0,
         notes: str | None = None,
+        *,
+        high_findings: int = 0,
+        profiles_json: str | None = None,
+        reasons_json: str | None = None,
+        hard_floor: str | None = None,
+        author_model: str | None = None,
+        reviewer_model: str | None = None,
+        reviewer_context: str | None = None,
+        reviewer_invocations: int = 0,
+        usage_json: str | None = None,
+        route_json: str | None = None,
+        reviewed_state_fingerprint: str | None = None,
     ) -> int:
+        columns = {row[1] for row in self._conn.execute("PRAGMA table_info(reviews)").fetchall()}
+        if "route_json" not in columns:
+            return self._ins(
+                "INSERT INTO reviews(task_slug, run_type, critical_findings, "
+                "warnings, run_at, notes) VALUES(?,?,?,?,?,?)",
+                (
+                    task_slug,
+                    run_type,
+                    int(critical_findings),
+                    int(warnings),
+                    utcnow_iso(),
+                    notes,
+                ),
+            )
+        if reviewed_state_fingerprint is None:
+            from review_routing import review_state_fingerprint
+
+            reviewed_state_fingerprint = review_state_fingerprint(self._conn, task_slug)
         return self._ins(
             "INSERT INTO reviews(task_slug, run_type, critical_findings, "
-            "warnings, run_at, notes) VALUES(?,?,?,?,?,?)",
-            (task_slug, run_type, int(critical_findings), int(warnings), utcnow_iso(), notes),
+            "warnings, run_at, notes, high_findings, profiles_json, reasons_json, "
+            "hard_floor, author_model, reviewer_model, reviewer_context, "
+            "reviewer_invocations, usage_json, route_json, reviewed_state_fingerprint) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                task_slug,
+                run_type,
+                int(critical_findings),
+                int(warnings),
+                utcnow_iso(),
+                notes,
+                int(high_findings),
+                profiles_json,
+                reasons_json,
+                hard_floor,
+                author_model,
+                reviewer_model,
+                reviewer_context,
+                int(reviewer_invocations),
+                usage_json,
+                route_json,
+                reviewed_state_fingerprint,
+            ),
         )
 
     def review_list(

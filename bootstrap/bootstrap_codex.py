@@ -44,7 +44,11 @@ def _fallback_python() -> str:
     return "python"
 
 
-def build_codex_hooks(target_dir: str, venv_python: str | None = None) -> dict[str, Any]:
+def build_codex_hooks(
+    target_dir: str,
+    venv_python: str | None = None,
+    governance_profile: str = "full",
+) -> dict[str, Any]:
     """Блок `hooks` для Codex: тот же набор, что у Claude, но путями с диска.
 
     `target_dir` — каталог профиля (`<проект>/.codex`), куда bootstrap уже
@@ -63,22 +67,23 @@ def build_codex_hooks(target_dir: str, venv_python: str | None = None) -> dict[s
         # напрямую, а не через обёртку CLI, и не наследует её PYTHONUTF8.
         return f"{python_exe} -X utf8 {hooks_dir}/{script}{suffix}"
 
-    hooks = build_hooks_dict(_hook_cmd)
+    hooks = build_hooks_dict(_hook_cmd, governance_profile)
     # Live 0.153.4 payloads differ from Claude's canonical Write/PowerShell shapes.
     # Keep shared registrations intact and add one narrowly scoped adapter.
-    project = os.path.dirname(os.path.abspath(target_dir)).replace("\\", "/")
-    hooks["PreToolUse"].append(
-        {
-            "matcher": "apply_patch|Bash|PowerShell",
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": _hook_cmd("codex_write_gate.py", f' --project "{project}"'),
-                    "timeout": 10,
-                }
-            ],
-        }
-    )
+    if governance_profile == "full":
+        project = os.path.dirname(os.path.abspath(target_dir)).replace("\\", "/")
+        hooks["PreToolUse"].append(
+            {
+                "matcher": "apply_patch|Bash|PowerShell",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _hook_cmd("codex_write_gate.py", f' --project "{project}"'),
+                        "timeout": 10,
+                    }
+                ],
+            }
+        )
     return hooks
 
 
@@ -107,6 +112,7 @@ def generate_codex_hooks(
     project_dir: str,
     target_dir: str,
     venv_python: str | None = None,
+    governance_profile: str = "full",
 ) -> str:
     """Записать `<проект>/.codex/hooks.json`. Возвращает путь.
 
@@ -118,7 +124,7 @@ def generate_codex_hooks(
     os.makedirs(target_dir, exist_ok=True)
     path = os.path.join(target_dir, HOOKS_FILE)
     document = _load_existing(path)
-    document[_OWNED_KEY] = build_codex_hooks(target_dir, venv_python)
+    document[_OWNED_KEY] = build_codex_hooks(target_dir, venv_python, governance_profile)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(document, fh, indent=2, ensure_ascii=False)
     return path
@@ -129,6 +135,7 @@ def scaffold_codex(
     target_dir: str,
     venv_python: str | None = None,
     lib_dir: str | None = None,
+    governance_profile: str = "full",
 ) -> None:
     """Точка входа ветки `--ide codex` в `bootstrap.run_for_ide`.
 
@@ -137,8 +144,11 @@ def scaffold_codex(
     `AGENTS.md` есть в бинаре). Дублировать значило бы иметь два места, где
     правила расходятся.
     """
-    path = generate_codex_hooks(project_dir, target_dir, venv_python)
-    count = sum(len(entries) for entries in build_codex_hooks(target_dir, venv_python).values())
+    path = generate_codex_hooks(project_dir, target_dir, venv_python, governance_profile)
+    count = sum(
+        len(entries)
+        for entries in build_codex_hooks(target_dir, venv_python, governance_profile).values()
+    )
     print(f"  Codex hooks: {count} matcher(s) → {os.path.relpath(path, project_dir)}")
 
     config_path, servers = register_mcp_servers(project_dir, target_dir, venv_python, lib_dir)

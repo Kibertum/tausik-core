@@ -25,6 +25,8 @@ _FINGERPRINT_FIELDS = (
     "scope_paths",
     "relevant_files",
     "risk_json",
+    "assurance_profiles",
+    "assurance_impact",
     "plan",
     "updated_at",
 )
@@ -80,6 +82,90 @@ def _fingerprint(task: dict[str, Any], decisions: list[dict[str, Any]]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _assurance_projection(svc: Any, task: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate declarations against capabilities from the latest signed receipt."""
+    from assurance_policy import (
+        compose_declarations,
+        evaluate_assurance,
+        observed_capabilities,
+    )
+    from stack_registry import registry_for_project
+
+    stack = task.get("stack")
+    declaration = (
+        registry_for_project(svc.tausik_dir()).assurance_for(stack)
+        if stack
+        else {
+            "profiles": [],
+            "impact": {},
+            "gate_capabilities": {},
+        }
+    )
+    profiles, impact, complete = compose_declarations(
+        declaration["profiles"],
+        _decoded(task.get("assurance_profiles"), []),
+        declaration["impact"],
+        _decoded(task.get("assurance_impact"), {}),
+    )
+    gate_results: list[dict[str, Any]] = []
+    try:
+        row = svc.be._q1(
+            "SELECT receipt_json FROM verification_runs "
+            "WHERE task_slug=? AND receipt_json IS NOT NULL ORDER BY id DESC LIMIT 1",
+            (task["slug"],),
+        )
+        envelope = json.loads(row["receipt_json"]) if row else {}
+        receipt = envelope.get("receipt", envelope)
+        if receipt.get("passed"):
+            gate_results = list(receipt.get("gates") or [])
+    except (AttributeError, KeyError, TypeError, ValueError):
+        gate_results = []
+    observed = observed_capabilities(declaration["gate_capabilities"], gate_results)
+    return evaluate_assurance(
+        profiles=profiles,
+        impact=impact,
+        observed_evidence=observed,
+        metadata_complete=complete,
+    )
+
+
+def _review_route(svc: Any, task: dict[str, Any], assurance: dict[str, Any]) -> dict[str, Any]:
+    """Preview the same route consumed by CLI, MCP and host skills."""
+    from review_routing import build_review_route
+
+    measured_high = False
+    try:
+        from risk_l3_trigger import MIN_MEASURED_WEIGHT, measured_score, measured_weight
+        from risk_model import LEVEL_HIGH
+
+        risk = _decoded(task.get("risk_json"), None)
+        measured_high = bool(
+            risk
+            and measured_weight(risk) >= MIN_MEASURED_WEIGHT
+            and (measured_score(risk) or 0) >= LEVEL_HIGH
+        )
+    except (ImportError, TypeError, ValueError):
+        measured_high = False
+
+    configured_extreme_floor = False
+    try:
+        from project_config import load_config
+
+        review_cfg = load_config(svc.tausik_dir()).get("review", {})
+        configured_extreme_floor = bool(
+            isinstance(review_cfg, dict)
+            and review_cfg.get("extreme_hard_floor")
+            and assurance.get("hard_floor") == "L3"
+        )
+    except (AttributeError, TypeError, ValueError):
+        configured_extreme_floor = False
+    return build_review_route(
+        assurance,
+        configured_extreme_floor=configured_extreme_floor,
+        measured_high=measured_high,
+    )
+
+
 def build_task_context_package(
     svc: Any,
     slug: str,
@@ -91,6 +177,8 @@ def build_task_context_package(
         raise ValueError(f"max_bytes must be {MIN_MAX_BYTES}..{MAX_MAX_BYTES}")
     task = svc.task_show(slug)
     decisions = _active_decisions(svc, slug)
+    assurance = _assurance_projection(svc, task)
+    review_route = _review_route(svc, task, assurance)
     required = {
         "slug": task["slug"],
         "title": task.get("title"),
@@ -110,6 +198,8 @@ def build_task_context_package(
             "risk_score": task.get("risk_score"),
             "risk": _decoded(task.get("risk_json"), None),
         },
+        "assurance": assurance,
+        "review_route": review_route,
         "verification": {
             "verify": f".tausik/tausik verify --task {slug}",
             "close_with_verify": f".tausik/tausik task done {slug} --ac-verified --verify",

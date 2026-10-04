@@ -12,7 +12,7 @@ import sqlite3
 import sys
 
 import pytest
-from conftest import canonical_ddl
+from conftest import canonical_schema_db
 
 _SCRIPTS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 if _SCRIPTS not in sys.path:
@@ -24,14 +24,31 @@ from risk_model import compute_risk  # noqa: E402
 
 @pytest.fixture
 def conn():
-    c = sqlite3.connect(":memory:")
-    c.execute(canonical_ddl("reviews"))
+    c = canonical_schema_db()
+    c.row_factory = sqlite3.Row
+    c.execute(
+        "INSERT INTO tasks(slug, title, created_at, updated_at) "
+        "VALUES ('t1', 'Task', '2026-01-01', '2026-01-01')"
+    )
     yield c
     c.close()
 
 
 def _risk_all_measured(value):
     return compute_risk({n: value for n in t.WEIGHTS})
+
+
+def _record_bound_l3(conn, *, critical=0, high=0):
+    from review_routing import review_state_fingerprint
+
+    conn.execute(
+        "INSERT INTO reviews (task_slug, run_type, critical_findings, high_findings, "
+        "warnings, run_at, author_model, reviewer_model, reviewer_context, "
+        "reviewer_invocations, reviewed_state_fingerprint) "
+        "VALUES ('t1', 'L3', ?, ?, 0, '2026-01-01', 'gpt-5.6-sol', "
+        "'gpt-6-astra', 'different-model', 1, ?)",
+        (critical, high, review_state_fingerprint(conn, "t1")),
+    )
 
 
 class TestMeasuredScore:
@@ -61,13 +78,21 @@ class TestCheckL3Required:
         assert "separation of" in note
 
     def test_recorded_l3_satisfies(self, conn):
-        conn.execute(
-            "INSERT INTO reviews (task_slug, run_type, critical_findings, warnings, run_at) "
-            "VALUES ('t1', 'L3', 0, 1, '2026-01-01')"
-        )
+        _record_bound_l3(conn)
         blocking, note = t.check_l3_required(conn, "t1", _risk_all_measured(0.9))
         assert blocking is False
         assert "satisfied" in note
+
+    def test_l3_with_critical_findings_does_not_satisfy(self, conn):
+        _record_bound_l3(conn, critical=1)
+        blocking, _ = t.check_l3_required(conn, "t1", _risk_all_measured(0.9))
+        assert blocking is True
+
+    def test_latest_failed_l3_invalidates_an_older_clean_record(self, conn):
+        _record_bound_l3(conn)
+        _record_bound_l3(conn, high=1)
+        blocking, _ = t.check_l3_required(conn, "t1", _risk_all_measured(0.9))
+        assert blocking is True
 
     def test_lowercase_run_type_cannot_be_stored_at_all(self, conn):
         """Прежний тест здесь утверждал, что 'l3' засчитывается наравне с 'L3'.
@@ -90,10 +115,7 @@ class TestCheckL3Required:
 
     def test_canonical_l3_satisfies_via_upper(self, conn):
         """Единственная форма, которая может оказаться в БД, гейт снимает."""
-        conn.execute(
-            "INSERT INTO reviews (task_slug, run_type, critical_findings, warnings, run_at) "
-            "VALUES ('t1', 'L3', 0, 0, '2026-01-01')"
-        )
+        _record_bound_l3(conn)
         blocking, _ = t.check_l3_required(conn, "t1", _risk_all_measured(0.9))
         assert blocking is False
 
@@ -139,10 +161,29 @@ class TestCheckL3Required:
             assert blocking is False and note == ""
 
     def test_opt_out_downgrades_to_warning(self, conn, monkeypatch):
-        monkeypatch.setattr(t, "_block_enabled", lambda: False)
+        monkeypatch.setattr(t, "_block_enabled", lambda *_args: False)
         blocking, note = t.check_l3_required(conn, "t1", _risk_all_measured(0.9))
         assert blocking is False
         assert note.startswith("WARNING")
+
+    def test_ambient_opt_out_cannot_disable_target_project_gate(self, conn, tmp_path, monkeypatch):
+        target = tmp_path / "target"
+        ambient = tmp_path / "ambient"
+        target.joinpath(".tausik").mkdir(parents=True)
+        ambient.joinpath(".tausik").mkdir(parents=True)
+        monkeypatch.chdir(ambient)
+
+        calls = []
+
+        def scoped_config(tausik_dir=None):
+            calls.append(tausik_dir)
+            enabled = os.path.normcase(str(tausik_dir)) == os.path.normcase(str(target / ".tausik"))
+            return {"risk": {"l3_block_on_high": enabled}}
+
+        monkeypatch.setattr("project_config.load_config", scoped_config)
+        blocking, _ = t.check_l3_required(conn, "t1", _risk_all_measured(0.9), project_root=target)
+        assert blocking is True
+        assert calls == [str((target / ".tausik").resolve())]
 
     def test_none_risk_passes(self, conn):
         assert t.check_l3_required(conn, "t1", None) == (False, "")
@@ -150,10 +191,54 @@ class TestCheckL3Required:
     def test_broken_db_never_raises(self):
         bad = sqlite3.connect(":memory:")  # no reviews table
         blocking, note = t.check_l3_required(bad, "t1", _risk_all_measured(0.9))
-        assert blocking is False and note == ""
+        assert blocking is True and "validation failed" in note
 
 
 class TestTaskDoneIntegration:
+    def test_task_done_uses_target_project_for_l3_opt_out(self, tmp_path, monkeypatch):
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+        from tausik_utils import ServiceError
+
+        target = tmp_path / "target"
+        ambient = tmp_path / "ambient"
+        target.joinpath(".tausik").mkdir(parents=True)
+        ambient.mkdir()
+        monkeypatch.chdir(ambient)
+        monkeypatch.setenv("TAUSIK_QUIET", "1")
+        calls = []
+
+        def scoped_config(tausik_dir=None):
+            calls.append(tausik_dir)
+            enabled = os.path.normcase(str(tausik_dir)) == os.path.normcase(str(target / ".tausik"))
+            return {"risk": {"l3_block_on_high": enabled}}
+
+        monkeypatch.setattr("project_config.load_config", scoped_config)
+        svc = ProjectService(SQLiteBackend(str(target / ".tausik" / "tausik.db")))
+        svc.task_add(None, "target-hot", "Target hot")
+        svc.task_update(
+            "target-hot",
+            goal="g",
+            acceptance_criteria="1. works 2. invalid input is refused",
+            scope="x.py",
+        )
+        svc.task_start("target-hot")
+
+        import risk_compute
+
+        hot = {
+            "score": 0.9,
+            "level": "high",
+            "factors": {n: 0.9 for n in t.WEIGHTS},
+            "weights": dict(t.WEIGHTS),
+            "defaulted": [],
+        }
+        monkeypatch.setattr(risk_compute, "compute_task_risk", lambda *_a, **_k: hot)
+        with pytest.raises(ServiceError, match="Under-evidenced closure"):
+            svc.task_done("target-hot", None, True, True, evidence="AC verified: 1. OK 2. OK")
+        assert str((target / ".tausik").resolve()) in calls
+        svc.be.close()
+
     def test_high_risk_close_blocked_then_passes_after_review(self, tmp_path, monkeypatch):
         from project_backend import SQLiteBackend
         from project_service import ProjectService
@@ -185,10 +270,59 @@ class TestTaskDoneIntegration:
             svc.task_done("t-hot", None, True, True, evidence="AC verified: 1. OK 2. OK")
         assert svc.be.task_get("t-hot")["status"] == "active"  # not closed
 
-        svc.be.review_record(task_slug="t-hot", run_type="L3", critical_findings=0)
+        svc.be.review_record(
+            task_slug="t-hot",
+            run_type="L3",
+            critical_findings=0,
+            author_model="gpt-5.6-sol",
+            reviewer_model="gpt-6-astra",
+            reviewer_context="different-model",
+            reviewer_invocations=1,
+        )
         result = svc.task_done("t-hot", None, True, True, evidence="AC verified: 1. OK 2. OK")
         assert "completed" in result and "satisfied" in result
         assert svc.be.task_get("t-hot")["status"] == "done"
+
+    def test_high_risk_close_rejects_review_after_task_contract_changes(
+        self, tmp_path, monkeypatch
+    ):
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+        from tausik_utils import ServiceError
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("TAUSIK_QUIET", "1")
+        svc = ProjectService(SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db")))
+        svc.task_add(None, "t-stale", "Stale review")
+        svc.task_update(
+            "t-stale",
+            goal="first goal",
+            acceptance_criteria="1. behavior is verified 2. invalid input is refused",
+            scope="x.py",
+        )
+        svc.task_start("t-stale")
+        svc.be.review_record(
+            task_slug="t-stale",
+            run_type="L3",
+            author_model="gpt-5.6-sol",
+            reviewer_model="gpt-6-astra",
+            reviewer_context="different-model",
+            reviewer_invocations=1,
+        )
+        svc.task_update("t-stale", goal="changed after review")
+
+        import risk_compute
+
+        hot = {
+            "score": 0.9,
+            "level": "high",
+            "factors": {n: 0.9 for n in t.WEIGHTS},
+            "weights": dict(t.WEIGHTS),
+            "defaulted": [],
+        }
+        monkeypatch.setattr(risk_compute, "compute_task_risk", lambda *_a, **_k: hot)
+        with pytest.raises(ServiceError, match="Under-evidenced closure"):
+            svc.task_done("t-stale", None, True, True, evidence="AC verified: 1. behavior passed")
 
 
 class TestTheRefusalStatesItsOwnBasis:

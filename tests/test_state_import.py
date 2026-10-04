@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 from project_backend import SQLiteBackend
 from project_service import ProjectService
 from state_export import ENTITY_DIRS, build_tree
-from state_import import import_tree
+from state_import import import_tree, parse_tree
 from state_parse import (
     ParseError,
     parse_frontmatter,
@@ -59,6 +59,8 @@ def _seed_rich(svc):
         scope_paths='["b.py", "a.py"]',
         scope_tools='["Write"]',
         relevant_files='["scripts/x.py"]',
+        assurance_profiles='["declarative", "research"]',
+        assurance_impact='{"blast_radius":"bounded","level":"medium","reversibility":"conditional"}',
         call_budget=120,
         tier="substantial",
         completed_at="2026-07-24T15:00:00Z",
@@ -231,6 +233,28 @@ def test_malformed_file_aborts_whole_batch(tmp_path):
         assert dst.be._q1("SELECT COUNT(*) c FROM epics")["c"] == 0
     finally:
         dst.be.close()
+
+
+@pytest.mark.parametrize(
+    ("frontmatter", "error"),
+    [
+        ("assurance_profiles: executable", "must be a list"),
+        ("assurance_profiles: {executable: true}", "must be a list"),
+        ("assurance_profiles:\n  - unknown", "must be one of"),
+        ("assurance_profiles:\n  - executable\n  - executable", "duplicates"),
+        ("assurance_impact: []", "must be an object"),
+        ('assurance_impact: "{\\"level\\":[]}"', "assurance_impact.level must be one of"),
+        (
+            'assurance_impact: "{\\"blast_radius\\":{}}"',
+            "assurance_impact.blast_radius must be one of",
+        ),
+    ],
+)
+def test_malformed_assurance_metadata_is_rejected_during_tree_parse(frontmatter, error):
+    text = f"---\nslug: broken\ntitle: Broken\n{frontmatter}\n---\n\n# Broken\n"
+
+    with pytest.raises(ParseError, match=error):
+        parse_tree({"tasks/broken.md": text})
 
 
 def test_fts_reindexed_after_import(tmp_path):

@@ -48,7 +48,7 @@ def flatten_for_injection(text: str | None, limit: int) -> str:
     one function so the two cannot drift apart again — which is precisely what
     had already happened by the time this was written.
     """
-    return " ".join((text or "").split())[:limit]
+    return " ".join((text or "").split())[:limit].rstrip()
 
 
 def entry_line(node_id: Any, text: str | None, limit: int, retired: dict[int, list[int]]) -> str:

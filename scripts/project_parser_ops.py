@@ -1,8 +1,4 @@
-"""Argparse subparser builders for SENAR ops commands (dead-end, explore, audit, brain, run).
-
-Extracted from project_parser.py to keep that file under the 400-line filesize gate.
-Each function takes the root `sub` ArgumentParser-subaction and attaches a subcommand.
-"""
+"""Argparse subparser builders for SENAR ops commands (dead-end, explore, audit, brain, run)."""
 
 from __future__ import annotations
 
@@ -299,6 +295,12 @@ def add_metrics(sub: argparse._SubParsersAction) -> None:
         help="Tokens per CLOSED task, apportioned from session totals by call share, with "
         "the monthly trend — the price-neutral answer to whether a task got dearer",
     )
+    cohorts = metrics_sub.add_parser(
+        "cohorts",
+        help="Inventory natural accepted-task cohorts by TAUSIK version and observed model",
+    )
+    cohorts.add_argument("--json", action="store_true", dest="as_json")
+    __import__("benchmark_compare_cli").add_parser(metrics_sub)
     __import__("project_parser_answers").add(metrics_sub)  # metrics answers (story J)
     __import__("call_mix").add(metrics_sub)  # metrics calls
     mt = metrics_sub.add_parser(
@@ -472,8 +474,7 @@ def add_push_ok(sub: argparse._SubParsersAction) -> None:
 
 
 def add_ops(sub: argparse._SubParsersAction) -> None:
-    """Register every ops subparser. One list, next to the parsers it names —
-    the caller in `project_parser` no longer re-types it."""
+    """Register every ops subparser beside the parsers it names."""
     from project_parser_config import add_config
     from project_parser_graph import add_graph
     from project_parser_publish import add_publish

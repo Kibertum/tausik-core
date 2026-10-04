@@ -263,7 +263,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_update",
-        "description": "Update task fields. Specify slug and any fields to change. Valid fields: title, status, goal, acceptance_criteria, scope, scope_exclude, rollback_plan, complexity, stack, role, notes, defect_of",
+        "description": "Update task fields.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -313,6 +313,14 @@ TOOLS = [
                     "type": "string",
                     "description": "Parent task slug if this is a defect fix",
                 },
+                "assurance_profiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["declarative", "executable", "migration", "research"],
+                    },
+                },
+                "assurance_impact": {"type": "object"},
                 "call_budget": {
                     "type": "integer",
                     "minimum": 0,
@@ -1010,15 +1018,21 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "view": {
+                    "enum": ["summary", "cohorts", "comparison"],
+                },
+                "compare": {
+                    "type": "object",
+                },
                 "host": {
                     "enum": ["codex", "kilo"],
-                }
+                },
             },
         },
     },
     {
         "name": "tausik_usage_event_log",
-        "description": "Append manual LLM usage to usage_events (source=manual). Does not update session_usage_metrics. Requires active session or session_id.",
+        "description": "Log manual LLM usage; requires an active session or session_id.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1027,9 +1041,9 @@ TOOLS = [
                 "tokens_total": {"type": "integer"},
                 "cost_usd": {"type": "number"},
                 "tool_calls": {"type": "integer", "description": "Default 0"},
-                "model": {"type": "string", "description": "Optional model_id"},
-                "task_slug": {"type": "string", "description": "Optional; must exist if set"},
-                "session_id": {"type": "integer", "description": "Optional explicit session FK"},
+                "model": {"type": "string", "description": "Model ID"},
+                "task_slug": {"type": "string", "description": "Existing task"},
+                "session_id": {"type": "integer", "description": "Session ID"},
             },
             "required": ["tokens_input", "tokens_output", "tokens_total", "cost_usd"],
         },

@@ -8,6 +8,11 @@ effort: slow
 # /review — Code Review (SENAR-aligned)
 
 Zero-tolerance review. Find every bug, vulnerability, antipattern, and performance issue.
+
+`/review` is the explicit forced deep-audit surface. It requests
+`tausik review route --task {slug} --deep` and executes the returned L3-deep
+contract. Ordinary `/ship` consumes its package route and must not call this
+multi-agent workflow unless that route has `deep=true`.
 ## Mindset
 
 You are a hostile reviewer. Assume the code is broken until proven otherwise.
@@ -111,17 +116,23 @@ The `/review` skill runs **6 adversarial agents** — this is an **L3 review** (
   --task {slug} \
   --type L3 \
   --critical {N_critical} \
-  --warnings {N_high_plus_medium} \
+  --high {N_high} \
+  --warnings {N_medium_plus_low} \
   --reason "{why each CRITICAL is CRITICAL — required when N_critical > 0}" \
   --author-model {model id of this session — it wrote the code} \
   --reviewer-model {model the reviewer agents ran on, e.g. sonnet} \
+  --reviewer-context different-model \
+  --reviewer-invocations 7 \
+  --deep \
   --notes "{1-line summary or commit/PR url}"
 ```
 
 An L3 record is refused when the two models are the same family, or when either is missing (SENAR Rule 4, github#157). If the agents inherited the session model, the pass was a separate context but not a separate model: record it as `--type L2`.
 
 Notes:
-- `--type L1` = author self-review, `L2` = peer (same context), `L3` = adversarial/external (this skill).
+- `--type L1` = author checklist with zero reviewer calls, `L2` = focused
+  reviewer in a fresh context, `L3` = external reviewer on a different model
+  family. This explicit skill is the L3-deep route.
 - ADR is shown in `tausik metrics` once any L3 reviews exist.
 - Severity follows the project scale in `docs/en/severity-scale.md` (SENAR 1.5 §10.15(f)). Your classification is a proposal; the supervisor who accepts a finding decides it.
 - Skip if no active task — store as `--task <related-slug>` if reviewing arbitrary code (still surfaces in `tausik review list`).
@@ -216,7 +227,7 @@ Skip Lite for security-sensitive code (auth, payments, crypto), >5-file diffs, o
 4. Sub-agent reads `harness/skills/review/agents/quality.md` + `docs/en/security.md` + `docs/en/security-checklist.md` from disk at runtime, applies them, returns one JSON object: `{scope, critical[], high[], medium[], low[], meta}`.
 5. Render the JSON in the **standard Output Format** (re-use the template in step 6 of standard flow).
 6. Run quality gates (same as step 5).
-7. Record the run as `--type L3` if the sub-agent reports its independence (it runs in a separate context — same SENAR semantics as the parallel-6 flow).
+7. Record the run as `--type L3` only when the reviewer uses a different model family from the author. A fresh separate context on the same model family is L2, not L3; record both model identities so the recorder can enforce that boundary.
 
 ### Fallback
 

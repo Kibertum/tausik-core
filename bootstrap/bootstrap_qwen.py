@@ -27,6 +27,7 @@ def generate_settings_qwen(
     project_dir: str,
     venv_python: str | None = None,
     lib_dir: str | None = None,
+    governance_profile: str = "full",
 ) -> None:
     """Generate .qwen/settings.json with MCP servers and hooks for Qwen Code.
 
@@ -84,7 +85,7 @@ def generate_settings_qwen(
     # Hooks: the SAME declaration Claude and Codex use (bootstrap_hooks.build_hooks_dict);
     # only the command line is Qwen's own. This used to be a hand-kept copy that had
     # drifted in 15 PostToolUse registrations (qwen-hooks-are-a-second-copy-of-the-declaration).
-    hooks = build_hooks_dict(_hook_cmd)
+    hooks = build_hooks_dict(_hook_cmd, governance_profile)
 
     settings = {**existing, "mcpServers": servers, "hooks": hooks}
     with open(path, "w", encoding="utf-8") as f:
@@ -97,12 +98,13 @@ def generate_qwen_md(
     stacks: list[str],
     context_tier: str = "minimal",
     output_mode: str = "off",
+    governance_profile: str = "full",
 ) -> None:
     """Generate QWEN.md for Qwen Code CLI — same constraints as CLAUDE.md.
 
     Preserves existing QWEN.md if present.
     """
-    from bootstrap_templates import build_full_body, warn_output_mode_not_applied
+    from bootstrap_templates import build_full_body, write_generated_rules
 
     body = build_full_body(
         project_name,
@@ -113,12 +115,8 @@ def generate_qwen_md(
         context_tier=context_tier,
         output_mode=output_mode,
         project_dir=project_dir,
+        governance_profile=governance_profile,
     )
     content = f"# QWEN.md\n\n{body}"
     path = os.path.join(project_dir, "QWEN.md")
-    if os.path.exists(path):
-        # Preserving the user's file must not silently drop a mode they asked for.
-        warn_output_mode_not_applied(path, output_mode)
-        return
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
+    write_generated_rules(path, content, output_mode, governance_profile)

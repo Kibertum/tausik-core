@@ -6,6 +6,7 @@
     { "file": "*.tfvars", "type": "glob" }
   ],
   "extensions": [".tf", ".tfvars"],
+  "assurance_profiles": ["declarative"],
   "gates": {
     "terraform-validate": {
       "enabled": false,
@@ -16,6 +17,7 @@
       "description": "Terraform fmt+validate — syntax only, NOT policy-as-code (Checkov/tfsec/Sentinel NOT included).",
       "stacks": ["terraform"],
       "timeout": 120
+      ,"evidence_capabilities": ["syntax", "schema"]
     }
   }
 }

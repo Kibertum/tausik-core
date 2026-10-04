@@ -300,6 +300,7 @@ def scaffold_opencode(
     stacks: list[str],
     context_tier: str = "minimal",
     output_mode: str = "off",
+    governance_profile: str = "full",
 ) -> None:
     """Full OpenCode scaffold: config + rules + QG-0 plugin + command stubs.
 
@@ -320,11 +321,23 @@ def scaffold_opencode(
     # so generating it first would have it truthfully report "no mechanism" one
     # second before the mechanism arrived. Failing here also aborts before any
     # rules file claims enforcement that never installed.
-    plugin = generate_opencode_plugin(target_dir, lib_dir)
-    print(f"  OpenCode QG-0 plugin: {plugin}")
+    if governance_profile == "full":
+        plugin = generate_opencode_plugin(target_dir, lib_dir)
+        print(f"  OpenCode QG-0 plugin: {plugin}")
+    else:
+        plugin = os.path.join(target_dir, _PLUGINS_SUBDIR, _PLUGIN_FILE)
+        if os.path.isfile(plugin):
+            os.remove(plugin)
+        print("  OpenCode QG-0 plugin: disabled by governance_profile=memory-only")
 
     rules = generate_opencode_rules(
-        project_dir, project_name, stacks, context_tier, config, output_mode
+        project_dir,
+        project_name,
+        stacks,
+        context_tier,
+        config,
+        output_mode,
+        governance_profile,
     )
     print(f"  OpenCode rules: {rules} (delivered via the `instructions` key)")
 
@@ -340,6 +353,7 @@ def generate_opencode_rules(
     context_tier: str = "minimal",
     config: dict | None = None,
     output_mode: str = "off",
+    governance_profile: str = "full",
 ) -> str:
     """Write the TAUSIK rules file referenced by ``instructions``.
 
@@ -355,14 +369,10 @@ def generate_opencode_rules(
     `instructions` INTO AGENTS.md, so shipping both would put the same rules in the
     context twice.
     """
-    from bootstrap_templates import build_full_body, warn_output_mode_not_applied
+    from bootstrap_templates import build_full_body, write_generated_rules
 
     rules_rel = _rules_path(config, project_dir)
     path = os.path.join(project_dir, *rules_rel.split("/"))
-    if os.path.exists(path):
-        warn_output_mode_not_applied(path, output_mode)
-        return path
-
     body = build_full_body(
         project_name,
         stacks,
@@ -372,8 +382,13 @@ def generate_opencode_rules(
         context_tier=context_tier,
         output_mode=output_mode,
         project_dir=project_dir,
+        governance_profile=governance_profile,
     )
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(f"# TAUSIK — agent rules\n\n{body}")
+    write_generated_rules(
+        path,
+        f"# TAUSIK — agent rules\n\n{body}",
+        output_mode,
+        governance_profile,
+    )
     return path

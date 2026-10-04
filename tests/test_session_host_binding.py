@@ -16,6 +16,7 @@ import json
 import os
 import sqlite3
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -131,11 +132,63 @@ class TestTheHooks:
 
         calls: list[list[str]] = []
         monkeypatch.setattr(hook, "_tausik_path", lambda _d: "tausik")
-        monkeypatch.setattr(
-            hook, "_run_tausik", lambda _c, args, _d, **_k: calls.append(args) or ""
+
+        def run(argv, **_kwargs):
+            calls.append(argv)
+            return SimpleNamespace(returncode=0, stdout="Session started", stderr="")
+
+        monkeypatch.setattr(hook.subprocess, "run", run)
+        blocker = hook._open_host_session(
+            str(tmp_path), {"session_id": "abc-123", "source": "startup"}
         )
-        hook._open_host_session(str(tmp_path), {"session_id": "abc-123", "source": "startup"})
-        assert calls == [["session", "start", "--host-id", "abc-123"]]
+        assert blocker is None
+        assert calls == [["tausik", "session", "start", "--host-id", "abc-123"]]
+
+    @pytest.mark.parametrize(
+        "warning",
+        [
+            "WARNING: installed version is unverified because release check failed",
+            "WARNING: installed version is unverified because update checks are disabled",
+        ],
+    )
+    def test_successful_session_start_surfaces_version_warning(
+        self, monkeypatch, tmp_path, warning
+    ):
+        import session_start as hook
+
+        monkeypatch.setattr(hook, "_tausik_path", lambda _d: "tausik")
+        monkeypatch.setattr(
+            hook.subprocess,
+            "run",
+            lambda *_a, **_k: SimpleNamespace(
+                returncode=0, stdout="Session started", stderr=warning
+            ),
+        )
+
+        notice = hook._open_host_session(str(tmp_path), {"session_id": "host-warning"})
+
+        assert notice == f"TAUSIK SESSION OPENED WITH WARNING. {warning}"
+
+    def test_success_warning_is_combined_with_normal_additional_context(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        import session_start as hook
+
+        project = tmp_path / "project"
+        (project / ".tausik").mkdir(parents=True)
+        (project / ".tausik" / "tausik.db").touch()
+        warning = "TAUSIK SESSION OPENED WITH WARNING. installed version is unverified"
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"session_id": "host"})))
+        monkeypatch.setattr(hook, "_open_host_session", lambda *_a: warning)
+        monkeypatch.setattr(hook, "_auto_rebuild_skills", lambda *_a: None)
+        monkeypatch.setattr(hook, "build_context", lambda *_a: "normal project context")
+
+        assert hook.main() == 0
+        payload = json.loads(capsys.readouterr().out)
+        context = payload["hookSpecificOutput"]["additionalContext"]
+        assert warning in context
+        assert "normal project context" in context
 
     def test_session_start_hook_without_an_id_opens_nothing(self, monkeypatch, tmp_path):
         """NEGATIVE: another host or a manual run has no id; no row is guessed."""

@@ -10,6 +10,8 @@ TAUSIK использует хуки Claude Code для автоматическ
 
 Хуки — скрипты, запускающиеся автоматически на каждое действие агента. Они решают, можно ли действие выполнять (PreToolUse), что делать после (PostToolUse) или что записать на границах сессии/агента (SessionStart, Stop, UserPromptSubmit). Общие хелперы живут в `scripts/hooks/_common.py` (сам по себе не хук); regex-набор `scripts/hooks/memory_markers.py` — библиотека, импортируемая `memory_posttool_audit.py` и pipeline'ом скраббинга brain.
 
+Дефолтный `governance_profile: "full"` разворачивает таблицу ниже. Явный проектный профиль `"memory-only"` оставляет на хостах с hooks только `memory_pretool_block.py` и `memory_posttool_audit.py`, удаляет OpenCode QG-0 plugin и сохраняет MCP/RAG/данные TAUSIK. Это профиль для репозиториев, где нужна память проекта, но не task/verify-ритуал TAUSIK. По инфраструктурному стеку он никогда не включается автоматически. Потерянные гарантии перечислены в [конфигурации](configuration.md#объём-governance).
+
 ## PreToolUse — шлюзы перед действием
 
 | Хук | Когда | Что делает |
@@ -170,7 +172,7 @@ git submodule update --init --recursive
 
 Для тестирования или дебага: установите `TAUSIK_SKIP_HOOKS=1`.
 
-В `.claude/settings.json` хуки генерируются автоматически на bootstrap. Чтобы отключить конкретный хук, удалите его из секции `hooks`. Для регенерации файла запустите `python .tausik-lib/bootstrap/bootstrap.py --refresh`.
+Bootstrap генерирует hooks автоматически. Не поддерживай вручную урезанный список: следующий bootstrap его заменит. Если должны остаться только маршрутизация и аудит памяти, задай проектный `governance_profile: "memory-only"` и перезапусти bootstrap. `"full"` возвращает полный набор.
 
 ## См. также
 

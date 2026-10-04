@@ -27,6 +27,7 @@ from bootstrap_config import (
     detect_extension_skills,
     detect_stacks,
     parse_strict_model_profile_env,
+    resolve_governance_profile,
     resolve_output_mode,
     save_tausik_config,
 )
@@ -111,6 +112,7 @@ def bootstrap_ide(
     *,
     full_cfg: dict | None = None,
     include_official_stubs: bool = False,
+    governance_profile: str = "full",
 ) -> None:
     """Bootstrap for a single IDE."""
     target_dir = get_ide_target(project_dir, ide)
@@ -188,13 +190,15 @@ def bootstrap_ide(
     output_mode = resolve_output_mode(full_cfg)
 
     if ide == "claude":
-        generate_settings_claude(target_dir, project_dir, lib_dir)
-        generate_claude_md(project_dir, proj, stacks, context_tier, output_mode)
+        generate_settings_claude(target_dir, project_dir, lib_dir, governance_profile)
+        generate_claude_md(project_dir, proj, stacks, context_tier, output_mode, governance_profile)
     elif ide == "cursor":
-        generate_cursorrules(project_dir, proj, stacks, context_tier, output_mode)
+        generate_cursorrules(
+            project_dir, proj, stacks, context_tier, output_mode, governance_profile
+        )
     elif ide == "qwen":
-        generate_settings_qwen(target_dir, project_dir, venv_python, lib_dir)
-        generate_qwen_md(project_dir, proj, stacks, context_tier, output_mode)
+        generate_settings_qwen(target_dir, project_dir, venv_python, lib_dir, governance_profile)
+        generate_qwen_md(project_dir, proj, stacks, context_tier, output_mode, governance_profile)
     elif ide == "kilo":
         written = generate_kilo_config(project_dir, target_dir, venv_python, lib_dir, config)
         if written:
@@ -207,7 +211,7 @@ def bootstrap_ide(
     elif ide == "codex":
         # AGENTS.md is NOT generated here — the shared step below writes it for
         # every host but OpenCode, and Codex reads exactly that file.
-        scaffold_codex(project_dir, target_dir, venv_python, lib_dir)
+        scaffold_codex(project_dir, target_dir, venv_python, lib_dir, governance_profile)
     elif ide == "opencode":
         scaffold_opencode(
             project_dir,
@@ -218,13 +222,14 @@ def bootstrap_ide(
             stacks,
             context_tier,
             output_mode,
+            governance_profile,
         )
 
     # AGENTS.md for every host EXCEPT OpenCode: OpenCode merges `instructions`
     # INTO AGENTS.md (shipping both doubles the rule body — the very context
     # bloat this work fixes), and its first-match-wins would prefer the user's.
     if ide != "opencode":
-        generate_agents_md(project_dir, proj, stacks, context_tier, output_mode)
+        generate_agents_md(project_dir, proj, stacks, context_tier, output_mode, governance_profile)
 
     if ide == "cursor":
         generate_cursor_mcp_json(project_dir, target_dir, venv_python)
@@ -251,6 +256,11 @@ def main() -> None:
 
     config, full_cfg = load_bootstrap_config(project_dir, get_ide_target)
     config_path = tausik_config_path(project_dir)
+    try:
+        governance_profile = resolve_governance_profile(full_cfg)
+    except ValueError as e:
+        print(f"Error: {e} (file: {config_path})", file=sys.stderr)
+        sys.exit(1)
 
     # v14b-skill-core-cleanup gating decisions (computed once, passed per IDE).
     include_official_stubs = bool(args.include_official or args.include_vendor)
@@ -360,6 +370,7 @@ def main() -> None:
             context_tier,
             full_cfg=full_cfg,
             include_official_stubs=include_official_stubs,
+            governance_profile=governance_profile,
         )
 
     if "claude" in ides:

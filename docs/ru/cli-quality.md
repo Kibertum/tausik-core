@@ -238,7 +238,7 @@ audit evidence [--json] [--no-git]
 
 ```bash
 review record --task <slug> --type {L1|L2|L3} \
-              [--critical N] [--warnings N] [--reason "..."] [--notes "..."]
+              [--critical N] [--high N] [--warnings N] [--reason "..."] [--notes "..."]
               # --critical > 0 без --reason отказывается: CRITICAL записывается
               # с причиной (SENAR 1.5 §10.15(f); шкала: severity-scale.md)
               [--reviewer-model M] [--author-model M]
@@ -249,7 +249,7 @@ review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
 review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
 ```
 
-Скилл `/review` сам вызывает `review record --type L3` (он запускает 6 adversarial-агентов в отдельном контексте). В `tausik metrics` появляется блок `Adversarial Review`, как только есть хотя бы один L3-прогон.
+Скилл `/review` записывает L3, только когда хотя бы один adversarial-ревьюер работает на другом семействе моделей, чем автор; свежий контекст того же семейства считается L2. В `tausik metrics` появляется блок `Adversarial Review`, как только есть хотя бы один корректный L3-прогон.
 
 ## Обход гейта записывается (SENAR 1.5 §8.6(j))
 

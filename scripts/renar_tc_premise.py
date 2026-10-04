@@ -100,6 +100,11 @@ CLASSES_AT_DECLARATION = frozenset(
         # fields §13.3.5 pos/neg pairing or ADR-013's TC.environment-ref duty
         # are about.
         "ats",
+        # Natural-work usage/quality telemetry. NOT a TC artifact class: one
+        # row describes an observed model response and aggregate counters, not
+        # an executable case for a normative assertion. It has no test
+        # polarity, assertion reference or execution environment contract.
+        "benchmark_observations",
         # p9-a-test-never-observed-red-is-not-evidence (RENAR §9.18.2): which
         # test NODES have ever been observed FAILING. NOT a TC (test case)
         # artifact class — it holds no assertion, no polarity and no environment
@@ -108,14 +113,14 @@ CLASSES_AT_DECLARATION = frozenset(
         # duty stay dormant. Caught by this very guard when the table appeared,
         # which is what it is for.
         "test_red_history",
-    # Artifact graph (v56). Code, docs and the edges between them: a map of what
-    # the repository CONTAINS and how its parts move together, with the layer
-    # each edge was obtained by. Not TC artifacts -- none of them records a
-    # verification of a normative statement; an edge says "these co-changed" or
-    # "this was declared", never "this requirement was checked".
-    "artifacts",
-    "artifact_symbols",
-    "artifact_edges",
+        # Artifact graph (v56). Code, docs and the edges between them: a map of what
+        # the repository CONTAINS and how its parts move together, with the layer
+        # each edge was obtained by. Not TC artifacts -- none of them records a
+        # verification of a normative statement; an edge says "these co-changed" or
+        # "this was declared", never "this requirement was checked".
+        "artifacts",
+        "artifact_symbols",
+        "artifact_edges",
         # at-red-with-tc-green-routes-to-interpretation-not-code: append-only
         # history of OBSERVED AT trial outcomes (red/green). Still not a TC
         # artifact class — it records what happened when someone/something

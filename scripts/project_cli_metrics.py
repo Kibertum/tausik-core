@@ -187,6 +187,57 @@ def dispatch_metrics_subcmd(svc: ProjectService, args: Any) -> bool:
             return True
         print(render(build(conn), closed))
         return True
+    if sub == "cohorts":
+        import json
+
+        from benchmark_cohorts import cohort_inventory, render_inventory
+
+        inventory = cohort_inventory(svc.be._conn)
+        print(
+            json.dumps(inventory, ensure_ascii=False, indent=2)
+            if getattr(args, "as_json", False)
+            else render_inventory(inventory)
+        )
+        return True
+    if sub == "compare":
+        import json
+
+        from benchmark_compare import compare_cohorts, persist_snapshot, render_comparison
+        from project_config import load_config
+
+        def selector(side: str) -> dict[str, Any]:
+            names = {
+                "label": "label",
+                "version": "tausik_version",
+                "model": "model",
+                "provider": "provider",
+                "reasoning": "reasoning_effort",
+                "speed": "speed_mode",
+                "since": "since",
+                "until": "until",
+            }
+            return {
+                target: getattr(args, f"{side}_{source}")
+                for source, target in names.items()
+                if getattr(args, f"{side}_{source}", None) is not None
+            }
+
+        report = compare_cohorts(
+            svc.be._conn,
+            selector("left"),
+            selector("right"),
+            config=load_config(svc.tausik_dir()),
+            minimum_sample=args.minimum_sample,
+            maturation_days=args.maturation_days,
+        )
+        if args.save:
+            persist_snapshot(report, args.save)
+        print(
+            json.dumps(report, ensure_ascii=False, indent=2)
+            if getattr(args, "as_json", False)
+            else render_comparison(report)
+        )
+        return True
     if sub == "calls":
         __import__("call_mix").run(svc, args)
         return True

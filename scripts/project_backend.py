@@ -1,5 +1,3 @@
-"""TAUSIK SQLiteBackend -- CRUD. Single-file SQLite, zero deps."""
-
 from __future__ import annotations
 
 import logging
@@ -25,8 +23,6 @@ from call_syntax_guard import refuse_call_syntax
 from tausik_utils import utcnow_iso
 
 logger = logging.getLogger("tausik.backend")
-
-# Column whitelists for safe UPDATE operations
 _EPIC_FIELDS = frozenset({"title", "status", "description"})
 _STORY_FIELDS = frozenset({"title", "status", "description"})
 _TASK_FIELDS = frozenset(
@@ -65,10 +61,14 @@ _TASK_FIELDS = frozenset(
         "started_model_version",
         "done_model_id",
         "done_model_version",
+        "started_tausik_version",
+        "done_tausik_version",
         "model_mismatch",
         "no_file_changes_declared",
         "resolution",
         "resolution_reason",
+        "assurance_profiles",
+        "assurance_impact",
     }
 )
 

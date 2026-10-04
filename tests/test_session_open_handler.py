@@ -9,6 +9,7 @@ render a degraded dashboard rather than crashing.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
@@ -21,9 +22,12 @@ sys.path.insert(
     os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"),
 )
 
+import update_check as uc
 from handlers import handle_tool as _handle_tool
 from project_backend import SQLiteBackend
 from project_service import ProjectService
+from tausik_utils import ServiceError
+from tausik_version import __version__
 
 
 @pytest.fixture
@@ -62,6 +66,57 @@ class TestEnvelopeKeysAlwaysPresent:
         assert "handoff" in env
         assert "tasks" in env
         assert "self_check" in env
+
+    def test_newer_release_blocks_compound_open_before_session_row(self, tmp_path, monkeypatch):
+        td = tmp_path / ".tausik"
+        td.mkdir()
+        installed = __version__.split(".")
+        newer = ".".join([*installed[:2], str(int(installed[2]) + 1)])
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        monkeypatch.setattr(
+            uc.urllib.request,
+            "urlopen",
+            lambda *_args, **_kwargs: Response(json.dumps({"tag_name": f"v{newer}"}).encode()),
+        )
+        installed_svc = ProjectService(SQLiteBackend(str(td / "tausik.db")))
+        env = json.loads(_handle_tool(installed_svc, "tausik_session_open", {}))
+        assert env["version_check"]["status"] == "blocked"
+        assert (
+            __version__ in env["version_check"]["error"] and newer in env["version_check"]["error"]
+        )
+        assert installed_svc.be.session_current() is None
+        installed_svc.be.close()
+
+    def test_newer_release_blocks_plain_mcp_start_before_session_row(self, tmp_path, monkeypatch):
+        td = tmp_path / ".tausik"
+        td.mkdir()
+        newer = f"{__version__.rsplit('.', 1)[0]}.{int(__version__.rsplit('.', 1)[1]) + 1}"
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        monkeypatch.setattr(
+            uc.urllib.request,
+            "urlopen",
+            lambda *_args, **_kwargs: Response(json.dumps({"tag_name": f"v{newer}"}).encode()),
+        )
+        installed_svc = ProjectService(SQLiteBackend(str(td / "tausik.db")))
+
+        with pytest.raises(ServiceError, match=rf"installed {__version__}.*latest {newer}"):
+            _handle_tool(installed_svc, "tausik_session_start", {})
+        assert installed_svc.be.session_current() is None
+        installed_svc.be.close()
 
 
 class TestStatusSectionMatchesCompactFormat:

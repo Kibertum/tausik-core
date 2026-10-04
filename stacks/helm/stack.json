@@ -7,6 +7,7 @@
   ],
   "filenames": ["chart.yaml", "chart.yml", "values.yaml", "values.yml"],
   "path_hints": ["/templates/"],
+  "assurance_profiles": ["declarative"],
   "gates": {
     "helm-lint": {
       "enabled": false,
@@ -16,6 +17,7 @@
       "description": "Helm chart linter — lint/syntax only, NOT policy-as-code.",
       "stacks": ["helm"],
       "timeout": 60
+      ,"evidence_capabilities": ["syntax"]
     }
   }
 }

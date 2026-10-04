@@ -132,6 +132,19 @@ class StackRegistry:
             out[gname] = dict(gcfg)
         return out
 
+    def assurance_for(self, name: str) -> dict[str, Any]:
+        """Resolved assurance declaration without interpreting stack identity."""
+        decl = self._resolve().get(name) or {}
+        return {
+            "profiles": list(decl.get("assurance_profiles") or []),
+            "impact": dict(decl.get("assurance_impact") or {}),
+            "gate_capabilities": {
+                gate: list(config.get("evidence_capabilities") or [])
+                for gate, config in (decl.get("gates") or {}).items()
+                if isinstance(config, dict)
+            },
+        }
+
     def guide_path_for(self, name: str) -> str | None:
         """Absolute path to the stack guide, or None if not loaded."""
         decl = self._resolve().get(name)
@@ -170,9 +183,7 @@ class StackRegistry:
 
     # --- Internals --------------------------------------------------------
 
-    def _scan_dir(
-        self, root: str | os.PathLike[str], *, layer: str
-    ) -> dict[str, dict[str, Any]]:
+    def _scan_dir(self, root: str | os.PathLike[str], *, layer: str) -> dict[str, dict[str, Any]]:
         result: dict[str, dict[str, Any]] = {}
         root_str = str(root)
         if not os.path.isdir(root_str):
@@ -219,9 +230,7 @@ class StackRegistry:
         """Merge built-in + user layers. Cached until next load_*."""
         if self._resolved is not None:
             return self._resolved
-        merged: dict[str, dict[str, Any]] = {
-            n: dict(d) for n, d in self._builtin.items()
-        }
+        merged: dict[str, dict[str, Any]] = {n: dict(d) for n, d in self._builtin.items()}
         for name, user_decl in self._user.items():
             extends = user_decl.get("extends")
             if extends:
@@ -297,6 +306,15 @@ class StackRegistry:
 _default_registry: StackRegistry | None = None
 
 
+def registry_for_project(tausik_dir: str | os.PathLike[str]) -> StackRegistry:
+    """Load built-ins plus overrides owned by one explicit service project."""
+    reg = StackRegistry()
+    scripts_dir = os.path.dirname(os.path.abspath(__file__))
+    reg.load_builtin(os.path.join(os.path.dirname(scripts_dir), "stacks"))
+    reg.load_user(os.path.join(os.fspath(tausik_dir), "stacks"))
+    return reg
+
+
 def default_registry() -> StackRegistry:
     """Return the lazy-initialized module-level registry.
 
@@ -306,13 +324,5 @@ def default_registry() -> StackRegistry:
     """
     global _default_registry
     if _default_registry is None:
-        reg = StackRegistry()
-        # `<repo>/stacks/` lives one level up from `scripts/`.
-        scripts_dir = os.path.dirname(os.path.abspath(__file__))
-        repo_root = os.path.dirname(scripts_dir)
-        builtin_dir = os.path.join(repo_root, "stacks")
-        reg.load_builtin(builtin_dir)
-        user_dir = os.path.join(os.getcwd(), ".tausik", "stacks")
-        reg.load_user(user_dir)
-        _default_registry = reg
+        _default_registry = registry_for_project(os.path.join(os.getcwd(), ".tausik"))
     return _default_registry

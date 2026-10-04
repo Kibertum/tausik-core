@@ -12,7 +12,7 @@ _SCRIPTS = _REPO_ROOT / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from stack_registry import StackRegistry  # noqa: E402
+from stack_registry import StackRegistry, registry_for_project  # noqa: E402
 
 
 def _write(stack_dir: Path, decl: dict) -> None:
@@ -71,6 +71,13 @@ class TestLoadBuiltin:
         assert reg.all_stacks() == frozenset()
         assert any("'name' is required" in e for e in reg.errors)
 
+    def test_non_string_assurance_impact_enum_is_skipped_with_error(self, tmp_path):
+        _write(tmp_path / "bad-impact", {"name": "bad-impact", "assurance_impact": {"level": []}})
+        reg = StackRegistry()
+        reg.load_builtin(tmp_path)
+        assert reg.all_stacks() == frozenset()
+        assert any("assurance_impact.level must be one of" in error for error in reg.errors)
+
     def test_hidden_and_underscore_dirs_ignored(self, tmp_path):
         _write(tmp_path / "_internal", {"name": "skip-me"})
         _write(tmp_path / ".hidden", {"name": "skip-me-too"})
@@ -95,6 +102,45 @@ class TestLoadBuiltin:
         # First wins (alphabetical); second logs.
         assert reg.all_stacks() == {"python"}
         assert any("duplicate stack name" in e for e in reg.errors)
+
+    def test_assurance_capabilities_are_loaded_as_data(self, tmp_path):
+        _write(
+            tmp_path / "custom",
+            {
+                "name": "custom",
+                "assurance_profiles": ["declarative"],
+                "assurance_impact": {"level": "low"},
+                "gates": {"check": {"evidence_capabilities": ["behavior", "postconditions"]}},
+            },
+        )
+        reg = StackRegistry()
+        reg.load_builtin(tmp_path)
+        assert reg.assurance_for("custom") == {
+            "profiles": ["declarative"],
+            "impact": {"level": "low"},
+            "gate_capabilities": {"check": ["behavior", "postconditions"]},
+        }
+
+
+def test_project_registry_loads_only_the_explicit_projects_overrides(tmp_path, monkeypatch):
+    target = tmp_path / "target" / ".tausik"
+    ambient = tmp_path / "ambient"
+    _write(
+        target / "stacks" / "python",
+        {
+            "name": "python",
+            "extends": "builtin:python",
+            "assurance_profiles": ["executable"],
+            "assurance_impact": {"governance_boundary": True},
+        },
+    )
+    (ambient / ".tausik" / "stacks").mkdir(parents=True)
+    monkeypatch.chdir(ambient)
+
+    declaration = registry_for_project(target).assurance_for("python")
+
+    assert declaration["profiles"] == ["executable"]
+    assert declaration["impact"]["governance_boundary"] is True
 
 
 # --- User overrides + deep-merge --------------------------------------------
@@ -128,9 +174,7 @@ class TestUserOverrides:
         reg.load_user(user)
         # Inherited fields preserved.
         assert reg.extensions_for("python") == {".py"}
-        assert reg.signatures_for("python") == [
-            {"file": "pyproject.toml", "type": "exact"}
-        ]
+        assert reg.signatures_for("python") == [{"file": "pyproject.toml", "type": "exact"}]
         # Inherited gates kept (no override).
         gates = reg.gates_for("python")
         assert "pytest" in gates and "ruff" in gates

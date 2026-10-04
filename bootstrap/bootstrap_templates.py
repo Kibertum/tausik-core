@@ -1,18 +1,14 @@
-"""Shared markdown templates for CLAUDE.md, AGENTS.md, .cursorrules, QWEN.md.
-
-Hard constraints + workflow + SENAR rules are identical across IDEs; only the
-file header and IDE subdir pointers differ. Centralizing them here prevents
-drift between IDEs and makes edits single-source.
-"""
+"""Shared rules templates; host files differ only in header and IDE pointers."""
 
 from __future__ import annotations
 
 import os
 import sys
 
-# Tier-specific bodies live in bootstrap_templates_tiers (filesize cap). Imported
-# rather than re-declared, and re-exported so existing `from bootstrap_templates
-# import MINIMAL_MEMORY` call sites keep working.
+from bootstrap_governance import memory_only_body
+from bootstrap_governance import write_generated_rules as write_generated_rules
+
+# Re-export tier bodies so existing imports remain stable.
 from bootstrap_templates_tiers import (
     FULL_TIER_NOTE,
     COMPACTION_CONTRACT,
@@ -23,6 +19,7 @@ from bootstrap_templates_tiers import (
     MINIMAL_WORKFLOW,
 )
 import bootstrap_rules_upgrade as rules_upgrade
+
 
 # Whether the constraints below are CHECKED on this host is derived from what
 # bootstrap deployed, not asserted here. The probe lives in scripts/ because that
@@ -406,6 +403,7 @@ def build_full_body(
     context_tier: str = "minimal",
     output_mode: str = "off",
     project_dir: str | None = None,
+    governance_profile: str = "full",
 ) -> str:
     """Compose the shared body used by all IDE-specific generators.
 
@@ -425,6 +423,13 @@ def build_full_body(
     the CAVEMAN_DIRECTIVE is appended in every tier (it applies regardless of how
     verbose the rules themselves are). Any non-``caveman`` value is a no-op.
     """
+    if governance_profile == "memory-only":
+        return memory_only_body(
+            build_header(project_name, stacks, agent_name), RESPONSE_LANGUAGE, ANSWER_SHAPE
+        )
+    if governance_profile != "full":
+        raise ValueError(f"unknown governance profile: {governance_profile!r}")
+
     tier = (context_tier or "minimal").strip().lower()
     if tier not in ("minimal", "standard", "full"):
         tier = "standard"

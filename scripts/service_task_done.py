@@ -1,13 +1,11 @@
-"""TAUSIK task_done report generation — extracted from service_task.py.
+"""TAUSIK task_done report generation, mixed into TaskMixin.
 
-Holds the heavy `_task_done_report` body and `_format_task_done_failures`, mixed into
-TaskMixin so existing call-sites keep working. It began as a pure re-org for the
-filesize gate and is no longer one: the close now also names what the plan offers next
-and what its own journal cost."""
+The close also names what the plan offers next and what its own journal cost."""
 
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING, Any
 
 from tausik_utils import ServiceError, utcnow_iso
@@ -15,6 +13,7 @@ from model_pinning import model_done_updates
 from journal_budget import close_lines_for as journal_close_lines
 from plan_adherence import plan_next_line
 from service_recording import record_call_actual, record_cost_actual
+from service_review_gate import enforce_assurance_review
 from service_task_done_flags import _checklist_hard_enabled, _root_cause_hard_enabled
 from task_done_scope import (
     persist_declared_scope,
@@ -26,10 +25,8 @@ if TYPE_CHECKING:
     from project_backend import SQLiteBackend
 
 
-#: Words a journal uses when an approach was tried and did not work. Matched on
-#: the WORD, so "refuted" in a quotation of somebody else's text still counts —
-#: over-detecting a dead end costs a sentence, under-detecting costs the next
-#: agent the whole rediscovery.
+#: Words a journal uses when an approach failed. Matched on the WORD, so a quote
+#: can over-detect (cost: one sentence); under-detection costs rediscovery.
 _REFUTATION_MARKERS = (
     "опроверг",
     "не сработал",
@@ -423,10 +420,10 @@ class TaskDoneReportMixin:
             )
             if risk.get("defaulted"):
                 risk_note += f" — unmeasured: {', '.join(risk['defaulted'])}"
-            # v15-l3-risk-trigger: measured-high closures need an L3 review.
             from risk_l3_trigger import check_l3_required
 
-            l3_block, l3_note = check_l3_required(self.be._conn, slug, risk)
+            project_root = os.path.dirname(self.tausik_dir())  # type: ignore[attr-defined]
+            l3_block, l3_note = check_l3_required(self.be._conn, slug, risk, project_root)
             if l3_block:
                 report["blocking_failures"].append(
                     {"stage": "risk", "gate": "l3-review", "message": l3_note}
@@ -434,6 +431,8 @@ class TaskDoneReportMixin:
                 return report
             if l3_note:
                 risk_note += f" | {l3_note}"
+        if enforce_assurance_review(self, task, slug, risk, report):
+            return report
         # Atomic: task update + cascade + audit in one transaction
         with self.be.transaction():
             # v16r: pin done-model + flag mismatch (inside tx: lock-covered read).

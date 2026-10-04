@@ -103,6 +103,23 @@ TAUSIK automatically checks quality at two points:
 These gates cannot be bypassed — the agent cannot start work without a goal
 and cannot close a task without verification.
 
+### Automatic versus forced review
+
+`/ship` reads `review_route` from the task package. The canonical residual-
+assurance dispatcher chooses depth from impact, profile requirements, and the
+capabilities proved by passed non-skipped gates. It never chooses by stack name
+or file extension. L1 uses profile checklists plus deterministic gates and zero
+reviewers; L2 uses one focused fresh-context reviewer; L3 uses one external
+reviewer from a different model family. Security, governance, privileged,
+destructive, and irreversible changes retain a hard L3 floor. An unavailable
+different-model reviewer blocks L3 rather than downgrading it.
+
+`/review` is a forced L3-deep audit. Its multi-agent fan-out is used only when
+the user explicitly requests the audit or configuration declares an extreme
+hard floor. A measured-high closure can raise an earlier L1/L2 route to L3, so
+`/ship` reloads the package before close. Lint and schema checks do not prove
+behavior, idempotence, rollback, or postconditions.
+
 ### When Gates Block You
 
 **QG-0 blocks task start:**

@@ -230,6 +230,7 @@ so a z.ai GLM session routes to GLM models with no code change. See
 | `roles` | Role registry (hybrid: metadata + harness/roles/{slug}.md) |
 | `session_activity` | Per-tool-call timestamps for gap-based active time |
 | `verification_runs` | Verify cache: file_hash + timestamp for QG-2 reuse (10 min TTL) |
+| `benchmark_observations` | Privacy-safe natural response evidence for version/model cohorts |
 
 ## Quality Gates
 

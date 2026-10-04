@@ -6,7 +6,7 @@ import argparse
 
 from knowledge_db import default_store_display_path
 from output_rollup import add_rollup_flags
-from project_parser_errors import SelfCorrectingParser
+from project_parser_errors import SelfCorrectingParser, add_version_flag
 from project_parser_hierarchy import build_hierarchy_subparsers
 from project_parser_task import add_task
 from project_parser_verify import add_verify_parsers
@@ -21,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     # v1.5 self-correcting CLI: arg errors print usage + known-good examples.
     # Subparsers inherit the class, so the whole tree is covered.
     p = SelfCorrectingParser(prog="tausik", description="TAUSIK")
+    add_version_flag(p)
     sub = p.add_subparsers(dest="command")
 
     # --- init ---

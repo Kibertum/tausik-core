@@ -49,6 +49,7 @@ branch-agnostic и расцепляет стейт с кодом.
 | `sessions` | нет | эфемерное: кто когда сидел |
 | `session_usage_metrics` | нет | телеметрия |
 | `usage_events` | нет | телеметрия |
+| `benchmark_observations` | нет | локальная privacy-safe телеметрия usage/quality |
 | `events`, `events_anchor` | нет | локальная hash-chain аудита; неслиянна по построению |
 | `reasoning_steps` | нет (v1) | RENAR-трасса хода; кандидат на этаж 2, пока локально |
 | `explorations` | нет | эфемерные тайм-боксы исследования |

@@ -11,6 +11,17 @@ from typing import Any
 
 # Environment variable → top-level `model_profile` in `.tausik/config.json` (bootstrap).
 TAUSIK_MODEL_PROFILE_ENV = "TAUSIK_MODEL_PROFILE"
+GOVERNANCE_PROFILES = frozenset({"full", "memory-only"})
+
+
+def resolve_governance_profile(config: dict[str, Any] | None) -> str:
+    """Resolve the explicit project governance footprint; never infer it from stacks."""
+    raw = (config or {}).get("governance_profile", "full")
+    if not isinstance(raw, str) or raw.strip().lower() not in GOVERNANCE_PROFILES:
+        raise ValueError(
+            f"governance_profile must be one of {sorted(GOVERNANCE_PROFILES)}, got {raw!r}"
+        )
+    return raw.strip().lower()
 
 
 def normalize_model_profile_slug(raw: str) -> str:

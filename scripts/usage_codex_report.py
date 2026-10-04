@@ -19,7 +19,9 @@ def _accepted_tasks(project: Path) -> tuple[list[str], dict[str, int]]:
     try:
         uri = db.absolute().as_uri() + "?mode=ro"
         with sqlite3.connect(uri, uri=True, timeout=2) as conn:
-            rows = conn.execute("SELECT slug, attempts FROM tasks WHERE status='done'").fetchall()
+            rows = conn.execute(
+                "SELECT slug, attempts FROM tasks WHERE status='done' AND resolution IS NULL"
+            ).fetchall()
         return [str(row[0]) for row in rows], {str(row[0]): int(row[1]) for row in rows}
     except (OSError, sqlite3.Error, TypeError, ValueError):
         return [], {}
@@ -68,6 +70,10 @@ def report(
     from usage_credit import attach_task_credits
 
     observations = [row for state in states for row in state.get("rows", {}).values()]
+    from benchmark_cohorts import capture_for_project
+
+    project_observations = [row for row in observations if row.get("source", {}).get("project")]
+    result["cohort_capture"] = capture_for_project(project, project_observations)
     config = load_project_config(str(project / ".tausik"))
     attach_task_credits(result, observations, accepted, config)
     thread_rows = [

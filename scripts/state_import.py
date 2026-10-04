@@ -26,7 +26,8 @@ import os
 from contextlib import ExitStack
 from typing import TYPE_CHECKING, Any
 
-from state_export import _dedup_preserve, _json_list  # emitter's own list canonicalizers
+from state_assurance_parse import validate_task_assurance_frontmatter
+from state_export import _dedup_preserve, _json_list, _json_object
 from state_parse import ParseError, parse_frontmatter, parse_journal, parse_sections, split_file
 from state_serialize import ENTITY_DIRS as _CANONICAL_ENTITY_DIRS
 from state_serialize import flatten_line, normalize_body, normalize_ts
@@ -76,21 +77,15 @@ def _fm_list(fm: dict, key: str) -> Any:
 
 
 # --- canonical comparison space ----------------------------------------------
-#
-# The projection is a LOSSY, CANONICALIZING view: the emitter sorts memory tags,
-# dedups task path lists, reformats timestamps to the `Z` form and flattens
-# multi-line journal messages onto one line. Comparing a raw DB value against an
-# already-canonical file value therefore reports the canonicalization ITSELF as a
-# change — which is how `sync` came to want 336 phantom row rewrites and 437
-# truncated duplicate journal lines on this repo. The detector has to speak the
-# dialect the file is written in, so both sides are pushed through the emitter's
-# OWN helpers (imported, never re-implemented, so the two cannot drift apart).
+# Compare in the emitter's lossy canonical dialect to avoid phantom rewrites.
 #
 # This governs comparison only. What gets WRITTEN on a real divergence is still
 # the file's value: git wins, unchanged.
 
 _SORTED_LIST_COLS = frozenset({"tags"})  # _memory_doc: sorted()
-_ORDERED_LIST_COLS = frozenset({"relevant_files", "scope_paths", "scope_tools"})  # _dedup_preserve
+_ORDERED_LIST_COLS = frozenset(
+    {"relevant_files", "scope_paths", "scope_tools", "assurance_profiles"}
+)  # _dedup_preserve
 _TS_COLS = frozenset({"completed_at"})  # normalize_ts
 _PROSE_COLS = frozenset(  # render_file/section → normalize_body
     {
@@ -112,6 +107,8 @@ def _canon(col: str, value: Any) -> Any:
         return json.dumps(sorted(_json_list(value)), ensure_ascii=False)
     if col in _ORDERED_LIST_COLS:
         return json.dumps(_dedup_preserve(_json_list(value)), ensure_ascii=False)
+    if col == "assurance_impact":
+        return _json_object(value)
     if col in _TS_COLS:
         return normalize_ts(value)
     if col in _PROSE_COLS:
@@ -167,6 +164,8 @@ def parse_tree(tree: dict[str, str]) -> dict[str, list[dict]]:
         except ParseError as e:
             raise ParseError(f"{rel}: {e}") from e
         slug = _require_slug(fm, rel)
+        if kind == "tasks":
+            validate_task_assurance_frontmatter(fm, rel)
         out[kind].append({"slug": slug, "fm": fm, "body": body, "rel": rel})
     return out
 
@@ -210,6 +209,10 @@ def _task_cols(rec: dict, story_id: int | None) -> dict:
         "scope_paths": _fm_list(fm, "scope_paths"),
         "scope_tools": _fm_list(fm, "scope_tools"),
         "relevant_files": _fm_list(fm, "relevant_files"),
+        "assurance_profiles": _fm_list(fm, "assurance_profiles"),
+        "assurance_impact": (
+            _json_object(fm["assurance_impact"]) if "assurance_impact" in fm else ABSENT
+        ),
         "defect_of": _fm(fm, "defect_of"),
         "call_budget": _fm(fm, "call_budget"),
         "completed_at": _fm(fm, "completed_at"),

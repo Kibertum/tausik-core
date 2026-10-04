@@ -95,6 +95,15 @@
                 "stacks": { "type": "array", "items": { "type": "string" } },
                 "timeout": { "type": "integer", "minimum": 1 },
                 "max_lines": { "type": "integer", "minimum": 1 }
+                ,"evidence_capabilities": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "enum": ["syntax", "schema", "policy", "behavior", "idempotence", "rollback", "postconditions", "reproducibility", "provenance"]
+                  },
+                  "description": "Properties a successful gate actually proves. Names do not imply capabilities."
+                }
               }
             }
           ]
@@ -114,6 +123,26 @@
         "pattern": "^\\.[a-z0-9.]+$"
       },
       "uniqueItems": true
+    },
+    "assurance_profiles": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["declarative", "executable", "migration", "research"] },
+      "description": "Composable assurance profiles. Routing consumes profiles, never the stack name."
+    },
+    "assurance_impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level": { "type": "string", "enum": ["low", "medium", "high", "unknown"] },
+        "blast_radius": { "type": "string", "enum": ["local", "bounded", "broad", "unknown"] },
+        "reversibility": { "type": "string", "enum": ["reversible", "conditional", "irreversible", "unknown"] },
+        "security_boundary": { "type": "boolean" },
+        "governance_boundary": { "type": "boolean" },
+        "privileged": { "type": "boolean" },
+        "data_change": { "type": "string", "enum": ["none", "non_destructive", "destructive"] },
+        "owner_escalation": { "type": "boolean" }
+      }
     }
   }
 }

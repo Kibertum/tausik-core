@@ -49,6 +49,7 @@ bound to a specific machine/run and goes stale fast.
 | `sessions` | no | ephemeral: who sat when |
 | `session_usage_metrics` | no | telemetry |
 | `usage_events` | no | telemetry |
+| `benchmark_observations` | no | local privacy-safe usage/quality telemetry |
 | `events`, `events_anchor` | no | local audit hash-chain; unmergeable by construction |
 | `reasoning_steps` | no (v1) | RENAR trace; tier-2 candidate, local for now |
 | `explorations` | no | ephemeral investigation time-boxes |

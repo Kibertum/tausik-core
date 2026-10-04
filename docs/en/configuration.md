@@ -8,6 +8,14 @@ All knobs live in `.tausik/config.json` at project root. Anything not set falls 
 
 See also: [environment.md](environment.md) — env vars, [permissions.md](permissions.md) — permission modes.
 
+## Governance footprint
+
+| Key | Default | Purpose |
+|---|---|---|
+| `governance_profile` | `"full"` | `"full"` deploys the normal task, scope, verify, session, security and accounting hooks. Explicit `"memory-only"` keeps the `tausik-project` MCP, codebase RAG, database/history and only `memory_pretool_block.py` plus `memory_posttool_audit.py`; it removes task/scope/verify/session hooks and the OpenCode QG-0 plugin, and generates compact rules that do not require TAUSIK task ceremony. Bootstrap refuses any other value. Stack detection never selects this profile: Ansible, Terraform, Kubernetes and Helm can carry production risk, so reducing governance is a project-owner choice. Re-run bootstrap after changing it. Custom pre-existing rules files are preserved and receive a warning; TAUSIK-generated rules switch profiles automatically and idempotently. |
+
+`memory-only` is a cost/fit choice, not a weaker meaning of “verified”. It gives up QG-0/QG-2 enforcement, scope gates, automatic sessions, verification receipts, secret scanning, push protection and usage hooks. Repository-native tests and operational controls remain the project's responsibility. Changing the profile does not delete tasks, memory, logs, history or the RAG index.
+
 ## Session signals (SENAR Rule 9.2 — advice, not gates since 1.10)
 
 | Key | Default | Purpose |
@@ -38,7 +46,7 @@ Codex supplies native thread identity and usage from its local journal. A host w
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `updates.check` | `true` | At most once a day, SessionStart runs `tausik update-check` detached: one anonymous GET to GitHub's `releases/latest` of `Kibertum/tausik-core`, nothing about the project in it. `status` then names a newer release. `false` switches it off; `tausik doctor` shows the state. |
+| `updates.check` | `true` | Before every public session start, synchronously send one anonymous GET (2 s timeout) to GitHub's `releases/latest` for `Kibertum/tausik-core`. A newer SemVer release refuses the start and names both versions plus the upgrade command. Network, timeout or malformed answers allow start but report the installed version as unverified; they never mean current. The request contains no project name, path, user, schema or installed version. `false` sends no request and allows start with the same explicit unverified state. The standalone `update-check` command retains its at-most-daily cache for `status` and `doctor`. |
 
 ## Verification cache (SENAR Rule 5)
 
@@ -60,7 +68,7 @@ All keys sit at the root of `.tausik/config.json` unless a path says otherwise.
 
 For explanation-shaped prompts, the prompt hook adds a conditional format matrix. Concise prose remains the fallback; tables serve repeated exact comparisons, Mermaid serves connected structure, and HTML requires an explicit or named interactive need. The router never selects video. Ordinary prompts do not pay for this extra instruction.
 
-**Rules files are preserved once written.** `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `QWEN.md` and the OpenCode rules file are not rewritten by bootstrap when they exist, so changing `context_tier` or `output_mode` later does not reach them. Bootstrap says so; delete the generated file and run bootstrap again, or edit it by hand.
+**Bootstrap refreshes only rules files it can prove it still owns.** Newly generated `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `QWEN.md` and OpenCode rules carry a TAUSIK ownership stamp. When that stamp still matches, a later `context_tier`, `output_mode` or `governance_profile` change refreshes the generated static rules while preserving the current DYNAMIC state block. Any manual edit invalidates the stamp. Customized files and legacy files without a stamp are preserved, and bootstrap warns instead of overwriting them.
 
 **The MCP close returns structure.** `tausik_task_done` answers with `stage`, `gate_results` and `blocking_failures`, so an agent can fix what failed without parsing prose.
 

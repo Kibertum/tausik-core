@@ -23,6 +23,8 @@ TASK_DETAIL_FIELDS: tuple[str, ...] = (
     "scope_paths",
     "scope_tools",
     "rollback_plan",
+    "assurance_profiles",
+    "assurance_impact",
     "notes",
     "started_at",
     "completed_at",
