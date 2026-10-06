@@ -46,6 +46,24 @@ memory archive --before <duration> [--confirm]    # Soft-archive memory older th
 memory dedupe [--threshold 0.85] [--limit 200]     # List near-duplicate pairs above similarity
                                                    # threshold (difflib.SequenceMatcher.ratio()
                                                    # over title || content). Read-only.
+
+# Layers and the by-relevance tail (v74 / 1.11.3)
+memory hygiene                                     # DRY-RUN: what the next apply would do and
+                                                   # why. Writes nothing. Run it on a corpus you
+                                                   # care about BEFORE enabling anything.
+memory hygiene --yes                               # Apply the plan: assign layers
+                                                   # (core >=20 reads or pinned, hot >=8,
+                                                   # warm >=2, cold 1 read or fresh, frozen =
+                                                   # 0 reads and older than 90 days).
+                                                   # Snapshotted for --revert; pinned records
+                                                   # are never touched; nothing is deleted.
+memory hygiene --revert                            # Undo the last --yes, exactly, one command.
+memory pin <id> / memory unpin <id>                # Pin: never auto-demoted, always first in
+                                                   # the by-relevance tail.
+# A "read" is an explicit `memory show <id>` — search results are exposure, not access.
+# The CLAUDE.md tail keeps recency order until .tausik/config.json sets
+# {"memory_tail_by_relevance": true}. Opt-in, default off: let hit counts accumulate
+# on your corpus first (the same caution kaeru ships its hygiene with).
 ```
 
 **Memory types:** pattern, gotcha, convention, context, dead_end

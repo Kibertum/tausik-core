@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import Any
+from typing import Any, cast
 
 from memory_supersedes import live_head
 
@@ -93,6 +93,23 @@ MEMORY_TAIL_HEADING = "### Memory tail"
 SHARED_KNOWLEDGE_HEADING = "**Shared knowledge — from other projects"
 
 
+def _tail_head(be: Any, mem_type: str, n: int) -> list[dict[str, Any]]:
+    """Per-type head for the tail: recency by default, relevance on the opt-in.
+
+    The flag lives in .tausik/config.json (memory_tail_by_relevance, default
+    off — AC7 of memory-tail-by-relevance-not-recency). Flag machinery must
+    never break the tail: any failure falls back to the recency head.
+    """
+    try:
+        from memory_hygiene import relevance_head, tail_by_relevance_enabled
+
+        if tail_by_relevance_enabled(be):
+            return list(relevance_head(be, mem_type, n))
+    except Exception:  # noqa: BLE001,S110 — degrade to the default tail, never break /start
+        pass
+    return cast("list[dict[str, Any]]", be.memory_list(mem_type, n))
+
+
 def build_compact_memory_tail(be: Any) -> list[str]:
     """One-line-per-item memory recap for CLAUDE.md Current State.
 
@@ -109,12 +126,12 @@ def build_compact_memory_tail(be: Any) -> list[str]:
     # sections, which is harder to notice and no more true.
     try:
         decisions, sup_dec = live_head(be, lambda n: be.decision_list(n), "decision", 5)
-        conventions, sup_con = live_head(be, lambda n: be.memory_list("convention", n), "memory", 5)
-        deadends, sup_de = live_head(be, lambda n: be.memory_list("dead_end", n), "memory", 3)
+        conventions, sup_con = live_head(be, lambda n: _tail_head(be, "convention", n), "memory", 5)
+        deadends, sup_de = live_head(be, lambda n: _tail_head(be, "dead_end", n), "memory", 3)
         # `context` = durable environment facts (hosts, machines, access, paths).
         # Surfaced every session so the agent never "forgets" them and asks the
         # user for something already recorded (v15p-memory-first-recall).
-        contexts, sup_ctx = live_head(be, lambda n: be.memory_list("context", n), "memory", 5)
+        contexts, sup_ctx = live_head(be, lambda n: _tail_head(be, "context", n), "memory", 5)
     except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
         return []
 
@@ -168,13 +185,13 @@ def build_memory_block(
     try:
         decisions, sup_dec = live_head(be, lambda n: be.decision_list(n), "decision", max_decisions)
         conventions, sup_con = live_head(
-            be, lambda n: be.memory_list("convention", n), "memory", max_conventions
+            be, lambda n: _tail_head(be, "convention", n), "memory", max_conventions
         )
         deadends, sup_de = live_head(
-            be, lambda n: be.memory_list("dead_end", n), "memory", max_deadends
+            be, lambda n: _tail_head(be, "dead_end", n), "memory", max_deadends
         )
         contexts, sup_ctx = live_head(
-            be, lambda n: be.memory_list("context", n), "memory", max_contexts
+            be, lambda n: _tail_head(be, "context", n), "memory", max_contexts
         )
     except Exception:  # noqa: BLE001 — display-only aggregate, non-fatal
         return ""

@@ -2,8 +2,8 @@
 slug: move-the-flat-scripts-runtime-into-a-2-0-python
 title: "Move the flat scripts runtime into a 2.0 Python package"
 status: planning
-epic: null
-story: null
+epic: v2-global-mcp
+story: v2-baseline-consolidation
 complexity: complex
 role: null
 stack: null
@@ -15,6 +15,8 @@ scope_exclude: "No physical move during 1.11 release preparation; no commit, pus
 relevant_files: []
 scope_paths: []
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on:
   - document-the-2-0-package-architecture-and
 completed_at: null

@@ -2,8 +2,8 @@
 slug: consolidate-backend-migrations-behind-a-2-0
 title: "Consolidate backend migrations behind a 2.0 baseline"
 status: planning
-epic: null
-story: null
+epic: v2-global-mcp
+story: v2-baseline-consolidation
 complexity: complex
 role: null
 stack: null
@@ -15,6 +15,8 @@ scope_exclude: "Not before 1.11 release; no commit, push or release"
 relevant_files: []
 scope_paths: []
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on:
   - document-the-2-0-package-architecture-and
 completed_at: null

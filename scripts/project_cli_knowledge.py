@@ -202,6 +202,21 @@ def cmd_memory(svc: ProjectService, args: Any) -> None:
         print(output if output else "No task logs yet.")
     elif c == "archive":
         print("\n".join(memory_archive_lines(svc, args.before, confirm=bool(args.confirm))))
+    elif c == "hygiene":
+        # Module functions, same reason as `edit` above: the class-surface
+        # ratchet may only shrink, and one caller is not a public member.
+        from memory_hygiene import apply_layers, report_lines, revert_last
+
+        if getattr(args, "revert", False):
+            print(revert_last(svc.be))
+        elif getattr(args, "yes", False):
+            print(apply_layers(svc.be))
+        else:
+            print("\n".join(report_lines(svc.be)))
+    elif c == "pin" or c == "unpin":
+        from memory_hygiene import set_pinned
+
+        print(set_pinned(svc.be, args.id, pinned=(c == "pin")))
     elif c == "dedupe":
         print("\n".join(memory_dedupe_lines(svc, threshold=args.threshold, limit=args.limit)))
     elif c == "lint":

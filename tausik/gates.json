@@ -22,10 +22,16 @@
     },
     "_exempt_files_comment": "EXACT repo-relative paths, read by gate_filesize._resolve_exempt_files. File-precise on purpose: a directory exemption also covers every file added there later, which is how the blanket harness/claude/mcp/ entry came to hide the repo's two largest modules. Each entry below states WHY, and a temporary one names the task that retires it. Adding an entry is a reviewable diff, not a default.",
     "exempt_files": [
-      "harness/claude/mcp/project/tools.py"
+      "harness/claude/mcp/project/tools.py",
+      "scripts/backend_schema.py",
+      "scripts/backend_migrations.py",
+      "scripts/project_parser.py"
     ],
     "_exempt_files_reasons": {
-      "harness/claude/mcp/project/tools.py": "PERMANENT, and the SHARE is the reason rather than the count: the file grows with every MCP tool, so a number in this sentence goes stale while the argument does not. Measured by AST, not by eye: 1052 of 1076 lines (97%) are two module-level literals, TOOLS and _STACKS_ENUM, and the file declares zero functions and zero classes. The line cap asks 'is this too long to read as logic' and a declarative schema table is not logic — splitting it would only scatter one table across files. The class_surface gate covers the real risk here (it declares no classes)."
+      "harness/claude/mcp/project/tools.py": "PERMANENT, and the SHARE is the reason rather than the count: the file grows with every MCP tool, so a number in this sentence goes stale while the argument does not. Measured by AST, not by eye: 1052 of 1076 lines (97%) are two module-level literals, TOOLS and _STACKS_ENUM, and the file declares zero functions and zero classes. The line cap asks 'is this too long to read as logic' and a declarative schema table is not logic — splitting it would only scatter one table across files. The class_surface gate covers the real risk here (it declares no classes).",
+      "scripts/backend_schema.py": "TEMPORARY, retired by split-the-three-registry-surfaces-over-the-line: the canonical DDL grows by design with every migration (v65 added a column to the same CREATE; v74 added four plus a table) and the file crossed 500 at 514 the first time a task measured it. The cap fired; the split along domain seams is filed, not dodged.",
+      "scripts/backend_migrations.py": "TEMPORARY, retired by split-the-three-registry-surfaces-over-the-line: a one-line-per-version registry crossed at 502. Shrinking it means deleting history comments, which is worse than the excess lines.",
+      "scripts/project_parser.py": "TEMPORARY, retired by split-the-three-registry-surfaces-over-the-line: argparse wiring for every CLI surface crossed at 521 with the memory hygiene/pin subcommands."
     }
   },
   "class_surface": {

@@ -2,8 +2,8 @@
 slug: retrospektiva-rashoda-codex-1-11-kontekst-tool
 title: "Ретроспектива расхода Codex 1.11: контекст, tool output и ценность тестов"
 status: planning
-epic: null
-story: null
+epic: release-111-economy-draft
+story: release111-economy-hardening
 complexity: null
 role: null
 stack: null
@@ -15,6 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on: []
 completed_at: null
 resolution: null

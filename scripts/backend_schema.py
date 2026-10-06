@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 73
+SCHEMA_VERSION = 74
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -139,7 +139,21 @@ CREATE TABLE IF NOT EXISTS memory (
     slug TEXT,
     -- v65: where the claim came from; last, so fresh and migrated tables agree.
     provenance TEXT NOT NULL DEFAULT 'inferred'
-        CHECK(provenance IN ('observed', 'inferred', 'told'))
+        CHECK(provenance IN ('observed', 'inferred', 'told')),
+    -- v74: relevance machinery (memory-tail-by-relevance-not-recency).
+    -- Hits count explicit `memory show` only; search is exposure, not access.
+    hit_count INTEGER NOT NULL DEFAULT 0,
+    last_hit_at TEXT,
+    layer TEXT,
+    pinned INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS memory_hygiene_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL,
+    memory_id INTEGER NOT NULL REFERENCES memory(id) ON DELETE CASCADE,
+    prev_layer TEXT,
+    applied_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS explorations (

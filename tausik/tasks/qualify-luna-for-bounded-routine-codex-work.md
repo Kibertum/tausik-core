@@ -2,8 +2,8 @@
 slug: qualify-luna-for-bounded-routine-codex-work
 title: "Qualify Luna for bounded routine Codex work"
 status: planning
-epic: null
-story: null
+epic: release-111-economy-draft
+story: release111-economy-hardening
 complexity: medium
 role: developer
 stack: python
@@ -15,6 +15,8 @@ scope_exclude: "No synthetic benchmark fan-out, no security/migration/architectu
 relevant_files: []
 scope_paths: []
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on: []
 completed_at: null
 resolution: null

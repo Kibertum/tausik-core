@@ -9,6 +9,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the memory tail can now select by significance, not just recency
+
+- **The problem, measured (AC1).** The CLAUDE.md tail holds 18 lines
+  (Context/Decisions 5 each, Conventions 5, Dead ends 3) against 895 active
+  memory records — every line contested by ~50 records, and conventions by
+  43:1 (216 for 5). Mining 60 sessions of committed tails: the oldest and
+  newest snapshots share **zero** records — the tail turned over entirely on
+  recency alone; 26 records (16.5% of the 158 that ever held a line)
+  appeared exactly once. A two-month-old record cited twenty times could not
+  outlive yesterday's unopened one, because per-record access counts did not
+  exist anywhere (`brain_events` carries a query and a result count, never a
+  memory id).
+- **Migration v74 gives records a memory of being read.** Every explicit
+  `memory show <id>` bumps `hit_count`/`last_hit_at` — search results are
+  exposure, not access, and are not counted. Plus `layer`
+  (core/hot/warm/cold/frozen, assigned by accumulation: pinned or ≥20 reads,
+  ≥8, ≥2, 1 read or fresh, 0 reads and >90 days) and `pinned`.
+- **`tausik memory hygiene`** — the dry-run first: prints what the next
+  apply would do and why, writing nothing (live corpus: 895 records, plan
+  cold: 708 / frozen: 187). `--yes` applies with a snapshot;
+  `--revert` undoes the last apply in one command; pinned records are never
+  touched; a demotion deletes nothing — the record stays reachable by id.
+- **`tausik memory pin/unpin <id>`** — the never-auto-demote guarantee
+  (AC5): a pinned record always sorts first in the by-relevance tail.
+- **The by-relevance tail is opt-in (AC7).** `.tausik/config.json` →
+  `{"memory_tail_by_relevance": true}` switches the per-type head from
+  recency to pinned → layer → hit_count; absent or false keeps the legacy
+  order byte-identical. Default off on purpose: hit counting starts at zero
+  today, and the flag earns its default only after counts accumulate on
+  this corpus. Empty and single-record corpora render no empty headings
+  (AC6, the mcp-update-claudemd-erases-the-memory-tail defect class).
+
 ### Added — the verified-vs-unverified escape paradox, measured to its cause
 
 - **`tausik metrics` now shows verified-vs-unverified escape rates WITHIN each

@@ -148,6 +148,11 @@ class KnowledgeMixin:
         row = self.be.memory_get(mid)
         if not row:
             raise ServiceError(f"Memory #{mid} not found")
+        # The one unambiguous access: an explicit read by id. This is the hit
+        # signal the by-relevance tail layers on (memory-tail-by-relevance).
+        from memory_hygiene import record_hit
+
+        record_hit(self.be, mid)
         return row
 
     def memory_delete(self, mid: int) -> str:

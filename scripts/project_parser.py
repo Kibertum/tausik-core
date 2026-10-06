@@ -267,6 +267,27 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Apply: stamp archived_at on candidates (idempotent). Without it: dry-run preview.",
     )
+    mhyg = mem_sub.add_parser(
+        "hygiene",
+        help="Plan memory layers (core/hot/warm/cold/frozen) from hit counts. "
+        "Dry-run by default; nothing is ever deleted.",
+    )
+    mhyg.add_argument(
+        "--yes",
+        action="store_true",
+        help="Apply the plan: write layers, snapshot previous values for --revert.",
+    )
+    mhyg.add_argument(
+        "--revert",
+        action="store_true",
+        help="Restore the layers the last --yes wrote. One command, exactly undone.",
+    )
+    mpin = mem_sub.add_parser(
+        "pin", help="Pin a record: never auto-demoted, always first in the by-relevance tail."
+    )
+    mpin.add_argument("id", type=int)
+    munpin = mem_sub.add_parser("unpin", help="Release a pinned record back to accumulation.")
+    munpin.add_argument("id", type=int)
     mdedupe = mem_sub.add_parser(
         "dedupe",
         help="Suggest memory pairs with similarity >= threshold. Read-only.",

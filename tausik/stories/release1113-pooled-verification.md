@@ -1,7 +1,7 @@
 ---
 slug: release1113-pooled-verification
 title: "Pooled verification economy — cohort contract, receipts, atomic close, proof/rollout; economy hardening acceptance rides on the proof"
-status: open
+status: active
 epic: release-1-11-3
 ---
 

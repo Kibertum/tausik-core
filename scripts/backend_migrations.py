@@ -45,6 +45,7 @@ from backend_migrations_v70 import MIGRATION_V70
 from backend_migrations_v71 import MIGRATION_V71
 from backend_migrations_v72 import MIGRATION_V72
 from backend_migrations_v73 import MIGRATION_V73
+from backend_migrations_v74 import MIGRATION_V74
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -447,6 +448,7 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     71: MIGRATION_V71,  # observed/configured provenance for cohort identity
     72: MIGRATION_V72,  # bind review records to reviewed task/file state
     73: MIGRATION_V73,  # sessions.model_source -- provenance stored at open (backend_migrations_v73.py)
+    74: MIGRATION_V74,  # memory layers/hits/pin + hygiene snapshots (backend_migrations_v74.py)
 }
 
 # Merged: legacy + current
