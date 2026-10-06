@@ -18,12 +18,27 @@ if TYPE_CHECKING:
 
 # Tool-call budget thresholds for agent-native task tiers (SENAR sizing).
 # Inclusive upper bound per tier; budgets above 'deep' threshold cap at 'deep'.
+#
+# Recalibrated 2026-10-06 against measured percentiles of done tasks with
+# budgets (recalibrate-tier-call-budgets-against-observed; measured by
+# `tausik metrics`, n per tier in brackets). Rule: upper = p90(actuals),
+# clamped into [p50, 3 x p50] — never below the median (that blocks real
+# work), never more than 3x above it (that decorates instead of
+# constraining; the old ladder let substantial declare 105 and spend 53).
+#   trivial      p50 8.0  p90 24.1  [n=50]  -> 24
+#   light        p50 11.0 p90 35.0  [n=209] -> 33  (clamped to 3xp50)
+#   moderate     p50 22.0 p90 68.0  [n=377] -> 66  (clamped to 3xp50)
+#   substantial  p50 38.0 p90 112.8 [n=149] -> 113
+#   deep         unmeasured (n=1)          -> 200 (held below the old 400
+#               until n>=5 lands; keeps the ladder monotonic)
+# The ratchet: budget_calibration_check (backend_tier_metrics) re-compares
+# these bounds against rolling actuals on every `tausik metrics`.
 _TIER_THRESHOLDS: tuple[tuple[int, str], ...] = (
-    (10, "trivial"),
-    (25, "light"),
-    (60, "moderate"),
-    (150, "substantial"),
-    (400, "deep"),
+    (24, "trivial"),
+    (33, "light"),
+    (66, "moderate"),
+    (113, "substantial"),
+    (200, "deep"),
 )
 
 

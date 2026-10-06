@@ -102,7 +102,11 @@ class BackendQueriesMetricsMixin:
             for r in self._q("SELECT status, COUNT(*) as cnt FROM stories GROUP BY status")  # type: ignore[attr-defined]
         }
         from backend_defect_escape import defect_escape_metrics
-        from backend_tier_metrics import calibration_drift, per_tier_metrics
+        from backend_tier_metrics import (
+            budget_calibration_check,
+            calibration_drift,
+            per_tier_metrics,
+        )
 
         return {
             "tasks": task_counts,
@@ -131,6 +135,8 @@ class BackendQueriesMetricsMixin:
             "cost_per_task": cost_by_complexity,
             "per_tier": per_tier_metrics(self._q),  # type: ignore[attr-defined]
             "calibration_drift": calibration_drift(self._q),  # type: ignore[attr-defined]
+            # tier thresholds vs measured p50 actuals (starved/decorated/ok)
+            "budget_calibration": budget_calibration_check(self._q),  # type: ignore[attr-defined]
             "avg_task_hours": avg_hours,
             "sessions_total": sessions_total,
             "session_hours": _session_hours(session_stats),

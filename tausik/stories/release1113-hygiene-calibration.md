@@ -1,7 +1,7 @@
 ---
 slug: release1113-hygiene-calibration
 title: "Hygiene and calibration — orphans, escape paradox, tier budgets, memory tail by relevance"
-status: open
+status: active
 epic: release-1-11-3
 ---
 

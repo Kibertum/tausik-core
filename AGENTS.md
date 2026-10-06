@@ -82,10 +82,10 @@ The CLI never touches the DB directly. Service validates; backend executes.
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #288 (active) | Branch: v1-11 | TAUSIK: 1.11.1
-Tasks: 1781/1869 done, 8 obsolete, 1 active, 3 blocked
-Active: strip-trailing-spaces-from-generated-memory-tail
-Blocked: memory-tail-by-relevance-not-recency, r111-economy-hardening-acceptance, release-tausik-1-11-1
+Session: #295 (active) | Branch: v1-11-2 | TAUSIK: 1.11.2
+Tasks: 1794/1886 done, 8 obsolete, 2 active, 1 blocked
+Active: memory-tail-by-relevance-not-recency, recalibrate-tier-call-budgets-against-observed
+Blocked: r111-economy-hardening-acceptance
 Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\2fb2646a-10b7-4fc5-8fb4-be2e70726533.jsonl
 
 ### Memory tail
@@ -96,11 +96,11 @@ Context (5):
 - #808 1.11: measured Codex consumption; optimize accepted-task cost with quality held constant
 - #806 Счёт делает КЭШ, а не выход: 94,2% против 5,8%
 Decisions (5):
+- #423 Не переномеровывать эпики бэклога заранее: слот релиза освобождается только после того, как релиз фактически вышел (суще
 - #422 TAUSIK 1.x завершается линией 1.11.x: после 1.11.1 выпускаются только патч-релизы 1.11.x, а следующая версия вне этой ли
 - #421 После 1.11.1 линия 1.x развивается только патч-релизами 1.11.x; следующая версия вне этой линии — 2.0.
 - #420 TAUSIK 1.11.1 exposes a CLI version flag and every session start performs or consumes an explicitly fresh authoritative
 - #419 Бенчмарк 1.11.1 строится только на естественной работе проекта и сравнивает когорты до и после обновления TAUSIK, а такж
-- #418 Для 1.11.1 глубина проверки определяется остаточным риском после доступных доказательств, а не названием технологии или
 Conventions (5):
 - #799 Переименовал тест — ответь на цитаты в том же заходе, иначе регистр покраснеет следующей проверкой
 - #792 Потолок без запаса есть запрет: у бюджета контекста должен быть проверяемый остаток, а не только пре
@@ -108,7 +108,7 @@ Conventions (5):
 - #777 Намеренный пробел объявляется тремя строками: что НЕ гарантировано, почему живём, что держит границу
 - #776 Отчёт о прогоне называет и deselected, иначе «11592 passed» скрывает выключенную ленту
 Dead ends (3):
-- #915 Validate release notes with obsolete publish notes flags
-- #914 Final full release suite after the seven review repairs
-- #913 Locate the documentation checker
+- #918 Verify #3521/#3522 red
+- #917 Verify attempts #3517/#3518 red
+- #916 Release verify #3512 after final L3 approval
 <!-- DYNAMIC:END -->

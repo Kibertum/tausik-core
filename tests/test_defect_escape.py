@@ -95,6 +95,59 @@ class TestEscapeRate:
         assert bt["escaped_n"] == 2 and bt["clean_n"] == 1
 
 
+class TestStratifiedVerification:
+    """investigate-the-verified-vs-unverified-escape: the Simpson cut.
+
+    Within each complexity stratum verified and unverified escape EQUALLY;
+    the aggregate still reads "verified escapes more" because verified work
+    concentrates in the harder stratum. The metric must expose both views
+    or the aggregate gets read as "verify hurts".
+    """
+
+    def _simpson(self):
+        c = _conn()
+        # medium: verified 2/4 escaped, unverified 1/2 escaped — both 50%.
+        for slug, escaped in (("mw1", 1), ("mw2", 1), ("mw3", 0), ("mw4", 0)):
+            _task(c, slug, complexity="medium", role="dev")
+            _verify(c, slug)
+            if escaped:
+                _task(c, f"d-{slug}", status="planning", defect_of=slug)
+        for slug, escaped in (("mu1", 1), ("mu2", 0)):
+            _task(c, slug, complexity="medium", role="dev")
+            if escaped:
+                _task(c, f"d-{slug}", status="planning", defect_of=slug)
+        # simple: verified 0/2, unverified 0/6 — both 0%.
+        for slug in ("sw1", "sw2"):
+            _task(c, slug, complexity="simple", role="dev")
+            _verify(c, slug)
+        for i in range(6):
+            _task(c, f"su{i}", complexity="simple", role="dev")
+        c.commit()
+        return defect_escape_metrics(_q_of(c))
+
+    def test_equal_within_strata_but_aggregate_reads_verified_worse(self):
+        m = self._simpson()
+        strat = m["by_complexity_and_verification"]
+        assert strat["medium"]["verified"] == {"escaped": 2, "done": 4, "rate_pct": 50.0}
+        assert strat["medium"]["unverified"] == {"escaped": 1, "done": 2, "rate_pct": 50.0}
+        assert strat["simple"]["verified"] == {"escaped": 0, "done": 2, "rate_pct": 0}
+        assert strat["simple"]["unverified"] == {"escaped": 0, "done": 6, "rate_pct": 0}
+        # The SAME rows aggregated: verified work concentrates in the harder
+        # stratum, so the aggregate flips to "verified escapes more" — the
+        # paradox in miniature, held fixed by the stratified cut above.
+        bv = m["by_verification"]
+        assert (bv["verified"]["escaped"], bv["verified"]["done"]) == (2, 6)
+        assert (bv["unverified"]["escaped"], bv["unverified"]["done"]) == (1, 8)
+        assert bv["verified"]["rate_pct"] > bv["unverified"]["rate_pct"]
+
+    def test_render_prints_the_stratified_arms(self):
+        from render_metrics import _escape_lines
+
+        lines = "\n".join(_escape_lines(self._simpson()))
+        assert "medium     : verified 50.0% (2/4) vs unverified 50.0% (1/2)" in lines
+        assert "simple     : verified 0.0% (0/2) vs unverified 0.0% (0/6)" in lines
+
+
 class TestEdges:
     def test_empty_db_is_all_zero_no_crash(self):
         m = defect_escape_metrics(_q_of(_conn()))

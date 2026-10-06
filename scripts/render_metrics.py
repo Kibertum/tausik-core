@@ -215,10 +215,26 @@ def extended_metrics_lines(m: dict[str, Any]) -> list[str]:
                 continue
             budget = d["avg_budget"] if d["avg_budget"] is not None else "-"
             actual = d["avg_actual"] if d["avg_actual"] is not None else "-"
+            p50 = d.get("p50_actual")
+            p90 = d.get("p90_actual")
+            spread = f"p50={p50:<6} p90={p90:<6}" if p50 is not None else f"{'p50=-':<11}"
             out.append(
                 f"  {tier:>11}: count={d['count']:<4} budget={budget:<6} "
-                f"actual={actual:<6} fpsr={d['fpsr_pct']}%"
+                f"actual={actual:<6} {spread}fpsr={d['fpsr_pct']}%"
             )
+        budget_cal = m.get("budget_calibration")
+        if budget_cal:
+            out.append(
+                f"\nBudget calibration: {budget_cal['status']} "
+                f"(tier upper bound vs p50 actuals, factor {budget_cal['factor']}x)"
+            )
+            for label, t in budget_cal["tiers"].items():
+                if t["verdict"] == "unmeasured":
+                    out.append(f"  {label:>11}: unmeasured (upper={t['upper']})")
+                else:
+                    out.append(
+                        f"  {label:>11}: {t['verdict']:>9} (upper={t['upper']}, p50={t['p50_actual']})"
+                    )
     drift = m.get("calibration_drift")
     if drift:
         out.append(
@@ -285,6 +301,17 @@ def _escape_lines(esc: dict[str, Any] | None) -> list[str]:
         d = by_verification.get(label)
         if d and d["done"]:
             out.append(f"  {label:<11}: {d['rate_pct']}% ({d['escaped']}/{d['done']})")
+    # The Simpson cut: the aggregate above mixes strata that verify unevenly;
+    # per-complexity arms say whether a gap survives complexity held fixed.
+    strat = esc.get("by_complexity_and_verification") or {}
+    for comp in sorted(strat):
+        parts = []
+        for label in ("verified", "unverified"):
+            d = (strat[comp] or {}).get(label) or {}
+            if d.get("done"):
+                parts.append(f"{label} {d['rate_pct']}% ({d['escaped']}/{d['done']})")
+        if parts:
+            out.append(f"  {comp:<11}: " + " vs ".join(parts))
     bt = esc.get("risk_backtest", {})
     if bt.get("escaped_avg_risk") is None and bt.get("clean_avg_risk") is None:
         return out

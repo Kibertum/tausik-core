@@ -32,10 +32,10 @@ def svc(tmp_path):
 
 class TestServiceAdd:
     def test_budget_only_derives_tier(self, svc):
-        msg = svc.task_add("s1", "t1", "Task 1", role="developer", call_budget=30)
+        msg = svc.task_add("s1", "t1", "Task 1", role="developer", call_budget=40)
         task = svc.be.task_get("t1")
-        assert task["call_budget"] == 30
-        assert task["tier"] == "moderate"
+        assert task["call_budget"] == 40
+        assert task["tier"] == "moderate"  # 33 < 40 <= 66 on the new ladder
         assert "overridden" not in msg
 
     def test_tier_only_no_budget(self, svc):
@@ -47,7 +47,8 @@ class TestServiceAdd:
     def test_both_budget_overrides_tier(self, svc):
         msg = svc.task_add("s1", "t3", "Task 3", role="developer", call_budget=200, tier="trivial")
         task = svc.be.task_get("t3")
-        # call_budget=200 → tier='deep' (>150 threshold), tier='trivial' ignored
+        # call_budget=200 → tier='deep' (upper bound of the recalibrated
+        # ladder, >113 substantial threshold), tier='trivial' ignored
         assert task["call_budget"] == 200
         assert task["tier"] == "deep"
         assert "overridden" in msg.lower()
@@ -131,12 +132,12 @@ class TestMcpHandlers:
                 "slug": "tm1",
                 "title": "MCP add",
                 "role": "developer",
-                "call_budget": 12,
+                "call_budget": 28,
             },
         )
         assert "tm1" in msg
         task = svc.be.task_get("tm1")
-        assert task["call_budget"] == 12
+        assert task["call_budget"] == 28
         assert task["tier"] == "light"
 
         _do_task_update(svc, {"slug": "tm1", "call_budget": 80})

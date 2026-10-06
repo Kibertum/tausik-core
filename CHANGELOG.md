@@ -9,6 +9,49 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the verified-vs-unverified escape paradox, measured to its cause
+
+- **`tausik metrics` now shows verified-vs-unverified escape rates WITHIN each
+  complexity stratum** (`by_complexity_and_verification` in
+  `defect_escape_metrics`, rendered beside the aggregate). The aggregate
+  (verified 9.9% [138/1400] vs unverified 1.5% [6/395], Fisher exact
+  two-sided p=8.8e-10) reads as "verify hurts"; the stratified cut shows the
+  gap surviving complexity held fixed (complex 18.1%/0.0% [30/166, 0/43],
+  medium 12.4%/1.1% [82/660, 2/178], simple 5.8%/2.4% [22/380, 4/166]), so
+  complexity selection alone does not explain it either.
+- **The measured cause is left-censoring plus a dead treatment, not
+  verification.** The `defect_of` filing practice begins 2026-04 — zero
+  defects point at pre-April closures — and 230 of the 395 unverified
+  closures are March work that structurally cannot appear as escaped.
+  Since QG-2 made verification mandatory (July), the unverified arm stopped
+  being assigned: 15 closures in three months against 856 verified. The
+  era-clean cut (unverified closures after 2026-04-15: 6/98 = 6.1% vs
+  verified July+ 117/856 = 13.7%) keeps a gap on a vanishing population
+  with no policy lever. Recorded decision: verify policy unchanged; the
+  aggregate line is read only beside its strata.
+- **risk_score confirmed non-predictive in both arms** (AUC 0.5377
+  aggregate, 0.5411 verified-only; complexity alone scores 0.5977). It
+  stays an input label and is never used for routing.
+
+### Changed — tier call budgets recalibrated to measured actuals
+
+- **The tier ladder no longer decorates: it constrains.** Thresholds moved
+  from 10/25/60/150/400 to **24/33/66/113/200**, each derived from the p90
+  of that tier's measured `call_actual` (done tasks), clamped to
+  [p50, 3×p50]: trivial p50 8.0/p90 24.1 (n=50) → 24; light 11/35 (n=209)
+  → 33; moderate 22/68 (n=377) → 66; substantial 38/112.8 (n=149) → 113;
+  deep unmeasured (n=1) → held below the old 400 until n≥5 lands, keeping
+  the ladder monotonic.
+- **`tausik metrics` now shows the evidence, not just the label.** Per-tier
+  rows gained `p50`/`p90` columns, and a new **Budget calibration** section
+  re-compares every tier's upper bound against rolling actuals on every
+  run: `starved` (bound below p50 — the budget blocks legitimate work),
+  `decorated` (bound beyond 3×p50 — the budget constrains nothing), `ok`
+  in between. Tiers with n<5 report `unmeasured` and never set the verdict;
+  a corpus with no measured tier prints nothing rather than an unearned
+  "ok". Live check on this repo: `Budget calibration: ok` across all
+  measured tiers.
+
 ## [1.11.2] — 2026-10-06
 
 ### ### Fixed — the two release-lane self-checks
