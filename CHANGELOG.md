@@ -52,6 +52,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   live Kilo session (needs one host restart; documented as pending in
   `docs/en/kilo-zai.md`).
 
+### Fixed — vendored SEO agents were unreadable to Kilo
+
+- **`.kilo/agents/vendor_seo/*.md` declared `tools` in Claude Code's subagent
+  spelling — a comma string (`tools: Read, Bash, Write`) — while Kilo's schema
+  wants an object or nothing.** Kilo refused all seven definitions at load.
+  They now declare the same tool sets as per-tool booleans
+  (`read`/`bash`/`write`/`glob`/`grep`/`webfetch`), so the agents load; the
+  agent bodies are unchanged.
+
+### Added — pricing status on native usage reports (priced / free / unknown)
+
+- **`metrics tokens --host kilo` now carries a `pricing` section and a real
+  `pricing_applied` flag** (both were hard-coded false): every observed model
+  is classified as `priced` (the number), `free` (a measured $0.00, declared
+  so in config) or `unknown` (null, named in `unpriced_models`, warned once
+  on stderr). A subscription provider (zai-coding-plan) has no per-token
+  tariff, so an honest meter prints null — never $0.00, which would read as
+  free work.
+- **One declaration now prices both paths.** `llm_pricing_usd_per_million`
+  in `.tausik/config.json` priced usage_events rows while this report still
+  printed UNPRICED over the same rows; the report ladder folds the pair in
+  (cache kinds derived by the shipped multipliers), with a `token_price`
+  entry winning per model. This project declares local (ollama) inference at
+  $0.00 and leaves zai-coding-plan undeclared on purpose — the live kilo
+  report shows `glm-4.7` as unknown with a 132.6M-token warning instead of a
+  silent $0.00.
+- Task attribution stays whatever the source states (`task_attribution` is
+  kept `"unknown"`, not upgraded). The codex native report gets the same
+  section in a later task.
+
 ### Added — provider-agnostic model observation for Kilo (any model, not just z.ai)
 
 - **A second plugin, `tausik-observe.js`, records the model the host actually

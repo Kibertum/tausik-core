@@ -67,6 +67,7 @@ def _empty(reason: str, source: Path) -> dict[str, Any]:
         "task_attribution": "unknown",
         "account_quota": None,
         "pricing_applied": False,
+        "pricing": {"applied": False, "models": [], "unpriced_models": []},
         "savings_claim": False,
         "reliable_totals": False,
         "coverage": {"sessions": 0, "rows_read": 0, "malformed": 0, "mismatched_sessions": 0},
@@ -326,6 +327,7 @@ def report(
         "task_attribution": "unknown",
         "account_quota": None,
         "pricing_applied": False,
+        "pricing": {"applied": False, "models": [], "unpriced_models": []},
         "savings_claim": False,
         "reliable_totals": bool(session_rows) and malformed == 0 and mismatched == 0,
         "coverage": {
@@ -340,6 +342,12 @@ def report(
             "scope": "project responses; no task, quota, or cost inference",
         },
     }
+    from usage_pricing import section as pricing_section
+
+    pricing = pricing_section(rows)
+    result["pricing"] = pricing
+    result["pricing_applied"] = pricing["applied"]
+
     from benchmark_cohorts import capture_for_project
 
     result["cohort_capture"] = capture_for_project(Path(project_dir).resolve(), rows)

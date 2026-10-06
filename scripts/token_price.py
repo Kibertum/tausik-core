@@ -97,24 +97,71 @@ def load_prices(project_dir: str | None = None) -> dict[str, dict[str, float]]:
     Prefix match, not exact: a provider adds a date suffix to a model id
     (`claude-haiku-4-5-20251001`), and a table keyed on the full id would go
     unpriced the day the suffix changes.
+
+    TWO CONFIG KEYS, ONE LADDER. `token_price` carries the four billing kinds
+    directly; `llm_pricing_usd_per_million` carries the input/output pair the
+    DB-write path (`cost_pricing`) prices with. This report used to see only
+    the first, so a project that declared the documented pair priced its
+    usage_events rows and still watched this report print UNPRICED — the
+    split this closes. A `token_price` entry wins per model; pair entries are
+    folded in with cache kinds derived from the input rate by the same
+    multipliers `builtin_rates` applies to the shipped table. Pair entries
+    keep this module's prefix matching here; the DB ladder stays exact-id,
+    which is cost_pricing's own documented contract.
     """
     try:
         from project_config import find_tausik_dir
 
         base = project_dir or find_tausik_dir()
         with open(os.path.join(base, "config.json"), encoding="utf-8") as fh:
-            node = json.load(fh).get(_CONFIG_KEY)
+            raw = json.load(fh)
     except Exception:  # noqa: BLE001 — no config, bad config: unpriced, never guessed
         return {}
-    if not isinstance(node, dict):
+    out: dict[str, dict[str, float]] = {}
+    node = raw.get(_CONFIG_KEY) if isinstance(raw, dict) else None
+    if isinstance(node, dict):
+        for model, rates in node.items():
+            if not isinstance(model, str) or not isinstance(rates, dict):
+                continue
+            clean = {k: float(v) for k, v in rates.items() if k in KINDS and _is_number(v)}
+            if clean:
+                out[model] = clean
+    for model, pair in _pair_rates(raw).items():
+        out.setdefault(model, pair)
+    return out
+
+
+def _pair_rates(raw: dict) -> dict[str, dict[str, float]]:
+    """`token_price`-shaped rates folded from `llm_pricing_usd_per_million` entries.
+
+    Reads the RAW config (not the normalized one) the same way the `token_price`
+    node above does, and revalidates every entry through the public pair lookup
+    rather than trusting the shape. An entry that fails validation is absent —
+    never coerced to $0.00.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    try:
+        from project_config import lookup_llm_pricing_pair
+
+        table = raw.get("llm_pricing_usd_per_million")
+    except Exception:  # noqa: BLE001 — a missing lookup module is unpriced, never guessed
+        return {}
+    if not isinstance(table, dict):
         return {}
     out: dict[str, dict[str, float]] = {}
-    for model, rates in node.items():
-        if not isinstance(model, str) or not isinstance(rates, dict):
+    for model in table:
+        if not isinstance(model, str) or not model.strip():
             continue
-        clean = {k: float(v) for k, v in rates.items() if k in KINDS and _is_number(v)}
-        if clean:
-            out[model] = clean
+        pair = lookup_llm_pricing_pair(raw, model)
+        if pair is None:
+            continue
+        out[model] = {
+            "input": float(pair["input"]),
+            "output": float(pair["output"]),
+            "cache_read": float(pair["input"]) * CACHE_READ_MULTIPLIER,
+            "cache_create": float(pair["input"]) * CACHE_CREATE_MULTIPLIER,
+        }
     return out
 
 
