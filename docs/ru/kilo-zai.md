@@ -165,7 +165,7 @@ Kilo ещё нужно наблюдать одним рестартом хост
 1. `.tausik/runtime/active_model.json` — пишется вживую плагином-наблюдателем,
    так что модель, выбранная в UI Kilo (z.ai, Ollama, LM Studio, что угодно),
    — это то, что видит TAUSIK;
-2. переменная окружения `KILO_MODEL` — напр. `export KILO_MODEL=glm-4.6`;
+2. переменная окружения `KILO_MODEL` — напр. `export KILO_MODEL=glm-4.7`;
 3. поле `model` в `.kilo/kilo.jsonc` (JSONC-комментарии допустимы),
    `.kilocode/kilo.json` или `~/.config/kilo/kilo.jsonc`.
 
@@ -192,9 +192,9 @@ env-переменной, …) — строка «Session model» в `tausik doc
 | Ранг capability | GLM-модель |
 |-----------------|------------|
 | лёгкая (`haiku`) | `glm-4.5-air` |
-| средняя (`sonnet`) | `glm-4.6` |
-| сильная (`opus`) | `glm-4.6` |
-| флагман (`fable`) | `glm-4.6` |
+| средняя (`sonnet`) | `glm-4.7` |
+| сильная (`opus`) | `glm-4.7` |
+| флагман (`fable`) | `glm-4.7` |
 
 Переопределите/расширьте любой ранг — и закрепите GLM как семейство по умолчанию
 — в `.tausik/config.json`:
@@ -217,6 +217,25 @@ env-переменной, …) — строка «Session model» в `tausik doc
 детекции через транскрипт/`KILO_MODEL` — идеально, когда вы работаете только в
 Kilo + z.ai.
 
+Локальные семейства — тоже без кода. id моделей нормализуются до каждого
+поиска: снимаются provider-префикс (`zai-coding-plan/glm-4.7`,
+`ollama2/glm-4.5-air`) и хвостовой суффикс контекстного окна (`glm-4.7 [200k]`),
+так что та же поставляемая таблица отвечает и для них. Имя, которого в таблице
+нет, — тег, входящий в сам id (ollama-тег `:latest`), или чисто локальное имя —
+одна запись в конфиге:
+
+```json
+{
+  "model_profiles": {
+    "families": {
+      "glm": {
+        "haiku": { "model": "ollama/glm-4.5-air:latest", "display": "GLM-4.5-Air (локальная)" }
+      }
+    }
+  }
+}
+```
+
 ## Как это собирается вместе
 
 ```
@@ -226,7 +245,7 @@ Kilo Code (аддон/CLI)  ──MCP──▶  сервер tausik-project  (.k
         │
         ├── плагин-наблюдатель      (.kilo/plugins/tausik-observe.js) — пишет .tausik/runtime/active_model.json
         │
-        └── model: glm-4.6  ──▶  model_profiles (family=glm) ──▶ ранг маршрутизации → glm-модель + вердикт
+        └── model: glm-4.7  ──▶  model_profiles (family=glm) ──▶ ранг маршрутизации → glm-модель + вердикт
 ```
 
 Runtime — это Kilo; модель — это GLM. Они не знают друг о друге — именно это

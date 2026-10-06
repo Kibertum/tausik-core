@@ -32,9 +32,9 @@ DEFAULT_FAMILIES: dict[str, dict[str, dict[str, str]]] = {
     },
     "glm": {
         "haiku": {"model": "glm-4.5-air", "display": "GLM-4.5-Air"},
-        "sonnet": {"model": "glm-4.6", "display": "GLM-4.6"},
-        "opus": {"model": "glm-4.6", "display": "GLM-4.6"},
-        "fable": {"model": "glm-4.6", "display": "GLM-4.6"},
+        "sonnet": {"model": "glm-4.7", "display": "GLM-4.7"},
+        "opus": {"model": "glm-4.7", "display": "GLM-4.7"},
+        "fable": {"model": "glm-4.7", "display": "GLM-4.7"},
     },
     "openai": {
         "haiku": {"model": "gpt-5.6-luna", "display": "GPT-5.6 Luna"},
@@ -55,10 +55,19 @@ _VENDOR_TOKENS: tuple[tuple[str, str], ...] = (
 
 
 def normalize_model_id(raw: str | None) -> str:
-    """Lowercase + strip a trailing ``[Nm]`` context-window suffix for matching."""
+    """Lowercase, drop a ``provider/`` prefix and a trailing ``[Nm]`` window suffix.
+
+    One key for every spelling the hosts actually report: provider-scoped ids
+    (``zai-coding-plan/glm-4.7``) and context-window-annotated ids
+    (``glm-4.7 [200k]``) must land on the same key as the bare id — the reverse
+    index, rank lookup and every banner verdict read through here. The last
+    ``/``-segment wins because a provider prefix namespaces the id, it is not
+    part of the model's name.
+    """
     if not raw:
         return ""
-    return _BRACKET_SUFFIX.sub("", str(raw).strip().lower()).strip()
+    mid = _BRACKET_SUFFIX.sub("", str(raw).strip().lower()).strip()
+    return mid.rpartition("/")[2] or mid
 
 
 def load_families(config: dict | None) -> dict[str, dict[str, dict[str, str]]]:

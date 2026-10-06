@@ -165,7 +165,7 @@ content). The full chain, in order:
 1. `.tausik/runtime/active_model.json` — written live by the observer plugin,
    so the model picked in Kilo's UI (z.ai, Ollama, LM Studio, anything) is
    what TAUSIK sees;
-2. the `KILO_MODEL` environment variable — e.g. `export KILO_MODEL=glm-4.6`;
+2. the `KILO_MODEL` environment variable — e.g. `export KILO_MODEL=glm-4.7`;
 3. a `model` field in `.kilo/kilo.jsonc` (JSONC comments allowed),
    `.kilocode/kilo.json` or `~/.config/kilo/kilo.jsonc`.
 
@@ -192,9 +192,9 @@ Defaults shipped in `scripts/model_profiles.py`:
 | Capability rank | GLM model |
 |-----------------|-----------|
 | light (`haiku`) | `glm-4.5-air` |
-| mid (`sonnet`)  | `glm-4.6` |
-| strong (`opus`) | `glm-4.6` |
-| flagship (`fable`) | `glm-4.6` |
+| mid (`sonnet`)  | `glm-4.7` |
+| strong (`opus`) | `glm-4.7` |
+| flagship (`fable`) | `glm-4.7` |
 
 Override or extend any of these — and pin GLM as the default family — in
 `.tausik/config.json`:
@@ -216,6 +216,25 @@ Override or extend any of these — and pin GLM as the default family — in
 `default_family: "glm"` makes `task start` recommend GLM models even before any
 transcript/`KILO_MODEL` detection — ideal when you only ever run Kilo + z.ai.
 
+Local families need no code either. Model ids are normalized before every
+lookup: the provider prefix (`zai-coding-plan/glm-4.7`, `ollama2/glm-4.5-air`)
+and a trailing context-window suffix (`glm-4.7 [200k]`) are stripped, so the
+same shipped table answers for them. A name the table does not know — a tag
+that is part of the id (Ollama's `:latest`) or a purely local name — is one
+config entry:
+
+```json
+{
+  "model_profiles": {
+    "families": {
+      "glm": {
+        "haiku": { "model": "ollama/glm-4.5-air:latest", "display": "GLM-4.5-Air (local)" }
+      }
+    }
+  }
+}
+```
+
 ## How it fits together
 
 ```
@@ -225,7 +244,7 @@ Kilo Code (addon/CLI)  ──MCP──▶  tausik-project server  (.kilo/kilo.js
         │
         ├── model observer plugin  (.kilo/plugins/tausik-observe.js) — writes .tausik/runtime/active_model.json
         │
-        └── model: glm-4.6  ──▶  model_profiles (family=glm) ──▶ routing rank → glm model + verdict
+        └── model: glm-4.7  ──▶  model_profiles (family=glm) ──▶ routing rank → glm model + verdict
 ```
 
 The runtime is Kilo; the model is GLM. Neither knows about the other — that

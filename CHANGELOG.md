@@ -80,6 +80,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   shell-env echo inside a running Kilo session need one host restart and are
   documented as pending in `docs/en/kilo-zai.md` (+ RU mirror).
 
+### Fixed — model verdicts lied on GLM-4.7
+
+- **Shipped model profiles ended at glm-4.6 while Kilo + GLM actually runs
+  `zai-coding-plan/glm-4.7` — `task start` called the very model it should
+  recommend "unrecognized" and produced wrong under/over-powered verdicts.**
+  The GLM table now ships glm-4.7 on the sonnet/opus/fable ranks (haiku stays
+  glm-4.5-air); glm-4.6, dropped from z.ai's lineup, resolves to unknown
+  instead of a fabricated rank.
+- **One key per spelling the hosts actually report.** `normalize_model_id`
+  strips a provider prefix (`zai-coding-plan/glm-4.7` → `glm-4.7`) and a
+  trailing context-window suffix (`glm-4.7 [200k]`) before every reverse-index,
+  rank and banner lookup, so a matched normalized id counts as a real match.
+  Local families (Ollama, LM Studio) resolve through the same shipped table
+  with no code change; a config entry still wins.
+- Tests: `tests/test_model_profiles.py` is parametrized over the spelling
+  matrix; routing and banner tests cover the glm-4.7 verdicts and the
+  glm-4.6 negative. Documented in `docs/en/kilo-zai.md` (+ RU mirror), §5.
+
 ## [1.11.1] — 2026-10-04
 
 - Projects can now opt into `governance_profile: "memory-only"`. Bootstrap then
