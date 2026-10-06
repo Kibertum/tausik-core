@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `verify --tasks`: one pooled gate pass for a task cohort (Track A)
+
+- **`tausik verify --tasks <slug...> <slug...>`** canonicalizes ≥2 members,
+  runs the gates ONCE over the union of their declared scopes, and persists
+  the cohort (migration v75: `verification_cohorts`,
+  `verification_cohort_results`, and a nullable
+  `verification_runs.cohort_identity` — existing rows and single-task
+  semantics untouched). Execution delegates to `run_verify_for_task` with
+  the union passed explicitly, so every cache guard the single-task lane
+  earned applies to cohorts unchanged.
+- **Reuse is refused by a NAMED invalidator, not a shrug.** The predecessor
+  is the latest cohort with the SAME membership; a changed identity under
+  the same members yields `membership-drift` / `missing-evidence:<slug>` /
+  `task-edits` / `gate-signature-drift` / `security-sensitive-scope` /
+  `uncertain-dependency-mapping`, each widening to the full applicable
+  lane. A red continuation is the pure set claim `previous failures ∪
+  tests affected by the delta` (`required_after_red`).
+- **The look-up-by-membership is load-bearing**: an edited member changes
+  the cohort identity, so matching the predecessor BY identity would always
+  miss exactly the drift the invalidators exist to name — caught by the
+  driver test that edits a member and demands the named refusal.
+- tests/test_verify_cohort.py: 14 passed (identity order-independence,
+  every named invalidator, red continuation union, union-scope-once driver
+  via the delegation seam, unscoped/single-task refusals, backward-compat
+  single-task lane unstamped).
+
 ### Added — the pooled-verification contract and its measured case (Track A)
 
 - **The repeated-verify cost is 60.4% of all verify work.**

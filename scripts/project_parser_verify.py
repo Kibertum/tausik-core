@@ -15,6 +15,19 @@ def add_verify_parsers(sub: Any) -> None:
     """Зарегистрировать `verify` и `receipt` на переданном subparsers."""
     vp = sub.add_parser("verify", help="Run scoped quality gates")
     vp.add_argument("--task")
+    vp.add_argument(
+        "--tasks",
+        nargs="+",
+        default=None,
+        help=(
+            "Pooled verification for an explicit task cohort (>=2 slugs): "
+            "one gate pass over the union of the members' relevant_files, "
+            "a persisted cohort identity, and reuse refused by a NAMED "
+            "invalidator when membership/fingerprints/gates drift or the "
+            "scope is security-sensitive. See "
+            "docs/en/verification-cohort-contract.md."
+        ),
+    )
     _scopes = ["lightweight", "standard", "high", "critical", "manual"]
     vp.add_argument("--scope", choices=_scopes, default="manual")
     vp.add_argument(

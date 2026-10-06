@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 74
+SCHEMA_VERSION = 75
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -316,7 +316,35 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     -- rows as spendable.
     handle_nonce TEXT,            -- 128-bit hex; NULL = never minted
     handle_expires_at TEXT,       -- ISO-8601 UTC; the receipt carries a SIGNED copy
-    handle_redeemed_at TEXT       -- ISO-8601 UTC of the single spend; NULL = unspent
+    handle_redeemed_at TEXT,      -- ISO-8601 UTC of the single spend; NULL = unspent
+    -- v75: the pooled-verify cohort this run belongs to; NULL = a run of one
+    -- task, which is every row written before cohorts existed.
+    cohort_identity TEXT
+);
+
+CREATE TABLE IF NOT EXISTS verification_cohorts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    identity TEXT NOT NULL UNIQUE,
+    members_json TEXT NOT NULL,
+    identity_inputs_json TEXT NOT NULL,
+    union_files_hash TEXT NOT NULL,
+    gate_signature TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'open'
+        CHECK(state IN ('open', 'green', 'red')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS verification_cohort_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cohort_pk INTEGER NOT NULL
+        REFERENCES verification_cohorts(id) ON DELETE CASCADE,
+    unit TEXT NOT NULL,
+    outcome TEXT NOT NULL CHECK(outcome IN ('passed', 'failed', 'skipped')),
+    covered_by TEXT,
+    inputs_digest TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    UNIQUE(cohort_pk, unit)
 );
 
 CREATE TABLE IF NOT EXISTS session_usage_metrics (

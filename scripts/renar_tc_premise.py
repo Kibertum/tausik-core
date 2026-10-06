@@ -98,6 +98,12 @@ CLASSES_AT_DECLARATION = frozenset(
         # bookkeeping for a layering pass, with no assertion, polarity or
         # environment to pair.
         "memory_hygiene_snapshots",
+        # r1112-cohort-receipts-and-incremental-rerun (v75): pooled-verify
+        # cohort storage. NOT TC artifact classes — they are verify-run
+        # bookkeeping (membership/identity, per-unit outcomes), carrying no
+        # assertion, polarity or environment of their own.
+        "verification_cohorts",
+        "verification_cohort_results",
         # at-acceptance-tests-derived-by-an-isolated-agent (RENAR §8A): the AT
         # (Acceptance Test) header record. NOT a TC (test case) artifact class
         # — it records the RESULT of an isolated-generation procedure, not a
