@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `verify --story/--epic` and atomic hierarchy closure (Track A)
+
+- **`tausik verify --story <slug>` / `--epic <slug>`** resolve the exact
+  non-done descendant set and pool it: ≥2 members required (a single task is
+  pointed back at ordinary `verify --task`), and every member must be
+  review-ready — plan complete, acceptance criteria present, numbered AC
+  evidence logged — before the pooled pass starts.
+- **`story done <slug> --verify-handle` / `epic done <slug> --verify-handle`**
+  close every member plus the parent in ONE transaction on that exact
+  receipt, no gates rerun. A member added, removed, edited, reopened or
+  blocked after verify makes the handle stale (member statuses participate
+  in cohort identity — a blocked cohort is not the cohort that was
+  verified); a partial closure rolls back whole, with the cause named; the
+  handle is single-use and marked redeemed. Standalone `task done` and
+  single-task handles keep their exact contract.
+- **MCP parity**: `tausik_verify_cohort`, `tausik_verify_hierarchy`, and
+  `verify_handle` on `tausik_story_done` / `tausik_epic_done` — the same
+  commands agents reach from the IDE.
+- tests/test_verify_hierarchy.py: 11 passed (resolution, degenerate-pool
+  refusals, readiness blocks, one-pass delegation, atomic close, stale on
+  edit and on block, double-spend refusal, legacy path untouched).
+
 ### Added — `verify --tasks`: one pooled gate pass for a task cohort (Track A)
 
 - **`tausik verify --tasks <slug...> <slug...>`** canonicalizes ≥2 members,

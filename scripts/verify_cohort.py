@@ -96,13 +96,16 @@ def collect_identity_inputs(
     """The seven contract §1 inputs, gathered from the DB and the repo."""
     members = sorted(set(slugs))
     fingerprints: dict[str, str] = {}
+    statuses: dict[str, str] = {}
     for slug in members:
         row = be._q1("SELECT * FROM tasks WHERE slug=?", (slug,))
         fingerprints[slug] = _task_fingerprint(row) if row else "missing"
+        statuses[slug] = (row.get("status") or "missing") if row else "missing"
     union = _union_scope(be, members)
     return {
         "members": members,
         "task_fingerprints": fingerprints,
+        "task_statuses": statuses,
         "union_scope": union,
         "content_hashes": "declared-at-run",  # files_hash of the delegated run
         "gate_signature": gate_signature,
@@ -126,6 +129,10 @@ def invalidation_reason(prior: dict[str, Any], current: dict[str, Any]) -> str |
             return f"missing-evidence:{slug}"
     if prior["task_fingerprints"] != current["task_fingerprints"]:
         return "task-edits"
+    # A member BLOCKED or REOPENED after verify is not the cohort that was
+    # verified: the receipt must go stale, not green (hierarchy AC-4).
+    if prior.get("task_statuses") != current.get("task_statuses"):
+        return "member-status-drift"
     if prior["gate_signature"] != current["gate_signature"]:
         return "gate-signature-drift"
     if any(p in " ".join(current["union_scope"]) for p in SECURITY_SENSITIVE):
@@ -201,6 +208,19 @@ def _set_state(be: Any, cohort_pk: int, state: str) -> None:
         (state, _now(), cohort_pk),
     )
     be._conn.commit()
+
+
+def cohort_summary(out: dict[str, Any]) -> str:
+    """The one rendering of a pooled-run outcome — CLI and MCP both call this,
+    so the two transports cannot disagree (test_no_new_second_implementation)."""
+    if out.get("refused"):
+        return str(out["refused"])
+    return (
+        f"Cohort {'green' if out['passed'] else 'RED'}: "
+        f"identity {out['identity'][:16]}, "
+        f"members {', '.join(out['members'])}, "
+        f"union scope {len(out['union_scope'])} file(s) run ONCE."
+    )
 
 
 def run_cohort_verify(

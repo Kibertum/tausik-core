@@ -3,6 +3,48 @@
 from __future__ import annotations
 
 TOOLS_EXTRA = [
+    # === Pooled verification (1.11.3 Track A; parity with verify --tasks /
+    # verify --story / verify --epic and story|epic done --verify-handle) ===
+    {
+        "name": "tausik_verify_cohort",
+        "description": (
+            "Pooled verification for an explicit task cohort (>=2 slugs): one "
+            "gate pass over the union of the members' relevant_files, a "
+            "persisted cohort identity, and reuse refused by a NAMED "
+            "invalidator (membership drift, task edits, member status drift, "
+            "gate-signature drift, security-sensitive scope, missing "
+            "evidence). Mirrors CLI `tausik verify --tasks`."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "tasks": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Task slugs forming the cohort (>=2).",
+                },
+            },
+            "required": ["tasks"],
+        },
+    },
+    {
+        "name": "tausik_verify_hierarchy",
+        "description": (
+            "Resolve a story's or epic's non-done tasks as one cohort and run "
+            "a single pooled gate pass. Refuses empty or single-task pools "
+            "(those are ordinary verify --task) and any member that is not "
+            "review-ready (plan complete, AC evidence logged). Mirrors CLI "
+            "`tausik verify --story/--epic`."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string", "enum": ["story", "epic"]},
+                "slug": {"type": "string"},
+            },
+            "required": ["kind", "slug"],
+        },
+    },
     # === Dead End Documentation (SENAR Rule 9.4) ===
     {
         "name": "tausik_dead_end",

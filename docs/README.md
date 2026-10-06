@@ -29,7 +29,7 @@ TAUSIK is an engineering governance framework for AI coding agents. It forces pl
 | **[Known limitations](en/known-limitations.md)** | What is NOT guaranteed: deliberate gaps with their reason, open defects, out of scope |
 | **[Agent contract](en/agent-contract.md)** | The extended agent reference: QG-2 mechanics, estimation, Rule 4/7, stacks |
 | **[CLI Commands](en/cli.md)** | Full terminal command reference |
-| **[MCP Tools](en/mcp.md)** | 147 tools for the AI agent |
+| **[MCP Tools](en/mcp.md)** | 149 tools for the AI agent |
 | **[Artifact graph](en/graph.md)** | What changes with what, and on what evidence |
 | **[Symbol index](en/symbol-index.md)** | A definition, its file:line and callers, in one call |
 | **[Architecture](en/architecture.md)** | How the framework works inside |

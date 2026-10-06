@@ -573,10 +573,16 @@ TOOLS = [
     },
     {
         "name": "tausik_epic_done",
-        "description": "Mark epic as done",
+        "description": "Mark epic as done; with verify_handle, atomically close every non-done task under the epic on one green cohort receipt (single use, stale on any drift)",
         "inputSchema": {
             "type": "object",
-            "properties": {"slug": {"type": "string"}},
+            "properties": {
+                "slug": {"type": "string"},
+                "verify_handle": {
+                    "type": "string",
+                    "description": "Cohort receipt handle from tausik_verify_hierarchy for this epic",
+                },
+            },
             "required": ["slug"],
         },
     },
@@ -591,10 +597,16 @@ TOOLS = [
     },
     {
         "name": "tausik_story_done",
-        "description": "Mark story as done",
+        "description": "Mark story as done; with verify_handle, atomically close every non-done task in the story on one green cohort receipt (single use, stale on any drift)",
         "inputSchema": {
             "type": "object",
-            "properties": {"slug": {"type": "string"}},
+            "properties": {
+                "slug": {"type": "string"},
+                "verify_handle": {
+                    "type": "string",
+                    "description": "Cohort receipt handle from tausik_verify_hierarchy for this story",
+                },
+            },
             "required": ["slug"],
         },
     },

@@ -45,25 +45,37 @@ def cmd_verify(svc: Any, args: Any) -> None:
     scope = getattr(args, "scope", "manual")
 
     cohort_slugs = getattr(args, "tasks", None)
+    hierarchy = None
+    for kind in ("story", "epic"):
+        if getattr(args, kind, None):
+            hierarchy = (kind, getattr(args, kind))
+    if hierarchy:
+        kind, parent = hierarchy
+        from verify_hierarchy import hierarchy_summary, run_hierarchy_verify
+
+        try:
+            out = run_hierarchy_verify(svc, parent, kind, scope=scope)
+        except Exception as exc:
+            print(f"Hierarchy verify error: {exc}")
+            raise SystemExit(2) from exc
+        print(hierarchy_summary(out))
+        if out.get("refused"):
+            raise SystemExit(2)
+        raise SystemExit(0 if out["passed"] else 1)
     if cohort_slugs:
         # The pooled lane: identity, one union-scope pass, named invalidators.
         # Everything single-task below stays untouched — the two lanes share
         # run_verify_for_task and its guards, nothing else.
-        from verify_cohort import run_cohort_verify
+        from verify_cohort import cohort_summary, run_cohort_verify
 
         try:
             out = run_cohort_verify(svc, cohort_slugs, scope=scope)
         except Exception as exc:
             print(f"Cohort verify error: {exc}")
             raise SystemExit(2) from exc
+        print(cohort_summary(out))
         if out.get("refused"):
-            print(out["refused"])
             raise SystemExit(2)
-        print(
-            f"Cohort {'green' if out['passed'] else 'RED'}: "
-            f"identity {out['identity'][:16]}, members {', '.join(out['members'])}, "
-            f"union scope {len(out['union_scope'])} file(s) run ONCE."
-        )
         raise SystemExit(0 if out["passed"] else 1)
 
     # verify-warn-names-a-flag-verify-does-not-have: declaring the scope IS part

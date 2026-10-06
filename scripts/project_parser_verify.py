@@ -28,6 +28,17 @@ def add_verify_parsers(sub: Any) -> None:
             "docs/en/verification-cohort-contract.md."
         ),
     )
+    vp.add_argument(
+        "--story",
+        default=None,
+        help="Resolve this story's non-done tasks as the cohort (review-ready "
+        "required, >=2 members, one pooled pass).",
+    )
+    vp.add_argument(
+        "--epic",
+        default=None,
+        help="Resolve this epic's non-done tasks as the cohort (same rules as --story).",
+    )
     _scopes = ["lightweight", "standard", "high", "critical", "manual"]
     vp.add_argument("--scope", choices=_scopes, default="manual")
     vp.add_argument(
