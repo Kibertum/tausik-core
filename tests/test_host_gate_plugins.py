@@ -35,6 +35,8 @@ import types
 
 import pytest
 
+CROSSCUTTING_SCOPE = ["harness/"]
+
 BOOTSTRAP = os.path.join(os.path.dirname(os.path.dirname(__file__)), "bootstrap")
 sys.path.insert(0, BOOTSTRAP)
 

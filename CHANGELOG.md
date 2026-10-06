@@ -11,7 +11,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.11.2] — 2026-10-06
 
-### Fixed — the Kilo MCP stanza could parse but never spawn
+### ### Fixed — the two release-lane self-checks
+
+- **The full default lane on the release commit failed two gate-hygiene tests
+  this branch itself introduced.** `tests/test_session_model_id.py` had been
+  formatted by 7c25c154 but stayed in the ruff-format legacy list
+  (`tausik/gates.json`, 71 → 70 entries), and `tests/test_host_gate_plugins.py`
+  (e4279117) walked `harness/` plugin trees without a `CROSSCUTTING_SCOPE`
+  declaration. The stale list entry is removed and the scope is declared; the
+  lane is green again.
+
+Fixed — the Kilo MCP stanza could parse but never spawn
 
 - **Root cause measured on the live host.** Kilo Code 7.8.3 expands no
   `${workspaceFolder}` in MCP commands: the literal occurs zero times in
