@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — the pooled-verification contract and its measured case (Track A)
+
+- **The repeated-verify cost is 60.4% of all verify work.**
+  `scripts/verify_baseline.py` (new, reproducible, read-only) on this
+  repository: 3562 recorded runs over 1409 tasks, of which **2153 are
+  re-runs of a task that already had one**; 1076 tasks verified twice or
+  more; 248 went red at least once; the heaviest task ran 14 times without a
+  single red. Release-shaped cohorts (≥5 tasks closing in one story within a
+  2h window) paid 2049 invocations / **~12.5 hours**, dominated by
+  `under-declared` fallbacks (1175 runs).
+- **SPEC `verification-cohort-contract` (ARCH, 1.0-draft)** —
+  `docs/en/verification-cohort-contract.md`. Canonical cohort identity from
+  sorted membership + task fingerprints + union scope + content hashes +
+  gate signature + selected tests + repository state; lifecycle
+  open → review-ready → pooled verify → atomic close; a red run's next set
+  is previous failures ∪ tests affected by files changed since; six named
+  invalidators (membership drift, task edits, config/gate drift,
+  security-sensitive scope, uncertain dependency mapping, missing evidence)
+  each refuse reuse and widen to the full lane — a refusal names which one
+  fired. Backward compatible: `verification_runs` gains nullable cohort
+  columns, single-task verify and signed handles keep exact semantics.
+
 ### Added — the memory tail can now select by significance, not just recency
 
 - **The problem, measured (AC1).** The CLAUDE.md tail holds 18 lines

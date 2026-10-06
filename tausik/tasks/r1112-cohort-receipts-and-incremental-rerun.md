@@ -1,7 +1,7 @@
 ---
 slug: r1112-cohort-receipts-and-incremental-rerun
 title: "Implement cohort receipts and safe incremental reruns"
-status: planning
+status: active
 epic: release-1-11-3
 story: release1113-pooled-verification
 complexity: complex
