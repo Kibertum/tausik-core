@@ -56,7 +56,7 @@ generated from those declarations.
 | `reasoning-trace.md` | agent | en, ru |
 | `receipts.md` | user | en, ru |
 | `testing-principles.md` | user | en, ru |
-| `verification-cohort-contract.md` | agent | en |
+| `verification-cohort-contract.md` | agent | en, ru |
 | `verify-glossary.md` | user | en, ru |
 
 ## configuration
@@ -153,6 +153,6 @@ generated from those declarations.
 
 ## Findings
 
-- **unpaired** (2): `at-generation-procedure.md`, `verification-cohort-contract.md`
+- **unpaired** (1): `at-generation-procedure.md`
 
-79 page(s), 77 carried by both languages.
+79 page(s), 78 carried by both languages.

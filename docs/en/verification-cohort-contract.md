@@ -94,6 +94,35 @@ must not become one.
 - `task done --verify-handle` accepts either; a pooled handle redeems
   against every listed member in one transaction.
 
+## Rollout proof (measured, session #295, live corpus)
+
+The seven tasks of this release's Track A/C work were verified twice —
+once the old way, once pooled — on the same evening, same tree class:
+
+- **Baseline (per-task scoped runs, recorded)**: 34 executions,
+  1,492.1 s total — an average of 4.9 verify executions per task; this is
+  the 60.4%-duplicate economy the baseline script measures, lived.
+- **Pooled (`verify --tasks <all seven>`)**: ONE execution over the 44-file
+  union scope, 314.6 s wall including fixed preparation. **21.4× fewer
+  executions, 4.7× less wall time (~19.6 min returned).**
+- **The red path ran live too**: pooled runs #3587/#3588 went red on the two
+  preparation gates (`ruff_format`, `bootstrap_drift`) — the pooled lane had
+  skipped preparation; after fixing, run #3589 went green. Two contract
+  corrections came out of it, both now load-bearing code: the pooled lane
+  pays the same fixed preparation as the single-task lane, and only GREEN
+  evidence is refused reuse (a red predecessor with a different identity is
+  the next attempt, not a dead end — otherwise fixes, which change the
+  tree, would make a red cohort unfixable).
+- The fine-grained incremental set (previous failures ∪ affected-by-delta)
+  is a pure function proven by unit tests (`required_after_red`); the live
+  proof above exercises gate-level red-then-fix. Per-test carry-forward
+  composes green evidence only when its recorded inputs still match.
+
+When task-level affected tests remain required: a single task's closure
+(`verify --task`), security-sensitive scopes (never pooled silently), and
+any cohort whose dependency mapping is uncertain. Pooling applies when ≥2
+review-ready tasks share a lane — release stories above all.
+
 ## Out of scope
 
 Gate implementation of pooling itself (receipts task), hierarchy semantics

@@ -49,6 +49,41 @@ def cmd_verify(svc: Any, args: Any) -> None:
     for kind in ("story", "epic"):
         if getattr(args, kind, None):
             hierarchy = (kind, getattr(args, kind))
+    if hierarchy or cohort_slugs:
+        # The pooled lane pays the SAME fixed preparation as the single-task
+        # lane: ruff_format and bootstrap_drift go red for reasons known in
+        # advance, and a pooled run that skips preparation just inherits two
+        # avoidable reds (observed live: run #3587/#3588).
+        from project_root import root_from_service
+        from verify_prepare import PreparationFailed, run as run_preparation
+
+        def _union_of_members(slugs):
+            import json as _json
+
+            files: set[str] = set()
+            for s in slugs:
+                row = svc.be._q1("SELECT relevant_files FROM tasks WHERE slug=?", (s,))
+                if row and row["relevant_files"]:
+                    try:
+                        files.update(_json.loads(row["relevant_files"]))
+                    except (TypeError, ValueError):
+                        pass
+            return sorted(files)
+
+        members = cohort_slugs or []
+        if hierarchy:
+            from verify_hierarchy import resolve_descendants
+
+            members = resolve_descendants(svc.be, hierarchy[1], hierarchy[0])
+        root = root_from_service(svc)
+        if root and members:
+            try:
+                for line in run_preparation(root, _union_of_members(members)):
+                    print(line)
+            except PreparationFailed as exc:
+                print(str(exc))
+                raise SystemExit(2) from exc
+
     if hierarchy:
         kind, parent = hierarchy
         from verify_hierarchy import hierarchy_summary, run_hierarchy_verify

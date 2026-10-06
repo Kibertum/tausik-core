@@ -9,6 +9,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Measured — pooled verification proof, live on this release's own work
+
+- **34 → 1 executions; 1,492.1 s → 314.6 s.** The seven Track A/C tasks of
+  this release were verified per-task (34 recorded scoped runs, 4.9 per task
+  on average — the 60.4%-duplicate economy lived) and then pooled
+  (`verify --tasks`): ONE gate pass over the 44-file union scope,
+  preparation included. 21.4× fewer executions, 4.7× less wall time.
+- **The red path ran live and corrected the contract twice**: pooled runs
+  #3587/#3588 went red on the preparation gates — the pooled lane now pays
+  the same fixed preparation as the single-task lane; and only GREEN
+  evidence is refused reuse (a red predecessor with a new identity is the
+  next attempt, otherwise fixes would make a red cohort unfixable). RU
+  mirror of the contract + proof: `docs/ru/verification-cohort-contract.md`.
+
 ### Added — `verify --story/--epic` and atomic hierarchy closure (Track A)
 
 - **`tausik verify --story <slug>` / `--epic <slug>`** resolve the exact

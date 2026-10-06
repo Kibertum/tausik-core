@@ -259,7 +259,12 @@ def run_cohort_verify(
         "WHERE members_json=? ORDER BY id DESC LIMIT 1",
         (members_json,),
     )
-    if prior_row and prior_row["identity"] != identity and prior_row["state"] in ("green", "red"):
+    if prior_row and prior_row["identity"] != identity and prior_row["state"] == "green":
+        # Only GREEN evidence is refused reuse — that is what carry-forward
+        # rests on. A RED predecessor with a different identity is just the
+        # next attempt: fixes CHANGE the tree (formatting alone did, live
+        # runs #3587/#3588 -> #3589), and blocking them makes a red cohort
+        # unfixable.
         prior_inputs = json.loads(prior_row["identity_inputs_json"])
         reason = invalidation_reason(prior_inputs, inputs)
         return {

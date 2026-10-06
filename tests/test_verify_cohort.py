@@ -122,14 +122,17 @@ class TestDriver:
         out = run_cohort_verify(svc, ["t-c", "t-d"], _runner=lambda *a, **k: {"passed": True})
         assert "unscoped" in out["refused"]
 
-    def test_red_then_identity_reopen_on_edit(self, svc):
-        def red(slug, relevant_files=None, **k):
-            return {"passed": False, "files_hash": "h"}
+    def test_green_then_identity_drift_on_edit(self, svc):
+        def green(slug, relevant_files=None, **k):
+            return {"passed": True, "files_hash": "h"}
 
-        out = run_cohort_verify(svc, ["t-a", "t-b"], _runner=red)
-        assert out["state"] == "red"
-        # Any member edit invalidates: the next cohort verify must refuse reuse
-        # and name the reason rather than lean on the red evidence.
+        out = run_cohort_verify(svc, ["t-a", "t-b"], _runner=green)
+        assert out["state"] == "green"
+        # A member edit after a GREEN run invalidates carry-forward: the next
+        # cohort verify must refuse reuse and name the reason. (After a RED
+        # run a changed identity is just the next attempt — fixes change the
+        # tree, and blocking them would make a red cohort unfixable; live
+        # runs #3587/#3588 -> #3589.)
         svc.task_update("t-a", goal="changed")
         out2 = run_cohort_verify(svc, ["t-a", "t-b"], _runner=lambda *a, **k: {"passed": True})
         assert out2.get("refused", "").startswith("reuse refused: task-edits")

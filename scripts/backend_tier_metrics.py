@@ -78,6 +78,7 @@ def budget_calibration_check(
     """
     if thresholds is None:
         from backend_crud import _TIER_THRESHOLDS  # lazy: avoid a cycle
+
         thresholds = _TIER_THRESHOLDS
     per_tier = per_tier_metrics(q)
     tiers: dict[str, dict[str, Any]] = {}
