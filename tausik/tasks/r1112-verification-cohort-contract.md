@@ -2,8 +2,8 @@
 slug: r1112-verification-cohort-contract
 title: "Define the pooled-verification safety contract"
 status: planning
-epic: release-1-11-2
-story: release1112-pooled-verification
+epic: release-1-11-3
+story: release1113-pooled-verification
 complexity: medium
 role: architect
 stack: python

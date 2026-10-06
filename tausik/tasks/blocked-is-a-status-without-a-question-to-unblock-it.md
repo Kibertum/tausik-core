@@ -2,8 +2,8 @@
 slug: blocked-is-a-status-without-a-question-to-unblock-it
 title: "blocked — статус без вопроса: чем разблокировать задачу, знает только текст журнала"
 status: planning
-epic: release-112-knowledge
-story: release112-workflow
+epic: release-1-11-3
+story: release1113-quality-ratchets
 complexity: medium
 role: backend
 stack: null
@@ -19,6 +19,8 @@ scope_paths:
   - "docs/ru/*.md"
   - "docs/en/*.md"
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on: []
 completed_at: null
 resolution: null

@@ -2,8 +2,8 @@
 slug: nothing-scans-the-installed-harness-state
 title: "Никто не сканирует установленную обвязку: мы проверяем входящее и не смотрим на то, что уже лежит"
 status: planning
-epic: v2-global-mcp
-story: v2gm-surfaces
+epic: release-1-11-3
+story: release1113-quality-ratchets
 complexity: medium
 role: backend
 stack: null
@@ -20,6 +20,8 @@ scope_paths:
   - "docs/ru/*.md"
   - "docs/en/*.md"
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on: []
 completed_at: null
 resolution: null

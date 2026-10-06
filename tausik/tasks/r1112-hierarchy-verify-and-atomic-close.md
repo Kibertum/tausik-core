@@ -2,8 +2,8 @@
 slug: r1112-hierarchy-verify-and-atomic-close
 title: "Close story and epic cohorts atomically from one receipt"
 status: planning
-epic: release-1-11-2
-story: release1112-pooled-verification
+epic: release-1-11-3
+story: release1113-pooled-verification
 complexity: complex
 role: backend
 stack: python

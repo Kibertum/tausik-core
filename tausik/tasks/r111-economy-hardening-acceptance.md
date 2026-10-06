@@ -2,8 +2,8 @@
 slug: r111-economy-hardening-acceptance
 title: "Accept 1.11 economy hardening on natural work"
 status: blocked
-epic: release-111-economy-draft
-story: release111-economy-hardening
+epic: release-1-11-3
+story: release1113-pooled-verification
 complexity: medium
 role: architect
 stack: python

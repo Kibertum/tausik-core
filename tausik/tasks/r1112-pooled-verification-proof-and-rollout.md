@@ -1,9 +1,9 @@
 ---
 slug: r1112-pooled-verification-proof-and-rollout
-title: "Prove pooled verification economy and prepare 1.11.2 rollout"
+title: "Prove pooled verification economy and prepare the 1.11.3 rollout"
 status: planning
-epic: release-1-11-2
-story: release1112-pooled-verification
+epic: release-1-11-3
+story: release1113-pooled-verification
 complexity: medium
 role: developer
 stack: python

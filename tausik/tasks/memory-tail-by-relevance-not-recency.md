@@ -1,9 +1,9 @@
 ---
 slug: memory-tail-by-relevance-not-recency
 title: "Хвост памяти в CLAUDE.md отбирается по свежести, а не по значимости"
-status: blocked
-epic: release-112-knowledge
-story: release112-knowledge
+status: active
+epic: release-1-11-3
+story: release1113-hygiene-calibration
 complexity: complex
 role: architect
 stack: python
@@ -19,6 +19,8 @@ scope_paths:
   - "docs/ru/*.md"
   - "docs/en/*.md"
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on: []
 completed_at: null
 resolution: null

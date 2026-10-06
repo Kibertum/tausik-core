@@ -2,8 +2,8 @@
 slug: four-ide-registries-collapse-into-one
 title: "Четыре несинхронизированных реестра хостов сводятся в один с гейт-тестом"
 status: planning
-epic: v2-global-mcp
-story: v2gm-surfaces
+epic: release-1-11-3
+story: release1113-quality-ratchets
 complexity: medium
 role: developer
 stack: python
@@ -15,6 +15,8 @@ scope_exclude: null
 relevant_files: []
 scope_paths: []
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on: []
 completed_at: null
 resolution: null

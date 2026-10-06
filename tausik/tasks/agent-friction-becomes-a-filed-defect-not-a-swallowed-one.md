@@ -2,8 +2,8 @@
 slug: agent-friction-becomes-a-filed-defect-not-a-swallowed-one
 title: "Трение агента о фреймворк должно становиться заведённым дефектом, а не молча съедаться сессией"
 status: planning
-epic: release-112-knowledge
-story: release112-workflow
+epic: release-1-11-3
+story: release1113-quality-ratchets
 complexity: complex
 role: backend
 stack: null
@@ -19,6 +19,8 @@ scope_paths:
   - "docs/en/*.md"
   - "tests/*.py"
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on: []
 completed_at: null
 resolution: null
