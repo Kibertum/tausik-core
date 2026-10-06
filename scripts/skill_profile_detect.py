@@ -19,9 +19,35 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from typing import Final
 
-VALID_IDES: Final[frozenset[str]] = frozenset({"claude", "cursor", "qwen", "codex", "kilo"})
+
+def _scaffolded_ides() -> frozenset[str]:
+    """The ide_profile alphabet = the hosts bootstrap really scaffolds.
+
+    Derived from the bootstrapper (import, never a second copy —
+    four-ide-registries-collapse; same idiom as service_doctor_drift).
+    ``bootstrap_config.SCAFFOLD_IDES`` is a promise backed by generator code,
+    so a host becomes selectable as a profile the moment bootstrap can build
+    it. The literal below is the annotated mirror for consumers that vendor
+    only ``scripts/`` (no ``bootstrap/`` across the sys.path boundary).
+    """
+    _bootstrap = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bootstrap"
+    )
+    if _bootstrap not in sys.path:
+        sys.path.insert(0, _bootstrap)
+    try:
+        from bootstrap_config import SCAFFOLD_IDES  # ruff-not-enabled: PLC0415
+
+        return frozenset(SCAFFOLD_IDES)
+    except ImportError:
+        # MIRROR of bootstrap_config.SCAFFOLD_IDES — keep in step with it.
+        return frozenset({"claude", "cursor", "qwen", "kilo", "opencode", "codex"})
+
+
+VALID_IDES: Final[frozenset[str]] = _scaffolded_ides()
 
 VALID_MODELS: Final[frozenset[str]] = frozenset(
     {"opus", "sonnet", "haiku", "gpt-4", "gpt-5", "gpt-5-5", "qwen"}

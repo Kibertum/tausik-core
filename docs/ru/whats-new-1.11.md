@@ -54,5 +54,5 @@ TAUSIK 1.11 сокращает стоимость принятой работы 
 
 Ссылки для GitHub Release:
 
-- [Английские заметки](https://github.com/Kibertum/tausik-core/blob/v1.11.1/docs/en/whats-new-1.11.md)
-- [Русские заметки](https://github.com/Kibertum/tausik-core/blob/v1.11.1/docs/ru/whats-new-1.11.md)
+- [Английские заметки](https://github.com/Kibertum/tausik-core/blob/v1.11.2/docs/en/whats-new-1.11.md)
+- [Русские заметки](https://github.com/Kibertum/tausik-core/blob/v1.11.2/docs/ru/whats-new-1.11.md)

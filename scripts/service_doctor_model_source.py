@@ -47,24 +47,35 @@ def check_session_model(svc: Any) -> Iterator[tuple[str, str, str]]:
 
     recorded = session.get("model_id")
     if recorded:
+        # v73 stores WHICH source declared it, so a wrong id is traced to the
+        # thing that supplied it — the whole point of DECLARED. Rows recorded
+        # before the column existed stay honest: their provenance is gone, and
+        # naming today's chain answer as theirs would fabricate it.
+        declared_by = session.get("model_source")
+        origin = (
+            f" declared by {declared_by}"
+            if declared_by
+            else " (recorded before sources were stored)"
+        )
         yield (
             "ok",
             _LABEL,
-            f"session #{session.get('id')} recorded model={recorded} — task start and "
-            "done pin it, and a mid-task change raises model_mismatch",
+            f"session #{session.get('id')} recorded model={recorded}{origin} — task "
+            "start and done pin it, and a mid-task change raises model_mismatch",
         )
         return
 
     # The session opened without a model. Ask the chain again for the reader's
     # benefit: if a source WOULD answer now, the session simply predates the fix,
     # and saying so is more useful than repeating that the column is empty.
-    available = resolve().get("model_id")
+    resolved = resolve()
+    available = resolved.get("model_id")
     if available:
         yield (
             "warn",
             _LABEL,
-            f"session #{session.get('id')} carries no model, but one is available "
-            f"now ({available}). The session opened before the model source was "
+            f"session #{session.get('id')} carries no model, but {resolved.get('source')} "
+            f"declares {available} now. The session opened before the model source was "
             "wired; close it and open a new one to pin correctly",
         )
         return

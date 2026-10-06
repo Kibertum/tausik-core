@@ -87,12 +87,19 @@ class TestTheTableIsDerivedFromTheGenerators:
             assert script.endswith(".py")
 
     def test_a_plugin_is_recorded_with_no_matcher_rather_than_a_made_up_one(self, live_table):
-        plugins = {c: m for c, m in live_table["opencode"].items() if c.startswith("plugin:")}
-        assert plugins, "the OpenCode QG-0 plugin did not land"
-        assert set(plugins.values()) == {""}, (
-            "a plugin has no matcher; inventing one would put a fact in the table "
-            f"that no file supports: {plugins}"
-        )
+        for host in ("opencode", "kilo"):
+            plugins = {c: m for c, m in live_table[host].items() if c.startswith("plugin:")}
+            assert plugins, f"the {host} gate plugin did not land"
+            assert set(plugins.values()) == {""}, (
+                "a plugin has no matcher; inventing one would put a fact in the table "
+                f"that no file supports: {host}: {plugins}"
+            )
+
+    def test_the_kilo_plugins_are_the_only_kilo_capabilities(self, live_table):
+        """kilo-gate-plugin + provider-agnostic-model-observation: kilo joined
+        the mechanism table with exactly its two plugins — the enforcement gate
+        and the model observer. No hook commands were smuggled in alongside."""
+        assert set(live_table["kilo"]) == {"plugin:tausik-gates.js", "plugin:tausik-observe.js"}
 
     def test_it_reads_a_clean_tree_not_the_repository_profiles(self, live_table):
         """The subject is what bootstrap WOULD deploy from the source as it
@@ -240,17 +247,25 @@ class TestItIsNotATax:
 
 
 class TestASingleBearerIsNotADifference:
-    def test_the_only_host_with_a_kind_is_compared_with_nobody(self, live_table):
-        """AC7. OpenCode is the only host bearing a plugin. Reporting its plugin
-        as 'missing from Claude' would be a false difference, and reporting
-        Cursor's total absence here would restate what the enforcement notice
-        already says on every one of its pages."""
+    def test_plugin_names_differ_between_hosts_by_declaration_only(self, live_table):
+        """AC7, updated by kilo-gate-plugin and provider-agnostic-model-
+        observation. Two hosts now bear plugins, and the gate sees exactly the
+        three file-name differences — each declared with a reason (the gates
+        contract is shared and tested parametrized; the observer is a declared
+        Kilo-only capability). Any plugin difference BEYOND those three is an
+        undeclared divergence this test refuses to let pass."""
         found = gate.find_differences(live_table)
-        assert not [d for d in found if "plugin:" in d], found
+        plugin_diffs = sorted(d for d in found if "plugin:" in d)
+        assert plugin_diffs == [
+            "missing:plugin:tausik-gates.js@opencode",
+            "missing:plugin:tausik-observe.js@opencode",
+            "missing:plugin:tausik-qg0.js@kilo",
+        ], plugin_diffs
+        for d in plugin_diffs:
+            assert d in gate.DECLARED_DIFFERENCES, f"declared or fix, not silence: {d}"
 
     def test_a_host_with_no_mechanism_is_absent_from_the_table_entirely(self, live_table):
         assert "cursor" not in live_table
-        assert "kilo" not in live_table
 
 
 class TestTheBuilderMapCannotGoStale:
@@ -286,35 +301,43 @@ class TestTheBuilderMapCannotGoStale:
         assert hm.cross_check_against_disk(str(_REPO)) == []
 
 
-class TestHostRegistryDivergenceIsPinned:
-    """AC8. The gate does not pretend there is one registry. Collapsing them is
-    `four-ide-registries-collapse-into-one`; what is held here is that the
-    remaining divergence does not WIDEN unnoticed while that waits."""
+class TestHostRegistryCollapseHolds:
+    """AC8, post-collapse. The registries no longer diverge by copy:
+    IDE_DIRS derives its config_dir column from IDE_REGISTRY and VALID_IDES
+    takes the scaffolded subset from SCAFFOLD_IDES, so every scaffolded host
+    is selectable as an ide_profile. What stays pinned is the providers
+    registry — code, not data — so its host subset cannot drift quietly."""
 
-    def test_the_measured_divergence_is_exactly_what_was_recorded(self):
-        from bootstrap_config import IDE_DIRS
+    def test_the_derivation_is_exactly_what_was_promised(self):
+        from bootstrap_config import IDE_DIRS, SCAFFOLD_IDES
         from ide_utils import IDE_REGISTRY
         from skill_profile_detect import VALID_IDES
 
-        import providers
-
         assert set(IDE_DIRS) == set(IDE_REGISTRY), (
-            "IDE_DIRS and IDE_REGISTRY agreed when this was measured; if they no "
-            "longer do, the gate's host set has drifted from bootstrap's"
+            "IDE_DIRS must keep matching IDE_REGISTRY — it derives its "
+            "config_dir column there; a mismatch means the annotated mirror "
+            "took over or the registry grew without the wrapper discovering it"
         )
-        assert set(VALID_IDES) == {"claude", "codex", "cursor", "kilo", "qwen"}, (
-            "the skill-profile registry changed. If a host was ADDED, good — move "
-            "this pin. If one was removed, that is a regression."
+        assert set(VALID_IDES) == set(SCAFFOLD_IDES), (
+            "the ide_profile alphabet must be exactly the scaffolded hosts; "
+            "a gap means the derivation fell back to its stale mirror"
         )
-        assert set(providers.available()) == {"claude", "codex", "cursor", "kilo", "qwen"}
 
-    def test_remaining_scaffolded_host_cannot_be_selected_as_a_profile(self):
-        """Kilo is selectable in 1.11; opencode remains the measured gap."""
+    def test_unselectable_scaffolded_hosts_is_empty(self):
         from bootstrap_config import SCAFFOLD_IDES
         from skill_profile_detect import VALID_IDES
 
         unselectable = sorted(set(SCAFFOLD_IDES) - set(VALID_IDES))
-        assert unselectable == ["opencode"], (
-            f"the set of scaffolded-but-unselectable hosts changed to {unselectable}; "
-            "update four-ide-registries-collapse-into-one and this pin together"
+        assert unselectable == [], (
+            f"scaffolded hosts not selectable as ide_profile: {unselectable}; "
+            "the derivation regressed to a stale copy"
+        )
+
+    def test_providers_stay_the_pinned_observation_subset(self):
+        import providers
+
+        assert set(providers.available()) == {"claude", "codex", "cursor", "kilo", "qwen"}, (
+            "providers is code, not data: a host appears there only with a real "
+            "Provider implementation (model observation). windsurf and opencode "
+            "have none yet — ship the module and move this pin together"
         )

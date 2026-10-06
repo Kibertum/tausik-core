@@ -1,4 +1,10 @@
-"""Tests for the OpenCode QG-0 plugin (task opencode-qg0-plugin).
+"""Tests for the host gate plugins (QG-0 for OpenCode and Kilo).
+
+One behavioral contract, two hosts. `harness/opencode/plugins/tausik-qg0.js`
+and `harness/kilo/plugins/tausik-gates.js` are ports of the SAME verdict
+machinery (same CLI question, same cache, same fail policies), so the tests
+are parametrized over both plugins instead of copy-pasting a module per host —
+a second copy of the suite would drift exactly the way the code must not.
 
 Two layers:
 
@@ -8,8 +14,11 @@ Two layers:
   `plugin/` directory makes the gate vanish *silently*.
 * Behavioural — the hook is actually executed under Node with a fake Bun shell,
   so "blocks without a task" is a run, not a claim. Node is a stand-in for Bun:
-  the plugin deliberately depends on no runtime API beyond `process`, and treats
+  the plugins deliberately depend on no runtime API beyond `process`, and treat
   a missing `Bun` global as "no cache signature available".
+
+Kilo-only behavior (a plugin context without a Bun shell) is tested in its own
+class; the shared contract classes run for both variants.
 """
 
 from __future__ import annotations
@@ -22,64 +31,113 @@ import re
 import shutil
 import subprocess
 import sys
+import types
 
 import pytest
+
+CROSSCUTTING_SCOPE = ["harness/"]
 
 BOOTSTRAP = os.path.join(os.path.dirname(os.path.dirname(__file__)), "bootstrap")
 sys.path.insert(0, BOOTSTRAP)
 
+from bootstrap_kilo import KiloPluginMissing, generate_kilo_plugin  # noqa: E402
 from bootstrap_opencode import (  # noqa: E402
     OpenCodePluginMissing,
     generate_opencode_plugin,
 )
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CANONICAL = os.path.join(REPO, "harness", "opencode", "plugins", "tausik-qg0.js")
+
+#: One entry per host. Everything the shared tests need to know about a plugin
+#: lives here, so adding a third port means adding a row, not a module.
+_VARIANTS = {
+    "opencode": {
+        "canonical": os.path.join(REPO, "harness", "opencode", "plugins", "tausik-qg0.js"),
+        "profile_subdir": ".opencode",
+        "plugin_file": "tausik-qg0.js",
+        "export": "TausikQG0",
+        "generate": generate_opencode_plugin,
+        "missing": OpenCodePluginMissing,
+        "forbidden_pkg": "@opencode-ai/plugin",
+        "source_tag": "opencode_qg0",
+    },
+    "kilo": {
+        "canonical": os.path.join(REPO, "harness", "kilo", "plugins", "tausik-gates.js"),
+        "profile_subdir": ".kilo",
+        "plugin_file": "tausik-gates.js",
+        "export": "TausikGates",
+        "generate": generate_kilo_plugin,
+        "missing": KiloPluginMissing,
+        "forbidden_pkg": "@kilocode/plugin",
+        "source_tag": "kilo_gates",
+    },
+}
+_VARIANT_IDS = list(_VARIANTS)
+
+
+@pytest.fixture(params=_VARIANT_IDS, ids=_VARIANT_IDS)
+def variant(request) -> dict:
+    return _VARIANTS[request.param]
+
+
+@pytest.fixture()
+def emitted(tmp_path, variant):
+    """Emit the plugin the way bootstrap does, from a lib dir.
+
+    Kilo deploys BOTH its plugins (gates + observe) in one generator call; the
+    returned path is the one THIS variant's tests exercise. The sibling
+    artifacts landing alongside is asserted by the kilo-specific emission test
+    in this module."""
+    lib = tmp_path / "lib"
+    src_dir = lib / "harness" / variant["profile_subdir"].lstrip(".") / "plugins"
+    src_dir.mkdir(parents=True)
+    # Kilo deploys BOTH its plugins in one generator call, so the fake lib must
+    # carry every kilo plugin source, not just the one this variant exercises.
+    host_src = Path(variant["canonical"]).parent
+    for js in sorted(host_src.glob("*.js")):
+        shutil.copyfile(js, src_dir / js.name)
+    target = tmp_path / "proj" / variant["profile_subdir"]
+    target.mkdir(parents=True)
+    deployed = variant["generate"](str(target), lib_dir=str(lib))
+    paths = deployed if isinstance(deployed, list) else [deployed]
+    path = next(p for p in paths if os.path.basename(p) == variant["plugin_file"])
+    return path, str(target), variant
+
 
 NODE = shutil.which("node")
 needs_node = pytest.mark.skipif(NODE is None, reason="node not installed")
 
 
-@pytest.fixture()
-def emitted(tmp_path):
-    """Emit the plugin the way bootstrap does, from a lib dir."""
-    lib = tmp_path / "lib"
-    src_dir = lib / "harness" / "opencode" / "plugins"
-    src_dir.mkdir(parents=True)
-    shutil.copyfile(CANONICAL, src_dir / "tausik-qg0.js")
-    target = tmp_path / "proj" / ".opencode"
-    target.mkdir(parents=True)
-    return generate_opencode_plugin(str(target), lib_dir=str(lib)), str(target)
-
-
 class TestEmission:
     def test_lands_in_plugins_plural_not_singular(self, emitted):
-        """`.opencode/plugin/` (singular) does not error — it silently never loads."""
-        path, target = emitted
-        assert path == os.path.join(target, "plugins", "tausik-qg0.js")
+        """`.opencode/plugin/` (singular) does not error — it silently never loads
+        (gastown#1614). The same spelling rule holds for `.kilo/plugins/`."""
+        path, target, variant = emitted
+        assert path == os.path.join(target, "plugins", variant["plugin_file"])
         assert os.path.isfile(path)
         assert not os.path.exists(os.path.join(target, "plugin"))
 
     def test_idempotent_when_source_is_the_destination(self, emitted):
-        path, target = emitted
+        path, target, variant = emitted
         before = Path(path).read_text(encoding="utf-8")
-        again = generate_opencode_plugin(target)  # no lib_dir: resolves the copy itself
-        assert again == path
+        again = variant["generate"](target)  # no lib_dir: resolves the copy itself
+        deployed = again if isinstance(again, list) else [again]
+        assert path in deployed
         assert Path(path).read_text(encoding="utf-8") == before
 
-    def test_missing_source_raises_loudly(self, tmp_path):
+    def test_missing_source_raises_loudly(self, tmp_path, variant):
         """A project with no gate is a project with no QG-0. Never skip in silence."""
-        target = tmp_path / ".opencode"
+        target = tmp_path / variant["profile_subdir"]
         target.mkdir()
-        with pytest.raises(OpenCodePluginMissing):
-            generate_opencode_plugin(str(target), lib_dir=str(tmp_path / "nope"))
+        with pytest.raises(variant["missing"]):
+            variant["generate"](str(target), lib_dir=str(tmp_path / "nope"))
 
 
 class TestNoNpmDependencies:
     def test_no_import_or_require_anywhere(self, emitted):
         """The user's hand-rolled qg0.ts imported @opencode-ai/plugin and took the
         whole prompt loop down with ERR_MODULE_NOT_FOUND. Types come from JSDoc."""
-        path, _ = emitted
+        path, _, variant = emitted
         src = Path(path).read_text(encoding="utf-8")
         code = "\n".join(
             line for line in src.splitlines() if not line.lstrip().startswith(("//", "*", "/*"))
@@ -88,24 +146,30 @@ class TestNoNpmDependencies:
         assert not re.search(r"\bimport\s*\(", code), "dynamic import()"
         assert not re.search(r"\brequire\s*\(", code), "require()"
         assert not re.search(r"\bfrom\s+['\"]", code), "bare `from '...'`"
-        assert "@opencode-ai/plugin" not in code
+        assert variant["forbidden_pkg"] not in code
 
-    def test_exports_the_opencode_contract(self, emitted):
-        path, _ = emitted
+    def test_exports_the_host_contract(self, emitted):
+        """KILO: the Kilo SDK example spells the factory as a named export
+        (`export const ExamplePlugin = async (ctx) => ({ ... })`); OpenCode calls
+        bare factories. Either way the hook key is identical."""
+        path, _, variant = emitted
         src = Path(path).read_text(encoding="utf-8")
-        assert "export const TausikQG0 = async ({" in src
+        assert f"export const {variant['export']} = async ({{" in src
         assert '"tool.execute.before"' in src
 
     def test_exactly_one_export(self, emitted):
-        """OpenCode's loader calls every export as a plugin factory ("a module that exports
-        one or more plugin functions"). A test-only helper export would be invoked with the
-        plugin context, and its `undefined` return read for hooks — a TypeError at plugin
-        init, i.e. the host dies at load because of a symbol that exists only for pytest.
-        That is precisely the failure class this plugin was written to prevent."""
-        path, _ = emitted
+        """Host loaders call every export as a plugin factory ("a module that exports
+        one or more plugin functions"). A test-only helper export would be invoked with
+        the plugin context, and its `undefined` return read for hooks — a TypeError at
+        plugin init, i.e. the host dies at load because of a symbol that exists only
+        for pytest. That is precisely the failure class these plugins were written to
+        prevent."""
+        path, _, variant = emitted
         src = Path(path).read_text(encoding="utf-8")
         exports = re.findall(r"^\s*export\s+(?:const|function|class|let|var)\s+(\w+)", src, re.M)
-        assert exports == ["TausikQG0"], f"plugin must export exactly TausikQG0, got {exports}"
+        assert exports == [variant["export"]], (
+            f"plugin must export exactly {variant['export']}, got {exports}"
+        )
         assert "export default" not in src
         assert not re.search(r"^\s*export\s*\{", src, re.M), "re-export block found"
 
@@ -113,14 +177,19 @@ class TestNoNpmDependencies:
 # --- behavioural: run the hook under Node ------------------------------------
 
 DRIVER = r"""
-// Exactly one import: the plugin exports exactly one symbol, and must keep doing so —
-// OpenCode calls every export as a plugin factory (see TestNoNpmDependencies).
-import { TausikQG0 } from "%(plugin)s";
+// One dynamic import, resolved by NAME from the scenario: both hosts load the
+// module and then read the exported factory off it, which doubles as a live
+// assertion that the plugin really exports its contract symbol.
+const scenario = JSON.parse(process.argv[2]);
+const mod = await import("%(plugin)s");
+const factory = mod[scenario.export];
+if (typeof factory !== "function") {
+  throw new Error(`no export ${scenario.export}: ${Object.keys(mod).join(",")}`);
+}
 
-// scenario = { withBun: bool, steps: [{tool, active, cliFails, dbMtime}] }
+// scenario = { export, withBun, withShell, steps: [{tool, active, cliFails, dbMtime}] }
 // Each step invokes the hook once. `state` is what the fake CLI currently reports,
 // so a step can flip the world (task done, DB touched) between hook calls.
-const scenario = JSON.parse(process.argv[2]);
 let calls = 0;
 let state = scenario.steps[0];
 
@@ -162,9 +231,13 @@ if (scenario.withBun) {
   };
 }
 
+// withShell: false models a Kilo plugin context that carries no Bun shell —
+// the gate must degrade loudly, not silently pass.
+const ctx = scenario.withShell === false ? { directory: "/proj" } : { $, directory: "/proj" };
+
 // No cache reset needed: each scenario runs in a fresh node process, so the module —
 // and its module-level cache — is imported anew.
-const hooks = await TausikQG0({ $, directory: "/proj" });
+const hooks = await factory(ctx);
 const before = hooks["tool.execute.before"];
 
 // Capture the degraded-mode warning so a test can prove fail-open is not silent.
@@ -186,30 +259,11 @@ console.log(JSON.stringify({ results, calls, warnings, emits }));
 """
 
 
-def _run(tmp_path, plugin_path: str, steps: list[dict], with_bun=False, env=None) -> dict:
-    """Execute the hook once per step under Node. Returns {results, calls}."""
-    driver = tmp_path / "driver.mjs"
-    plugin_url = "file:///" + os.path.abspath(plugin_path).replace("\\", "/").lstrip("/")
-    driver.write_text(DRIVER % {"plugin": plugin_url}, encoding="utf-8")
-    scenario = {"withBun": with_bun, "steps": steps}
-    proc = subprocess.run(
-        [NODE, str(driver), json.dumps(scenario)],
-        capture_output=True,
-        text=True,
-        # Node emits UTF-8; the block message is Russian. Without this, Windows
-        # decodes it as cp1252 and the test dies on the very message it asserts.
-        encoding="utf-8",
-        timeout=30,
-        env={**os.environ, **(env or {})},
-        check=False,
-    )
-    assert proc.returncode == 0, f"driver failed: {proc.stderr}"
-    return json.loads(proc.stdout.strip().splitlines()[-1])
-
-
-def _run_hook(tmp_path, plugin_path: str, step: dict, env: dict | None = None) -> dict:
+def _run_hook(
+    tmp_path, plugin_path: str, variant: dict, step: dict, env: dict | None = None
+) -> dict:
     """Single-step convenience wrapper."""
-    out = _run(tmp_path, plugin_path, [step], with_bun=step.get("withBun", False), env=env)
+    out = _run(tmp_path, plugin_path, _scenario(variant, [step], step.get("withBun", False), env))
     return {
         **out["results"][0],
         "calls": out["calls"],
@@ -221,36 +275,78 @@ def _run_hook(tmp_path, plugin_path: str, step: dict, env: dict | None = None) -
 @needs_node
 class TestGateSemantics:
     def test_write_without_active_task_is_blocked(self, tmp_path, emitted):
-        path, _ = emitted
-        res = _run_hook(tmp_path, path, {"tool": "write", "active": False})
+        path, _, variant = emitted
+        res = _run_hook(tmp_path, path, variant, {"tool": "write", "active": False})
         assert res["blocked"]
         assert "task start" in res["message"]
 
     @pytest.mark.parametrize("tool", ["write", "edit", "apply_patch"])
     def test_every_write_tool_is_gated(self, tmp_path, emitted, tool):
-        """`apply_patch` — the real OpenCode name. `patch` does not exist."""
-        path, _ = emitted
-        assert _run_hook(tmp_path, path, {"tool": tool, "active": False})["blocked"]
+        """`apply_patch` — the real OpenCode name; Kilo gates the same superset so a
+        name the host lacks is a no-op, never a hole."""
+        path, _, variant = emitted
+        assert _run_hook(tmp_path, path, variant, {"tool": tool, "active": False})["blocked"]
 
     def test_write_with_active_task_passes(self, tmp_path, emitted):
-        path, _ = emitted
-        assert not _run_hook(tmp_path, path, {"tool": "write", "active": True})["blocked"]
+        path, _, variant = emitted
+        assert not _run_hook(tmp_path, path, variant, {"tool": "write", "active": True})["blocked"]
 
     @pytest.mark.parametrize("tool", ["read", "grep", "glob", "bash", "webfetch", "todowrite"])
     def test_read_only_tools_pass_without_a_task(self, tmp_path, emitted, tool):
         """Gating `bash` would block the very command that starts a task."""
-        path, _ = emitted
-        res = _run_hook(tmp_path, path, {"tool": tool, "active": False})
+        path, _, variant = emitted
+        res = _run_hook(tmp_path, path, variant, {"tool": tool, "active": False})
         assert not res["blocked"]
         assert res["calls"] == 0, "read-only tool must not even pay for the CLI call"
+
+
+@needs_node
+class TestKiloNoShellContext:
+    """KILO-ONLY. A plugin context without a Bun shell cannot ask the CLI anything.
+    The honest behavior is the OpenCode fail-open path with a loud warning — NOT a
+    silent pass-through that looks like enforcement. FAIL_SECURE flips it to a block."""
+
+    @pytest.fixture()
+    def kilo(self, tmp_path):
+        v = _VARIANTS["kilo"]
+        lib = tmp_path / "lib"
+        src_dir = lib / "harness" / "kilo" / "plugins"
+        src_dir.mkdir(parents=True)
+        # Both plugins deploy as one unit; the fake lib carries every source.
+        for js in sorted(Path(v["canonical"]).parent.glob("*.js")):
+            shutil.copyfile(js, src_dir / js.name)
+        target = tmp_path / "proj" / ".kilo"
+        target.mkdir(parents=True)
+        return v["generate"](str(target), lib_dir=str(lib))[0], v
+
+    def test_missing_shell_fails_open_loudly(self, tmp_path, kilo):
+        path, variant = kilo
+        res = _run_hook(tmp_path, path, variant, {"tool": "write", "withShell": False})
+        assert not res["blocked"]
+        assert res["calls"] == 0, "no shell means no CLI probe is even possible"
+        assert res["warnings"], "silent pass-through would look like enforcement"
+        assert "DEGRADED" in res["warnings"][0]
+        assert "TAUSIK_HOOK_FAIL_SECURE" in res["warnings"][0]
+
+    def test_missing_shell_fails_secure_when_flagged(self, tmp_path, kilo):
+        path, variant = kilo
+        res = _run_hook(
+            tmp_path,
+            path,
+            variant,
+            {"tool": "write", "withShell": False},
+            env={"TAUSIK_HOOK_FAIL_SECURE": "1"},
+        )
+        assert res["blocked"]
+        assert "TAUSIK_HOOK_FAIL_SECURE" in res["message"]
 
 
 @needs_node
 class TestFailurePolicy:
     def test_cli_unavailable_fails_open(self, tmp_path, emitted):
         """A broken CLI must never brick someone's editor (mirrors task_gate.py)."""
-        path, _ = emitted
-        res = _run_hook(tmp_path, path, {"tool": "write", "cliFails": True})
+        path, _, variant = emitted
+        res = _run_hook(tmp_path, path, variant, {"tool": "write", "cliFails": True})
         assert not res["blocked"]
 
     def test_fail_open_is_never_silent(self, tmp_path, emitted):
@@ -260,8 +356,8 @@ class TestFailurePolicy:
         tolerate: without a warning, one broken CLI call disables QG-0 for the rest of
         the session and leaves no trace for the user or an auditor.
         """
-        path, _ = emitted
-        res = _run_hook(tmp_path, path, {"tool": "write", "cliFails": True})
+        path, _, variant = emitted
+        res = _run_hook(tmp_path, path, variant, {"tool": "write", "cliFails": True})
         assert not res["blocked"]
         assert res["warnings"], "fail-open happened in total silence"
         warning = res["warnings"][0]
@@ -270,15 +366,16 @@ class TestFailurePolicy:
 
     def test_healthy_path_stays_quiet(self, tmp_path, emitted):
         """No crying wolf: a working gate must not spam the log on every write."""
-        path, _ = emitted
-        res = _run_hook(tmp_path, path, {"tool": "write", "active": True})
+        path, _, variant = emitted
+        res = _run_hook(tmp_path, path, variant, {"tool": "write", "active": True})
         assert not res["warnings"]
 
     def test_cli_unavailable_fails_secure_when_flagged(self, tmp_path, emitted):
-        path, _ = emitted
+        path, _, variant = emitted
         res = _run_hook(
             tmp_path,
             path,
+            variant,
             {"tool": "write", "cliFails": True},
             env={"TAUSIK_HOOK_FAIL_SECURE": "1"},
         )
@@ -286,10 +383,11 @@ class TestFailurePolicy:
         assert "TAUSIK_HOOK_FAIL_SECURE" in res["message"]
 
     def test_skip_hooks_disables_the_gate(self, tmp_path, emitted):
-        path, _ = emitted
+        path, _, variant = emitted
         res = _run_hook(
             tmp_path,
             path,
+            variant,
             {"tool": "write", "active": False},
             env={"TAUSIK_SKIP_HOOKS": "1"},
         )
@@ -303,13 +401,14 @@ class TestSupervisionTelemetryParity:
     record must leave a countable row on THIS harness too, or supervision_bypasses
     lies by omission. The plugin cannot call the Python emitter in-process (Node),
     so it shells the CLI `events emit-supervision` — the row's contract stays in
-    one place."""
+    one place. The per-host source tag names WHICH harness recorded the row."""
 
     def test_skip_hooks_emits_bypass(self, tmp_path, emitted):
-        path, _ = emitted
+        path, _, variant = emitted
         res = _run_hook(
             tmp_path,
             path,
+            variant,
             {"tool": "write", "active": False},
             env={"TAUSIK_SKIP_HOOKS": "1"},
         )
@@ -319,15 +418,15 @@ class TestSupervisionTelemetryParity:
         assert "events emit-supervision" in cmd
         assert "--kind bypass" in cmd
         assert "--vector skip_hooks" in cmd
-        assert "--source opencode_qg0" in cmd
+        assert f"--source {variant['source_tag']}" in cmd
 
     @pytest.mark.parametrize("tool", ["read", "grep", "todowrite"])
     def test_read_only_tools_never_emit_under_skip(self, tmp_path, emitted, tool):
         """Scope parity with task_gate's write-only matcher: a skip on a read must
         NOT count as a bypass, or the metric wildly over-reports."""
-        path, _ = emitted
+        path, _, variant = emitted
         res = _run_hook(
-            tmp_path, path, {"tool": tool, "active": False}, env={"TAUSIK_SKIP_HOOKS": "1"}
+            tmp_path, path, variant, {"tool": tool, "active": False}, env={"TAUSIK_SKIP_HOOKS": "1"}
         )
         assert not res["blocked"]
         assert res["emits"] == [], "a read-only tool must not emit bypass telemetry"
@@ -335,29 +434,30 @@ class TestSupervisionTelemetryParity:
     def test_fail_open_emits_degradation(self, tmp_path, emitted):
         """A silent fail-open is a degradation — recorded under fail_open_%, its own
         metric bucket, distinct from an intentional bypass."""
-        path, _ = emitted
-        res = _run_hook(tmp_path, path, {"tool": "write", "cliFails": True})
+        path, _, variant = emitted
+        res = _run_hook(tmp_path, path, variant, {"tool": "write", "cliFails": True})
         assert not res["blocked"]
         assert len(res["emits"]) == 1, res["emits"]
         cmd = res["emits"][0]
         assert "--kind degradation" in cmd
         assert "--vector cli_unreachable" in cmd
-        assert "--source opencode_qg0" in cmd
+        assert f"--source {variant['source_tag']}" in cmd
 
     def test_healthy_write_emits_nothing(self, tmp_path, emitted):
         """No weakening, no row: an active-task write must not spam supervision."""
-        path, _ = emitted
-        res = _run_hook(tmp_path, path, {"tool": "write", "active": True})
+        path, _, variant = emitted
+        res = _run_hook(tmp_path, path, variant, {"tool": "write", "active": True})
         assert not res["blocked"]
         assert res["emits"] == []
 
     def test_fail_secure_blocks_without_emitting_degradation(self, tmp_path, emitted):
         """FAIL_SECURE flips fail-open to a BLOCK before the degradation path — the
         guard worked, so there is nothing to record as weakened."""
-        path, _ = emitted
+        path, _, variant = emitted
         res = _run_hook(
             tmp_path,
             path,
+            variant,
             {"tool": "write", "cliFails": True},
             env={"TAUSIK_HOOK_FAIL_SECURE": "1"},
         )
@@ -373,9 +473,9 @@ class TestCacheErrsTowardStrictness:
     direction, not just the speedup."""
 
     def test_repeated_writes_hit_the_cache_while_the_db_is_unchanged(self, tmp_path, emitted):
-        path, _ = emitted
+        path, _, variant = emitted
         steps = [{"tool": "write", "active": True, "dbMtime": 1000}] * 3
-        out = _run(tmp_path, path, steps, with_bun=True)
+        out = _run(tmp_path, path, _scenario(variant, steps, with_bun=True))
         assert [r["blocked"] for r in out["results"]] == [False, False, False]
         assert out["calls"] == 1, "3 writes must cost 1 CLI call, not 3"
         assert [r["queried"] for r in out["results"]] == [True, False, False]
@@ -384,12 +484,12 @@ class TestCacheErrsTowardStrictness:
         """THE load-bearing test. `task done` writes the WAL, so the DB signature moves
         and the cached 'active' verdict cannot survive it. If this ever regresses, a
         closed task keeps granting write access for the rest of the TTL."""
-        path, _ = emitted
+        path, _, variant = emitted
         steps = [
             {"tool": "write", "active": True, "dbMtime": 1000},  # task active
             {"tool": "write", "active": False, "dbMtime": 2000},  # task done: WAL moved
         ]
-        out = _run(tmp_path, path, steps, with_bun=True)
+        out = _run(tmp_path, path, _scenario(variant, steps, with_bun=True))
         assert out["results"][0]["blocked"] is False
         assert out["results"][1]["blocked"] is True, "stale allow survived task done"
         assert out["results"][1]["queried"] is True
@@ -398,17 +498,17 @@ class TestCacheErrsTowardStrictness:
     def test_without_a_signature_an_allow_is_never_reused(self, tmp_path, emitted):
         """No Bun -> no DB signature -> no way to know the task is still active.
         Re-query every time rather than risk a stale allow."""
-        path, _ = emitted
+        path, _, variant = emitted
         steps = [{"tool": "write", "active": True}] * 3
-        out = _run(tmp_path, path, steps, with_bun=False)
+        out = _run(tmp_path, path, _scenario(variant, steps, with_bun=False))
         assert [r["blocked"] for r in out["results"]] == [False, False, False]
         assert out["calls"] == 3, "an allow was cached without a signature to justify it"
 
     def test_without_a_signature_a_block_may_be_reused(self, tmp_path, emitted):
         """A stale block is over-strict — the safe direction — so it is cacheable."""
-        path, _ = emitted
+        path, _, variant = emitted
         steps = [{"tool": "write", "active": False}] * 3
-        out = _run(tmp_path, path, steps, with_bun=False)
+        out = _run(tmp_path, path, _scenario(variant, steps, with_bun=False))
         assert all(r["blocked"] for r in out["results"])
         assert out["calls"] == 1
 
@@ -433,9 +533,9 @@ class TestUnreachableCliIsThrottled:
         ONE degradation row, not three of each. The console warning stays loud on
         every write (it is a cheap console.warn, not a subprocess), so fail-open is
         never silent even while the telemetry is de-duplicated to one row/episode."""
-        path, _ = emitted
+        path, _, variant = emitted
         steps = [{"tool": "write", "cliFails": True, "dbMtime": 1000}] * 3
-        out = _run(tmp_path, path, steps, with_bun=True)
+        out = _run(tmp_path, path, _scenario(variant, steps, with_bun=True))
         assert [r["blocked"] for r in out["results"]] == [False, False, False]
         assert out["calls"] == 1, "broken CLI was re-probed on every write instead of once"
         assert [r["queried"] for r in out["results"]] == [True, False, False]
@@ -450,12 +550,12 @@ class TestUnreachableCliIsThrottled:
         verdict — the CLI may have recovered (or a task may have started), so a
         fresh probe (and a fresh degradation, if still broken) is mandatory. Bound
         to the exact same signature guard as the active verdict."""
-        path, _ = emitted
+        path, _, variant = emitted
         steps = [
             {"tool": "write", "cliFails": True, "dbMtime": 1000},
             {"tool": "write", "cliFails": True, "dbMtime": 2000},  # signature moved
         ]
-        out = _run(tmp_path, path, steps, with_bun=True)
+        out = _run(tmp_path, path, _scenario(variant, steps, with_bun=True))
         assert [r["blocked"] for r in out["results"]] == [False, False]
         assert out["calls"] == 2, "a moved DB signature must force a re-probe"
         assert [r["queried"] for r in out["results"]] == [True, True]
@@ -465,12 +565,12 @@ class TestUnreachableCliIsThrottled:
         """AC3 (recovery). The cached unreachable verdict must not outlive a real
         recovery signalled by a signature move: once the CLI answers 'active', the
         write is allowed via the normal path, not blocked by a stale unreachable."""
-        path, _ = emitted
+        path, _, variant = emitted
         steps = [
             {"tool": "write", "cliFails": True, "dbMtime": 1000},  # broken -> fail-open
             {"tool": "write", "active": True, "dbMtime": 2000},  # recovered, task active
         ]
-        out = _run(tmp_path, path, steps, with_bun=True)
+        out = _run(tmp_path, path, _scenario(variant, steps, with_bun=True))
         assert [r["blocked"] for r in out["results"]] == [False, False]
         assert out["calls"] == 2
         assert len(out["emits"]) == 1, "recovery must not emit a second degradation"
@@ -480,9 +580,9 @@ class TestUnreachableCliIsThrottled:
         direction under fail-open, so it is never reused without a signature to
         justify it — mirroring `test_without_a_signature_an_allow_is_never_reused`.
         Each write re-probes and re-records."""
-        path, _ = emitted
+        path, _, variant = emitted
         steps = [{"tool": "write", "cliFails": True}] * 3
-        out = _run(tmp_path, path, steps, with_bun=False)
+        out = _run(tmp_path, path, _scenario(variant, steps, with_bun=False))
         assert [r["blocked"] for r in out["results"]] == [False, False, False]
         assert out["calls"] == 3, "unreachable verdict reused without a signature"
         assert len(out["emits"]) == 3
@@ -491,17 +591,81 @@ class TestUnreachableCliIsThrottled:
         """AC5. Under FAIL_SECURE a broken CLI BLOCKS — the probe is still cached
         (one spawn, not three) but the degradation path is never reached, so no row
         is written (the guard worked, nothing was weakened)."""
-        path, _ = emitted
+        path, _, variant = emitted
         steps = [{"tool": "write", "cliFails": True, "dbMtime": 1000}] * 3
-        out = _run(tmp_path, path, steps, with_bun=True, env={"TAUSIK_HOOK_FAIL_SECURE": "1"})
+        out = _run(
+            tmp_path,
+            path,
+            _scenario(variant, steps, with_bun=True, env={"TAUSIK_HOOK_FAIL_SECURE": "1"}),
+        )
         assert all(r["blocked"] for r in out["results"])
         assert out["calls"] == 1, "fail-secure must still cache the unreachable probe"
         assert out["emits"] == [], "a fail-secure block weakens nothing — no degradation row"
 
 
-# --- CLI oracle: the row the JS plugin shells out to write -------------------
+def _scenario(
+    variant: dict,
+    steps: list[dict],
+    with_bun: bool,
+    env: dict | None = None,
+    with_shell: bool = True,
+) -> dict:
+    """Build a driver scenario for one host. Env, when set, travels separately —
+    see _run."""
+    return {
+        "export": variant["export"],
+        "withBun": with_bun,
+        "withShell": with_shell,
+        "steps": steps,
+        "env": env,
+    }
 
-import types  # noqa: E402
+
+def _run(tmp_path, plugin_path: str, scenario: dict) -> dict:
+    """Execute the hook once per step under Node. Returns {results, calls, warnings, emits}."""
+    driver = tmp_path / "driver.mjs"
+    plugin_url = "file:///" + os.path.abspath(plugin_path).replace("\\", "/").lstrip("/")
+    driver.write_text(DRIVER % {"plugin": plugin_url}, encoding="utf-8")
+    payload = {k: v for k, v in scenario.items() if k != "env"}
+    proc = subprocess.run(
+        [NODE, str(driver), json.dumps(payload)],
+        capture_output=True,
+        text=True,
+        # Node emits UTF-8; the block message is Russian. Without this, Windows
+        # decodes it as cp1252 and the test dies on the very message it asserts.
+        encoding="utf-8",
+        timeout=30,
+        env={**os.environ, **(scenario.get("env") or {})},
+        check=False,
+    )
+    assert proc.returncode == 0, f"driver failed: {proc.stderr}"
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+def _run_hook(
+    tmp_path, plugin_path: str, variant: dict, step: dict, env: dict | None = None
+) -> dict:
+    """Single-step convenience wrapper."""
+    out = _run(
+        tmp_path,
+        plugin_path,
+        _scenario(
+            variant,
+            [step],
+            step.get("withBun", False),
+            env,
+            with_shell=step.get("withShell", True),
+        ),
+    )
+    return {
+        **out["results"][0],
+        "calls": out["calls"],
+        "warnings": out["warnings"],
+        "emits": out["emits"],
+    }
+
+
+# --- CLI oracle: the row the JS plugins shell out to write --------------------
 
 _SCRIPTS = os.path.join(REPO, "scripts")
 if _SCRIPTS not in sys.path:
@@ -509,8 +673,8 @@ if _SCRIPTS not in sys.path:
 
 
 class TestEmitSupervisionCLI:
-    """The `events emit-supervision` command is the single producer both harnesses
-    share. Test it directly (no node) so its row contract is pinned even where
+    """The `events emit-supervision` command is the single producer every harness
+    shares. Test it directly (no node) so its row contract is pinned even where
     node is absent — and so a JS-side change can never quietly redefine the row."""
 
     def _project(self, tmp_path):
@@ -536,10 +700,10 @@ class TestEmitSupervisionCLI:
 
         svc, be = self._project(tmp_path)
         args = types.SimpleNamespace(
-            kind="bypass", vector="skip_hooks", sup_source="opencode_qg0", details=None
+            kind="bypass", vector="skip_hooks", sup_source="kilo_gates", details=None
         )
         cmd_events_emit_supervision(svc, args)
-        assert self._rows(be) == [("supervision", "opencode_qg0", "bypass_skip_hooks", None)]
+        assert self._rows(be) == [("supervision", "kilo_gates", "bypass_skip_hooks", None)]
 
     def test_degradation_kind_writes_fail_open_action(self, tmp_path):
         from project_cli_events import cmd_events_emit_supervision
@@ -548,12 +712,12 @@ class TestEmitSupervisionCLI:
         args = types.SimpleNamespace(
             kind="degradation",
             vector="cli_unreachable",
-            sup_source="opencode_qg0",
+            sup_source="kilo_gates",
             details="cli unavailable",
         )
         cmd_events_emit_supervision(svc, args)
         assert self._rows(be) == [
-            ("supervision", "opencode_qg0", "fail_open_cli_unreachable", "cli unavailable")
+            ("supervision", "kilo_gates", "fail_open_cli_unreachable", "cli unavailable")
         ]
 
     def test_row_is_chain_safe_raw_insert(self, tmp_path):
@@ -563,7 +727,7 @@ class TestEmitSupervisionCLI:
 
         svc, be = self._project(tmp_path)
         args = types.SimpleNamespace(
-            kind="bypass", vector="skip_hooks", sup_source="opencode_qg0", details=None
+            kind="bypass", vector="skip_hooks", sup_source="kilo_gates", details=None
         )
         cmd_events_emit_supervision(svc, args)
         row = be._conn.execute(
@@ -583,7 +747,7 @@ class TestEmitSupervisionCLI:
         be.close()  # release the handle, then corrupt the sink so the write fails
         (tmp_path / ".tausik" / "tausik.db").write_bytes(b"not a sqlite database")
         args = types.SimpleNamespace(
-            kind="bypass", vector="skip_hooks", sup_source="opencode_qg0", details=None
+            kind="bypass", vector="skip_hooks", sup_source="kilo_gates", details=None
         )
         with pytest.raises(SystemExit) as ei:
             cmd_events_emit_supervision(svc, args)
@@ -594,14 +758,14 @@ class TestEmitSupervisionCLI:
 
     def test_counts_in_bypasses_metric_not_detections(self, tmp_path):
         """The whole point: the shelled row lands in the SAME metric bucket as the
-        Python-side bypass, so supervision_bypasses is no longer blind on opencode."""
+        Python-side bypass, so supervision_bypasses is no longer blind on any host."""
         from project_cli_events import cmd_events_emit_supervision
 
         svc, be = self._project(tmp_path)
         cmd_events_emit_supervision(
             svc,
             types.SimpleNamespace(
-                kind="bypass", vector="skip_hooks", sup_source="opencode_qg0", details=None
+                kind="bypass", vector="skip_hooks", sup_source="kilo_gates", details=None
             ),
         )
         assert be.supervision_bypasses_summary()["by_action"]["bypass_skip_hooks"] == 1

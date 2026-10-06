@@ -93,18 +93,27 @@ Both contain the same `mcp` entry:
   "mcp": {
     "tausik-project": {
       "type": "local",
-      "command": ["<python>", "${workspaceFolder}/.kilo/mcp/project/server.py", "--project", "${workspaceFolder}"],
+      "command": [
+        "<abs-path>/.tausik/venv/Scripts/python.exe",
+        "<abs-path>/.kilo/mcp/project/server.py",
+        "--project",
+        "<abs-project-path>"
+      ],
       "enabled": true
     }
   }
 }
 ```
 
-Paths are **rename-proof**: a server inside the project and `--project` use
-`${workspaceFolder}` (Kilo expands it at launch), so renaming the project folder
-does not break the config. An external lib server keeps its absolute path.
-Existing servers and other keys are **merged**, not overwritten. Re-running is
-idempotent.
+Paths are **absolute** (forward-slashed). Measured on the live host: Kilo Code
+7.8.3 expands no `${workspaceFolder}` in MCP commands — the literal occurs zero
+times in its `kilo.exe` CLI, the process that spawns the servers — so an
+earlier generator emitted a stanza that parsed but could never spawn. Absolute
+paths are the Codex precedent: renaming the project directory requires
+re-running bootstrap, and `tausik doctor` runs a live initialize probe against
+the configured command, so a config the host cannot load is reported instead of
+assumed. Existing servers and other keys are **merged**, not overwritten.
+Re-running is idempotent.
 
 **Restart Kilo** after bootstrap so it loads the new MCP config.
 
@@ -118,28 +127,74 @@ Override the target(s) in `.tausik/config.json`:
 
 (paths are project-relative; the list fully replaces the defaults.)
 
-## 3. Tell TAUSIK which GLM model is active
+## 3. Real-time QG-0 gate (Kilo plugin)
 
-Kilo has no Claude-style JSONL transcript, so TAUSIK reads the active model from
-(in order):
+The same bootstrap also deploys a **gate plugin** to
+`.kilo/plugins/tausik-gates.js`. Kilo auto-loads that directory, so the file is
+the registration. It is a port of the OpenCode QG-0 plugin (same CLI question,
+same cache, same policies):
 
-1. the `KILO_MODEL` environment variable — e.g. `export KILO_MODEL=glm-4.6`
-2. a `model` field in `.kilo/kilo.json` (or `~/.config/kilo/kilo.json`)
+- Before every `write`/`edit`/`apply_patch` it asks the TAUSIK CLI whether any
+  task is active and **refuses the write without one** (SENAR Rule 1).
+- `bash` is deliberately not gated — that would block the very command that
+  starts a task. Rule 2 (scope) and secret scanning are not enforced here
+  either; the same is true of the OpenCode plugin, and `tausik doctor`'s
+  enforcement-coverage line is the per-host truth.
+- The CLI verdict is cached against the TAUSIK DB signature (plus a small TTL),
+  and the cache may only err toward strictness: `task done` moves the WAL, so a
+  cached "allowed" cannot survive it.
+- If the CLI is unreachable the gate **fails open loudly** — every ungated
+  write prints a `DEGRADED` warning and a supervision-degradation row is
+  recorded. Set `TAUSIK_HOOK_FAIL_SECURE=1` to block instead of allow;
+  `TAUSIK_SKIP_HOOKS=1` disables the gate (recorded as a bypass).
 
-With that set, `task start` shows GLM recommendations and correct
-under/over-powered verdicts. Without it, recommendations fall back to
+Honest status: the gate is unit-verified by executing the hook under Node
+(`tests/test_host_gate_plugins.py`, both hosts parametrized), and `tausik
+doctor` reports `kilo: 2 plugins` — but a live denial inside a running Kilo
+session still needs one host restart to observe. Until then the gate is
+deployed and proven at the harness level, not yet observed live.
+
+## 4. Tell TAUSIK which GLM model is active
+
+Kilo has no Claude-style JSONL transcript, so the second plugin shipped with
+TAUSIK — `tausik-observe.js` — records the model the host is actually running:
+on every chat event it writes the host's `{providerID, modelID}` to
+`.tausik/runtime/active_model.json` (model ids only — no keys, no conversation
+content). The full chain, in order:
+
+1. `.tausik/runtime/active_model.json` — written live by the observer plugin,
+   so the model picked in Kilo's UI (z.ai, Ollama, LM Studio, anything) is
+   what TAUSIK sees;
+2. the `KILO_MODEL` environment variable — e.g. `export KILO_MODEL=glm-4.7`;
+3. a `model` field in `.kilo/kilo.jsonc` (JSONC comments allowed),
+   `.kilocode/kilo.json` or `~/.config/kilo/kilo.jsonc`.
+
+Every value passes the same token validation before it is stored, and schema
+v73 records with the session WHICH source declared it (`provider:kilo`, an
+env-var name, …) — the "Session model" line of `tausik doctor` names that
+source. When nothing answers, nothing is invented: the doctor keeps its
+warning and the model is never guessed from the host's name.
+
+With a model recorded, `task start` shows GLM recommendations and correct
+under/over-powered verdicts. Without one, recommendations fall back to
 `model_profiles.default_family` (below) and then to Claude.
 
-## 4. Switch / add GLM models — no code change
+Honest status: the observer and the whole chain are unit-verified
+(`tests/test_kilo_observe_plugin.py`, `tests/test_providers.py` — including
+the `TAUSIK_AGENT_MODEL` variable a bash tool receives), but the live
+chat-event write and the shell-env injection inside a running Kilo session
+still need one host restart to observe.
+
+## 5. Switch / add GLM models — no code change
 
 Defaults shipped in `scripts/model_profiles.py`:
 
 | Capability rank | GLM model |
 |-----------------|-----------|
 | light (`haiku`) | `glm-4.5-air` |
-| mid (`sonnet`)  | `glm-4.6` |
-| strong (`opus`) | `glm-4.6` |
-| flagship (`fable`) | `glm-4.6` |
+| mid (`sonnet`)  | `glm-4.7` |
+| strong (`opus`) | `glm-4.7` |
+| flagship (`fable`) | `glm-4.7` |
 
 Override or extend any of these — and pin GLM as the default family — in
 `.tausik/config.json`:
@@ -161,12 +216,35 @@ Override or extend any of these — and pin GLM as the default family — in
 `default_family: "glm"` makes `task start` recommend GLM models even before any
 transcript/`KILO_MODEL` detection — ideal when you only ever run Kilo + z.ai.
 
+Local families need no code either. Model ids are normalized before every
+lookup: the provider prefix (`zai-coding-plan/glm-4.7`, `ollama2/glm-4.5-air`)
+and a trailing context-window suffix (`glm-4.7 [200k]`) are stripped, so the
+same shipped table answers for them. A name the table does not know — a tag
+that is part of the id (Ollama's `:latest`) or a purely local name — is one
+config entry:
+
+```json
+{
+  "model_profiles": {
+    "families": {
+      "glm": {
+        "haiku": { "model": "ollama/glm-4.5-air:latest", "display": "GLM-4.5-Air (local)" }
+      }
+    }
+  }
+}
+```
+
 ## How it fits together
 
 ```
 Kilo Code (addon/CLI)  ──MCP──▶  tausik-project server  (.kilo/kilo.jsonc | .kilocode/mcp.json)
         │
-        └── model: glm-4.6  ──▶  model_profiles (family=glm) ──▶ routing rank → glm model + verdict
+        ├── QG-0 gate plugin       (.kilo/plugins/tausik-gates.js) — refuses writes with no active task
+        │
+        ├── model observer plugin  (.kilo/plugins/tausik-observe.js) — writes .tausik/runtime/active_model.json
+        │
+        └── model: glm-4.7  ──▶  model_profiles (family=glm) ──▶ routing rank → glm model + verdict
 ```
 
 The runtime is Kilo; the model is GLM. Neither knows about the other — that

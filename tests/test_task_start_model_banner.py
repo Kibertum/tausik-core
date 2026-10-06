@@ -353,9 +353,9 @@ class TestBannerGlmFamily:
     def test_glm_active_recommends_glm_and_matches(self):
         # complex implement on GLM → recommend GLM flagship; active==rec → ✓ match.
         out = format_task_start_banner(
-            "complex", active_model="glm-4.6", phase="implement", config={}
+            "complex", active_model="glm-4.7", phase="implement", config={}
         )
-        assert "glm-4.6" in out
+        assert "glm-4.7" in out
         assert "claude" not in out
         assert "✓ model match" in out
 
@@ -365,7 +365,7 @@ class TestBannerGlmFamily:
         out = format_task_start_banner(
             "complex", active_model=None, transcript_path="", phase="implement", config=cfg
         )
-        assert "glm-4.6" in out
+        assert "glm-4.7" in out
         assert "active model unknown" in out
 
     def test_glm_underpowered_is_mismatch(self):
@@ -374,7 +374,7 @@ class TestBannerGlmFamily:
             "complex", active_model="glm-4.5-air", phase="implement", config={}
         )
         assert "MISMATCH" in out
-        assert "glm-4.6" in out  # recommended flagship still shown
+        assert "glm-4.7" in out  # recommended flagship still shown
 
     def test_claude_session_unchanged(self):
         # Back-compat: a Claude active model still recommends Claude and matches.
@@ -383,3 +383,16 @@ class TestBannerGlmFamily:
         )
         assert "claude-opus-4-8" in out
         assert "glm" not in out
+
+
+def test_kilo_prefixed_model_id_matches():
+    """AC-1 (model-profiles-glm47-local): the provider-scoped id Kilo may
+    report (zai-coding-plan/glm-4.7) lands on the same rank as the bare
+    id — the verdict is a match, not "unrecognized".
+    """
+    out = format_task_start_banner(
+        "complex", active_model="zai-coding-plan/glm-4.7", phase="implement", config={}
+    )
+    assert "glm-4.7" in out
+    assert "claude" not in out
+    assert "model match" in out

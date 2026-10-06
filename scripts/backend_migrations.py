@@ -44,6 +44,7 @@ from backend_migrations_v69 import MIGRATION_V69
 from backend_migrations_v70 import MIGRATION_V70
 from backend_migrations_v71 import MIGRATION_V71
 from backend_migrations_v72 import MIGRATION_V72
+from backend_migrations_v73 import MIGRATION_V73
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -415,11 +416,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v54: RENAR AT (Acceptance Test) artifacts (at-acceptance-tests-derived-by-an-isolated-agent)
     # -- SQL in backend_schema_at.py, reused verbatim (AT's first migration).
     54: MIGRATION_V54,
-    # v55: at_results append-only outcome history
-    # (at-red-with-tc-green-routes-to-interpretation-not-code).
+    # v55: at_results append-only outcome history (at-red-with-tc-green-routes-to-interpretation-not-code).
     55: MIGRATION_V55,
-    # v56: artifact graph -- code and docs as entities, every edge carrying the
-    # layer it was obtained by (ag-artifacts-and-edges-with-provenance).
+    # v56: artifact graph -- code and docs as entities, edges carry their layer (ag-artifacts-and-edges-with-provenance).
     56: MIGRATION_V56,
     # v57: collapse the session_record pile -- DATA ONLY, a frozen literal in
     # backend_migrations_v57.py (usage-events-sums-cumulative-snapshots-...).
@@ -447,6 +446,7 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     70: MIGRATION_V70,  # natural accepted-task benchmark observations
     71: MIGRATION_V71,  # observed/configured provenance for cohort identity
     72: MIGRATION_V72,  # bind review records to reviewed task/file state
+    73: MIGRATION_V73,  # sessions.model_source -- provenance stored at open (backend_migrations_v73.py)
 }
 
 # Merged: legacy + current

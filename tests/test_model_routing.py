@@ -277,10 +277,10 @@ def test_family_none_defaults_to_claude():
 def test_glm_family_resolves_glm_ids():
     # complex implement → flagship rank → GLM's flagship model, not a Claude id.
     r = suggest_model("complex", "implement", family="glm")
-    assert r["model"] == "glm-4.6"
+    assert r["model"] == "glm-4.7"
     assert "claude" not in r["model"]
     # simple implement → sonnet rank → GLM's sonnet-rank model.
-    assert suggest_model("simple", "implement", family="glm")["model"] == "glm-4.6"
+    assert suggest_model("simple", "implement", family="glm")["model"] == "glm-4.7"
 
 
 def test_glm_family_via_config_override_models():
@@ -298,8 +298,9 @@ def test_model_tier_resolves_glm_via_profiles():
     from model_routing_matrix import _model_tier
 
     fams = load_families(None)
-    assert _model_tier("glm-4.6", fams) == 3  # fable rank (highest it fills)
-    assert _model_tier("glm-4.6") is None  # without profiles → unknown (back-compat)
+    assert _model_tier("glm-4.7", fams) == 3  # fable rank (highest it fills)
+    assert _model_tier("glm-4.7") is None  # without profiles -> unknown (back-compat)
+    assert _model_tier("glm-4.6", fams) is None  # dropped from the lineup -> unknown
     assert _model_tier("claude-opus-4-8") == 2  # claude token path unchanged
 
 

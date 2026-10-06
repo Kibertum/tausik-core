@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 72
+SCHEMA_VERSION = 73
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -103,7 +103,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     handoff TEXT,
     model_id TEXT,
     model_version TEXT,
-    host_session_id TEXT
+    host_session_id TEXT,
+    -- v73: which source in the chain declared model_id (env var name or
+    -- "provider:<ide>"). Stored at session open so the doctor names THE source
+    -- of the RECORDED value instead of re-deriving today's chain, which a
+    -- mid-session switch would silently re-point. LAST on purpose: the v73
+    -- migration appends the column, so fresh and migrated tables converge on
+    -- one column order and a positional INSERT means the same thing on both.
+    model_source TEXT
 );
 
 CREATE TABLE IF NOT EXISTS decisions (

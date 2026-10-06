@@ -9,6 +9,156 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.2] — 2026-10-06
+
+### ### Fixed — the two release-lane self-checks
+
+- **The full default lane on the release commit failed two gate-hygiene tests
+  this branch itself introduced.** `tests/test_session_model_id.py` had been
+  formatted by 7c25c154 but stayed in the ruff-format legacy list
+  (`tausik/gates.json`, 71 → 70 entries), and `tests/test_host_gate_plugins.py`
+  (e4279117) walked `harness/` plugin trees without a `CROSSCUTTING_SCOPE`
+  declaration. The stale list entry is removed and the scope is declared; the
+  lane is green again.
+
+Fixed — the Kilo MCP stanza could parse but never spawn
+
+- **Root cause measured on the live host.** Kilo Code 7.8.3 expands no
+  `${workspaceFolder}` in MCP commands: the literal occurs zero times in
+  `bin/kilo.exe` (the process that spawns MCP servers) and in every extension
+  bundle. The generated stanza pointed the spawn at a literally-named
+  `${workspaceFolder}/...` path, so `tausik-project` and `codebase-rag` never
+  started, and nothing anywhere said so.
+- **`bootstrap --ide kilo` now emits absolute, forward-slashed paths** — the
+  Codex precedent for a host with no workspace variable. Renaming the project
+  directory requires re-running bootstrap.
+- **`tausik doctor` refuses the parse-only checkmark.** The structural layer
+  warns when a command carries `${workspaceFolder}`; a new **Kilo MCP live
+  probe** performs a real initialize handshake against the configured command
+  and reports the server it reached. `docs/en/kilo-zai.md` (+ RU mirror) no
+  longer claims the variable is expanded at launch.
+
+### Added — real-time QG-0 gate for Kilo (plugin)
+
+- **`bootstrap --ide kilo` now deploys `.kilo/plugins/tausik-gates.js`** — a
+  port of the OpenCode QG-0 plugin with the same contract: before every
+  `write`/`edit`/`apply_patch` it asks the TAUSIK CLI whether any task is
+  active and refuses the write without one (SENAR Rule 1). Kilo auto-loads
+  `.kilo/plugins/`, so the file is the registration. `bash` stays ungated (it
+  would block `task start` itself), and Rule 2/secret scanning remain
+  declared-not-enforced here exactly as on OpenCode — `tausik doctor`'s
+  enforcement coverage now reports `kilo: 1 plugin`.
+- The verdict is cached against the TAUSIK DB signature (WAL included) with a
+  TTL, erring only toward strictness: `task done` invalidates a cached allow.
+  An unreachable CLI fails **open but loudly** (`DEGRADED` warning per write +
+  a supervision-degradation row via the shared `events emit-supervision`
+  producer, source tag `kilo_gates`); `TAUSIK_HOOK_FAIL_SECURE=1` blocks
+  instead, `TAUSIK_SKIP_HOOKS=1` records a bypass. A plugin context without a
+  Bun shell degrades the same loud way.
+- **The gate plugins are now tested as one contract**:
+  `tests/test_opencode_qg0_plugin.py` became
+  `tests/test_host_gate_plugins.py`, parametrized over both hosts (same
+  hook semantics under Node with a fake Bun shell, plus Kilo-only no-shell
+  cases) instead of a copy-paste module — audit_pytest_dedupe reports
+  0 copy. Honest status: harness-verified, not yet observed denying inside a
+  live Kilo session (needs one host restart; documented as pending in
+  `docs/en/kilo-zai.md`).
+
+### Fixed — vendored SEO agents were unreadable to Kilo
+
+- **`.kilo/agents/vendor_seo/*.md` declared `tools` in Claude Code's subagent
+  spelling — a comma string (`tools: Read, Bash, Write`) — while Kilo's schema
+  wants an object or nothing.** Kilo refused all seven definitions at load.
+  They now declare the same tool sets as per-tool booleans
+  (`read`/`bash`/`write`/`glob`/`grep`/`webfetch`), so the agents load; the
+  agent bodies are unchanged.
+
+### Added — pricing status on native usage reports (priced / free / unknown)
+
+- **`metrics tokens --host kilo` now carries a `pricing` section and a real
+  `pricing_applied` flag** (both were hard-coded false): every observed model
+  is classified as `priced` (the number), `free` (a measured $0.00, declared
+  so in config) or `unknown` (null, named in `unpriced_models`, warned once
+  on stderr). A subscription provider (zai-coding-plan) has no per-token
+  tariff, so an honest meter prints null — never $0.00, which would read as
+  free work.
+- **One declaration now prices both paths.** `llm_pricing_usd_per_million`
+  in `.tausik/config.json` priced usage_events rows while this report still
+  printed UNPRICED over the same rows; the report ladder folds the pair in
+  (cache kinds derived by the shipped multipliers), with a `token_price`
+  entry winning per model. This project declares local (ollama) inference at
+  $0.00 and leaves zai-coding-plan undeclared on purpose — the live kilo
+  report shows `glm-4.7` as unknown with a 132.6M-token warning instead of a
+  silent $0.00.
+- Task attribution stays whatever the source states (`task_attribution` is
+  kept `"unknown"`, not upgraded). The codex native report gets the same
+  section in a later task.
+
+### Added — provider-agnostic model observation for Kilo (any model, not just z.ai)
+
+- **A second plugin, `tausik-observe.js`, records the model the host actually
+  runs.** On every chat event it writes Kilo's `{providerID, modelID}` to
+  `.tausik/runtime/active_model.json` — model ids only, no keys and no
+  conversation content — so the model picked in Kilo's UI (z.ai, Ollama, LM
+  Studio, any OpenAI-compatible endpoint) is what TAUSIK sees, on any provider.
+- **`providers/kilo.py` consults the runtime file first**, then
+  `KILO_MODEL`, then the `model` field in `.kilo/kilo.jsonc`,
+  `.kilocode/kilo.json` and `~/.config/kilo/kilo.jsonc` (JSONC comments now
+  parse — the reader is the one shared string-aware scanner in
+  `scripts/jsonc_utils.py`). Every value passes the same token validation as
+  every other source; when nothing answers, nothing is invented.
+- **The plugin also injects `TAUSIK_AGENT_MODEL` into bash tools** via the
+  `shell.env` hook, so scripts and hooks see the observed model without any
+  manual export.
+- **The doctor names its source.** Schema v73 adds `sessions.model_source`:
+  which chain step declared the model is stored at session open, and the
+  "Session model" line names it (`provider:kilo`, an env-var name, …). Rows
+  recorded before v73 say so instead of borrowing today's chain — provenance
+  is never fabricated. The doctor's warning stays a warning when no source
+  answers: the model is never guessed from the host's name.
+- Honest status: the observer, the chain and the injection are unit-verified
+  (`tests/test_kilo_observe_plugin.py`, `tests/test_providers.py`,
+  `tests/test_doctor_session_model.py`); the live chat-event write and the
+  shell-env echo inside a running Kilo session need one host restart and are
+  documented as pending in `docs/en/kilo-zai.md` (+ RU mirror).
+
+### Fixed — model verdicts lied on GLM-4.7
+
+- **Shipped model profiles ended at glm-4.6 while Kilo + GLM actually runs
+  `zai-coding-plan/glm-4.7` — `task start` called the very model it should
+  recommend "unrecognized" and produced wrong under/over-powered verdicts.**
+  The GLM table now ships glm-4.7 on the sonnet/opus/fable ranks (haiku stays
+  glm-4.5-air); glm-4.6, dropped from z.ai's lineup, resolves to unknown
+  instead of a fabricated rank.
+- **One key per spelling the hosts actually report.** `normalize_model_id`
+  strips a provider prefix (`zai-coding-plan/glm-4.7` → `glm-4.7`) and a
+  trailing context-window suffix (`glm-4.7 [200k]`) before every reverse-index,
+  rank and banner lookup, so a matched normalized id counts as a real match.
+  Local families (Ollama, LM Studio) resolve through the same shipped table
+  with no code change; a config entry still wins.
+- Tests: `tests/test_model_profiles.py` is parametrized over the spelling
+  matrix; routing and banner tests cover the glm-4.7 verdicts and the
+  glm-4.6 negative. Documented in `docs/en/kilo-zai.md` (+ RU mirror), §5.
+
+### Fixed — four IDE registries, one truth
+
+- **`tausik config set ide_profile opencode` was refused as unknown for a
+  host bootstrap fully scaffolds** — `skill_profile_detect.VALID_IDES` was a
+  hand-maintained 5-host copy that had drifted behind
+  `bootstrap_config.SCAFFOLD_IDES` (6, opencode included). The ide_profile
+  alphabet is now DERIVED from the scaffold list through a guarded import
+  with an annotated mirror for consumers that vendor only `scripts/`, so a
+  host becomes selectable the moment bootstrap can scaffold it.
+- **`bootstrap_config.IDE_DIRS` no longer hand-copies the config_dir
+  column** — it derives from `ide_utils.IDE_REGISTRY`, the registry whose
+  contract already says "adding a new IDE = registering it there". The
+  `providers` registry is code, not data: its host subset stays pinned by
+  tests (no windsurf, no opencode provider yet) instead of being fabricated
+  from a list.
+- The drift scanner's fallback mirror silently missed `codex` — corrected.
+  The parity gate's "four registries disagree, collapsing deferred to 1.10"
+  message and the host-mechanisms header now describe the collapse as done.
+
 ## [1.11.1] — 2026-10-04
 
 - Projects can now opt into `governance_profile: "memory-only"`. Bootstrap then

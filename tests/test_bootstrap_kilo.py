@@ -58,9 +58,10 @@ def test_prefers_copied_server_over_lib(tmp_path):
     assert ".kilo/mcp/project/server.py" in cmd_path
 
 
-def test_in_project_server_is_rename_proof(tmp_path):
-    # An in-project server must use ${workspaceFolder}, never an absolute path
-    # that embeds the (renamable) folder name. --project is always portable.
+def test_in_project_server_is_absolute(tmp_path):
+    # Kilo 7.8.3 does not expand ${workspaceFolder} in MCP commands (measured:
+    # zero literals in kilo.exe), so an in-project server must be an ABSOLUTE
+    # path. The historical "rename-proof" claim died with that measurement.
     project = tmp_path / "proj"
     ide_dir = project / ".kilo"
     copied = ide_dir / "mcp" / "project" / "server.py"
@@ -70,15 +71,15 @@ def test_in_project_server_is_rename_proof(tmp_path):
     cmd = json.loads((ide_dir / "kilo.jsonc").read_text(encoding="utf-8"))["mcp"]["tausik-project"][
         "command"
     ]
-    assert cmd[1] == "${workspaceFolder}/.kilo/mcp/project/server.py"
-    # The absolute project path is NOT embedded → survives a folder rename.
-    assert str(project).replace("\\", "/") not in cmd[1]
-    assert cmd[3] == "${workspaceFolder}"
+    dumped = json.dumps(cmd)
+    assert "${workspaceFolder}" not in dumped
+    assert cmd[1] == (ide_dir / "mcp" / "project" / "server.py").resolve().as_posix()
+    assert cmd[3] == project.resolve().as_posix()  # --project is absolute too
 
 
-def test_in_project_venv_python_is_portable(tmp_path):
-    # Regression (dogfood): an in-project venv python must be ${workspaceFolder}-
-    # relative, not absolute — else a folder rename breaks the interpreter path.
+def test_in_project_venv_python_is_absolute(tmp_path):
+    # Regression (1.11.2): the venv interpreter path must resolve on disk —
+    # a ${workspaceFolder}-relative path never spawns under Kilo 7.8.3.
     project = tmp_path / "proj"
     ide_dir = project / ".kilo"
     (ide_dir / "mcp" / "project").mkdir(parents=True)
@@ -90,8 +91,8 @@ def test_in_project_venv_python_is_portable(tmp_path):
     cmd = json.loads((ide_dir / "kilo.jsonc").read_text(encoding="utf-8"))["mcp"]["tausik-project"][
         "command"
     ]
-    assert cmd[0] == "${workspaceFolder}/.tausik/venv/Scripts/python.exe"
-    assert str(project).replace("\\", "/") not in json.dumps(cmd)
+    assert cmd[0] == venv_py.resolve().as_posix()
+    assert "${workspaceFolder}" not in json.dumps(cmd)
 
 
 def test_bare_python_stays_bare(tmp_path):
@@ -107,7 +108,8 @@ def test_bare_python_stays_bare(tmp_path):
 
 def test_external_lib_server_stays_absolute(tmp_path):
     # A server resolved from an external lib (outside the project) keeps its
-    # absolute path — a project rename doesn't move it. No ${workspaceFolder}.
+    # absolute path — a project rename doesn't move it. Everything is absolute
+    # now, including --project.
     project = tmp_path / "proj"
     project.mkdir()
     lib = _make_lib(tmp_path)  # tmp_path/lib is OUTSIDE tmp_path/proj
@@ -117,7 +119,7 @@ def test_external_lib_server_stays_absolute(tmp_path):
     ]["command"]
     assert "${workspaceFolder}" not in cmd[1]
     assert cmd[1].endswith("harness/claude/mcp/project/server.py")
-    assert cmd[3] == "${workspaceFolder}"  # --project is portable regardless
+    assert cmd[3] == project.resolve().as_posix()
 
 
 def test_merge_preserves_user_servers(tmp_path):

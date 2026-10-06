@@ -11,20 +11,27 @@ kilo.ai docs) and ``.kilocode/mcp.json`` (older Cline-lineage). Whichever the
 installed Kilo reads, it finds the server. Override via ``.tausik/config.json``
 ``kilo.config_paths`` (list of project-relative paths).
 
-Paths are emitted **rename-proof**: a server living inside the project and the
-``--project`` argument use ``${workspaceFolder}`` (which Kilo expands at launch),
-so renaming the project folder does not break the config. Servers resolved from
-an external lib stay absolute (a project rename doesn't move them).
+Paths are emitted **absolute, forward-slashed**. Historically this generator
+wrote ``${workspaceFolder}``-relative paths believing Kilo expands the variable
+at launch; that belief was measured false on the live host: Kilo Code 7.8.3
+contains ZERO ``${workspaceFolder}`` literals in its ``kilo.exe`` CLI (the
+process that spawns MCP servers) or its extension bundle, so a relative stanza
+pointed the spawn at a literally-named ``${workspaceFolder}/...`` path and every
+server failed to start silently. Absolute paths are the Codex precedent
+(bootstrap_codex made the same trade for the same reason): renaming the project
+directory requires re-running bootstrap. ``tausik doctor`` runs a live
+initialize probe against the configured command, so a config the host cannot
+load is reported instead of assumed.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 from typing import Any
 
 from bootstrap_generate import retire_managed_servers
-from bootstrap_paths import portable_path
 
 # (server-name, relative path under an mcp/ root) — order is the emit order.
 _SERVERS = (
@@ -38,11 +45,27 @@ _DEFAULT_CONFIG_PATHS = (
     os.path.join(".kilocode", "mcp.json"),
 )
 
+# KILO: the plugins directory is PLURAL. Kilo auto-loads
+# `.kilo/plugins/*.{js,ts}`; a singular `plugin/` is not an error, it is
+# SILENCE — the gate never loads and QG-0 enforcement is simply absent, the
+# one failure this feature exists to prevent. Same precedence rule as the
+# OpenCode deployer: the library copy wins, or an upgrade could never reach
+# the enforcement artifact (bootstrap_opencode_assets for the full story).
+PLUGINS_SUBDIR = "plugins"
+PLUGIN_FILES = (
+    "tausik-gates.js",  # QG-0 enforcement (port of the OpenCode gate)
+    "tausik-observe.js",  # provider-agnostic live model observation
+)
 
-def _portable_path(abs_path: str, project_dir: str) -> str:
-    """Kilo expands ``${workspaceFolder}`` at launch — rename-proof for in-project
-    paths. Thin wrapper over the shared helper (see bootstrap_paths)."""
-    return portable_path(abs_path, project_dir, "${workspaceFolder}")
+
+def _abs_portable(abs_path: str) -> str:
+    """Absolute, forward-slashed path for embedding in Kilo's JSON config.
+
+    Kilo 7.8.3 does not expand ``${workspaceFolder}`` in MCP commands (measured:
+    zero literals in kilo.exe), so every path must be absolute. Forward slashes
+    keep the JSON readable and Windows-safe.
+    """
+    return os.path.normpath(abs_path).replace("\\", "/")
 
 
 def _resolve_server(name_path: str, ide_dir: str, lib_dir: str | None) -> str | None:
@@ -77,10 +100,10 @@ def _build_mcp_servers(
         out[name] = {
             "type": "local",
             "command": [
-                _portable_path(python_exe, project_dir),
-                _portable_path(server, project_dir),
+                _abs_portable(python_exe) if os.path.isabs(python_exe) else python_exe,
+                _abs_portable(server),
                 "--project",
-                "${workspaceFolder}",
+                _abs_portable(project_dir),
             ],
             "enabled": True,
         }
@@ -184,3 +207,62 @@ def generate_kilo_commands(target_dir: str, skills_dir: str | None = None) -> in
             )
         written += 1
     return written
+
+
+class KiloPluginMissing(RuntimeError):
+    """The gates plugin source could not be found — bootstrap must not continue quietly.
+
+    Mirrors OpenCodePluginMissing: enforcement is the whole point (decision
+    #131). A Kilo project whose profile lacks the plugin runs with QG-0 as
+    markdown the host is free to ignore — the exact "doc promises, code
+    absent" gap this whole mechanism exists to close. Skipping silently would
+    leave a project that *claims* TAUSIK discipline while permitting any
+    write at all.
+    """
+
+
+def _resolve_plugin_source(target_dir: str, lib_dir: str | None, name: str) -> str | None:
+    """Locate a plugin source. The LIBRARY copy wins over the installed one.
+
+    Same precedence argument as the OpenCode deployer: preferring the
+    already-installed copy would make every bootstrap after the first a no-op
+    (src == dst), so a user upgrading TAUSIK for a FIXED artifact would keep
+    running the broken one forever.
+    """
+    if lib_dir:
+        canonical = os.path.join(lib_dir, "harness", "kilo", PLUGINS_SUBDIR, name)
+        if os.path.isfile(canonical):
+            return canonical
+    copied = os.path.join(target_dir, PLUGINS_SUBDIR, name)
+    if os.path.isfile(copied):
+        return copied
+    return None
+
+
+def generate_kilo_plugin(target_dir: str, lib_dir: str | None = None) -> list[str]:
+    """Install the Kilo plugins into ``<target_dir>/plugins/``.
+
+    Copies the canonical artifacts from ``harness/kilo/plugins/`` — real,
+    lintable, directly-runnable JS files, not strings baked into Python. Kilo
+    auto-loads ``.kilo/plugins/*.{js,ts}`` (its own config discovery), so
+    dropping the files IS the registration; no config stanza exists to write.
+
+    Returns the deployed paths in PLUGIN_FILES order. Raises KiloPluginMissing
+    when any source cannot be found.
+    """
+    deployed: list[str] = []
+    for name in PLUGIN_FILES:
+        src = _resolve_plugin_source(target_dir, lib_dir, name)
+        if src is None:
+            raise KiloPluginMissing(
+                f"Kilo plugin source not found ({name}). Looked in "
+                f"{os.path.join(target_dir, PLUGINS_SUBDIR)} and "
+                f"<lib>/harness/kilo/{PLUGINS_SUBDIR}. Without it Kilo runs with a "
+                "hole in its TAUSIK wiring — refusing to pretend otherwise."
+            )
+        dst = os.path.join(target_dir, PLUGINS_SUBDIR, name)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        if os.path.abspath(src) != os.path.abspath(dst):
+            shutil.copyfile(src, dst)
+        deployed.append(dst)
+    return deployed
