@@ -20,9 +20,10 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import re
 import subprocess
 import threading
+
+from jsonc_utils import load_jsonc as _load_jsonc
 
 # Same two paths bootstrap_kilo writes (Decision #120).
 _KILO_CONFIGS = (
@@ -36,36 +37,12 @@ _WS_VAR = "${workspaceFolder}"
 _PROBE_LABEL = "Kilo MCP live probe"
 _PROBE_TIMEOUT_S = 25.0
 
-# Best-effort JSONC comment stripping: Kilo tolerates // and /* */ comments;
-# json.loads does not. We only fall back to this when strict parsing fails.
-_LINE_COMMENT = re.compile(r"(?m)^[ \t]*//.*?$")
-_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-_TRAILING_COMMA = re.compile(r",(\s*[}\]])")
-
 
 def is_kilo_project(project_dir: str) -> bool:
     """True when the project carries Kilo config dirs (so the check should run)."""
     return os.path.isdir(os.path.join(project_dir, ".kilo")) or os.path.isdir(
         os.path.join(project_dir, ".kilocode")
     )
-
-
-def _load_jsonc(path: str) -> dict:
-    """Parse a (possibly JSONC) config file. Raises ValueError if unparseable."""
-    with open(path, "r", encoding="utf-8") as f:
-        raw = f.read()
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        stripped = _BLOCK_COMMENT.sub("", _LINE_COMMENT.sub("", raw))
-        stripped = _TRAILING_COMMA.sub(r"\1", stripped)
-        try:
-            data = json.loads(stripped)
-        except json.JSONDecodeError as e:
-            raise ValueError(str(e)) from e
-    if not isinstance(data, dict):
-        raise ValueError("top-level value is not a JSON object")
-    return data
 
 
 def _resolve_ws(value: str, project_dir: str) -> str:

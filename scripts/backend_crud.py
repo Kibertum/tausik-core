@@ -211,9 +211,17 @@ class BackendCrudMixin:
 
         resolved = resolve()
         return self._ins(
-            "INSERT INTO sessions(started_at, model_id, model_version, host_session_id) "
-            "VALUES(?, ?, ?, ?)",
-            (utcnow_iso(), resolved["model_id"], resolved["model_version"], host_session_id),
+            "INSERT INTO sessions(started_at, model_id, model_version, model_source, "
+            "host_session_id) VALUES(?, ?, ?, ?, ?)",
+            (
+                utcnow_iso(),
+                resolved["model_id"],
+                resolved["model_version"],
+                # v73: stored, not re-derived — a mid-session switch must not
+                # re-point the provenance of the value recorded at open.
+                resolved["source"],
+                host_session_id,
+            ),
         )
 
     def session_end(self, sid: int, summary: str | None = None) -> None:

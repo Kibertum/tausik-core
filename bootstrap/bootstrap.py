@@ -208,8 +208,8 @@ def bootstrap_ide(
         n_cmds = generate_kilo_commands(target_dir)
         if n_cmds:
             print(f"  Kilo commands: {n_cmds} stub(s)")
-        plugin = generate_kilo_plugin(target_dir, lib_dir)
-        print(f"  Kilo QG-0 plugin: {plugin}")
+        plugins = generate_kilo_plugin(target_dir, lib_dir)
+        print(f"  Kilo plugins: {len(plugins)} — {', '.join(os.path.basename(p) for p in plugins)}")
     elif ide == "codex":
         # AGENTS.md is NOT generated here — the shared step below writes it for
         # every host but OpenCode, and Codex reads exactly that file.

@@ -80,14 +80,25 @@ def variant(request) -> dict:
 
 @pytest.fixture()
 def emitted(tmp_path, variant):
-    """Emit the plugin the way bootstrap does, from a lib dir."""
+    """Emit the plugin the way bootstrap does, from a lib dir.
+
+    Kilo deploys BOTH its plugins (gates + observe) in one generator call; the
+    returned path is the one THIS variant's tests exercise. The sibling
+    artifacts landing alongside is asserted by the kilo-specific emission test
+    in this module."""
     lib = tmp_path / "lib"
     src_dir = lib / "harness" / variant["profile_subdir"].lstrip(".") / "plugins"
     src_dir.mkdir(parents=True)
-    shutil.copyfile(variant["canonical"], src_dir / variant["plugin_file"])
+    # Kilo deploys BOTH its plugins in one generator call, so the fake lib must
+    # carry every kilo plugin source, not just the one this variant exercises.
+    host_src = Path(variant["canonical"]).parent
+    for js in sorted(host_src.glob("*.js")):
+        shutil.copyfile(js, src_dir / js.name)
     target = tmp_path / "proj" / variant["profile_subdir"]
     target.mkdir(parents=True)
-    path = variant["generate"](str(target), lib_dir=str(lib))
+    deployed = variant["generate"](str(target), lib_dir=str(lib))
+    paths = deployed if isinstance(deployed, list) else [deployed]
+    path = next(p for p in paths if os.path.basename(p) == variant["plugin_file"])
     return path, str(target), variant
 
 
@@ -108,7 +119,8 @@ class TestEmission:
         path, target, variant = emitted
         before = Path(path).read_text(encoding="utf-8")
         again = variant["generate"](target)  # no lib_dir: resolves the copy itself
-        assert again == path
+        deployed = again if isinstance(again, list) else [again]
+        assert path in deployed
         assert Path(path).read_text(encoding="utf-8") == before
 
     def test_missing_source_raises_loudly(self, tmp_path, variant):
@@ -298,10 +310,12 @@ class TestKiloNoShellContext:
         lib = tmp_path / "lib"
         src_dir = lib / "harness" / "kilo" / "plugins"
         src_dir.mkdir(parents=True)
-        shutil.copyfile(v["canonical"], src_dir / v["plugin_file"])
+        # Both plugins deploy as one unit; the fake lib carries every source.
+        for js in sorted(Path(v["canonical"]).parent.glob("*.js")):
+            shutil.copyfile(js, src_dir / js.name)
         target = tmp_path / "proj" / ".kilo"
         target.mkdir(parents=True)
-        return v["generate"](str(target), lib_dir=str(lib)), v
+        return v["generate"](str(target), lib_dir=str(lib))[0], v
 
     def test_missing_shell_fails_open_loudly(self, tmp_path, kilo):
         path, variant = kilo

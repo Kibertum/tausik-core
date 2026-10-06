@@ -33,7 +33,7 @@ def conn(tmp_path):
 def test_sessions_table_has_model_columns(conn):
     cur = conn._conn.execute("PRAGMA table_info(sessions)")
     cols = {row[1] for row in cur.fetchall()}
-    assert {"model_id", "model_version"} <= cols
+    assert {"model_id", "model_version", "model_source"} <= cols
 
 
 def _clear_model_env(monkeypatch):
@@ -71,10 +71,13 @@ def test_session_start_with_no_env_falls_through_to_the_provider(conn, monkeypat
 
     sid = conn.session_start()
     row = conn._conn.execute(
-        "SELECT model_id, model_version FROM sessions WHERE id=?", (sid,)
+        "SELECT model_id, model_version, model_source FROM sessions WHERE id=?", (sid,)
     ).fetchone()
     assert row[0] == "glm-4.6", "the provider knew the model and the session ignored it"
     assert row[1] is None
+    # v73: the source is STORED, not re-derived later — the doctor names THE
+    # source of the recorded value even after a mid-session chain change.
+    assert row[2] == "provider:claude"
 
 
 def test_session_start_records_absence_when_nothing_at_all_reports_a_model(conn, monkeypatch):
@@ -87,9 +90,10 @@ def test_session_start_records_absence_when_nothing_at_all_reports_a_model(conn,
 
     sid = conn.session_start()
     row = conn._conn.execute(
-        "SELECT model_id, model_version FROM sessions WHERE id=?", (sid,)
+        "SELECT model_id, model_version, model_source FROM sessions WHERE id=?", (sid,)
     ).fetchone()
     assert row[0] is None and row[1] is None
+    assert row[2] is None, "absence of a model is also absence of a source, not a guess"
 
 
 def test_session_start_picks_tausik_env_first(conn, monkeypatch):
@@ -98,10 +102,11 @@ def test_session_start_picks_tausik_env_first(conn, monkeypatch):
     monkeypatch.setenv("TAUSIK_AGENT_MODEL_VERSION", "2026-05-01")
     sid = conn.session_start()
     row = conn._conn.execute(
-        "SELECT model_id, model_version FROM sessions WHERE id=?", (sid,)
+        "SELECT model_id, model_version, model_source FROM sessions WHERE id=?", (sid,)
     ).fetchone()
     assert row[0] == "claude-opus-4.7"
     assert row[1] == "2026-05-01"
+    assert row[2] == "TAUSIK_AGENT_MODEL"
 
 
 def test_session_start_falls_back_to_host_envs(conn, monkeypatch):
@@ -109,6 +114,7 @@ def test_session_start_falls_back_to_host_envs(conn, monkeypatch):
     monkeypatch.setenv("CLAUDE_MODEL", "claude-3.5-sonnet")
     sid = conn.session_start()
     row = conn._conn.execute(
-        "SELECT model_id FROM sessions WHERE id=?", (sid,)
+        "SELECT model_id, model_source FROM sessions WHERE id=?", (sid,)
     ).fetchone()
     assert row[0] == "claude-3.5-sonnet"
+    assert row[1] == "CLAUDE_MODEL"

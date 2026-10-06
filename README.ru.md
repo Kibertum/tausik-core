@@ -12,7 +12,7 @@ TAUSIK встаёт поверх ИИ-агента, которым вы уже �
 
 [![v1.11.1](https://img.shields.io/badge/version-v1.11.1-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![12920 tests](https://img.shields.io/badge/tests-12920-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
+[![13038 tests](https://img.shields.io/badge/tests-13038-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#доказательство-tausik-построен-на-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -171,7 +171,7 @@ Run `tausik verify --task fix-mobile-button` first.
 Каждая функция и каждое исправление TAUSIK прошли через те же контрольные точки, что поставляются в коробке.
 
 - **Каждая задача закрыта с целью и критериями приёмки**, ни одна — без пройденной проверки.
-- **12920 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
+- **13038 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
 - **0 зависимостей ядра** — стандартная библиотека Python 3.11+; MCP-пакеты живут в изолированном `.tausik/venv/`.
 - **Одна объявленная точка проверки обновлений** — каждая попытка начать сессию отправляет анонимный GET на `api.github.com/repos/Kibertum/tausik-core/releases/latest`; более новая версия блокирует старт. Запрос не содержит имя проекта, путь, пользователя, версию схемы или установленную версию. `"updates": {"check": false}` в `.tausik/config.json` не отправляет запрос и разрешает старт с явным предупреждением о непроверенной версии. Отдельная кэшируемая проверка остаётся не чаще раза в сутки.
 

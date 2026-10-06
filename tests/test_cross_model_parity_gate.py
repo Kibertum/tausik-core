@@ -95,10 +95,11 @@ class TestTheTableIsDerivedFromTheGenerators:
                 f"that no file supports: {host}: {plugins}"
             )
 
-    def test_the_kilo_plugin_is_the_only_kilo_capability(self, live_table):
-        """kilo-gate-plugin: kilo joined the mechanism table with exactly its gate
-        plugin — no hook commands were smuggled in alongside it."""
-        assert set(live_table["kilo"]) == {"plugin:tausik-gates.js"}
+    def test_the_kilo_plugins_are_the_only_kilo_capabilities(self, live_table):
+        """kilo-gate-plugin + provider-agnostic-model-observation: kilo joined
+        the mechanism table with exactly its two plugins — the enforcement gate
+        and the model observer. No hook commands were smuggled in alongside."""
+        assert set(live_table["kilo"]) == {"plugin:tausik-gates.js", "plugin:tausik-observe.js"}
 
     def test_it_reads_a_clean_tree_not_the_repository_profiles(self, live_table):
         """The subject is what bootstrap WOULD deploy from the source as it
@@ -247,15 +248,17 @@ class TestItIsNotATax:
 
 class TestASingleBearerIsNotADifference:
     def test_plugin_names_differ_between_hosts_by_declaration_only(self, live_table):
-        """AC7, updated by kilo-gate-plugin. TWO hosts now bear a plugin, and the
-        gate sees exactly the two file-name differences — each declared with a
-        reason (the contract is shared and tested parametrized; the names are
-        per-host by construction). Any plugin difference BEYOND those two is an
+        """AC7, updated by kilo-gate-plugin and provider-agnostic-model-
+        observation. Two hosts now bear plugins, and the gate sees exactly the
+        three file-name differences — each declared with a reason (the gates
+        contract is shared and tested parametrized; the observer is a declared
+        Kilo-only capability). Any plugin difference BEYOND those three is an
         undeclared divergence this test refuses to let pass."""
         found = gate.find_differences(live_table)
         plugin_diffs = sorted(d for d in found if "plugin:" in d)
         assert plugin_diffs == [
             "missing:plugin:tausik-gates.js@opencode",
+            "missing:plugin:tausik-observe.js@opencode",
             "missing:plugin:tausik-qg0.js@kilo",
         ], plugin_diffs
         for d in plugin_diffs:

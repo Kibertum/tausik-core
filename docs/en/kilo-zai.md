@@ -148,23 +148,42 @@ same cache, same policies):
   recorded. Set `TAUSIK_HOOK_FAIL_SECURE=1` to block instead of allow;
   `TAUSIK_SKIP_HOOKS=1` disables the gate (recorded as a bypass).
 
-Honest status: the plugin is unit-verified by executing the hook under Node
+Honest status: the gate is unit-verified by executing the hook under Node
 (`tests/test_host_gate_plugins.py`, both hosts parametrized), and `tausik
-doctor` reports `kilo: 1 plugin` — but a live denial inside a running Kilo
+doctor` reports `kilo: 2 plugins` — but a live denial inside a running Kilo
 session still needs one host restart to observe. Until then the gate is
 deployed and proven at the harness level, not yet observed live.
 
 ## 4. Tell TAUSIK which GLM model is active
 
-Kilo has no Claude-style JSONL transcript, so TAUSIK reads the active model from
-(in order):
+Kilo has no Claude-style JSONL transcript, so the second plugin shipped with
+TAUSIK — `tausik-observe.js` — records the model the host is actually running:
+on every chat event it writes the host's `{providerID, modelID}` to
+`.tausik/runtime/active_model.json` (model ids only — no keys, no conversation
+content). The full chain, in order:
 
-1. the `KILO_MODEL` environment variable — e.g. `export KILO_MODEL=glm-4.6`
-2. a `model` field in `.kilo/kilo.json` (or `~/.config/kilo/kilo.json`)
+1. `.tausik/runtime/active_model.json` — written live by the observer plugin,
+   so the model picked in Kilo's UI (z.ai, Ollama, LM Studio, anything) is
+   what TAUSIK sees;
+2. the `KILO_MODEL` environment variable — e.g. `export KILO_MODEL=glm-4.6`;
+3. a `model` field in `.kilo/kilo.jsonc` (JSONC comments allowed),
+   `.kilocode/kilo.json` or `~/.config/kilo/kilo.jsonc`.
 
-With that set, `task start` shows GLM recommendations and correct
-under/over-powered verdicts. Without it, recommendations fall back to
+Every value passes the same token validation before it is stored, and schema
+v73 records with the session WHICH source declared it (`provider:kilo`, an
+env-var name, …) — the "Session model" line of `tausik doctor` names that
+source. When nothing answers, nothing is invented: the doctor keeps its
+warning and the model is never guessed from the host's name.
+
+With a model recorded, `task start` shows GLM recommendations and correct
+under/over-powered verdicts. Without one, recommendations fall back to
 `model_profiles.default_family` (below) and then to Claude.
+
+Honest status: the observer and the whole chain are unit-verified
+(`tests/test_kilo_observe_plugin.py`, `tests/test_providers.py` — including
+the `TAUSIK_AGENT_MODEL` variable a bash tool receives), but the live
+chat-event write and the shell-env injection inside a running Kilo session
+still need one host restart to observe.
 
 ## 5. Switch / add GLM models — no code change
 
@@ -202,7 +221,9 @@ transcript/`KILO_MODEL` detection — ideal when you only ever run Kilo + z.ai.
 ```
 Kilo Code (addon/CLI)  ──MCP──▶  tausik-project server  (.kilo/kilo.jsonc | .kilocode/mcp.json)
         │
-        ├── QG-0 gate plugin     (.kilo/plugins/tausik-gates.js) — refuses writes with no active task
+        ├── QG-0 gate plugin       (.kilo/plugins/tausik-gates.js) — refuses writes with no active task
+        │
+        ├── model observer plugin  (.kilo/plugins/tausik-observe.js) — writes .tausik/runtime/active_model.json
         │
         └── model: glm-4.6  ──▶  model_profiles (family=glm) ──▶ routing rank → glm model + verdict
 ```

@@ -52,7 +52,10 @@ _DEFAULT_CONFIG_PATHS = (
 # OpenCode deployer: the library copy wins, or an upgrade could never reach
 # the enforcement artifact (bootstrap_opencode_assets for the full story).
 PLUGINS_SUBDIR = "plugins"
-PLUGIN_FILE = "tausik-gates.js"
+PLUGIN_FILES = (
+    "tausik-gates.js",  # QG-0 enforcement (port of the OpenCode gate)
+    "tausik-observe.js",  # provider-agnostic live model observation
+)
 
 
 def _abs_portable(abs_path: str) -> str:
@@ -218,46 +221,48 @@ class KiloPluginMissing(RuntimeError):
     """
 
 
-def _resolve_plugin_source(target_dir: str, lib_dir: str | None) -> str | None:
-    """Locate the gates plugin source. The LIBRARY copy wins over the installed one.
+def _resolve_plugin_source(target_dir: str, lib_dir: str | None, name: str) -> str | None:
+    """Locate a plugin source. The LIBRARY copy wins over the installed one.
 
     Same precedence argument as the OpenCode deployer: preferring the
     already-installed copy would make every bootstrap after the first a no-op
-    (src == dst), so a user upgrading TAUSIK for a FIXED gate would keep
+    (src == dst), so a user upgrading TAUSIK for a FIXED artifact would keep
     running the broken one forever.
     """
     if lib_dir:
-        canonical = os.path.join(lib_dir, "harness", "kilo", PLUGINS_SUBDIR, PLUGIN_FILE)
+        canonical = os.path.join(lib_dir, "harness", "kilo", PLUGINS_SUBDIR, name)
         if os.path.isfile(canonical):
             return canonical
-    copied = os.path.join(target_dir, PLUGINS_SUBDIR, PLUGIN_FILE)
+    copied = os.path.join(target_dir, PLUGINS_SUBDIR, name)
     if os.path.isfile(copied):
         return copied
     return None
 
 
-def generate_kilo_plugin(target_dir: str, lib_dir: str | None = None) -> str:
-    """Install the QG-0 gate plugin into ``<target_dir>/plugins/tausik-gates.js``.
+def generate_kilo_plugin(target_dir: str, lib_dir: str | None = None) -> list[str]:
+    """Install the Kilo plugins into ``<target_dir>/plugins/``.
 
-    Copies the canonical artifact from ``harness/kilo/plugins/`` — the plugin
-    is a real, lintable, directly-runnable JS file, not a string baked into
-    Python. Kilo auto-loads ``.kilo/plugins/*.{js,ts}`` (its own config
-    discovery), so dropping the file IS the registration; no config stanza
-    exists to write.
+    Copies the canonical artifacts from ``harness/kilo/plugins/`` — real,
+    lintable, directly-runnable JS files, not strings baked into Python. Kilo
+    auto-loads ``.kilo/plugins/*.{js,ts}`` (its own config discovery), so
+    dropping the files IS the registration; no config stanza exists to write.
 
-    Raises KiloPluginMissing when the source cannot be found.
+    Returns the deployed paths in PLUGIN_FILES order. Raises KiloPluginMissing
+    when any source cannot be found.
     """
-    src = _resolve_plugin_source(target_dir, lib_dir)
-    if src is None:
-        raise KiloPluginMissing(
-            f"Kilo gates plugin source not found ({PLUGIN_FILE}). Looked in "
-            f"{os.path.join(target_dir, PLUGINS_SUBDIR)} and "
-            f"<lib>/harness/kilo/{PLUGINS_SUBDIR}. Without it Kilo has no "
-            "real-time enforcement and TAUSIK rules become advisory — refusing "
-            "to pretend otherwise."
-        )
-    dst = os.path.join(target_dir, PLUGINS_SUBDIR, PLUGIN_FILE)
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    if os.path.abspath(src) != os.path.abspath(dst):
-        shutil.copyfile(src, dst)
-    return dst
+    deployed: list[str] = []
+    for name in PLUGIN_FILES:
+        src = _resolve_plugin_source(target_dir, lib_dir, name)
+        if src is None:
+            raise KiloPluginMissing(
+                f"Kilo plugin source not found ({name}). Looked in "
+                f"{os.path.join(target_dir, PLUGINS_SUBDIR)} and "
+                f"<lib>/harness/kilo/{PLUGINS_SUBDIR}. Without it Kilo runs with a "
+                "hole in its TAUSIK wiring — refusing to pretend otherwise."
+            )
+        dst = os.path.join(target_dir, PLUGINS_SUBDIR, name)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        if os.path.abspath(src) != os.path.abspath(dst):
+            shutil.copyfile(src, dst)
+        deployed.append(dst)
+    return deployed

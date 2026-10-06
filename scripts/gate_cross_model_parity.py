@@ -83,6 +83,15 @@ DECLARED_DIFFERENCES: dict[str, str] = {
         "tests/test_host_gate_plugins.py, so a semantic divergence cannot "
         "hide behind the different file names."
     ),
+    "missing:plugin:tausik-observe.js@opencode": (
+        "Model observation is a Kilo-side capability: Kilo exposes the live "
+        "{providerID, modelID} through the chat.message hook, and the "
+        "tausik-observe plugin turns that into .tausik/runtime/active_model.json "
+        "plus a shell.env TAUSIK_AGENT_MODEL injection. OpenCode has no such "
+        "hook surface and no model observation at all — there is nothing on "
+        "the OpenCode side for this capability to be 'missing from'; adding it "
+        "there would be new work, not parity repair."
+    ),
 }
 
 

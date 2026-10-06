@@ -52,6 +52,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   live Kilo session (needs one host restart; documented as pending in
   `docs/en/kilo-zai.md`).
 
+### Added — provider-agnostic model observation for Kilo (any model, not just z.ai)
+
+- **A second plugin, `tausik-observe.js`, records the model the host actually
+  runs.** On every chat event it writes Kilo's `{providerID, modelID}` to
+  `.tausik/runtime/active_model.json` — model ids only, no keys and no
+  conversation content — so the model picked in Kilo's UI (z.ai, Ollama, LM
+  Studio, any OpenAI-compatible endpoint) is what TAUSIK sees, on any provider.
+- **`providers/kilo.py` consults the runtime file first**, then
+  `KILO_MODEL`, then the `model` field in `.kilo/kilo.jsonc`,
+  `.kilocode/kilo.json` and `~/.config/kilo/kilo.jsonc` (JSONC comments now
+  parse — the reader is the one shared string-aware scanner in
+  `scripts/jsonc_utils.py`). Every value passes the same token validation as
+  every other source; when nothing answers, nothing is invented.
+- **The plugin also injects `TAUSIK_AGENT_MODEL` into bash tools** via the
+  `shell.env` hook, so scripts and hooks see the observed model without any
+  manual export.
+- **The doctor names its source.** Schema v73 adds `sessions.model_source`:
+  which chain step declared the model is stored at session open, and the
+  "Session model" line names it (`provider:kilo`, an env-var name, …). Rows
+  recorded before v73 say so instead of borrowing today's chain — provenance
+  is never fabricated. The doctor's warning stays a warning when no source
+  answers: the model is never guessed from the host's name.
+- Honest status: the observer, the chain and the injection are unit-verified
+  (`tests/test_kilo_observe_plugin.py`, `tests/test_providers.py`,
+  `tests/test_doctor_session_model.py`); the live chat-event write and the
+  shell-env echo inside a running Kilo session need one host restart and are
+  documented as pending in `docs/en/kilo-zai.md` (+ RU mirror).
+
 ## [1.11.1] — 2026-10-04
 
 - Projects can now opt into `governance_profile: "memory-only"`. Bootstrap then
