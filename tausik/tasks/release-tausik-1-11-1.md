@@ -1,7 +1,7 @@
 ---
 slug: release-tausik-1-11-1
 title: "Release TAUSIK 1.11.1"
-status: active
+status: done
 epic: null
 story: null
 complexity: medium
@@ -13,13 +13,7 @@ defect_of: null
 scope: "Release governance records, the complete current 1.11.1 worktree, release commit, v1-11 push, tag v1.11.1, and GitHub release."
 scope_exclude: "No new product features; no closure of r111-economy-hardening-acceptance; no savings claim; no unrelated backlog work."
 relevant_files:
-  - pyproject.toml
-  - release-body-1.11.1.md
-  - CHANGELOG.md
-  - CHANGELOG.ru.md
-  - ROADMAP.md
   - AGENTS.md
-  - CLAUDE.md
   - "bootstrap/bootstrap.py"
   - "bootstrap/bootstrap_codex.py"
   - "bootstrap/bootstrap_config.py"
@@ -29,16 +23,22 @@ relevant_files:
   - "bootstrap/bootstrap_opencode.py"
   - "bootstrap/bootstrap_qwen.py"
   - "bootstrap/bootstrap_templates.py"
-  - "docs/en/configuration.md"
-  - "docs/ru/configuration.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - CLAUDE.md
   - "docs/en/cli-quality.md"
+  - "docs/en/configuration.md"
   - "docs/ru/cli-quality.md"
+  - "docs/ru/configuration.md"
   - "harness/claude/mcp/project/handlers_session.py"
   - "harness/claude/mcp/project/handlers_status.py"
   - "harness/claude/mcp/project/tools.py"
   - "harness/claude/subagents/tausik-external-reviewer.md"
   - "harness/skills/review/SKILL.md"
   - "harness/skills/ship/SKILL.md"
+  - pyproject.toml
+  - release-body-1.11.1.md
+  - ROADMAP.md
   - "scripts/assurance_policy.py"
   - "scripts/backend_crud.py"
   - "scripts/backend_migrations.py"
@@ -90,6 +90,8 @@ relevant_files:
   - "stacks/helm/stack.json"
   - "stacks/kubernetes/stack.json"
   - "stacks/terraform/stack.json"
+  - "tausik/published_tags.json"
+  - "tausik/tasks/release-tausik-1-11-1.md"
   - "tests/test_assurance_policy.py"
   - "tests/test_benchmark_cohorts.py"
   - "tests/test_benchmark_compare.py"
@@ -97,6 +99,7 @@ relevant_files:
   - "tests/test_claudemd_drift.py"
   - "tests/test_governance_profile.py"
   - "tests/test_publication_lines.py"
+  - "tests/test_published_tags_are_promises.py"
   - "tests/test_review_routing.py"
   - "tests/test_review_separation.py"
   - "tests/test_risk_l3_trigger.py"
@@ -108,8 +111,9 @@ relevant_files:
   - "tests/test_state_import.py"
   - "tests/test_task_context_package.py"
   - "tests/test_update_check.py"
-  - "tausik/tasks/release-tausik-1-11-1.md"
-scope_paths: []
+scope_paths:
+  - "tausik/published_tags.json"
+  - "tests/test_published_tags_are_promises.py"
 scope_tools: []
 assurance_profiles:
   - executable
@@ -117,7 +121,7 @@ assurance_profiles:
   - research
 assurance_impact: "{\"blast_radius\":\"broad\",\"data_change\":\"non_destructive\",\"governance_boundary\":true,\"level\":\"high\",\"owner_escalation\":true,\"privileged\":true,\"reversibility\":\"conditional\",\"security_boundary\":false}"
 depends_on: []
-completed_at: null
+completed_at: "2026-10-04T15:36:04Z"
 resolution: null
 resolution_reason: null
 tracker_refs: []
@@ -154,3 +158,5 @@ Before publication, revert the release commit. After public tag publication, nev
 - 2026-10-04T14:02:13Z — Final repair-wave verification: full suite collected 12987; 12950 passed, 37 skipped, 0 deselected, 0 failed, 62 warnings in 493.78s. mypy: 560 source files clean. Dedupe audit: 282 parallel groups / 669 tests, 0 copy; no fake tests among 7829 functions. SENAR 9.5 audit marked after the green sweep. External review #58 findings were all repaired in six completed tasks; a fresh L3 review is still required.
 - 2026-10-04T14:05:40Z — Post-full-suite hygiene repair: memory-tail truncation now strips trailing whitespace. Verify #3510 passed 210 scoped tests across 15 mapped files; git diff --check is clean after bootstrap redeploy and regeneration. The preceding full suite remains 12950 passed / 37 skipped / 0 failed; the only later runtime change is the one-line rstrip covered by #3510. Requesting a fresh different-model L3 review of the final state.
 - 2026-10-04T14:19:17Z [implementation] — Release verify #3513 PASS: 8 gates passed, hadolint skipped as not applicable; scoped denominator 335/659 test files (288 direct-import), 6091 passed, 18 skipped, 81 deselected, 0 failed. Full-suite evidence remains 12950 passed / 37 skipped / 0 deselected / 0 failed. service_task_done.py is 499 lines, mypy clean, and its focused review/risk tests pass 62/62. Fresh L3 binding requested for the mechanical 503-to-499 refactor.
+- 2026-10-04T15:10:43Z [implementation] — Published v1.11.1 after CI run 37209153655 completed success in lint, Linux full, macOS fast, and Windows fast. Public lightweight tag refs/tags/v1.11.1 resolves to snapshot 55dabf9320a6e33a0541556f954058a5d0674bb9; GitHub Release https://github.com/Kibertum/tausik-core/releases/tag/v1.11.1 is published, non-draft, non-prerelease from release-body-1.11.1.md. Updated the development-line published-tags promise registry in the same pass; no tag was moved or forced.
+- 2026-10-04T15:23:31Z [implementation] — AC verified: 1. ✓ SENAR 9.5 audit marked after the green full sweep. 2. ✓ Full suite: 12950 passed, 37 skipped, 0 deselected, 0 failed; release verify #3514: 6100 passed, 18 skipped, 81 deselected, 0 failed, 8 gates passed, hadolint skipped; external L3 review #61: 0 critical/high/warnings. 3. ✓ Release commit b6b1c20f9ef2ac5af5227c0da83cbab9bc863c9d exists on v1-11 and origin/v1-11. 4. ✓ After separate owner confirmation, annotated development tag v1.11.1 was pushed to origin and lightweight public tag v1.11.1 was pushed to GitHub snapshot 55dabf9320a6e33a0541556f954058a5d0674bb9; no force and no tag rewrite. 5. ✓ GitHub Release TAUSIK 1.11.1 is published at https://github.com/Kibertum/tausik-core/releases/tag/v1.11.1 from release-body-1.11.1.md, draft=false, prerelease=false, with no unproved savings claim. Negative: ✓ every red finding was repaired before publication; CI run 37209153655 is success on lint, Linux full, macOS fast and Windows fast; public tag was created only after green CI and never rewritten. Postcondition: all 13 public tags match tausik/published_tags.json (9 tests passed). Rollback: development metadata can be reverted by a new commit; published tag v1.11.1 must never move; if the release needs withdrawal, mark/remove the GitHub Release while preserving the tag and publish a new 1.11.x patch.
