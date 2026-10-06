@@ -87,12 +87,18 @@ class TestTheTableIsDerivedFromTheGenerators:
             assert script.endswith(".py")
 
     def test_a_plugin_is_recorded_with_no_matcher_rather_than_a_made_up_one(self, live_table):
-        plugins = {c: m for c, m in live_table["opencode"].items() if c.startswith("plugin:")}
-        assert plugins, "the OpenCode QG-0 plugin did not land"
-        assert set(plugins.values()) == {""}, (
-            "a plugin has no matcher; inventing one would put a fact in the table "
-            f"that no file supports: {plugins}"
-        )
+        for host in ("opencode", "kilo"):
+            plugins = {c: m for c, m in live_table[host].items() if c.startswith("plugin:")}
+            assert plugins, f"the {host} gate plugin did not land"
+            assert set(plugins.values()) == {""}, (
+                "a plugin has no matcher; inventing one would put a fact in the table "
+                f"that no file supports: {host}: {plugins}"
+            )
+
+    def test_the_kilo_plugin_is_the_only_kilo_capability(self, live_table):
+        """kilo-gate-plugin: kilo joined the mechanism table with exactly its gate
+        plugin — no hook commands were smuggled in alongside it."""
+        assert set(live_table["kilo"]) == {"plugin:tausik-gates.js"}
 
     def test_it_reads_a_clean_tree_not_the_repository_profiles(self, live_table):
         """The subject is what bootstrap WOULD deploy from the source as it
@@ -240,17 +246,23 @@ class TestItIsNotATax:
 
 
 class TestASingleBearerIsNotADifference:
-    def test_the_only_host_with_a_kind_is_compared_with_nobody(self, live_table):
-        """AC7. OpenCode is the only host bearing a plugin. Reporting its plugin
-        as 'missing from Claude' would be a false difference, and reporting
-        Cursor's total absence here would restate what the enforcement notice
-        already says on every one of its pages."""
+    def test_plugin_names_differ_between_hosts_by_declaration_only(self, live_table):
+        """AC7, updated by kilo-gate-plugin. TWO hosts now bear a plugin, and the
+        gate sees exactly the two file-name differences — each declared with a
+        reason (the contract is shared and tested parametrized; the names are
+        per-host by construction). Any plugin difference BEYOND those two is an
+        undeclared divergence this test refuses to let pass."""
         found = gate.find_differences(live_table)
-        assert not [d for d in found if "plugin:" in d], found
+        plugin_diffs = sorted(d for d in found if "plugin:" in d)
+        assert plugin_diffs == [
+            "missing:plugin:tausik-gates.js@opencode",
+            "missing:plugin:tausik-qg0.js@kilo",
+        ], plugin_diffs
+        for d in plugin_diffs:
+            assert d in gate.DECLARED_DIFFERENCES, f"declared or fix, not silence: {d}"
 
     def test_a_host_with_no_mechanism_is_absent_from_the_table_entirely(self, live_table):
         assert "cursor" not in live_table
-        assert "kilo" not in live_table
 
 
 class TestTheBuilderMapCannotGoStale:

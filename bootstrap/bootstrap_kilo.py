@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from typing import Any
 
 from bootstrap_generate import retire_managed_servers
@@ -43,6 +44,15 @@ _DEFAULT_CONFIG_PATHS = (
     os.path.join(".kilo", "kilo.jsonc"),
     os.path.join(".kilocode", "mcp.json"),
 )
+
+# KILO: the plugins directory is PLURAL. Kilo auto-loads
+# `.kilo/plugins/*.{js,ts}`; a singular `plugin/` is not an error, it is
+# SILENCE — the gate never loads and QG-0 enforcement is simply absent, the
+# one failure this feature exists to prevent. Same precedence rule as the
+# OpenCode deployer: the library copy wins, or an upgrade could never reach
+# the enforcement artifact (bootstrap_opencode_assets for the full story).
+PLUGINS_SUBDIR = "plugins"
+PLUGIN_FILE = "tausik-gates.js"
 
 
 def _abs_portable(abs_path: str) -> str:
@@ -194,3 +204,60 @@ def generate_kilo_commands(target_dir: str, skills_dir: str | None = None) -> in
             )
         written += 1
     return written
+
+
+class KiloPluginMissing(RuntimeError):
+    """The gates plugin source could not be found — bootstrap must not continue quietly.
+
+    Mirrors OpenCodePluginMissing: enforcement is the whole point (decision
+    #131). A Kilo project whose profile lacks the plugin runs with QG-0 as
+    markdown the host is free to ignore — the exact "doc promises, code
+    absent" gap this whole mechanism exists to close. Skipping silently would
+    leave a project that *claims* TAUSIK discipline while permitting any
+    write at all.
+    """
+
+
+def _resolve_plugin_source(target_dir: str, lib_dir: str | None) -> str | None:
+    """Locate the gates plugin source. The LIBRARY copy wins over the installed one.
+
+    Same precedence argument as the OpenCode deployer: preferring the
+    already-installed copy would make every bootstrap after the first a no-op
+    (src == dst), so a user upgrading TAUSIK for a FIXED gate would keep
+    running the broken one forever.
+    """
+    if lib_dir:
+        canonical = os.path.join(lib_dir, "harness", "kilo", PLUGINS_SUBDIR, PLUGIN_FILE)
+        if os.path.isfile(canonical):
+            return canonical
+    copied = os.path.join(target_dir, PLUGINS_SUBDIR, PLUGIN_FILE)
+    if os.path.isfile(copied):
+        return copied
+    return None
+
+
+def generate_kilo_plugin(target_dir: str, lib_dir: str | None = None) -> str:
+    """Install the QG-0 gate plugin into ``<target_dir>/plugins/tausik-gates.js``.
+
+    Copies the canonical artifact from ``harness/kilo/plugins/`` — the plugin
+    is a real, lintable, directly-runnable JS file, not a string baked into
+    Python. Kilo auto-loads ``.kilo/plugins/*.{js,ts}`` (its own config
+    discovery), so dropping the file IS the registration; no config stanza
+    exists to write.
+
+    Raises KiloPluginMissing when the source cannot be found.
+    """
+    src = _resolve_plugin_source(target_dir, lib_dir)
+    if src is None:
+        raise KiloPluginMissing(
+            f"Kilo gates plugin source not found ({PLUGIN_FILE}). Looked in "
+            f"{os.path.join(target_dir, PLUGINS_SUBDIR)} and "
+            f"<lib>/harness/kilo/{PLUGINS_SUBDIR}. Without it Kilo has no "
+            "real-time enforcement and TAUSIK rules become advisory — refusing "
+            "to pretend otherwise."
+        )
+    dst = os.path.join(target_dir, PLUGINS_SUBDIR, PLUGIN_FILE)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    if os.path.abspath(src) != os.path.abspath(dst):
+        shutil.copyfile(src, dst)
+    return dst

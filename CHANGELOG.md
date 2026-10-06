@@ -26,6 +26,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   and reports the server it reached. `docs/en/kilo-zai.md` (+ RU mirror) no
   longer claims the variable is expanded at launch.
 
+### Added — real-time QG-0 gate for Kilo (plugin)
+
+- **`bootstrap --ide kilo` now deploys `.kilo/plugins/tausik-gates.js`** — a
+  port of the OpenCode QG-0 plugin with the same contract: before every
+  `write`/`edit`/`apply_patch` it asks the TAUSIK CLI whether any task is
+  active and refuses the write without one (SENAR Rule 1). Kilo auto-loads
+  `.kilo/plugins/`, so the file is the registration. `bash` stays ungated (it
+  would block `task start` itself), and Rule 2/secret scanning remain
+  declared-not-enforced here exactly as on OpenCode — `tausik doctor`'s
+  enforcement coverage now reports `kilo: 1 plugin`.
+- The verdict is cached against the TAUSIK DB signature (WAL included) with a
+  TTL, erring only toward strictness: `task done` invalidates a cached allow.
+  An unreachable CLI fails **open but loudly** (`DEGRADED` warning per write +
+  a supervision-degradation row via the shared `events emit-supervision`
+  producer, source tag `kilo_gates`); `TAUSIK_HOOK_FAIL_SECURE=1` blocks
+  instead, `TAUSIK_SKIP_HOOKS=1` records a bypass. A plugin context without a
+  Bun shell degrades the same loud way.
+- **The gate plugins are now tested as one contract**:
+  `tests/test_opencode_qg0_plugin.py` became
+  `tests/test_host_gate_plugins.py`, parametrized over both hosts (same
+  hook semantics under Node with a fake Bun shell, plus Kilo-only no-shell
+  cases) instead of a copy-paste module — audit_pytest_dedupe reports
+  0 copy. Honest status: harness-verified, not yet observed denying inside a
+  live Kilo session (needs one host restart; documented as pending in
+  `docs/en/kilo-zai.md`).
+
 ## [1.11.1] — 2026-10-04
 
 - Projects can now opt into `governance_profile: "memory-only"`. Bootstrap then

@@ -3,15 +3,18 @@
 cross-model-parity-has-no-gate. A capability can go Claude-only and nothing
 notices. Measured on this tree (session #230): claude and qwen carry the same 23
 hook commands and that pair IS guarded (tests/test_bootstrap_hooks_parity.py);
-the other three hosts are guarded by nothing at all — opencode carries one QG-0
-plugin, cursor and kilo carry no real-time mechanism whatsoever.
+the other hosts were guarded by nothing at all — opencode carried one QG-0
+plugin, cursor and kilo carried no real-time mechanism whatsoever. Since the
+kilo-gate-plugin task, kilo deploys the same one-plugin shape as opencode
+(`.kilo/plugins/tausik-gates.js`, a port of the same contract); cursor remains
+the only declared-none host.
 
 HOW THE TABLE IS OBTAINED. The generators are RUN, into a throwaway tree, and
 what lands on disk is read back. Not a list in the code of what each host is
 supposed to get: such a list records intent and drifts from the deployment
-exactly as the rules text drifted from the mechanism (decision #335). The three
+exactly as the rules text drifted from the mechanism (decision #335). The
 builders below are the mechanism generators that exist; `cross_check_against_disk`
-holds them honest against the profiles bootstrap really deployed, so a fourth one
+holds them honest against the profiles bootstrap really deployed, so a new one
 added and forgotten here is caught rather than silently uncovered.
 
 COMPARISON IS WITHIN A MECHANISM KIND, NEVER ACROSS. OpenCode enforces through a
@@ -70,16 +73,23 @@ def _build_opencode(target_dir: str, project_dir: str, lib_dir: str) -> None:
     generate_opencode_plugin(target_dir, lib_dir)
 
 
+def _build_kilo(target_dir: str, project_dir: str, lib_dir: str) -> None:
+    from bootstrap_kilo import generate_kilo_plugin
+
+    generate_kilo_plugin(target_dir, lib_dir)
+
+
 #: Host -> the generator that writes its real-time enforcement payload.
 #:
 #: A host absent here has no such generator, which is a DECLARED position rather
-#: than an oversight: cursor and kilo get MCP config and rules text and nothing
-#: that runs. `cross_check_against_disk` is what stops this from becoming a list
-#: of good intentions — it compares this table against the profiles on disk.
+#: than an oversight: cursor gets MCP config and rules text and nothing that
+#: runs. `cross_check_against_disk` is what stops this from becoming a list of
+#: good intentions — it compares this table against the profiles on disk.
 MECHANISM_BUILDERS: dict[str, Callable[[str, str, str], None]] = {
     "claude": _build_claude,
     "qwen": _build_qwen,
     "opencode": _build_opencode,
+    "kilo": _build_kilo,
 }
 
 

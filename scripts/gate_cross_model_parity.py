@@ -44,7 +44,7 @@ from host_mechanisms import (  # noqa: E402
 #: The gate's subject is the host layer. A task that does not touch it is not
 #: asked about cross-host parity: a gate that runs on everything becomes a tax,
 #: and a tax gets switched off.
-HOST_LAYER_PREFIXES = ("bootstrap/", "scripts/hooks/", "harness/opencode/")
+HOST_LAYER_PREFIXES = ("bootstrap/", "scripts/hooks/", "harness/opencode/", "harness/kilo/")
 
 #: Two spellings of "every tool", one per host dialect. Normalising them is not a
 #: convenience: without it every hook registered for all tools reads as a
@@ -62,6 +62,27 @@ DECLARED_DIFFERENCES: dict[str, str] = {
     # Empty since 1.10 (decision #389): the four PostToolUse matcher
     # differences between Claude and Qwen were a hand-kept Qwen hook list,
     # which now builds from the shared declaration like Claude and Codex.
+    # kilo-gate-plugin: each host's gate plugin is NAMED for its host and ships
+    # host-specific handling, so the two file names below are two deployments
+    # of one contract, not a capability gap. The shared behavior (gating set,
+    # fail policies, cache direction, supervision telemetry) is pinned
+    # host-parametrized in tests/test_host_gate_plugins.py — the contract is
+    # the thing kept equal; the file names are not.
+    "missing:plugin:tausik-gates.js@opencode": (
+        "OpenCode loads .opencode/plugins/tausik-qg0.js; the Kilo port is a "
+        "separate file (tausik-gates.js) because the hosts load different "
+        "directories and the Kilo copy carries Kilo-only no-shell handling. "
+        "One contract, two deployments — equality is enforced by the "
+        "parametrized tests, not by the file name."
+    ),
+    "missing:plugin:tausik-qg0.js@kilo": (
+        "Kilo loads .kilo/plugins/tausik-gates.js (named for the host it "
+        "gates); the OpenCode original keeps its historical name. The shared "
+        "contract — WRITE_TOOLS, fail-open/secure, DB-signature cache, "
+        "supervision telemetry — is exercised for BOTH hosts by "
+        "tests/test_host_gate_plugins.py, so a semantic divergence cannot "
+        "hide behind the different file names."
+    ),
 }
 
 

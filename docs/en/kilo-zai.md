@@ -127,7 +127,34 @@ Override the target(s) in `.tausik/config.json`:
 
 (paths are project-relative; the list fully replaces the defaults.)
 
-## 3. Tell TAUSIK which GLM model is active
+## 3. Real-time QG-0 gate (Kilo plugin)
+
+The same bootstrap also deploys a **gate plugin** to
+`.kilo/plugins/tausik-gates.js`. Kilo auto-loads that directory, so the file is
+the registration. It is a port of the OpenCode QG-0 plugin (same CLI question,
+same cache, same policies):
+
+- Before every `write`/`edit`/`apply_patch` it asks the TAUSIK CLI whether any
+  task is active and **refuses the write without one** (SENAR Rule 1).
+- `bash` is deliberately not gated — that would block the very command that
+  starts a task. Rule 2 (scope) and secret scanning are not enforced here
+  either; the same is true of the OpenCode plugin, and `tausik doctor`'s
+  enforcement-coverage line is the per-host truth.
+- The CLI verdict is cached against the TAUSIK DB signature (plus a small TTL),
+  and the cache may only err toward strictness: `task done` moves the WAL, so a
+  cached "allowed" cannot survive it.
+- If the CLI is unreachable the gate **fails open loudly** — every ungated
+  write prints a `DEGRADED` warning and a supervision-degradation row is
+  recorded. Set `TAUSIK_HOOK_FAIL_SECURE=1` to block instead of allow;
+  `TAUSIK_SKIP_HOOKS=1` disables the gate (recorded as a bypass).
+
+Honest status: the plugin is unit-verified by executing the hook under Node
+(`tests/test_host_gate_plugins.py`, both hosts parametrized), and `tausik
+doctor` reports `kilo: 1 plugin` — but a live denial inside a running Kilo
+session still needs one host restart to observe. Until then the gate is
+deployed and proven at the harness level, not yet observed live.
+
+## 4. Tell TAUSIK which GLM model is active
 
 Kilo has no Claude-style JSONL transcript, so TAUSIK reads the active model from
 (in order):
@@ -139,7 +166,7 @@ With that set, `task start` shows GLM recommendations and correct
 under/over-powered verdicts. Without it, recommendations fall back to
 `model_profiles.default_family` (below) and then to Claude.
 
-## 4. Switch / add GLM models — no code change
+## 5. Switch / add GLM models — no code change
 
 Defaults shipped in `scripts/model_profiles.py`:
 
@@ -174,6 +201,8 @@ transcript/`KILO_MODEL` detection — ideal when you only ever run Kilo + z.ai.
 
 ```
 Kilo Code (addon/CLI)  ──MCP──▶  tausik-project server  (.kilo/kilo.jsonc | .kilocode/mcp.json)
+        │
+        ├── QG-0 gate plugin     (.kilo/plugins/tausik-gates.js) — refuses writes with no active task
         │
         └── model: glm-4.6  ──▶  model_profiles (family=glm) ──▶ routing rank → glm model + verdict
 ```
