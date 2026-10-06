@@ -10,9 +10,9 @@ TAUSIK sits on top of the AI coding agent you already use — Claude Code, Curso
 
 **Where it sits.** The field calls this discipline *harness engineering*: a harness is the agent loop, the tool interface, context management and control mechanisms. TAUSIK is not a harness — the loop and the tools belong to Claude Code, Cursor, Codex and the rest. It is the verification and control layer on top of them: what makes it different is that nothing counts as done without evidence.
 
-[![v1.11.1](https://img.shields.io/badge/version-v1.11.1-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.11.2](https://img.shields.io/badge/version-v1.11.2-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
-[![13038 tests](https://img.shields.io/badge/tests-13038-brightgreen.svg)](#proof-tausik-built-tausik)
+[![13064 tests](https://img.shields.io/badge/tests-13064-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#whats-inside)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -171,7 +171,7 @@ Hooks run in **Claude Code, Qwen Code and Codex** (Codex runs them only after yo
 Every feature and fix of TAUSIK went through the same checkpoints that ship in the box.
 
 - **Every task closed with a goal and acceptance criteria**, none without a passing check.
-- **13038 tests**; **76% line coverage** of `scripts/` (refresh with `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
+- **13064 tests**; **76% line coverage** of `scripts/` (refresh with `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
 - **0 core dependencies** — Python 3.11+ standard library; MCP packages live in an isolated `.tausik/venv/`.
 - **One disclosed update endpoint** — every session-start attempt sends an anonymous GET to `api.github.com/repos/Kibertum/tausik-core/releases/latest`; a newer release blocks the start. The request contains no project name, path, user, schema or installed version. `"updates": {"check": false}` in `.tausik/config.json` sends no request and allows start with an explicit unverified-version warning. The standalone cached check remains at most daily.
 

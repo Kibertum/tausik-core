@@ -1,7 +1,7 @@
 ---
 slug: kilo-zai-foundation
 title: "MCP wiring, gate plugin, provider-agnostic model observation"
-status: active
+status: done
 epic: kilo-zai-host-parity
 ---
 

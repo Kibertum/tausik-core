@@ -9,6 +9,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.2] — 2026-10-06
+
 ### Fixed — the Kilo MCP stanza could parse but never spawn
 
 - **Root cause measured on the live host.** Kilo Code 7.8.3 expands no
