@@ -11,10 +11,17 @@ kilo.ai docs) and ``.kilocode/mcp.json`` (older Cline-lineage). Whichever the
 installed Kilo reads, it finds the server. Override via ``.tausik/config.json``
 ``kilo.config_paths`` (list of project-relative paths).
 
-Paths are emitted **rename-proof**: a server living inside the project and the
-``--project`` argument use ``${workspaceFolder}`` (which Kilo expands at launch),
-so renaming the project folder does not break the config. Servers resolved from
-an external lib stay absolute (a project rename doesn't move them).
+Paths are emitted **absolute, forward-slashed**. Historically this generator
+wrote ``${workspaceFolder}``-relative paths believing Kilo expands the variable
+at launch; that belief was measured false on the live host: Kilo Code 7.8.3
+contains ZERO ``${workspaceFolder}`` literals in its ``kilo.exe`` CLI (the
+process that spawns MCP servers) or its extension bundle, so a relative stanza
+pointed the spawn at a literally-named ``${workspaceFolder}/...`` path and every
+server failed to start silently. Absolute paths are the Codex precedent
+(bootstrap_codex made the same trade for the same reason): renaming the project
+directory requires re-running bootstrap. ``tausik doctor`` runs a live
+initialize probe against the configured command, so a config the host cannot
+load is reported instead of assumed.
 """
 
 from __future__ import annotations
@@ -24,7 +31,6 @@ import os
 from typing import Any
 
 from bootstrap_generate import retire_managed_servers
-from bootstrap_paths import portable_path
 
 # (server-name, relative path under an mcp/ root) — order is the emit order.
 _SERVERS = (
@@ -39,10 +45,14 @@ _DEFAULT_CONFIG_PATHS = (
 )
 
 
-def _portable_path(abs_path: str, project_dir: str) -> str:
-    """Kilo expands ``${workspaceFolder}`` at launch — rename-proof for in-project
-    paths. Thin wrapper over the shared helper (see bootstrap_paths)."""
-    return portable_path(abs_path, project_dir, "${workspaceFolder}")
+def _abs_portable(abs_path: str) -> str:
+    """Absolute, forward-slashed path for embedding in Kilo's JSON config.
+
+    Kilo 7.8.3 does not expand ``${workspaceFolder}`` in MCP commands (measured:
+    zero literals in kilo.exe), so every path must be absolute. Forward slashes
+    keep the JSON readable and Windows-safe.
+    """
+    return os.path.normpath(abs_path).replace("\\", "/")
 
 
 def _resolve_server(name_path: str, ide_dir: str, lib_dir: str | None) -> str | None:
@@ -77,10 +87,10 @@ def _build_mcp_servers(
         out[name] = {
             "type": "local",
             "command": [
-                _portable_path(python_exe, project_dir),
-                _portable_path(server, project_dir),
+                _abs_portable(python_exe) if os.path.isabs(python_exe) else python_exe,
+                _abs_portable(server),
                 "--project",
-                "${workspaceFolder}",
+                _abs_portable(project_dir),
             ],
             "enabled": True,
         }

@@ -9,6 +9,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the Kilo MCP stanza could parse but never spawn
+
+- **Root cause measured on the live host.** Kilo Code 7.8.3 expands no
+  `${workspaceFolder}` in MCP commands: the literal occurs zero times in
+  `bin/kilo.exe` (the process that spawns MCP servers) and in every extension
+  bundle. The generated stanza pointed the spawn at a literally-named
+  `${workspaceFolder}/...` path, so `tausik-project` and `codebase-rag` never
+  started, and nothing anywhere said so.
+- **`bootstrap --ide kilo` now emits absolute, forward-slashed paths** — the
+  Codex precedent for a host with no workspace variable. Renaming the project
+  directory requires re-running bootstrap.
+- **`tausik doctor` refuses the parse-only checkmark.** The structural layer
+  warns when a command carries `${workspaceFolder}`; a new **Kilo MCP live
+  probe** performs a real initialize handshake against the configured command
+  and reports the server it reached. `docs/en/kilo-zai.md` (+ RU mirror) no
+  longer claims the variable is expanded at launch.
+
 ## [1.11.1] — 2026-10-04
 
 - Projects can now opt into `governance_profile: "memory-only"`. Bootstrap then

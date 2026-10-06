@@ -93,18 +93,27 @@ Both contain the same `mcp` entry:
   "mcp": {
     "tausik-project": {
       "type": "local",
-      "command": ["<python>", "${workspaceFolder}/.kilo/mcp/project/server.py", "--project", "${workspaceFolder}"],
+      "command": [
+        "<abs-path>/.tausik/venv/Scripts/python.exe",
+        "<abs-path>/.kilo/mcp/project/server.py",
+        "--project",
+        "<abs-project-path>"
+      ],
       "enabled": true
     }
   }
 }
 ```
 
-Paths are **rename-proof**: a server inside the project and `--project` use
-`${workspaceFolder}` (Kilo expands it at launch), so renaming the project folder
-does not break the config. An external lib server keeps its absolute path.
-Existing servers and other keys are **merged**, not overwritten. Re-running is
-idempotent.
+Paths are **absolute** (forward-slashed). Measured on the live host: Kilo Code
+7.8.3 expands no `${workspaceFolder}` in MCP commands — the literal occurs zero
+times in its `kilo.exe` CLI, the process that spawns the servers — so an
+earlier generator emitted a stanza that parsed but could never spawn. Absolute
+paths are the Codex precedent: renaming the project directory requires
+re-running bootstrap, and `tausik doctor` runs a live initialize probe against
+the configured command, so a config the host cannot load is reported instead of
+assumed. Existing servers and other keys are **merged**, not overwritten.
+Re-running is idempotent.
 
 **Restart Kilo** after bootstrap so it loads the new MCP config.
 
