@@ -98,6 +98,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   matrix; routing and banner tests cover the glm-4.7 verdicts and the
   glm-4.6 negative. Documented in `docs/en/kilo-zai.md` (+ RU mirror), §5.
 
+### Fixed — four IDE registries, one truth
+
+- **`tausik config set ide_profile opencode` was refused as unknown for a
+  host bootstrap fully scaffolds** — `skill_profile_detect.VALID_IDES` was a
+  hand-maintained 5-host copy that had drifted behind
+  `bootstrap_config.SCAFFOLD_IDES` (6, opencode included). The ide_profile
+  alphabet is now DERIVED from the scaffold list through a guarded import
+  with an annotated mirror for consumers that vendor only `scripts/`, so a
+  host becomes selectable the moment bootstrap can scaffold it.
+- **`bootstrap_config.IDE_DIRS` no longer hand-copies the config_dir
+  column** — it derives from `ide_utils.IDE_REGISTRY`, the registry whose
+  contract already says "adding a new IDE = registering it there". The
+  `providers` registry is code, not data: its host subset stays pinned by
+  tests (no windsurf, no opencode provider yet) instead of being fabricated
+  from a list.
+- The drift scanner's fallback mirror silently missed `codex` — corrected.
+  The parity gate's "four registries disagree, collapsing deferred to 1.10"
+  message and the host-mechanisms header now describe the collapse as done.
+
 ## [1.11.1] — 2026-10-04
 
 - Projects can now opt into `governance_profile: "memory-only"`. Bootstrap then

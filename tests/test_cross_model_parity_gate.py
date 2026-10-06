@@ -301,35 +301,43 @@ class TestTheBuilderMapCannotGoStale:
         assert hm.cross_check_against_disk(str(_REPO)) == []
 
 
-class TestHostRegistryDivergenceIsPinned:
-    """AC8. The gate does not pretend there is one registry. Collapsing them is
-    `four-ide-registries-collapse-into-one`; what is held here is that the
-    remaining divergence does not WIDEN unnoticed while that waits."""
+class TestHostRegistryCollapseHolds:
+    """AC8, post-collapse. The registries no longer diverge by copy:
+    IDE_DIRS derives its config_dir column from IDE_REGISTRY and VALID_IDES
+    takes the scaffolded subset from SCAFFOLD_IDES, so every scaffolded host
+    is selectable as an ide_profile. What stays pinned is the providers
+    registry — code, not data — so its host subset cannot drift quietly."""
 
-    def test_the_measured_divergence_is_exactly_what_was_recorded(self):
-        from bootstrap_config import IDE_DIRS
+    def test_the_derivation_is_exactly_what_was_promised(self):
+        from bootstrap_config import IDE_DIRS, SCAFFOLD_IDES
         from ide_utils import IDE_REGISTRY
         from skill_profile_detect import VALID_IDES
 
-        import providers
-
         assert set(IDE_DIRS) == set(IDE_REGISTRY), (
-            "IDE_DIRS and IDE_REGISTRY agreed when this was measured; if they no "
-            "longer do, the gate's host set has drifted from bootstrap's"
+            "IDE_DIRS must keep matching IDE_REGISTRY — it derives its "
+            "config_dir column there; a mismatch means the annotated mirror "
+            "took over or the registry grew without the wrapper discovering it"
         )
-        assert set(VALID_IDES) == {"claude", "codex", "cursor", "kilo", "qwen"}, (
-            "the skill-profile registry changed. If a host was ADDED, good — move "
-            "this pin. If one was removed, that is a regression."
+        assert set(VALID_IDES) == set(SCAFFOLD_IDES), (
+            "the ide_profile alphabet must be exactly the scaffolded hosts; "
+            "a gap means the derivation fell back to its stale mirror"
         )
-        assert set(providers.available()) == {"claude", "codex", "cursor", "kilo", "qwen"}
 
-    def test_remaining_scaffolded_host_cannot_be_selected_as_a_profile(self):
-        """Kilo is selectable in 1.11; opencode remains the measured gap."""
+    def test_unselectable_scaffolded_hosts_is_empty(self):
         from bootstrap_config import SCAFFOLD_IDES
         from skill_profile_detect import VALID_IDES
 
         unselectable = sorted(set(SCAFFOLD_IDES) - set(VALID_IDES))
-        assert unselectable == ["opencode"], (
-            f"the set of scaffolded-but-unselectable hosts changed to {unselectable}; "
-            "update four-ide-registries-collapse-into-one and this pin together"
+        assert unselectable == [], (
+            f"scaffolded hosts not selectable as ide_profile: {unselectable}; "
+            "the derivation regressed to a stale copy"
+        )
+
+    def test_providers_stay_the_pinned_observation_subset(self):
+        import providers
+
+        assert set(providers.available()) == {"claude", "codex", "cursor", "kilo", "qwen"}, (
+            "providers is code, not data: a host appears there only with a real "
+            "Provider implementation (model observation). windsurf and opencode "
+            "have none yet — ship the module and move this pin together"
         )

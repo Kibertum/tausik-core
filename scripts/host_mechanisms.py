@@ -26,15 +26,16 @@ extension point AT ALL is a different statement, and it is already made twice �
 by the enforcement notice each host's rules file opens with, and by `doctor`. It
 is not restated here.
 
-WHAT THIS MODULE DOES NOT DO is decide which of the four host registries is the
-truth. There are four (`bootstrap_config.IDE_DIRS`, `ide_utils.IDE_REGISTRY`,
-`skill_profile_detect.VALID_IDES`, `providers`), and they already disagree —
-measured here in session #230: the first two know 7 hosts, the last two know 4
-apiece and not the same 4, so `config set ide_profile kilo` is refused for a host
-bootstrap fully scaffolds. Collapsing them is
-`four-ide-registries-collapse-into-one`, deferred to 1.10. `cross_check_against_disk`
-reads `ide_utils.IDE_REGISTRY` and says so out loud, and a test pins the measured
-divergence so it cannot widen quietly.
+WHAT THIS MODULE DOES NOT DO is restate a host registry. Since
+four-ide-registries-collapse there is ONE: `ide_utils.IDE_REGISTRY` holds the
+per-host facts; `bootstrap_config.IDE_DIRS` derives its config_dir column from
+it, and `skill_profile_detect.VALID_IDES` takes the scaffolded subset from
+`bootstrap_config.SCAFFOLD_IDES` — each through a guarded import with an
+annotated mirror for consumers that vendor only `scripts/`. The `providers`
+registry is code, not data: it stays the pinned subset of hosts that implement
+model observation (no windsurf, no opencode provider yet), held by tests
+rather than derived from a list. `cross_check_against_disk` reads
+`ide_utils.IDE_REGISTRY` and says so out loud.
 """
 
 from __future__ import annotations

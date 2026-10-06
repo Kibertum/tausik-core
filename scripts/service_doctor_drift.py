@@ -278,7 +278,7 @@ def _scaffold_ides() -> list[str]:
         return list(SCAFFOLD_IDES)
     except Exception:  # noqa: BLE001 — bootstrap/ may be absent; fall back, do not crash the check
         # MIRROR of bootstrap_config.SCAFFOLD_IDES — keep in step with it.
-        return ["claude", "cursor", "qwen", "kilo", "opencode"]
+        return ["claude", "cursor", "qwen", "kilo", "opencode", "codex"]
 
 
 # Mirror of the ignore rules in `bootstrap_copy.copy_dir`, which is what

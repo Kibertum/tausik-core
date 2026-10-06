@@ -82,19 +82,36 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "ide": "claude",
 }
 
-# Single source of truth for supported IDEs → their config dir.
-# Consumed by bootstrap.get_ide_target, `--ide all`, and the CLI wrapper
-# template (injected at copy time by install_cli_wrapper). Do NOT hardcode
-# this list anywhere else — add a new IDE here and it propagates everywhere.
-IDE_DIRS: dict[str, str] = {
-    "claude": ".claude",
-    "cursor": ".cursor",
-    "windsurf": ".windsurf",
-    "codex": ".codex",
-    "qwen": ".qwen",
-    "kilo": ".kilo",
-    "opencode": ".opencode",
-}
+
+# Supported IDEs → their config dir. DERIVED from ide_utils.IDE_REGISTRY, the
+# one registry that holds per-host facts (config_dir, rules_file, skills_subdir)
+# and whose contract already says "adding a new IDE = registering it there"
+# (four-ide-registries-collapse). Consumed by bootstrap.get_ide_target,
+# `--ide all`, and the CLI wrapper template (injected at copy time by
+# install_cli_wrapper). The literal below is the annotated defensive mirror for
+# when scripts/ is not importable across the sys.path boundary; the
+# single-source tests hold the derived and mirrored sets equal.
+def _ide_dirs() -> dict[str, str]:
+    try:
+        from ide_utils import (
+            IDE_REGISTRY,
+        )  # ruff-not-enabled: PLC0415 — scripts/ is on sys.path in every runner
+
+        return {ide: str(entry["config_dir"]) for ide, entry in IDE_REGISTRY.items()}
+    except ImportError:
+        # MIRROR of ide_utils.IDE_REGISTRY (config_dir column) — keep in step with it.
+        return {
+            "claude": ".claude",
+            "cursor": ".cursor",
+            "windsurf": ".windsurf",
+            "codex": ".codex",
+            "qwen": ".qwen",
+            "kilo": ".kilo",
+            "opencode": ".opencode",
+        }
+
+
+IDE_DIRS: dict[str, str] = _ide_dirs()
 
 # IDEs that have a full scaffold branch in bootstrap (generate_*_config).
 # These are the only individually-selectable `--ide` targets and the set

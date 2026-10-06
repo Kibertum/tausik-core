@@ -199,6 +199,6 @@ def run_cross_model_parity_gate(gate: dict, files: list[str]) -> tuple[bool, str
         f"cross-model parity: {hosts} — "
         f"{len(differences)} difference(s), all declared. "
         f"Hosts compared: {', '.join(sorted(MECHANISM_BUILDERS))}; host set read from "
-        "ide_utils.IDE_REGISTRY (four host registries exist and disagree — collapsing "
-        f"them is deferred to 1.10). Kinds present: {KIND_HOOK} and plugin."
+        "ide_utils.IDE_REGISTRY — the one host registry (IDE_DIRS derives from it, "
+        f"skill profiles take the scaffolded subset). Kinds present: {KIND_HOOK} and plugin."
     )

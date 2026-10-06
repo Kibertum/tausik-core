@@ -1,12 +1,13 @@
 """Guard tests locking the single-source-of-truth for the bootstrap IDE list (v156 P4).
 
-Three previously-divergent lists (_IDE_DIRS, `--ide all`, the wrapper loop) were
-reconciled in P0 into two canonical constants in bootstrap_config:
+The P0 reconciliation folded three divergent lists into bootstrap_config; the
+four-ide-registries-collapse finished the job — bootstrap_config no longer even
+holds its own copy:
 
-  * IDE_DIRS      — every .{ide}/ dir the CLI wrapper may discover (6)
-  * SCAFFOLD_IDES — IDEs with a real generate_*_config branch; the only
-                    individually-selectable `--ide` targets and what `--ide all`
-                    expands to (4)
+  * IDE_REGISTRY   (ide_utils)   — the one registry of per-host facts
+  * IDE_DIRS       (bootstrap_config) — DERIVED config_dir column of the registry
+  * SCAFFOLD_IDES  (bootstrap_config) — hosts with a real generate_* branch
+  * VALID_IDES     (skill_profile_detect) — DERIVED: exactly SCAFFOLD_IDES
 
 These tests fail the moment someone reintroduces a hardcoded IDE list or breaks
 the IDE_DIRS ⊇ SCAFFOLD_IDES invariant.
@@ -35,6 +36,41 @@ def test_scaffold_ides_subset_of_ide_dirs():
     assert set(SCAFFOLD_IDES) <= set(IDE_DIRS), (
         f"SCAFFOLD_IDES has entries missing from IDE_DIRS: {set(SCAFFOLD_IDES) - set(IDE_DIRS)}"
     )
+
+
+def test_ide_dirs_is_derived_from_the_registry():
+    """four-ide-registries-collapse: IDE_DIRS is not a second copy — it is the
+    registry's config_dir column. A new host registered in IDE_REGISTRY is
+    therefore discoverable by the wrapper with no further edit."""
+    from ide_utils import IDE_REGISTRY
+
+    assert IDE_DIRS == {ide: entry["config_dir"] for ide, entry in IDE_REGISTRY.items()}
+
+
+def test_ide_profile_alphabet_is_exactly_the_scaffold_list():
+    """`config set ide_profile <slug>` must accept every host bootstrap can
+    scaffold and nothing else — opencode was refused as unknown while fully
+    scaffolded, which is what four-ide-registries-collapse fixed."""
+    from skill_profile_detect import VALID_IDES
+
+    assert VALID_IDES == frozenset(SCAFFOLD_IDES)
+
+
+def test_unknown_ide_is_unknown_on_every_surface():
+    """NEGATIVE: a name no registry knows is rejected by every surface — no
+    surface carries its own broader alphabet that would accept it."""
+    import ide_utils
+    import providers
+
+    unknown = "not-an-ide"
+    assert unknown not in IDE_DIRS
+    assert unknown not in SCAFFOLD_IDES
+    assert unknown not in ide_utils.IDE_REGISTRY
+    from skill_profile_detect import VALID_IDES
+
+    assert unknown not in VALID_IDES
+    with pytest.raises(KeyError):
+        providers.get(unknown)
 
 
 def test_windsurf_discoverable_but_not_scaffolded():
