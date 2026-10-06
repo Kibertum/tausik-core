@@ -54,5 +54,5 @@ See the [full changelog](../../CHANGELOG.md) and the
 
 GitHub Release links:
 
-- [English notes](https://github.com/Kibertum/tausik-core/blob/v1.11.1/docs/en/whats-new-1.11.md)
-- [Russian notes](https://github.com/Kibertum/tausik-core/blob/v1.11.1/docs/ru/whats-new-1.11.md)
+- [English notes](https://github.com/Kibertum/tausik-core/blob/v1.11.2/docs/en/whats-new-1.11.md)
+- [Russian notes](https://github.com/Kibertum/tausik-core/blob/v1.11.2/docs/ru/whats-new-1.11.md)
