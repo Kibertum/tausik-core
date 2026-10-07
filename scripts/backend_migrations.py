@@ -47,6 +47,7 @@ from backend_migrations_v72 import MIGRATION_V72
 from backend_migrations_v73 import MIGRATION_V73
 from backend_migrations_v74 import MIGRATION_V74
 from backend_migrations_v75 import MIGRATION_V75
+from backend_migrations_v76 import MIGRATION_V76
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -451,6 +452,10 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     73: MIGRATION_V73,  # sessions.model_source -- provenance stored at open (backend_migrations_v73.py)
     74: MIGRATION_V74,  # memory layers/hits/pin + hygiene snapshots (backend_migrations_v74.py)
     75: MIGRATION_V75,  # pooled-verification cohort storage (backend_migrations_v75.py)
+    # v76: verification_cohorts.state += 'invalidated' (SS4 widening) --
+    # guarded rebuild in run_post_migrations, empty marker here
+    # (backend_migrations_v76.py).
+    76: MIGRATION_V76,
 }
 
 # Merged: legacy + current

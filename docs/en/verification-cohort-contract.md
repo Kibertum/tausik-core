@@ -25,15 +25,27 @@ A cohort is identified by the SHA-256 over the canonical serialization of:
 1. **sorted task membership** — slugs, sorted lexicographically; order never
    participates in identity;
 2. **per-task fingerprints** — each member's `fingerprint` as served by
-   `task show --package` (goal/AC/plan/relevant_files);
+   `task show --package` (goal/AC/plan/relevant_files), plus the member's
+   status (a member blocked or reopened after verify is not the cohort that
+   was verified);
 3. **union scope** — the deduplicated, sorted union of `relevant_files` over
    membership (empty set ⇒ `unscoped`, which never forms a close cohort);
-4. **content hashes** — file content digests of the union scope at open time;
+4. **content hashes** — a content-only digest (path + full-content SHA-256,
+   sorted; no mtimes — identity is recomputed at close time and a checkout
+   stamps mtimes on files nobody edited) of the union scope at open time;
 5. **gate signature** — the enabled-gate set + per-gate config hash;
-6. **selected tests** — the test-selection evidence list (the
-   `affected-tests-*.json` selection), so a changed selector invalidates;
-7. **repository state** — `git rev-parse HEAD` plus the dirty-file list
+6. **repository state** — `git rev-parse HEAD` plus the dirty-file list
    digest (a cohort cannot silently span a commit).
+
+Originally drafted with a seventh input — the test-selection evidence list —
+and shipped with placeholder strings for it and for content hashes. Both were
+dishonest in opposite directions: selection evidence exists only AFTER the
+run, and identity is minted BEFORE it, so the input could never carry a real
+value; a constant placeholder, conversely, is a term that can never
+invalidate anything. The 1.11.3 audit killed both: content hashes are now
+the real pre-run digest, and selected tests are no longer an identity input
+(the affected-tests selection still participates through the delegated
+run's own digest).
 
 Identity is computed at cohort OPEN and re-asserted before any reuse
 decision. Any component mismatch = a different cohort, never a "close
@@ -68,20 +80,29 @@ test-selection evidence). Reuse is per-evidence, never per-vibes.
 
 ## 4. Invalidators (the negative contract)
 
-Reuse of ANY receipt — pooled or single — is refused, and the run widens to
-the full applicable lane, when any of:
+When any of these fires, reuse of prior GREEN evidence is refused — and the
+run **widens**: the full lane EXECUTES, the prior cohort row is marked
+`invalidated`, and a new cohort row records the attempt:
 
 - membership drift (a task joined or left the cohort);
 - task edits (fingerprint of any member changed);
+- member-status drift (a member blocked or reopened after verify);
 - config or gate-signature drift;
 - security-sensitive scope in the union (hooks, auth, billing, payment —
-  stricter, never pooled across such a boundary without explicit consent);
+  stricter: refused outright, on a fresh cohort exactly as much as on a
+  drifted one, never pooled across such a boundary without explicit
+  consent);
 - uncertain dependency mapping (the affected-tests evidence is missing or
   stale for any changed file);
-- missing evidence (no selection list, no content digests, no repo state).
+- missing evidence (a member task that no longer exists — the cohort cannot
+  form; re-form it without the deleted slug).
 
 A refusal names WHICH invalidator fired; silence is not an invalidation and
-must not become one.
+must not become one. Widening must not degrade into a refusal loop: the
+first implementation returned a refusal instead of running, which
+permanently bricked the membership — the operator cannot un-drift a cohort,
+so every retry met the same wall. An invalidator refuses the CARRY-FORWARD
+of old evidence, never the execution of new verification.
 
 ## 5. Schema/API migration and backward compatibility
 
@@ -91,8 +112,19 @@ must not become one.
 - single-task `verify --task` keeps its exact semantics and its signed
   handle (`<run_id>.<nonce>`, single-use, TTL) — a pooled receipt uses the
   same signing key and the same redemption rules, extended to N members;
-- `task done --verify-handle` accepts either; a pooled handle redeems
-  against every listed member in one transaction.
+- **a pooled handle redeems through `story done --verify-handle` /
+  `epic done --verify-handle` ONLY.** An earlier draft promised "`task done
+  --verify-handle` accepts either; a pooled handle redeems against every
+  listed member in one transaction" — that clause is removed: the handle is
+  single-use, so a per-task redemption would spend the whole cohort's
+  receipt on one member and refuse the rest. Ad-hoc cohorts without a
+  parent close per task through their own single-task runs;
+- per-unit provenance granularity (v75): the recorded unit is the
+  **cohort-union-scope** unit, `covered_by` naming every member and
+  `inputs_digest` carrying the delegated run's `files_hash` (or the
+  identity's content digest). Per-test provenance is a declared non-goal —
+  a pooled run is one gate pass, and fragmenting it into per-test rows
+  would re-create the per-task duplication this contract exists to cut.
 
 ## Rollout proof (measured, session #295, live corpus)
 

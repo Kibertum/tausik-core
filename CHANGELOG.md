@@ -9,6 +9,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — the pooled-verify recovery loop was a dead end (SS4 widening)
+
+- **After a green cohort, a named invalidator bricked the membership
+  forever.** The contract said the next pooled run must widen to the full
+  lane; the code only refused harder. The widening now EXECUTES: the prior
+  cohort is marked `invalidated`, the full lane runs, a new cohort row is
+  recorded, and the output names the refused reuse. A missing evidence file
+  (`missing-evidence:<slug>`) stays a hard refusal — widening is not
+  amnesty.
+- **`verification_cohort_results.inputs_digest` recorded `'unavailable'` in
+  production** because the pooled report carried no `files_hash`. The
+  report now surfaces it from the recorded run row, and the digest is the
+  real files hash or a content digest — never a placeholder.
+- **Cohort identity binds content, not strings.** `content_hashes` is a
+  real content-only digest (sorted path + full content, no mtimes — the
+  close-time recompute survives a checkout), and `selected_tests` left the
+  identity inputs; per-test provenance stays a declared non-goal.
+- **The SPEC's SS5 clause "task done --verify-handle accepts either" is
+  removed** — a single-use pooled handle on N members is a trap; pooled
+  receipts redeem via `story/epic done --verify-handle` only.
+- **Schema v76.** `verification_cohorts.state` admits `'invalidated'` — a
+  guarded table rebuild (SQLite cannot ALTER a CHECK); rows and the
+  results-side CASCADE survive column-for-column, and fresh installs
+  converge with migrated ones.
+
 ### Fixed — pooled-verify close path was dead on arrival in production
 
 - **`story/epic done --verify-handle` never accepted a real receipt**: the

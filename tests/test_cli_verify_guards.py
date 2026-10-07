@@ -95,6 +95,12 @@ class _FakeBackend:
         self.notes: list[str] = []
         self.events: list[tuple] = []
 
+    # The real backend's shape (project_backend._q1): dict | None, because
+    # service_gates reads report fields off the row (`(row or {}).get`).
+    def _q1(self, sql, params=()):
+        row = self._conn.execute(sql, params).fetchone()
+        return dict(row) if row else None
+
     def task_get(self, slug):
         return {
             "slug": slug,

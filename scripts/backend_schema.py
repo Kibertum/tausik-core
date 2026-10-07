@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 75
+SCHEMA_VERSION = 76
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -329,8 +329,11 @@ CREATE TABLE IF NOT EXISTS verification_cohorts (
     identity_inputs_json TEXT NOT NULL,
     union_files_hash TEXT NOT NULL,
     gate_signature TEXT NOT NULL,
+    -- v76: 'invalidated' is the SS4 widening mark — a green cohort whose
+    -- reuse a named invalidator refused. Terminal for that row: the next
+    -- run records a NEW cohort, it never resurrects this one.
     state TEXT NOT NULL DEFAULT 'open'
-        CHECK(state IN ('open', 'green', 'red')),
+        CHECK(state IN ('open', 'green', 'red', 'invalidated')),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );

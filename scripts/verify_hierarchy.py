@@ -77,6 +77,7 @@ def hierarchy_summary(out: dict[str, Any]) -> str:
         f"test_files={len(out['union_scope'])}."
     ]
     lines.extend(out.get("prepared") or [])
+    lines.extend(out.get("widened") or [])
     lines.extend(vc.pooled_handle_lines(out.get("report"), h.get("parent"), h.get("kind")))
     return "\n".join(lines)
 

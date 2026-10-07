@@ -45,10 +45,12 @@ def _identity(be, slugs, gate_sig="g1", root=None):
     return collect_identity_inputs(be, sorted(slugs), gate_sig, root)
 
 
-# Production shape: `run_verify_for_task` reports carry NO `files_hash` key
-# (surfacing it is tracked separately) — a stub that invents one would keep the
-# tests greener than the code they guard.
-GREEN_REPORT = {"passed": True}
+# Production shape since fix-pooled-verify-recovery: `run_verify_for_task`
+# reports carry `files_hash` read from the recorded run row (None only when
+# no row exists, e.g. a full-suite run). NOHASH_REPORT pins the fallback:
+# the identity's own content digest, never the old 'unavailable'.
+GREEN_REPORT = {"passed": True, "files_hash": "a1b2c3d4e5f60718"}
+NOHASH_REPORT = {"passed": True}
 
 
 class TestIdentity:
@@ -149,16 +151,122 @@ class TestDriver:
 
         out = run_cohort_verify(svc, ["t-a", "t-b"], prepare=False, _runner=green)
         assert out["state"] == "green"
-        # A member edit after a GREEN run invalidates carry-forward: the next
-        # cohort verify must refuse reuse and name the reason. (After a RED
-        # run a changed identity is just the next attempt — fixes change the
-        # tree, and blocking them would make a red cohort unfixable; live
-        # runs #3587/#3588 -> #3589.)
+        # A member edit after a GREEN run invalidates carry-forward — and
+        # since fix-pooled-verify-recovery the invalidator WIDENS instead of
+        # refusing: the refusal the old code returned here was a permanent
+        # brick (the operator cannot un-drift a cohort, so every retry met
+        # the same green predecessor and the same wall).
         svc.task_update("t-a", goal="changed")
+        calls = []
         out2 = run_cohort_verify(
-            svc, ["t-a", "t-b"], prepare=False, _runner=lambda *a, **k: {"passed": True}
+            svc,
+            ["t-a", "t-b"],
+            prepare=False,
+            _runner=lambda *a, **k: calls.append(1) or {"passed": True},
         )
-        assert out2.get("refused", "").startswith("reuse refused: task-edits")
+        assert out2.get("passed")  # EXECUTED, not refused
+        assert calls == [1]  # the full lane ran once
+        assert out2["widened"], "the refused reuse must be named in the output"
+        assert "task-edits" in out2["widened"][0]
+        assert f"#{out['cohort_pk']}" in out2["widened"][0]
+        # The dead predecessor is retired; a new cohort row records the run.
+        prior = svc.be._q1("SELECT state FROM verification_cohorts WHERE id=?", (out["cohort_pk"],))
+        assert prior["state"] == "invalidated"
+        assert out2["cohort_pk"] != out["cohort_pk"]
+
+    def test_widening_renders_through_the_shared_summary(self, svc):
+        text = cohort_summary(
+            {
+                "passed": True,
+                "identity": "i" * 64,
+                "members": ["t-a", "t-b"],
+                "union_scope": ["m0.py"],
+                "widened": [
+                    "Widened to the full lane: reuse of prior green cohort #7 "
+                    "refused (task-edits) — its evidence is not carried forward."
+                ],
+                "report": {},
+            }
+        )
+        assert "Widened to the full lane" in text
+        assert "task-edits" in text
+
+    def test_red_predecessor_with_drift_is_just_the_next_attempt(self, svc):
+        # AC-5 negative: only GREEN evidence is refused reuse. A RED run with
+        # a different identity is the ordinary shape of "a fix happened" —
+        # no widened line, no refusal.
+        out = run_cohort_verify(
+            svc, ["t-a", "t-b"], prepare=False, _runner=lambda *a, **k: {"passed": False}
+        )
+        assert out["state"] == "red"
+        svc.task_update("t-a", goal="fixed the failure")
+        out2 = run_cohort_verify(
+            svc, ["t-a", "t-b"], prepare=False, _runner=lambda *a, **k: dict(GREEN_REPORT)
+        )
+        assert out2.get("passed")
+        assert out2.get("widened") == []
+
+    def test_missing_member_still_refuses_the_cohort_cannot_form(self, svc):
+        run_cohort_verify(
+            svc, ["t-a", "t-b"], prepare=False, _runner=lambda *a, **k: dict(GREEN_REPORT)
+        )
+        svc.be._ex("DELETE FROM tasks WHERE slug='t-a'")
+        out = run_cohort_verify(
+            svc, ["t-a", "t-b"], prepare=False, _runner=lambda *a, **k: dict(GREEN_REPORT)
+        )
+        assert out["refused"].startswith("reuse refused: missing-evidence:t-a")
+
+
+class TestProvenanceDigest:
+    """AC-2: per-unit outcomes record a real digest, never 'unavailable'."""
+
+    def test_report_files_hash_is_stamped_verbatim(self, svc):
+        out = run_cohort_verify(
+            svc, ["t-a", "t-b"], prepare=False, _runner=lambda *a, **k: dict(GREEN_REPORT)
+        )
+        row = svc.be._q1(
+            "SELECT inputs_digest FROM verification_cohort_results WHERE cohort_pk=?",
+            (out["cohort_pk"],),
+        )
+        assert row["inputs_digest"] == GREEN_REPORT["files_hash"]
+
+    def test_hashless_report_falls_back_to_the_content_digest(self, svc):
+        from project_root import root_from_service
+        from verify_cohort import _content_digest
+
+        out = run_cohort_verify(
+            svc, ["t-a", "t-b"], prepare=False, _runner=lambda *a, **k: dict(NOHASH_REPORT)
+        )
+        row = svc.be._q1(
+            "SELECT inputs_digest FROM verification_cohort_results WHERE cohort_pk=?",
+            (out["cohort_pk"],),
+        )
+        expected = _content_digest(["m0.py", "m1.py"], root_from_service(svc))
+        assert row["inputs_digest"] == expected
+        assert row["inputs_digest"] != "unavailable"
+
+    def test_content_digest_is_content_addressed_not_mtime_addressed(self, tmp_path):
+        from verify_cohort import _content_digest
+
+        (tmp_path / "m0.py").write_text("x = 1\n", encoding="utf-8")
+        first = _content_digest(["m0.py"], str(tmp_path))
+        # A checkout-style touch: same bytes, new mtime — identity must hold.
+        import os
+
+        os.utime(str(tmp_path / "m0.py"), ns=(1, 1))
+        assert _content_digest(["m0.py"], str(tmp_path)) == first
+        (tmp_path / "m0.py").write_text("x = 2\n", encoding="utf-8")
+        assert _content_digest(["m0.py"], str(tmp_path)) != first
+
+    def test_union_content_participates_in_identity(self, svc, tmp_path):
+        (tmp_path / "m0.py").write_text("x = 1\n", encoding="utf-8")
+        (tmp_path / "m1.py").write_text("y = 1\n", encoding="utf-8")
+        before = canonical_identity(_identity(svc.be, ["t-a", "t-b"], root=str(tmp_path)))
+        (tmp_path / "m0.py").write_text("x = 2\n", encoding="utf-8")
+        after = canonical_identity(_identity(svc.be, ["t-a", "t-b"], root=str(tmp_path)))
+        # A code edit in the union scope changes identity even when no task
+        # row moved — the placeholder this replaces could never do that.
+        assert before != after
 
 
 class TestPreparation:

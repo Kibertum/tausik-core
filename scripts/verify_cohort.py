@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from datetime import datetime, timezone
 from typing import Any
@@ -41,6 +42,31 @@ def canonical_identity(inputs: dict[str, Any]) -> str:
     """
     blob = json.dumps(inputs, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _content_digest(paths: list[str], root: str | None) -> str:
+    """Content-only digest of the union scope — the identity's §1 input.
+
+    No mtimes, no sizes: identity is RECOMPUTED at close time to test
+    staleness, and a `git checkout` stamps mtimes on files nobody edited —
+    an mtime term here would stale every receipt the first time the tree
+    moved. Full contents, not the 4 KiB head the verify cache samples: this
+    digest is the receipt's claim about WHAT ran, not a cache key that has
+    to stay cheap. An unreadable file says so (`unreadable`) rather than
+    vanishing from the claim.
+    """
+    base = root or os.getcwd()
+    h = hashlib.sha256()
+    h.update(b"cohort-identity.v1\n")
+    for rel in sorted(p.replace("\\", "/") for p in paths):
+        abs_p = rel if os.path.isabs(rel) else os.path.join(base, rel)
+        try:
+            with open(abs_p, "rb") as f:
+                body = hashlib.sha256(f.read()).hexdigest()
+        except OSError:
+            body = "unreadable"
+        h.update(f"{rel}|{body}\n".encode())
+    return h.hexdigest()
 
 
 def _task_fingerprint(row: dict[str, Any]) -> str:
@@ -107,9 +133,13 @@ def collect_identity_inputs(
         "task_fingerprints": fingerprints,
         "task_statuses": statuses,
         "union_scope": union,
-        "content_hashes": "declared-at-run",  # files_hash of the delegated run
+        # Real content digest, not a placeholder: a constant string in the
+        # hash input is a term that can never invalidate anything. selected
+        # tests are GONE as an identity input — selection evidence exists
+        # only after the run, and identity is minted before it; feeding it
+        # was a promise the ordering could not keep (SPEC SS1 amended).
+        "content_hashes": _content_digest(union, root),
         "gate_signature": gate_signature,
-        "selected_tests": "selection-evidence-of-run",
         "repository_state": _git_state(root),
     }
 
@@ -253,6 +283,7 @@ def cohort_summary(out: dict[str, Any]) -> str:
         f"union scope {len(out['union_scope'])} file(s) run ONCE."
     ]
     lines.extend(out.get("prepared") or [])
+    lines.extend(out.get("widened") or [])
     lines.extend(pooled_handle_lines(out.get("report")))
     return "\n".join(lines)
 
@@ -331,19 +362,31 @@ def run_cohort_verify(
         "WHERE members_json=? ORDER BY id DESC LIMIT 1",
         (members_json,),
     )
+    widened: list[str] = []
     if prior_row and prior_row["identity"] != identity and prior_row["state"] == "green":
-        # Only GREEN evidence is refused reuse — that is what carry-forward
-        # rests on. A RED predecessor with a different identity is just the
-        # next attempt: fixes CHANGE the tree (formatting alone did, live
-        # runs #3587/#3588 -> #3589), and blocking them makes a red cohort
-        # unfixable.
+        # SS4 WIDENING: an invalidator refuses REUSE of the prior green
+        # evidence — it must never refuse EXECUTION. Returning a refusal here
+        # (as this code once did) permanently bricked the membership: the
+        # operator cannot un-drift a cohort, so every retry met the same
+        # green predecessor and the same wall. Now the prior row is marked
+        # invalidated, the refusal of reuse is NAMED in the output, and the
+        # full lane runs — recording a new cohort row superseding the dead
+        # one. Only a GONE member still refuses outright: a cohort listing a
+        # task that no longer exists cannot form, and the remedy is to
+        # re-form it without the dead slug, not to run gates over a ghost.
         prior_inputs = json.loads(prior_row["identity_inputs_json"])
-        reason = invalidation_reason(prior_inputs, inputs)
-        return {
-            "refused": f"reuse refused: {reason or 'identity-drift'}; prior "
-            f"cohort #{prior_row['id']} evidence is not reusable and "
-            f"the next run widens to the full applicable lane"
-        }
+        reason = invalidation_reason(prior_inputs, inputs) or "identity-drift"
+        if reason.startswith("missing-evidence"):
+            return {
+                "refused": f"reuse refused: {reason}; a cohort cannot contain a "
+                "deleted task — re-form the cohort without it and verify again"
+            }
+        _set_state(be, int(prior_row["id"]), "invalidated")
+        widened = [
+            f"Widened to the full lane: reuse of prior green cohort "
+            f"#{prior_row['id']} refused ({reason}) — its evidence is not "
+            "carried forward."
+        ]
 
     cohort_pk = open_cohort(be, inputs, identity)
 
@@ -371,7 +414,11 @@ def run_cohort_verify(
                 "covered_by": ",".join(members),
             }
         ],
-        report.get("files_hash") or "unavailable",
+        # The digest each outcome rests on: the delegated run's files_hash
+        # when the report carries one, else the identity's own content
+        # digest of the union scope. Never 'unavailable' — a recorded
+        # 'unavailable' is a receipt that says it cannot say what it ran.
+        report.get("files_hash") or inputs["content_hashes"],
     )
     return {
         "cohort_pk": cohort_pk,
@@ -379,6 +426,7 @@ def run_cohort_verify(
         "members": members,
         "union_scope": union,
         "prepared": prepared,
+        "widened": widened,
         "passed": bool(report.get("passed")),
         "state": state,
         "report": report,

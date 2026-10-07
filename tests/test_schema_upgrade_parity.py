@@ -163,12 +163,13 @@ class TestUpgradePathMatchesFreshSchema:
             "быть объяснено в докстринге модуля и заведено задачей"
         )
 
-    @pytest.mark.parametrize("table", ["tasks", "usage_events"])
+    @pytest.mark.parametrize("table", ["tasks", "usage_events", "verification_cohorts"])
     def test_rebuilt_ddl_matches_including_constraints(self, table, fresh, migrated):
         """Полный DDL перестроенной таблицы, а не только (имя,тип,notnull,default).
 
-        v43 перестраивает tasks, v48 — usage_events, обе по РУКОПИСНОМУ снимку
-        DDL. Тест колонок выше слеп к CHECK/FK/UNIQUE — они есть только в тексте
+        v43 перестраивает tasks, v48 — usage_events, v76 — verification_cohorts
+        (state CHECK += 'invalidated'), все по РУКОПИСНОМУ снимку DDL. Тест
+        колонок выше слеп к CHECK/FK/UNIQUE — они есть только в тексте
         DDL. Прямое сравнение нормализованных CREATE ловит именно тот дрейф
         ограничений между снимком миграции и SCHEMA_SQL, который PRAGMA
         table_info пропустил бы — зелено там, где проверяют, subtly-wrong там,
