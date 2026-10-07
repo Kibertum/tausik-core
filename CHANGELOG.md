@@ -9,6 +9,53 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — pooled-verify close path was dead on arrival in production
+
+- **`story/epic done --verify-handle` never accepted a real receipt**: the
+  close path recomputed cohort identity with `root=None` while the mint
+  stamped `root_from_service` — in any git-backed project the identities never
+  matched. Redemption now resolves the root through the same source as the
+  mint (pinned by a production-shaped test that mints through the real driver
+  against a real git repo and would fail if either side changes its root).
+- **The pooled handle was never printed.** `cohort_summary` and
+  `hierarchy_summary` — the one render the CLI and MCP share — now surface the
+  handle and its redemption command on both transports.
+- **A handle without a dot crashed with `IndexError`**; it now returns the
+  designed REFUSED line.
+- **Hierarchy redemption reuses the single-task lane's machinery** —
+  shape-validated parse, constant-time nonce compare, TTL, single-use atomic
+  spend inside one transaction — instead of a weaker third validator.
+- **A security-sensitive union is refused pooling on a FRESH cohort too**
+  (contract SS4), not only in the drift branch; an unscoped refusal leaves no
+  open-cohort residue; the MCP pooled lane pays the same preparation as the
+  CLI and defaults to the same `standard` scope. The MCP surface baseline
+  moves 59,242 → 59,602 bytes for the `scope` parameter on the two pooled
+  tools; tool count stays 149.
+
+### Fixed — `tausik_gates_status` shows what `gates status` shows
+
+- **The MCP handler renders through `gates_status_lines` — the same formula
+  the CLI prints** — instead of its own flat one-line copy: the per-gate `cmd`
+  column and the QG-0 Readiness section reach the agent too. The six
+  known-loss entries the parity ratchet recorded on its first run are deleted
+  from the ledger (it may only shrink); the no-service ambient fallback keeps
+  the legacy flat render; the CLI output is byte-identical.
+
+### Added — MCP/CLI surface parity ratchet (Track B)
+
+- **Every MCP tool's CLI twin is declared, and losses are tested, not
+  remembered.** `scripts/mcp_cli_parity.py` maps all 149 tools to their CLI
+  commands; the 9 without a twin carry a written reason and a count.
+  `tests/test_mcp_cli_surface_parity.py` drives both surfaces of the
+  15-command read spine on one planted project and fails on any field label
+  the CLI prints and the MCP tool drops — known losses live in a ledger with
+  reasons that may only shrink.
+- **The ratchet went red on its first live run**: `tausik_gates_status` drops
+  the per-gate `cmd` column and the meta-gate section (Verify-First Contract,
+  Continuous CHANGELOG, QG-0 Readiness, RENAR drift-1/7) that `gates status`
+  prints. Six ledger entries record the debt; the handler fix is its own
+  task.
+
 ### Measured — pooled verification proof, live on this release's own work
 
 - **34 → 1 executions; 1,492.1 s → 314.6 s.** The seven Track A/C tasks of

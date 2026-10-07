@@ -13,7 +13,8 @@ TOOLS_EXTRA = [
             "persisted cohort identity, and reuse refused by a NAMED "
             "invalidator (membership drift, task edits, member status drift, "
             "gate-signature drift, security-sensitive scope, missing "
-            "evidence). Mirrors CLI `tausik verify --tasks`."
+            "evidence, uncertain dependency mapping). Mirrors CLI "
+            "`tausik verify --tasks`."
         ),
         "inputSchema": {
             "type": "object",
@@ -22,6 +23,11 @@ TOOLS_EXTRA = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Task slugs forming the cohort (>=2).",
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": ["lightweight", "standard", "high", "critical", "manual"],
+                    "description": "SENAR Rule 5 verification tier (default standard).",
                 },
             },
             "required": ["tasks"],
@@ -41,6 +47,11 @@ TOOLS_EXTRA = [
             "properties": {
                 "kind": {"type": "string", "enum": ["story", "epic"]},
                 "slug": {"type": "string"},
+                "scope": {
+                    "type": "string",
+                    "enum": ["lightweight", "standard", "high", "critical", "manual"],
+                    "description": "SENAR Rule 5 verification tier (default standard).",
+                },
             },
             "required": ["kind", "slug"],
         },

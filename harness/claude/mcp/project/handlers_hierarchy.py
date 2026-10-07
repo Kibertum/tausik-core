@@ -63,13 +63,20 @@ def _done_with_optional_handle(svc: Any, args: dict, kind: str) -> str:
 def _handle_verify_hierarchy(svc: Any, args: dict) -> str:
     from verify_hierarchy import hierarchy_summary, run_hierarchy_verify
 
-    return hierarchy_summary(run_hierarchy_verify(svc, args["slug"], args["kind"]))
+    # `standard` matches the single-task `tausik_verify` default; preparation
+    # is paid inside the shared run path, so this transport cannot diverge
+    # from the CLI on whether it ran.
+    out = run_hierarchy_verify(
+        svc, args["slug"], args["kind"], scope=args.get("scope") or "standard"
+    )
+    return hierarchy_summary(out)
 
 
 def _handle_verify_cohort(svc: Any, args: dict) -> str:
     from verify_cohort import cohort_summary, run_cohort_verify
 
-    return cohort_summary(run_cohort_verify(svc, args["tasks"]))
+    out = run_cohort_verify(svc, args["tasks"], scope=args.get("scope") or "standard")
+    return cohort_summary(out)
 
 
 HIERARCHY_HANDLERS = {

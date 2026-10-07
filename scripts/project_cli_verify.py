@@ -50,46 +50,30 @@ def cmd_verify(svc: Any, args: Any) -> None:
         if getattr(args, kind, None):
             hierarchy = (kind, getattr(args, kind))
     if hierarchy or cohort_slugs:
-        # The pooled lane pays the SAME fixed preparation as the single-task
-        # lane: ruff_format and bootstrap_drift go red for reasons known in
-        # advance, and a pooled run that skips preparation just inherits two
-        # avoidable reds (observed live: run #3587/#3588).
-        from project_root import root_from_service
-        from verify_prepare import PreparationFailed, run as run_preparation
-
-        def _union_of_members(slugs):
-            import json as _json
-
-            files: set[str] = set()
-            for s in slugs:
-                row = svc.be._q1("SELECT relevant_files FROM tasks WHERE slug=?", (s,))
-                if row and row["relevant_files"]:
-                    try:
-                        files.update(_json.loads(row["relevant_files"]))
-                    except (TypeError, ValueError):
-                        pass
-            return sorted(files)
-
-        members = cohort_slugs or []
-        if hierarchy:
-            from verify_hierarchy import resolve_descendants
-
-            members = resolve_descendants(svc.be, hierarchy[1], hierarchy[0])
-        root = root_from_service(svc)
-        if root and members:
-            try:
-                for line in run_preparation(root, _union_of_members(members)):
-                    print(line)
-            except PreparationFailed as exc:
-                print(str(exc))
-                raise SystemExit(2) from exc
+        if task_slug:
+            # Two verification intents named, one silently chosen — the exact
+            # shape `task done` refuses for --verify/--verify-handle. The
+            # pooled lane and --task are different lanes; say so instead of
+            # letting --task vanish.
+            print(
+                "verify: --task cannot be combined with --tasks/--story/--epic — "
+                "the pooled lane verifies every member's scope in one pass; "
+                "drop --task or drop the pooled flag."
+            )
+            raise SystemExit(2)
+        # Preparation is paid INSIDE run_cohort_verify/run_hierarchy_verify —
+        # one place, so the CLI and the MCP handlers cannot disagree about
+        # whether it ran (live runs #3587/#3588 went red on exactly that
+        # divergence). --no-prepare is honored for the pooled lane like the
+        # single-task one.
+        pooled_prepare = not getattr(args, "no_prepare", False)
 
     if hierarchy:
         kind, parent = hierarchy
         from verify_hierarchy import hierarchy_summary, run_hierarchy_verify
 
         try:
-            out = run_hierarchy_verify(svc, parent, kind, scope=scope)
+            out = run_hierarchy_verify(svc, parent, kind, scope=scope, prepare=pooled_prepare)
         except Exception as exc:
             print(f"Hierarchy verify error: {exc}")
             raise SystemExit(2) from exc
@@ -104,7 +88,7 @@ def cmd_verify(svc: Any, args: Any) -> None:
         from verify_cohort import cohort_summary, run_cohort_verify
 
         try:
-            out = run_cohort_verify(svc, cohort_slugs, scope=scope)
+            out = run_cohort_verify(svc, cohort_slugs, scope=scope, prepare=pooled_prepare)
         except Exception as exc:
             print(f"Cohort verify error: {exc}")
             raise SystemExit(2) from exc

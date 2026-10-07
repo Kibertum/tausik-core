@@ -137,9 +137,6 @@ def invalidation_reason(prior: dict[str, Any], current: dict[str, Any]) -> str |
         return "gate-signature-drift"
     if any(p in " ".join(current["union_scope"]) for p in SECURITY_SENSITIVE):
         return "security-sensitive-scope"
-    for slug, fp in current["task_fingerprints"].items():
-        if fp == "missing":
-            return f"missing-evidence:{slug}"
     if prior["repository_state"]["head"] == "unavailable":
         return "uncertain-dependency-mapping"
     return None
@@ -210,23 +207,61 @@ def _set_state(be: Any, cohort_pk: int, state: str) -> None:
     be._conn.commit()
 
 
+def pooled_handle_lines(
+    report: dict[str, Any] | None, parent: str | None = None, kind: str | None = None
+) -> list[str]:
+    """The pooled handle, surfaced — printing it IS the feature (SEP-2567).
+
+    A handle minted into the database and never shown is hidden server state;
+    `story/epic done --verify-handle` consumes exactly this identifier, so the
+    shared summary must hand it to whoever has to decide on it. With a parent
+    the redemption command names it; an ad-hoc `verify --tasks` cohort names
+    the mechanism and lets the operator supply the parent.
+    """
+    report = report or {}
+    handle = report.get("verify_handle")
+    if not handle:
+        return [
+            "Verify handle: none — this pooled run earned no presentable "
+            "receipt; members close per task (`verify --task`), not as a cohort."
+        ]
+    if parent and kind:
+        verb, tool, target = f"{kind} done", f"tausik_{kind}_done", parent
+    else:
+        verb, tool, target = (
+            "story done|epic done",
+            "tausik_story_done|tausik_epic_done",
+            "<parent-slug>",
+        )
+    return [
+        f"Verify handle: {handle}",
+        f"  valid until {report.get('handle_expires_at')} (single use). Present it:",
+        f"  .tausik/tausik {verb} {target} --verify-handle {handle}",
+        f"  or pass verify_handle={handle} to {tool}.",
+    ]
+
+
 def cohort_summary(out: dict[str, Any]) -> str:
     """The one rendering of a pooled-run outcome — CLI and MCP both call this,
     so the two transports cannot disagree (test_no_new_second_implementation)."""
     if out.get("refused"):
         return str(out["refused"])
-    return (
+    lines = [
         f"Cohort {'green' if out['passed'] else 'RED'}: "
         f"identity {out['identity'][:16]}, "
         f"members {', '.join(out['members'])}, "
         f"union scope {len(out['union_scope'])} file(s) run ONCE."
-    )
+    ]
+    lines.extend(out.get("prepared") or [])
+    lines.extend(pooled_handle_lines(out.get("report")))
+    return "\n".join(lines)
 
 
 def run_cohort_verify(
     svc: Any,
     slugs: list[str],
     scope: str = "manual",
+    prepare: bool = True,
     _runner=None,
 ) -> dict[str, Any]:
     """One gate pass over the union scope for an explicit task pool.
@@ -234,6 +269,14 @@ def run_cohort_verify(
     `_runner` is the delegation seam: production passes nothing and the
     service's own `run_verify_for_task` is used (with every cache guard);
     tests inject a recorder so the driver logic runs without gates.
+
+    `prepare` runs the SAME fixed preparation the single-task CLI lane pays
+    (`ruff format` over the scope, bootstrap redeploy) — here rather than in
+    any one transport, so CLI and MCP cannot disagree about whether it ran
+    (live runs #3587/#3588 went red exactly because a pooled lane skipped it).
+    It runs only after the free refusals have had their say: a not-review-ready
+    or security-sensitive cohort is a DB read away, and must not pay a
+    tree-writing preparation to hear it.
     """
     members = sorted(set(slugs))
     if len(members) < _MIN_MEMBERS:
@@ -245,7 +288,36 @@ def run_cohort_verify(
     be = svc.be
     from project_root import root_from_service
 
-    inputs = collect_identity_inputs(be, members, gate_signature(be), root_from_service(svc))
+    root = root_from_service(svc)
+    union = _union_scope(be, members)
+    if not union:
+        # Before open_cohort: an unscoped membership must not leave a permanent
+        # 'open' row behind as the residue of its refusal.
+        return {
+            "refused": "unscoped cohort: no member declares relevant_files; "
+            "a close cohort cannot form (contract §1.3)"
+        }
+    if any(p in " ".join(union) for p in SECURITY_SENSITIVE):
+        # Contract §4: security-sensitive scope is NEVER pooled silently — on
+        # a fresh cohort exactly as much as on a drifted one. The refusal names
+        # the ordinary lane, which is what the single-task path exists for.
+        return {
+            "refused": "security-sensitive-scope: the union touches hooks/auth/"
+            "billing/payment paths — verify per task (`verify --task`), pooling "
+            "across that boundary needs explicit consent (contract §4)"
+        }
+
+    prepared: list[str] = []
+    if prepare and root:
+        from verify_prepare import PreparationFailed
+        from verify_prepare import run as run_preparation
+
+        try:
+            prepared = run_preparation(root, union)
+        except PreparationFailed as exc:
+            return {"refused": f"preparation failed — nothing was judged: {exc}"}
+
+    inputs = collect_identity_inputs(be, members, gate_signature(be), root)
     identity = canonical_identity(inputs)
 
     # Invalidation is a question about the PREDECESSOR, not about this
@@ -274,13 +346,6 @@ def run_cohort_verify(
         }
 
     cohort_pk = open_cohort(be, inputs, identity)
-
-    union = inputs["union_scope"]
-    if not union:
-        return {
-            "refused": "unscoped cohort: no member declares relevant_files; "
-            "a close cohort cannot form (contract §1.3)"
-        }
 
     runner = _runner or svc.run_verify_for_task
     report = runner(members[0], relevant_files=union, scope=scope, trigger="verify")
@@ -313,6 +378,7 @@ def run_cohort_verify(
         "identity": identity,
         "members": members,
         "union_scope": union,
+        "prepared": prepared,
         "passed": bool(report.get("passed")),
         "state": state,
         "report": report,
