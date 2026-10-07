@@ -71,14 +71,17 @@ epic add <slug> <title> [--description TEXT]
 epic update <slug> [--title T] [--description TEXT]   # the group's intent can be edited
 epic list [--stale-over N]     # stale = tasks created since the description was last edited; a report, not a gate
 epic list
-epic done <slug>
+epic done <slug> [--verify-handle H]   # closes the epic; with H — redeems the pooled
+                                        # receipt from `verify --epic` atomically (every
+                                        # member closes or none does; single-use, TTL)
 epic delete <slug>             # CASCADE: deletes all stories + tasks
 
 story add <epic_slug> <slug> <title> [--description TEXT]
 story update <slug> [--title T] [--description TEXT]
 story list [--epic E] [--stale-over N]
 story list [--epic EPIC_SLUG]
-story done <slug>
+story done <slug> [--verify-handle H]   # closes the story; with H — redeems the pooled
+                                        # receipt from `verify --story` atomically
 story delete <slug>            # CASCADE: deletes all tasks
 ```
 

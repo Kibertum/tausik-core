@@ -20,7 +20,21 @@ verify [--task SLUG] [--relevant-files PATH ...]
                                 # Without --task: gates with empty file scope (full suite for pytest).
                                 # Cache hit (same files_hash, < 10 min) skips the run.
                                 # Security-sensitive files (auth/payment/hooks) bypass the cache.
+verify --tasks SLUG [SLUG ...]  # Pooled: ONE gate pass over the union of the
+                                # members' relevant_files (>=2 members), one
+                                # signed receipt for the whole cohort (1.11.3).
+verify --story SLUG             # Resolve the story's non-done tasks as one
+verify --epic SLUG              #   cohort and pool them; refuses pools of <2
+                                #   and non-review-ready members. The receipt
+                                #   redeems via story/epic done --verify-handle.
 ```
+
+Pooled reuse is refused by a NAMED invalidator (membership drift, task edits,
+member-status drift, gate-signature drift, security-sensitive scope, missing
+evidence, uncertain dependency mapping) — and the refusal WIDENS: the full
+lane executes, the prior cohort row is marked `invalidated`, and the output
+names the refused reuse. Contract:
+[`verification-cohort-contract.md`](verification-cohort-contract.md).
 
 **`--relevant-files`.** Declares the task's scope AND verifies it in one step.
 Requires `--task`: the scope is a property of a task, and there is nowhere else

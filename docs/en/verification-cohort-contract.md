@@ -10,13 +10,19 @@ SPEC `verification-cohort-contract` · status draft · task
 
 ## Why (measured, not felt)
 
-`scripts/verify_baseline.py` on this repository (2026-10-06, 3562 recorded
-runs over 1409 tasks): **2153 invocations (60.4%) are re-runs of a task that
-already had a run**; 1076 tasks were verified twice or more; 248 tasks went
-red at least once. Cohorts of ≥5 tasks (a release story closing in a 2h
-window) paid **2049 invocations / ~12.5 hours**; the dominant fallback reason
-there is `under-declared` (1175 runs). The cost is not the suite — it is
-re-paying the same lane per task instead of once per cohort.
+`scripts/verify_baseline.py` on this repository (recounted 2026-10-07 on the
+fixed counter — 3605 recorded task-linked runs over 1418 tasks): **2187
+invocations (60.7%) are re-runs of a task that already had a run**; 1085 tasks
+were verified twice or more; 255 tasks went red at least once. Cohorts of ≥5
+tasks (a release story closing in a 2h window) paid **1147 invocations /
+~8.4 hours over 58 cohorts (466 task seats)**; the dominant fallback reason
+there is `under-declared` (658 runs). The first published cut (2049 / ~12.5 h
+/ 1175) came from the counter's two defects — a slug re-entering a story
+after a gap opened a duplicate seat, and every member's runs were attributed
+to every window containing it — and overstated the very waste it measured.
+Sizes 3-4 (previously dropped by having no bucket) paid 625 invocations
+across 71 cohorts separately. The cost is not the suite — it is re-paying
+the same lane per task instead of once per cohort.
 
 ## 1. Cohort identity (canonical)
 
@@ -75,8 +81,15 @@ previous FAILURES  ∪  tests affected by files changed since that run
 ```
 
 A prior green result is reusable **only when its dependency inputs are
-unchanged** (content hashes of its scope files + the gate signature + the
-test-selection evidence). Reuse is per-evidence, never per-vibes.
+unchanged** (content hashes of its scope files + the gate signature).
+Reuse is per-evidence, never per-vibes.
+
+Honest state of the fine-grained set: `required_after_red` is a pure
+function proven by unit tests, but the live pooled path does NOT select it —
+after a red pooled run, the next pooled run re-executes the full lane,
+exactly as a widening does. Wiring the incremental selection is follow-up
+work; this contract claims the set's definition and its proof, not its
+wiring.
 
 ## 4. Invalidators (the negative contract)
 
@@ -106,9 +119,9 @@ of old evidence, never the execution of new verification.
 
 ## 5. Schema/API migration and backward compatibility
 
-- `verification_runs` gains nullable cohort columns (`cohort_id`,
-  `cohort_size`) — existing rows read as cohorts of one, and every
-  historical behavior is preserved;
+- `verification_runs` gains a nullable `cohort_identity` column (v75) —
+  existing rows read as cohorts of one, and every historical behavior is
+  preserved;
 - single-task `verify --task` keeps its exact semantics and its signed
   handle (`<run_id>.<nonce>`, single-use, TTL) — a pooled receipt uses the
   same signing key and the same redemption rules, extended to N members;
@@ -133,10 +146,10 @@ once the old way, once pooled — on the same evening, same tree class:
 
 - **Baseline (per-task scoped runs, recorded)**: 34 executions,
   1,492.1 s total — an average of 4.9 verify executions per task; this is
-  the 60.4%-duplicate economy the baseline script measures, lived.
+  the 60.7%-duplicate economy the baseline script measures, lived.
 - **Pooled (`verify --tasks <all seven>`)**: ONE execution over the 44-file
-  union scope, 314.6 s wall including fixed preparation. **21.4× fewer
-  executions, 4.7× less wall time (~19.6 min returned).**
+  union scope, 314.6 s wall including fixed preparation. **The saving:
+  34 → 1 executions (34×), 1,492.1 s → 314.6 s (4.7×), ~19.6 min returned.**
 - **The red path ran live too**: pooled runs #3587/#3588 went red on the two
   preparation gates (`ruff_format`, `bootstrap_drift`) — the pooled lane had
   skipped preparation; after fixing, run #3589 went green. Two contract

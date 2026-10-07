@@ -6,7 +6,7 @@
 
 **149 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 152 count - total with it is 156 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 149 count - total with it is 156 tools.
 
 Two MCP servers live in this project:
 
@@ -108,12 +108,12 @@ Session time is gap-based **active time** (paused after 10-min idle gap), not wa
 | `tausik_epic_add` | Create epic | `slug`, `title` |
 | `tausik_epic_list` | List epics; `(stale: N)` — tasks created since the description was last edited (a report, not a gate) | — |
 | `tausik_epic_update` | Change an epic's title and/or description — the group's intent; at least one field | `slug` |
-| `tausik_epic_done` | Complete epic | `slug` |
+| `tausik_epic_done` | Complete epic; accepts `verify_handle` — the pooled receipt handle from `tausik_verify_hierarchy`, redeemed atomically (every member closes or none does) | `slug` |
 | `tausik_epic_delete` | Delete (cascade: stories + tasks) | `slug` |
 | `tausik_story_add` | Create story in epic | `epic_slug`, `slug`, `title` |
 | `tausik_story_list` | List stories; `(stale: N)` as for epics | — |
 | `tausik_story_update` | Change a story's title and/or description; at least one field | `slug` |
-| `tausik_story_done` | Complete story | `slug` |
+| `tausik_story_done` | Complete story; accepts `verify_handle` — the pooled receipt handle from `tausik_verify_hierarchy`, redeemed atomically (every member closes or none does) | `slug` |
 | `tausik_story_delete` | Delete (cascade: tasks) | `slug` |
 | `tausik_roadmap` | Tree: epic → story → task | — |
 
@@ -254,6 +254,8 @@ Relation types: `supersedes`, `caused_by`, `relates_to`, `contradicts`.
 | `tausik_gates_enable` | Enable gate | `name` |
 | `tausik_gates_disable` | Disable gate | `name` |
 | `tausik_verify` | v1.5 Verify-First: run heavy gates (pytest, tsc, …) and cache green in `verification_runs`. After that `tausik_task_done` reads the cache and closes instantly. | `task_slug` |
+| `tausik_verify_cohort` | Pooled verification for an explicit cohort (≥2 slugs): ONE gate pass over the union of the members' `relevant_files`, a persisted cohort identity, reuse refused by a NAMED invalidator. Mirrors CLI `verify --tasks`. | `tasks` |
+| `tausik_verify_hierarchy` | Resolve a story's/epic's non-done tasks as one cohort and run a single pooled gate pass; refuses pools of <2 and non-review-ready members. Mirrors CLI `verify --story/--epic`. | `kind`, `slug` |
 
 Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `class_surface`, `tdd_order`. Stack-scoped gates auto-enable based on detected stack; universal gates (`filesize`, `class_surface`, `tdd_order`) apply to all stacks. `class_surface` is repo-wide rather than scoped: it caps a class's composed public surface after inheritance, which a per-file line cap cannot see.
 
@@ -356,9 +358,10 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 149 tools ≈ 62 KB of tool
-definitions (~15.9k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
-this and ratchets it). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
+**Measured cost.** The full authored surface is 149 tools ≈ 59.6 KB of tool
+definitions (59,602 bytes, ~14.9k estimated tokens at bytes/4; the ratchet in
+`tausik/gates.json` (`mcp_surface`) pins this and refuses growth without an
+argued raise). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet
 test keeps every TAUSIK description under that limit so none is silently cut, and
 asserts names stay unique and searchable so name-based dispatch still resolves.

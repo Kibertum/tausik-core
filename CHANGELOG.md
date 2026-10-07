@@ -85,9 +85,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 - **34 → 1 executions; 1,492.1 s → 314.6 s.** The seven Track A/C tasks of
   this release were verified per-task (34 recorded scoped runs, 4.9 per task
-  on average — the 60.4%-duplicate economy lived) and then pooled
+  on average — the 60.7%-duplicate economy lived) and then pooled
   (`verify --tasks`): ONE gate pass over the 44-file union scope,
-  preparation included. 21.4× fewer executions, 4.7× less wall time.
+  preparation included. 34× fewer executions (34 → 1), 4.7× less wall time
+  (1,492.1 s → 314.6 s).
 - **The red path ran live and corrected the contract twice**: pooled runs
   #3587/#3588 went red on the preparation gates — the pooled lane now pays
   the same fixed preparation as the single-task lane; and only GREEN
@@ -145,25 +146,33 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added — the pooled-verification contract and its measured case (Track A)
 
-- **The repeated-verify cost is 60.4% of all verify work.**
+- **The repeated-verify cost is 60.7% of all verify work.**
   `scripts/verify_baseline.py` (new, reproducible, read-only) on this
-  repository: 3562 recorded runs over 1409 tasks, of which **2153 are
-  re-runs of a task that already had one**; 1076 tasks verified twice or
-  more; 248 went red at least once; the heaviest task ran 14 times without a
+  repository, recounted 2026-10-07 after two counter fixes (a slug
+  re-entering a story after a gap opened a duplicate seat; every member's
+  runs were attributed to every window containing it): 3605 recorded
+  task-linked runs over 1418 tasks, of which **2187 are
+  re-runs of a task that already had one**; 1085 tasks verified twice or
+  more; 255 went red at least once; the heaviest task ran 14 times without a
   single red. Release-shaped cohorts (≥5 tasks closing in one story within a
-  2h window) paid 2049 invocations / **~12.5 hours**, dominated by
-  `under-declared` fallbacks (1175 runs).
+  2h window) paid 1147 invocations / **~8.4 hours over 58 cohorts (466 task
+  seats)**, dominated by `under-declared` fallbacks (658 runs); sizes 3-4,
+  invisible to the first counter, paid 625 invocations across 71 cohorts
+  separately.
 - **SPEC `verification-cohort-contract` (ARCH, 1.0-draft)** —
   `docs/en/verification-cohort-contract.md`. Canonical cohort identity from
   sorted membership + task fingerprints + union scope + content hashes +
-  gate signature + selected tests + repository state; lifecycle
+  gate signature + repository state (selected tests were drafted as a
+  seventh input and dropped 1.11.3: selection evidence exists only after a
+  run, identity is minted before it); lifecycle
   open → review-ready → pooled verify → atomic close; a red run's next set
   is previous failures ∪ tests affected by files changed since; six named
   invalidators (membership drift, task edits, config/gate drift,
   security-sensitive scope, uncertain dependency mapping, missing evidence)
   each refuse reuse and widen to the full lane — a refusal names which one
-  fired. Backward compatible: `verification_runs` gains nullable cohort
-  columns, single-task verify and signed handles keep exact semantics.
+  fired. Backward compatible: `verification_runs` gains a nullable
+  `cohort_identity` column, single-task verify and signed handles keep exact
+  semantics.
 
 ### Added — the memory tail can now select by significance, not just recency
 
