@@ -90,6 +90,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Purge exactly the .pyc files that name a directory other than their own "
         "(stale after a tree move; the interpreter recreates them). Reports otherwise.",
     )
+    doctor_p.add_argument(
+        "--harness-audit",
+        action="store_true",
+        help="Scan the INSTALLED state instead of the health check: deployed profiles, "
+        "MCP configs and memory entries re-read for invisible Unicode, secrets, hook "
+        "drift and agent-directed directives. WARN verdict only, exit 0.",
+    )
 
     uc_p = sub.add_parser(
         "update-check", help="Ask GitHub (at most daily) whether a newer TAUSIK release exists"

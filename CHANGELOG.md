@@ -9,6 +9,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `doctor --harness-audit`: the installed state gets a reader
+
+- **Signatures and the install-guard protect the INCOMING tree; after
+  install, nothing re-read what is on disk.** `tausik doctor
+  --harness-audit` re-reads the installed state — deployed IDE profiles,
+  MCP configs (root `.mcp.json` and per-profile), memory rows — and every
+  finding is WARN with exit 0 (legitimate memory records carry legitimate
+  imperatives; a gate halting work on its own memory would be switched off
+  wholesale).
+- Four checks, three of them reused, not rewritten: invisible Unicode (the
+  install-guard's own detector, now pointed at installed profile trees),
+  secret patterns (imported from the `secret_scan` hook — no second set),
+  hook drift (the bootstrap-drift comparators), and the one NEW check —
+  memory rows scanned for deception-shaped imperatives addressed to a
+  future agent ("ignore previous instructions", "do not tell the owner",
+  "act without the owner knowing"), because memory is UNREVIEWED context.
+- Deterministic, offline, read-only. Noise exclusions measured on the live
+  tree: `node_modules` and Agent Manager `worktrees` inside profiles are
+  third-party/sibling-project bulk, not installed state. Precision is a
+  contract: a live-tree test fails the suite beyond five findings on a
+  clean project — the threshold at which the check retires.
+
 ### Added — a blocked task now carries its question; `status` leads with it
 
 - **`task block` requires BOTH a question to the owner and a checkable

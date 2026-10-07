@@ -140,6 +140,15 @@ from service_doctor_external import run_optional_checks  # noqa: E402
 
 
 def cmd_doctor(svc: ProjectService, args: Any) -> None:
+    if getattr(args, "harness_audit", False):
+        # A different QUESTION, not a longer doctor: the health check judges the
+        # install's moving parts, the audit re-reads the installed STATE (what an
+        # injection needs to reach). WARN verdict by construction — exit 0.
+        from harness_audit import run_harness_audit_cmd
+
+        run_harness_audit_cmd(svc)
+        return
+
     failures = 0
     warnings = 0
     project_dir = os.getcwd()
