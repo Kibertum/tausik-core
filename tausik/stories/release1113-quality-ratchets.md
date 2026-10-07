@@ -1,7 +1,7 @@
 ---
 slug: release1113-quality-ratchets
 title: "Quality ratchets — gate the regression classes, not goodwill"
-status: open
+status: active
 epic: release-1-11-3
 ---
 

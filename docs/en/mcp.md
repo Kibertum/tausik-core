@@ -363,6 +363,27 @@ only tool names load eagerly and each description is truncated to 2 KB — a rat
 test keeps every TAUSIK description under that limit so none is silently cut, and
 asserts names stay unique and searchable so name-based dispatch still resolves.
 
+## Surface parity ratchet
+
+The MCP surface and the CLI are two renders of one service, and three times a
+handler lost fields its CLI twin still showed (verify printing gate *names*,
+`update_claudemd` erasing the memory tail, `task_show` hiding `scope_paths`
+and `rollback_plan`) — each caught by eyes, not by a run. The pair map lives
+once, in `scripts/mcp_cli_parity.py`: every MCP tool is declared with its CLI
+twin, and the nine tools without one carry a written reason and a count.
+`tests/test_mcp_cli_surface_parity.py` drives both surfaces of the
+fifteen-command read spine on a planted project and compares normalised field
+labels — a label the CLI prints and the MCP tool drops is a loss; the MCP side
+being richer is fine. Losses that exist on purpose are ledger entries with a
+reason and a number, and the ledger may only shrink: a declared loss that has
+healed fails the test until its entry is deleted.
+
+On its first live run (2026-10-07) the ratchet went red exactly as designed:
+`tausik_gates_status` drops the per-gate `cmd` column and the whole meta-gate
+section (Verify-First Contract, Continuous CHANGELOG, QG-0 Readiness, RENAR
+drift-1/7) that `gates status` prints. Six ledger entries record that debt;
+the handler fix belongs to `mcp-gates-status-skryvaet-kolonku-cmd-i-sektsiyu`.
+
 ## Launching the Tausik MCP Server
 
 The bootstrap step generates IDE-specific MCP launchers under `harness/<ide>/mcp/`. Claude Code reads `.claude/settings.json` (auto-generated). To regenerate IDE assets and MCP wiring, run `python bootstrap/bootstrap.py` from your TAUSIK checkout (or `python .tausik-lib/bootstrap/bootstrap.py` when using the submodule layout). Use **`python bootstrap/bootstrap.py --refresh`** only to rewrite `.tausik/config.json` (e.g. after setting **`TAUSIK_MODEL_PROFILE`**) without copying skills/scripts — it does **not** regenerate `.mcp.json` files.

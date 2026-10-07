@@ -55,8 +55,12 @@ def _no_live_transcript(monkeypatch):
         (["--author-model", "claude-opus-5-5"], "--reviewer-model"),
         (["--reviewer-model", "claude-fable-5-1"], "--author-model"),
         (["--author-model", "claude-opus-5-5", "--reviewer-model", "gpt-x"], "not a recognised"),
+        (
+            ["--author-model", "glm-5.2", "--reviewer-model", "glm-5.2"],
+            "same family",
+        ),
     ],
-    ids=["same-family", "no-reviewer", "unknown-author", "unknown-reviewer"],
+    ids=["same-family", "no-reviewer", "unknown-author", "unknown-reviewer", "glm-same-model"],
 )
 def test_an_l3_without_shown_separation_is_refused_and_not_written(extra, says, capsys):
     svc = _Svc()
@@ -66,6 +70,27 @@ def test_an_l3_without_shown_separation_is_refused_and_not_written(extra, says, 
     assert svc.be.rows == []
     err = capsys.readouterr().err
     assert says in err and "SENAR Rule 4" in err
+
+
+@pytest.mark.parametrize(
+    "model_id, family",
+    [
+        ("glm-5.2", "glm:glm-5.2"),
+        ("zai-coding-plan/glm-5.2", "glm:glm-5.2"),
+        ("glm-5.2 [200k]", "glm:glm-5.2"),
+        ("glm-4.5-air", "glm:haiku"),
+        ("glm-x", None),
+    ],
+    ids=["bare", "provider-prefixed", "window-suffixed", "registered-starter", "invented"],
+)
+def test_a_released_glm_generation_is_recognized_in_every_host_spelling(model_id, family):
+    assert rs.review_model_family(model_id) == family
+
+
+def test_a_glm_reviewer_on_an_openai_author_is_recorded_as_separated():
+    svc = _Svc()
+    _record(svc, "--type", "L3", "--author-model", "gpt-6-astra", "--reviewer-model", "glm-5.2")
+    assert svc.be.rows[0]["reviewer_model"] == "glm-5.2"
 
 
 def test_an_l3_on_a_different_family_is_recorded_with_both_models():

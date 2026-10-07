@@ -105,18 +105,26 @@ class TestTrustTiersStayPerMachine:
 
 class TestHandlerThreadsSvcDir:
     def test_handle_gates_status_renders_svc_project(self, tmp_path):
-        # AC3: the handler must resolve the project from svc, not cwd.
+        # AC3: the handler must resolve the project from svc, not cwd. The
+        # shared render (gates_status_lines, same formula as the CLI) surfaces
+        # the project's detected stacks and gate toggles; the ambient no-svc
+        # fallback keeps the flat legacy render and never claims a detection.
         mcp_dir = os.path.join(
             os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
         )
         sys.path.insert(0, mcp_dir)
         from handlers_verification import _handle_gates_status
 
+        # terraform, not python: pytest belongs to several stack groups and the
+        # render shows a gate under the first one alphabetically, so a python
+        # detection can leave the python header empty; terraform-validate is
+        # the only member of its group and always carries the header.
         td = _write_project_config(
-            tmp_path, {"bootstrap": {"stacks": [MARKER]}, "gates": {"mypy": {"enabled": True}}}
+            tmp_path,
+            {"bootstrap": {"stacks": ["terraform"]}, "gates": {"mypy": {"enabled": True}}},
         )
         out = _handle_gates_status(_svc_for(td))
-        assert f"Detected stacks: {MARKER}" in out
+        assert "[terraform] (detected)" in out
         assert "[ON] mypy" in out
-        # No svc → ambient fallback still works and does not carry the marker.
-        assert MARKER not in _handle_gates_status(None)
+        # No svc → ambient fallback: flat legacy render, no detection claim.
+        assert "(detected)" not in _handle_gates_status(None)

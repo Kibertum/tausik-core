@@ -1,7 +1,7 @@
 ---
 slug: four-ide-registries-collapse-into-one
 title: "Четыре несинхронизированных реестра хостов сводятся в один с гейт-тестом"
-status: planning
+status: done
 epic: release-1-11-3
 story: release1113-quality-ratchets
 complexity: medium
@@ -18,9 +18,9 @@ scope_tools: []
 assurance_profiles: []
 assurance_impact: null
 depends_on: []
-completed_at: null
-resolution: null
-resolution_reason: null
+completed_at: "2026-10-07T08:19:12Z"
+resolution: obsolete
+resolution_reason: "Duplicate of ide-registries-collapse, closed in session #292 with commit e4279117 (pushed, in main and v1-11-2): IDE_DIRS derives from IDE_REGISTRY, VALID_IDES derives from SCAFFOLD_IDES, ide_single_source gate test with derivation+negative cases. Re-doing it would re-implement a landed ratchet. Found by cross-checking Track B against session #292 handoff before starting work."
 tracker_refs:
   - "github#154"
 started_model_id: null

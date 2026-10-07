@@ -79,15 +79,27 @@ def _handle_gates_status(svc: Any = None) -> str:
     root), a wrong answer the moment `svc` carries project identity (epic
     v2-global-mcp). `svc is None` keeps the ambient-project fallback so nothing
     that calls this without a service changes.
+
+    mcp-gates-status-skryvaet-kolonku-cmd-i-sektsiyu: with a service present
+    the render is gates_status_lines — the SAME formula the CLI prints — so
+    the per-gate cmd column and the QG-0 section reach the agent too. The
+    flat one-line render below is only the no-service fallback.
     """
+    if svc is not None:
+        try:
+            data = svc.gates_status()
+        except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server
+            return f"Error loading gates: {e}"
+        from project_cli_gates import gates_status_lines
+
+        return "\n".join(gates_status_lines(data, verbose=True))
     try:
         from project_config import load_config, load_gates
 
-        td = svc.tausik_dir() if svc is not None and hasattr(svc, "tausik_dir") else None
-        gates = load_gates(tausik_dir=td)
-        cfg = load_config(td)
+        gates = load_gates(tausik_dir=None)
+        cfg = load_config(None)
         stacks = cfg.get("bootstrap", {}).get("stacks", [])
-    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server on a tool call
+    except Exception as e:  # noqa: BLE001 — best-effort: MCP handler must not crash the server
         return f"Error loading gates: {e}"
     lines = []
     for name, gate in sorted(gates.items()):
