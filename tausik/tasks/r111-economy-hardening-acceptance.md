@@ -1,7 +1,7 @@
 ---
 slug: r111-economy-hardening-acceptance
 title: "Accept 1.11 economy hardening on natural work"
-status: blocked
+status: done
 epic: release-1-11-3
 story: release1113-pooled-verification
 complexity: medium
@@ -14,7 +14,6 @@ scope: "Evidence-only release acceptance over frozen prefix, replay, natural Cod
 scope_exclude: "No runtime changes, synthetic or paid benchmark, reconstructed baseline, cross-task causal claim, commit, push or release."
 relevant_files:
   - "docs/ru/research/release111-economy-acceptance-final.md"
-  - "changelog.d/economy-hardening-acceptance-111.md"
 scope_paths:
   - "docs/ru/research/release111-economy-acceptance-final.md"
   - "changelog.d/economy-hardening-acceptance-111.md"
@@ -27,7 +26,7 @@ depends_on:
   - r111-compound-progress-close
   - r111-prefix-dedup-lazy-schema
   - r111-terra-first-escalation
-completed_at: null
+completed_at: "2026-10-07T19:50:09Z"
 resolution: null
 resolution_reason: null
 tracker_refs: []
@@ -72,3 +71,4 @@ Remove only the acceptance report and changelog fragment; runtime is unchanged.
 - 2026-10-02T12:06:59Z [implementation] — Release-readiness follow-up: moved the dirty 1.11 worktree safely from v1-10 to new local branch v1-11 without commit/push. Documentation integrity audit passed 729 tests with 12 skipped. Core docs and bilingual changelog cover 1.11 economy features; generated constants intentionally remain 1.10.1 until release cut. Separate tausik/site repository remains unchanged at e7da518 (vendored 1.5.8, manual navigation) and its blocked task still requires a release tag plus owner-authorized GitLab deployment. No additional core change was accepted from this audit; remaining high-value evidence is natural-task rounds/Luna qualification and verification replay, which stay unmet.
 - 2026-10-04T10:04:25Z [implementation] — Natural post-recovery acceptance refreshed on 2026-10-04 without paid or synthetic execution. Exact accepted windows: capture-natural-project-benchmark-cohorts 89 responses / 6 attempts / 5 retries; add-cli-version-flag-and-block-session-start-on-a 124 / 5 / 4; add-memory-only-governance-profile 82 / 2 / 1. Median response rounds = 89, so AC-3 remains explicitly unmet against the <=40 threshold. compare-project-version-model-economics has no exact accepted-window in the current report and remains unknown, not zero. Account quota is separately reported at 86% used; subscription credits remain separate and no API-equivalent USD claim is made here. Updated the bounded HOLD report; docs cross-claim tests passed.
 - 2026-10-04T10:21:37Z [implementation] — Release acceptance evidence refreshed without weakening AC. AC-1 PASS: frozen same-surface prefix 63,333→42,519 bytes (-32.9%). AC-2 FAIL: verification replay still omits the 80-pass preflight result; resolve in r111-verification-cycle-replay by preserving both results or explicit refusal without a savings claim. AC-3 FAIL: natural windows are 89 responses / 6 attempts / 5 retries, 124 / 5 / 4, and 82 / 2 / 1; median 89 > <=40. Observed model is gpt-5.6-sol medium/standard for all three; exact TAUSIK 1.11.0 is present only for the 124/82 windows, while the 89 window remains unknown/legacy. compare-project-version-model-economics has no exact accepted-window and remains unknown, not zero. AC-4 PASS on recorded lanes: default 12,791 passed / 34 skipped / 143 deselected; slow 143 passed / 12,826 deselected. AC-5 PASS: no paid/synthetic run, prompt replay, reconstructed baseline, mandatory version×model matrix, cross-task causal claim, or unsupported savings claim. Domain: dated report now also records API-equivalent USD unknown because no dated rate card is configured, subscription quota separately at 86% used, DER 8.8% versus unchanged <=5.0%, and 99 closures since audit. Negative: unknown identity/cost/window never becomes zero; subscription quota is not API USD. Focused docs tests: 326 passed, 1 skipped. audit_pytest_dedupe.py: 0 COPY, 282 PARALLEL, 7829/7829 able to fail. tausik_verify #3442 PASS for the declared docs scope, but ruff/pytest skipped and the receipt is narrower than the intentionally dirty 272-file worktree; it is not used for QG-2. Verdict remains HOLD.
+- 2026-10-07T19:49:53Z [implementation] — AC-1: ✓ stdio-проба 2026-10-07 (методика замороженной записи #4625, свежий процесс, конфиг отсутствует): tools/list 34 190 + AGENTS.md 8 476 + каталог 15 скиллов 1 254 = 43 920 Б против 63 333 = −30,65% ≥ 30%. Артефакт: .tausik/planning/release-111/prefix-probe-20261007.json. AC-2: ✓ resolved-by-refusal задачей r111-verification-cycle-replay (done 2026-10-04, verify #3443): retrieval и progress/close реплеи эквивалентны; verification-цикл — отказ с названной потерей preflight (missing_result_ids=[preflight], claim_reduction=false); savings-клейм на этом цикле не делается. AC-3: ✓ три естественных принятых окна 2026-10-07: медиана 17 (атрибутируемая, доминирующий роллаут окна) / 25 (верхняя граница, все параллельные роллауты дня) ≤ 40 при базе 89; fix-pooled-verify-recovery исключён с причиной (окно ≥8 роллаутов, атрибуции нет). Артефакт: .tausik/planning/release-111/natural-windows-20261007.json. AC-4: ✓ релизные лейны со знаменателями: default 12 791 passed / 34 skipped / 143 deselected; slow 143 passed / 12 826 deselected (запись 2026-10-04); свежий релизный лейн 1.11.3 выполнит задача cut-release с полными знаменателями. AC-5 NEGATIVE: ✓ ни одного paid/synthetic прогона, реконструкции базы или каузального клейма: все числа из замороженного журнала, живых Codex rollouts и БД TAUSIK; unknown (модель в session_meta) остаётся unknown. Domain: отчёт docs/ru/research/release111-economy-acceptance-final.md — секция «Замеры 2026-10-07» переводит вердикт HOLD в PASS-by-owner-order; экономика verification-цикла не заявляется. Verify: run #3646 PASS, handle 3646.58992240df91fefcc9b9cc5aaf7e8ee0. Unblock: criterion_met — приказ владельца в чате (замеры → закрыть → релиз 1.11.3 по этим числам).
