@@ -94,8 +94,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--harness-audit",
         action="store_true",
         help="Scan the INSTALLED state instead of the health check: deployed profiles, "
-        "MCP configs and memory entries re-read for invisible Unicode, secrets, hook "
-        "drift and agent-directed directives. WARN verdict only, exit 0.",
+        "MCP configs and memory entries re-read for invisible Unicode, secrets, "
+        "hook drift and agent-directed directives. WARN verdict only, exit 0.",
+    )
+    doctor_p.add_argument(
+        "--friction",
+        action="store_true",
+        help="Detect agent friction against the framework (non-zero CLI exits, help-after-failure, "
+        "argument guessing, gate bypasses, framework dead ends) and file REDACTED draft defects "
+        "into .tausik/friction/. WARN verdict only, exit 0; nothing is sent anywhere.",
     )
 
     uc_p = sub.add_parser(

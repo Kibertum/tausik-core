@@ -200,4 +200,21 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    _exit_code = 0
+    _raise_exit: SystemExit | None = None
+    try:
+        main()
+    except SystemExit as _e:  # friction telemetry needs the code the process exits with
+        _exit_code = int(_e.code or 0) if isinstance(_e.code, int) else 1
+        _raise_exit = _e
+    try:
+        # Agent-friction telemetry (best-effort, never breaks the CLI): every
+        # invocation — successes too, because the friction signals are SEQUENCES.
+        from friction_detect import record_invocation_exit
+
+        record_invocation_exit(_exit_code)
+    except Exception:  # noqa: BLE001,S110 — measurement must not break the measured
+        pass
+    if _raise_exit is not None:
+        raise _raise_exit
+    sys.exit(_exit_code)

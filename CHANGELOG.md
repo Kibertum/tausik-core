@@ -9,6 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — `doctor --friction`: agent friction becomes a filed draft, not a swallowed log line
+
+- **Every refusal the framework hands an agent used to die in the session
+  log.** `tausik doctor --friction` detects five measurable signals —
+  non-zero CLI exits, `--help` right after a failed call, argument-guessing
+  runs, supervision degradation (`fail_open_*`), and dead ends naming a
+  framework surface failing — and files REDACTED draft defects into
+  `.tausik/friction/`, one file per collapsed signature with an occurrence
+  counter. Plain `doctor` warns while drafts await review.
+- The CLI now records its own invocations (`.tausik/cli_invocations.jsonl`,
+  bounded by a retention policy): signals are SEQUENCES, and fail-then-green
+  — the normal edit-fix-rerun rhythm — is deliberately not friction.
+- Precision is the contract, not a hope: deliberate `bypass_*` skips are the
+  agent's audited choice (22 entities of accumulated history proved counting
+  them drowns the drafts); dead ends are windowed to 7 days because history
+  already has owners; tests pin every boundary plus a live-tree threshold.
+- NO network code exists in the module and no config flag can add any:
+  sending a draft anywhere is a human act on a specific issue (memory #352),
+  and a test guards the import surface so the guarantee stays mechanical.
+
 ### Added — `doctor --harness-audit`: the installed state gets a reader
 
 - **Signatures and the install-guard protect the INCOMING tree; after
