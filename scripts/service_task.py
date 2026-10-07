@@ -31,6 +31,51 @@ _LIFECYCLE_STATUSES = frozenset({"done", "active", "blocked", "review"})
 
 _MISSING = object()
 
+# The debt marker from migration v77: rows blocked before questions existed.
+# Rendering treats it as DEBT, never as an acceptable answer.
+BLOCK_QUESTION_UNSET = "не задан"
+
+
+def _normalize_for_title_compare(text: str) -> str:
+    """Lowercase, keep word characters only — punctuation and case are noise."""
+    return " ".join("".join(c if c.isalnum() else " " for c in text.lower()).split())
+
+
+def _reject_question_that_restates_title(slug: str, title: str | None, question: str) -> None:
+    """AC-6: a question that merely restates the title is a ritual, not a question.
+
+    Token-level, not substring: a one-word title ('T') is a substring of almost
+    any sentence, and a substring guard would reject every honest question on
+    such tasks. Restatement = the question carries EVERY word of the title and
+    adds at most three of its own — pure rewording. A real question names what
+    the OWNER must decide, and that act adds the missing words.
+    """
+    if not title:
+        return
+    title_tokens = set(_normalize_for_title_compare(title).split())
+    q_tokens = set(_normalize_for_title_compare(question).split())
+    if not q_tokens or not title_tokens:
+        return
+    added = q_tokens - title_tokens
+    if title_tokens <= q_tokens and len(added) <= 3:
+        raise ServiceError(
+            f"task block: the question restates the task title ('{title}'). "
+            "Ask what the OWNER must decide — a question the title does not "
+            "already answer."
+        )
+
+
+def _default_actor() -> str:
+    """WHO unblocked, when the caller did not say: OS user@host, never blank."""
+    import getpass
+    import socket
+
+    try:
+        user = getpass.getuser()
+    except Exception:  # noqa: BLE001 — identity is best-effort, never fatal
+        user = "unknown"
+    return f"{user}@{socket.gethostname()}"
+
 
 from service_validation import load_stacks as _load_stacks  # noqa: E402,F401
 from service_validation import update_enums as _update_enums  # noqa: E402
@@ -242,33 +287,89 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
     # _task_done_report -> moved to service_task_done.TaskDoneReportMixin
     # (filesize-debt-paydown-2). Mixed in via inheritance; same call signature.
 
-    def task_block(self, slug: str, reason: str | None = None) -> str:
+    def task_block(
+        self,
+        slug: str,
+        reason: str | None = None,
+        question: str | None = None,
+        unblock_criteria: str | None = None,
+    ) -> str:
+        """Block WITH a question to the owner and a checkable criterion.
+
+        A block without a question is a task abandoned with a note to self
+        (v77): `question` and `unblock_criteria` are REQUIRED from every
+        caller — CLI flags, MCP args alike. Re-blocking an already blocked
+        task UPDATES the fields instead of refusing: the live corpus carries
+        blocks whose question lived only in journal prose, and this is the
+        migration path for them.
+        """
         task = self._require_task(slug)
         if task["status"] == "done":
             raise ServiceError(f"Cannot block a done task '{slug}'")
+        q = (question or "").strip()
+        uc = (unblock_criteria or "").strip()
+        missing = [f"--{f}" for f, v in (("question", q), ("unblock-when", uc)) if not v]
+        if missing:
+            raise ServiceError(
+                f"task block requires BOTH a question to the owner and an "
+                f"unblock criterion ({', '.join(missing)} missing). A block "
+                "without a question is a task abandoned with a note to self."
+            )
+        _reject_question_that_restates_title(slug, task.get("title"), q)
 
-        updates: dict[str, Any] = {"status": "blocked", "blocked_at": utcnow_iso()}
+        was_blocked = task["status"] == "blocked"
+        updates: dict[str, Any] = {
+            "status": "blocked",
+            "blocked_question": q,
+            "unblock_criteria": uc,
+        }
+        # The original ask keeps its timestamp; a field refresh on an already
+        # blocked task does not reset when the question was first posed.
+        if not was_blocked:
+            updates["blocked_at"] = utcnow_iso()
         self.be.task_update(slug, **updates)
-        if reason:
-            self.be.task_append_notes(slug, f"BLOCKED: {reason}")
+        note = f"BLOCKED: {reason}" if reason else "BLOCKED"
+        note += f"\n  Question to owner: {q}\n  Unblock when: {uc}"
+        self.be.task_append_notes(slug, note)
         self._project_task(slug)
         return f"Task '{slug}' blocked."
 
-    def task_unblock(self, slug: str, *, force: bool = False) -> str:
+    def task_unblock(
+        self,
+        slug: str,
+        criterion_met: str | None = None,
+        by: str | None = None,
+    ) -> str:
         task = self._require_task(slug)
         if task["status"] != "blocked":
             raise ServiceError(f"Task '{slug}' is not blocked (status: {task['status']})")
         # A re-activation gets the same capacity SIGNAL a start gets (decision #376).
-        if force:
-            raise ServiceError(_FORCE_RETIRED)
-        # An unblock re-activates, so it gets the same advisories a start gets.
+        statement = (criterion_met or "").strip()
+        if not statement:
+            raise ServiceError(
+                "Silent unblocking is forbidden: state WHICH unblock criterion "
+                "is met and why (--criterion-met). The criterion recorded on "
+                f"the task: {task.get('unblock_criteria') or 'не задан'}"
+            )
+        who = (by or "").strip() or _default_actor()
         advice = start_advisories(self, slug, task)
         # An unblock is a re-activation, an attempt like `task start` (1239 closes
         # showed `attempts: 1` while it was not; attempts-counter-never-increments).
         attempts = task.get("attempts", 0) + 1
-        self.be.task_update(slug, status="active", blocked_at=None, attempts=attempts)
+        self.be.task_update(
+            slug,
+            status="active",
+            blocked_at=None,
+            attempts=attempts,
+            unblocked_by=who,
+            unblocked_at=utcnow_iso(),
+        )
+        self.be.task_append_notes(
+            slug,
+            f"UNBLOCKED by {who}: criterion met — {statement}",
+        )
         self._project_task(slug)
-        msg = f"Task '{slug}' unblocked (attempt #{attempts})."
+        msg = f"Task '{slug}' unblocked by {who} (attempt #{attempts})."
         note = on_activation(self.be, self.tausik_dir(), slug, first=False)  # re-anchor
         msg += f"\n{note}" if note else ""
         return "\n".join([msg, *advice])

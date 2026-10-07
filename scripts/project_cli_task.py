@@ -263,9 +263,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
 
         print(close_obsolete(svc, args.slug, args.reason))
     elif c == "block":
-        print(svc.task_block(args.slug, args.reason))
+        print(svc.task_block(args.slug, args.reason, args.question, args.unblock_when))
     elif c == "unblock":
-        print(svc.task_unblock(args.slug))
+        print(svc.task_unblock(args.slug, args.criterion_met, args.by))
     elif c == "review":
         print(svc.task_review(args.slug))
     elif c == "update":

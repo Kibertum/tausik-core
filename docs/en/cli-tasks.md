@@ -126,8 +126,15 @@ task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ..
                                 #       investigation. It does NOT rescue a run in which a gate was
                                 #       APPLICABLE and still did not execute (COULD_NOT_RUN) — that
                                 #       one is fixed, not acknowledged.
-task block <slug> [--reason TEXT]
-task unblock <slug>             # blocked -> active
+task block <slug> --question TEXT --unblock-when TEXT [--reason TEXT]
+                                # REQUIRED both: the concrete question to the owner and the
+                                # checkable unblock criterion — a block without a question is a
+                                # task abandoned with a note to self; question may not restate
+                                # the title. Re-blocking updates the fields. `tausik status`
+                                # shows open questions as the FIRST block.
+task unblock <slug> --criterion-met TEXT [--by WHO]
+                                # blocked -> active; silent unblocking forbidden: state WHICH
+                                # criterion is met and why; WHO unblocked is recorded
 task review <slug>              # active -> review
 task update <slug> [--title T] [--goal G] [--notes N] [--acceptance-criteria AC]
                   [--scope S] [--scope-exclude S] [--stack S] [--complexity C] [--role ROLE]

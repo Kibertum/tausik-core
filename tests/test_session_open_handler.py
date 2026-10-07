@@ -47,7 +47,12 @@ def seeded(svc):
     )
     svc.task_start("active-task")
     svc.task_add("s", "blocked-task", "Blocked task", goal="g", role="developer")
-    svc.task_block("blocked-task", "waiting on upstream")
+    svc.task_block(
+        "blocked-task",
+        "waiting on upstream",
+        "owner: which upstream fixes the API?",
+        "upstream API stable",
+    )
     svc.task_add("s", "planning-task", "Planning task", goal="g", role="developer")
     return svc
 

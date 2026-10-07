@@ -69,16 +69,16 @@ class TestActivationsCount:
 
     def test_unblock_is_a_re_activation_and_counts(self, svc):
         svc.task_start("t1", _internal_force=True)
-        svc.task_block("t1", "waiting")
+        svc.task_block("t1", "waiting", "owner: extend or drop the API limit?", "limit decided")
         # No `force`: since 1.10 capacity is a signal, so nothing on unblock
         # needs bypassing (decision #376) and the flag is refused.
-        msg = svc.task_unblock("t1")
+        msg = svc.task_unblock("t1", criterion_met="limit decided: raised to 10k")
         assert _attempts(svc) == 2
         assert "attempt #2" in msg
 
     def test_block_itself_is_not_an_attempt(self, svc):
         svc.task_start("t1", _internal_force=True)
-        svc.task_block("t1", "waiting")
+        svc.task_block("t1", "waiting", "owner: which dependency pin?", "pin decided")
         assert _attempts(svc) == 1
 
 

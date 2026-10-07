@@ -406,7 +406,12 @@ def _op_task_step(svc, w: _World) -> None:
 
 def _op_task_block(svc, w: _World) -> None:
     t = w.pick(w.tasks_where(status="active"))
-    svc.task_block(t, reason="ждём смежника")
+    svc.task_block(
+        t,
+        reason="ждём смежника",
+        question="владелец: смежник ставит API v2?",
+        unblock_criteria="API v2 зафиксирован",
+    )
     w.tasks[t]["status"] = "blocked"
 
 

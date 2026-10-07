@@ -48,6 +48,7 @@ from backend_migrations_v73 import MIGRATION_V73
 from backend_migrations_v74 import MIGRATION_V74
 from backend_migrations_v75 import MIGRATION_V75
 from backend_migrations_v76 import MIGRATION_V76
+from backend_migrations_v77 import MIGRATION_V77
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -456,6 +457,10 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # guarded rebuild in run_post_migrations, empty marker here
     # (backend_migrations_v76.py).
     76: MIGRATION_V76,
+    # v77: blocked tasks carry question + unblock criteria + unblock audit
+    # trail; pre-v77 blocked rows backfilled with the 'не задан' debt marker
+    # (backend_migrations_v77.py).
+    77: MIGRATION_V77,
 }
 
 # Merged: legacy + current

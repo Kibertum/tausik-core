@@ -199,9 +199,22 @@ class TestTaskCRUD:
 
     def test_task_block_unblock(self, seeded):
         seeded.task_start("t1", _internal_force=True)
-        result = _handle_tool(seeded, "tausik_task_block", {"slug": "t1", "reason": "blocked"})
+        result = _handle_tool(
+            seeded,
+            "tausik_task_block",
+            {
+                "slug": "t1",
+                "reason": "blocked",
+                "question": "owner: keep the legacy exporter or retire it?",
+                "unblock_criteria": "exporter decision recorded",
+            },
+        )
         assert "blocked" in result
-        result = _handle_tool(seeded, "tausik_task_unblock", {"slug": "t1"})
+        result = _handle_tool(
+            seeded,
+            "tausik_task_unblock",
+            {"slug": "t1", "criterion_met": "decision recorded: retire it", "by": "qa@host"},
+        )
         assert "unblocked" in result
 
     def test_task_update(self, seeded):

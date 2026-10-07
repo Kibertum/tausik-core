@@ -58,8 +58,8 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | `tausik_task_logs` | Read structured logs (filter by phase) | `slug` |
 | `tausik_reason_step` | RENAR reasoning step (intent\|premise\|action\|verification) | `slug`, `kind`, `content` |
 | `tausik_task_replay` | Chronological task timeline (logs + reasoning + events + verification) | `slug` |
-| `tausik_task_block` | Block task | `slug` |
-| `tausik_task_unblock` | Unblock | `slug` |
+| `tausik_task_block` | Block WITH a concrete question to the owner + a checkable unblock criterion (both required; question must not restate the title; re-block updates the fields) | `slug` |
+| `tausik_task_unblock` | Unblock stating WHICH criterion is met and why (silent unblocking forbidden; WHO unblocked is recorded) | `slug` |
 | `tausik_task_review` | Move to review | `slug` |
 | `tausik_task_delete` | Delete task | `slug` |
 | `tausik_task_move` | Move to another story | `slug`, `new_story_slug` |
@@ -358,8 +358,8 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 149 tools ≈ 59.6 KB of tool
-definitions (59,602 bytes, ~14.9k estimated tokens at bytes/4; the ratchet in
+**Measured cost.** The full authored surface is 149 tools ≈ 60.3 KB of tool
+definitions (60,273 bytes, ~15.1k estimated tokens at bytes/4; the ratchet in
 `tausik/gates.json` (`mcp_surface`) pins this and refuses growth without an
 argued raise). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet

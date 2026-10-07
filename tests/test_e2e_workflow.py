@@ -97,16 +97,21 @@ class TestFullWorkflow:
             tags=["jwt", "auth"],
         )
 
-        # 9. Block task with reason
-        svc.task_block("login-api", "Waiting for key management service")
+        # 9. Block task with a question + criterion (v77 contract)
+        svc.task_block(
+            "login-api",
+            "Waiting for key management service",
+            "owner: does the key service stay in-house or move to the vault?",
+            "key service decision recorded",
+        )
         assert svc.be.task_get("login-api")["status"] == "blocked"
 
         # 10. Start second task while first is blocked
         svc.task_start("login-ui", _internal_force=True)
         svc.task_done("login-ui")
 
-        # 11. Unblock and complete first task
-        svc.task_unblock("login-api")
+        # 11. Unblock (stating the criterion) and complete first task
+        svc.task_unblock("login-api", criterion_met="decision recorded: in-house")
         svc.task_step("login-api", 3)  # complete last step
         # Since 1.10 a task that was blocked closes with what was learned (dead_end_gate).
         svc.dead_end("Waiting on the key service", "It never had a date", task_slug="login-api")

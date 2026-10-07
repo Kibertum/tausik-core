@@ -9,6 +9,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — a blocked task now carries its question; `status` leads with it
+
+- **`task block` requires BOTH a question to the owner and a checkable
+  unblock criterion** (`--question`, `--unblock-when`). A block without a
+  question is a task abandoned with a note to self — the refusal names the
+  missing flags. The question may not restate the title (token-level guard:
+  carrying every title word plus at most three of its own is a rewording,
+  not a question). Re-blocking an already blocked task UPDATES the fields —
+  the migration path for blocks whose question lived only in journal prose.
+- **`tausik status` shows the open questions as the FIRST block**, on both
+  CLI and MCP: each blocked task with its question and `unblock when:`
+  criterion — not a "blocked: N" count. Rows blocked before this change
+  (schema v77 backfills them with the «не задан» marker) render as DEBT with
+  the remediation command, never as an acceptable state.
+- **`task unblock` is never silent**: the caller states WHICH criterion is
+  met and why (`--criterion-met`), and WHO unblocked is recorded in the row
+  (`unblocked_by`/`unblocked_at`, `--by` or OS user@host). The refusal
+  quotes the criterion recorded on the task.
+- The MCP twins (`tausik_task_block`, `tausik_task_unblock`) take the same
+  arguments — the contract is enforced on both transports or not at all.
+  Surface ratchet: bytes only, 59,602 → 60,273 (four properties and their
+  descriptions); tools stay 149.
+
 ### Fixed — the pooled-verify recovery loop was a dead end (SS4 widening)
 
 - **After a green cohort, a named invalidator bricked the membership

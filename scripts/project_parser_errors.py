@@ -44,7 +44,9 @@ EXAMPLES: dict[str, list[str]] = {
     "tausik task update": [
         "tausik task update <slug> --goal '...' --acceptance-criteria '...'",
     ],
-    "tausik task block": ['tausik task block <slug> --reason "why"'],
+    "tausik task block": [
+        'tausik task block <slug> --question "Q to the owner" --unblock-when "checkable criterion"'
+    ],
     "tausik epic add": ['tausik epic add <slug> "Title"'],
     "tausik story add": ['tausik story add <epic-slug> <story-slug> "Title"'],
     "tausik memory add": [

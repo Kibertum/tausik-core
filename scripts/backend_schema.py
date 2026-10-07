@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 76
+SCHEMA_VERSION = 77
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -93,7 +93,17 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- rows stay NULL; assigning today's version to historical work would turn
     -- an unknown cohort into a fabricated one.
     started_tausik_version TEXT,
-    done_tausik_version TEXT
+    done_tausik_version TEXT,
+    -- v77 (blocked-is-a-status-without-a-question-to-unblock-it): a block
+    -- without a QUESTION to the owner and a checkable UNBLOCK CRITERIA is a
+    -- task abandoned with a note to self. `task block` refuses to write one
+    -- without both. unblocked_by/unblocked_at record WHO stated the criterion
+    -- met — silent unblocking is forbidden. LAST in the table on purpose:
+    -- the upgrade path adds them with ALTER TABLE, which appends.
+    blocked_question TEXT,
+    unblock_criteria TEXT,
+    unblocked_by TEXT,
+    unblocked_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sessions (

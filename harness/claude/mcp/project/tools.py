@@ -242,22 +242,49 @@ TOOLS = [
     },
     {
         "name": "tausik_task_block",
-        "description": "Block a task with optional reason. Sets status to 'blocked'. Reason is logged to task notes",
+        "description": (
+            "Block a task WITH a concrete question to the owner and a checkable "
+            "unblock criterion (both required — a block without a question is a "
+            "task abandoned with a note to self). Question must not restate the "
+            "title. Re-blocking updates the fields."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "slug": {"type": "string"},
-                "reason": {"type": "string"},
+                "reason": {
+                    "type": "string",
+                    "description": "Prose context for the journal (optional)",
+                },
+                "question": {
+                    "type": "string",
+                    "description": "REQUIRED: the concrete question the owner must decide",
+                },
+                "unblock_criteria": {
+                    "type": "string",
+                    "description": "REQUIRED: what must become TRUE for the task to proceed",
+                },
             },
             "required": ["slug"],
         },
     },
     {
         "name": "tausik_task_unblock",
-        "description": "Unblock a blocked task (sets status back to active). Only works on tasks with status 'blocked'",
+        "description": (
+            "Unblock a blocked task. Requires criterion_met — which unblock "
+            "criterion is satisfied and why; silent unblocking is forbidden. "
+            "Records WHO unblocked (by, or OS user@host)."
+        ),
         "inputSchema": {
             "type": "object",
-            "properties": {"slug": {"type": "string"}},
+            "properties": {
+                "slug": {"type": "string"},
+                "criterion_met": {
+                    "type": "string",
+                    "description": "REQUIRED: which criterion is met and why",
+                },
+                "by": {"type": "string", "description": "Who states it (recorded)"},
+            },
             "required": ["slug"],
         },
     },

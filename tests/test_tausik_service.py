@@ -166,12 +166,17 @@ class TestTaskLifecycle:
         _setup_hierarchy(svc)
         svc.task_add("setup", "t1", "T1")
         svc.task_start("t1", _internal_force=True)
-        msg = svc.task_block("t1", "Waiting for API")
+        msg = svc.task_block(
+            "t1",
+            "Waiting for API",
+            "owner: is the API stable this quarter?",
+            "API stability confirmed",
+        )
         assert "blocked" in msg
         task = svc.be.task_get("t1")
         assert task["status"] == "blocked"
         assert "Waiting for API" in task["notes"]
-        msg = svc.task_unblock("t1")
+        msg = svc.task_unblock("t1", criterion_met="API stability confirmed")
         assert "unblocked" in msg
         assert svc.be.task_get("t1")["status"] == "active"
 
@@ -179,7 +184,7 @@ class TestTaskLifecycle:
         _setup_hierarchy(svc)
         svc.task_add("setup", "t1", "T1")
         with pytest.raises(ServiceError, match="not blocked"):
-            svc.task_unblock("t1")
+            svc.task_unblock("t1", criterion_met="fixture statement")
 
     def test_review(self, svc):
         _setup_hierarchy(svc)
@@ -223,8 +228,12 @@ class TestTaskLifecycle:
         _setup_hierarchy(svc)
         svc.task_add("setup", "t1", "T1")
         svc.task_start("t1", _internal_force=True)  # attempt 1
-        svc.task_block("t1")
-        svc.task_unblock("t1")  # attempt 2: a re-activation counts (#207)
+        svc.task_block(
+            "t1", question="owner: proceed with attempt 2?", unblock_criteria="attempt 2 approved"
+        )
+        svc.task_unblock(
+            "t1", criterion_met="attempt 2 approved"
+        )  # attempt 2: a re-activation counts (#207)
         # Re-block and simulate re-start by setting to planning
         svc.be.task_update("t1", status="planning")
         svc.task_start("t1", _internal_force=True)  # attempt 3

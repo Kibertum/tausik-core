@@ -295,10 +295,40 @@ def add_task(sub: argparse._SubParsersAction) -> None:
 
     tblock = task_sub.add_parser("block")
     tblock.add_argument("slug")
-    tblock.add_argument("--reason", default=None)
+    tblock.add_argument(
+        "--reason",
+        default=None,
+        help="Prose context for the journal (optional — the question and the "
+        "criterion are the required part, not this)",
+    )
+    tblock.add_argument(
+        "--question",
+        default=None,
+        help="REQUIRED: the concrete question to the owner. Must not restate "
+        "the title; a block without a question is a task abandoned with a "
+        "note to self.",
+    )
+    tblock.add_argument(
+        "--unblock-when",
+        default=None,
+        dest="unblock_when",
+        help="REQUIRED: what must become TRUE for the task to proceed — a "
+        "checkable statement, not a date.",
+    )
 
     tunblock = task_sub.add_parser("unblock")
     tunblock.add_argument("slug")
+    tunblock.add_argument(
+        "--criterion-met",
+        default=None,
+        dest="criterion_met",
+        help="REQUIRED: which unblock criterion is met and why — silent unblocking is forbidden.",
+    )
+    tunblock.add_argument(
+        "--by",
+        default=None,
+        help="Who states the criterion met (recorded; defaults to OS user@host)",
+    )
 
     treview = task_sub.add_parser("review")
     treview.add_argument("slug")

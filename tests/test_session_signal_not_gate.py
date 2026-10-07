@@ -86,10 +86,12 @@ class TestTheService:
         assert "capacity_force_start" not in actions
 
     def test_unblock_force_is_refused_too(self, svc):
+        """v77 removed the force parameter outright: the retired route is a
+        TypeError before any service code runs — no silent path to accept."""
         svc.session_start()
         _ready(svc, "t", budget=300)
         svc.be.task_update("t", status="blocked")
-        with pytest.raises(ServiceError, match="retired"):
+        with pytest.raises(TypeError):
             svc.task_unblock("t", force=True)
         assert svc.be.task_get("t")["status"] == "blocked"
 
@@ -98,7 +100,7 @@ class TestTheService:
         _ready(svc, "big", budget=300)
         svc.task_start("big")
         svc.be.task_update("big", status="blocked")
-        svc.task_unblock("big")
+        svc.task_unblock("big", criterion_met="capacity fixture: criterion met")
         actions = [e["action"] for e in svc.be.events_list(entity_type="task", entity_id="big")]
         assert "capacity_force_start" not in actions
 
