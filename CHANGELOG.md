@@ -9,6 +9,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.11.3] — 2026-10-07
 
+### Fixed — vendor agents invalid at load: the 1.11.2 fix was being wiped by every redeploy
+
+- **Root cause found on a live host restart: the fix edited DEPLOYED copies;
+  the vendor source never changed.** Vendors are third-party upstream and
+  keep Claude Code's comma-string `tools: Read, Bash, Write` spelling, while
+  Kilo's agent schema wants an object and refuses the whole definition at
+  load — so every `bootstrap --ide all` re-broke all seven seo agents (the
+  1.11.2 fix, and its reapply, both died this way).
+- **The normalization now lives at the deploy boundary.**
+  `copy_vendor_assets` rewrites a scalar `tools:` frontmatter line into the
+  object form (`Read: true`, …) on the way into the profile; already-object
+  and absent `tools` pass through byte-identical, and a `tools:` line in the
+  BODY is prose and survives untouched. The vendor source stays upstream
+  verbatim — the boundary is the only layer that sees both schemas.
+
 ### Added — Kilo is now a fully governed host: the permission surface is used
 
 - **Kilo's second extension point — the `permission` key — is no longer

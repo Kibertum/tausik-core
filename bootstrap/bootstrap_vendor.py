@@ -377,10 +377,49 @@ def get_vendor_agents(vendor_dir: str) -> list[str]:
     return dirs
 
 
+def normalize_agent_tools(text: str) -> str:
+    """Rewrite a scalar ``tools:`` frontmatter line into the object Kilo parses.
+
+    Vendors are third-party upstream: their agents arrive in Claude Code's
+    subagent spelling (``tools: Read, Bash, Write`` — a comma string), while
+    Kilo's agent schema wants ``tools: {name: bool}`` or nothing, and REFUSES
+    the whole definition at load otherwise. The fix that edited deployed
+    copies was wiped by every redeploy (twice — see the 1.11.2 entry and its
+    reapply); the deploy boundary is the only layer that sees both sides, so
+    the normalization lives here. Already-object and absent ``tools`` pass
+    through byte-identical; the body is never touched.
+    """
+    lines = text.split("\n")
+    in_fm = False
+    seen_close = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == "---":
+            if not in_fm:
+                in_fm = True
+                continue
+            seen_close = True
+            break  # frontmatter ended — a `tools:` in the body is prose, not schema
+        if not in_fm or seen_close or not stripped:
+            continue
+        key, sep, value = stripped.partition(":")
+        if not sep or key.strip() != "tools" or not value.strip():
+            continue  # mapping form (`tools:` alone) or absent — nothing to do
+        if value.lstrip().startswith("{"):
+            continue  # JSON object spelling — already valid for Kilo
+        names = [n.strip() for n in value.split(",") if n.strip()]
+        indent = line[: len(line) - len(line.lstrip())]
+        lines[i : i + 1] = [f"{indent}tools:"] + [f"{indent}  {n}: true" for n in names]
+        break
+    return "\n".join(lines)
+
+
 def copy_vendor_assets(vendor_dir: str, target_dir: str) -> None:
     """Copy vendor scripts and agents to namespaced subdirs.
 
     Prevents core file overwrites by namespacing: scripts/vendor_{name}/.
+    Agent files cross the Kilo schema boundary here, so each one is normalized
+    (see normalize_agent_tools) on the way into the profile.
     """
     for scripts_src in get_vendor_scripts(vendor_dir):
         vendor_name = os.path.basename(os.path.dirname(scripts_src))
@@ -397,4 +436,7 @@ def copy_vendor_assets(vendor_dir: str, target_dir: str) -> None:
         for f in os.listdir(agents_src):
             src = os.path.join(agents_src, f)
             if os.path.isfile(src):
-                shutil.copy2(src, os.path.join(agents_dst, f))
+                with open(src, encoding="utf-8") as fh:
+                    payload = normalize_agent_tools(fh.read())
+                with open(os.path.join(agents_dst, f), "w", encoding="utf-8") as fh:
+                    fh.write(payload)
