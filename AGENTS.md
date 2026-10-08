@@ -82,9 +82,8 @@ The CLI never touches the DB directly. Service validates; backend executes.
 
 <!-- DYNAMIC:START -->
 ## Current State
-Session: #300 (active) | Branch: v1-11-3 | TAUSIK: 1.11.2
-Tasks: 1814/1895 done, 9 obsolete, 1 active, 0 blocked
-Active: cut-release-1-11-3-version-changelogs-doc
+Session: none | Branch: v1-11-3 | TAUSIK: 1.11.3
+Tasks: 1819/1898 done, 9 obsolete, 0 active, 0 blocked
 Full history (grep it for what a compaction dropped): ~\.claude\projects\d--Work-Kibertum-clients-kibertum-tausik-core\2fb2646a-10b7-4fc5-8fb4-be2e70726533.jsonl
 
 ### Memory tail
@@ -95,11 +94,11 @@ Context (5):
 - #851 1.11 Codex economy: cache is already high; next leverage is rounds and routing
 - #812 1.11: distinguish model/speed subscription cost from token double counting
 Decisions (5):
+- #427 Релиз 1.11.3 опубликован с замеренной, а не обещанной экономикой: verification-цикл закрыт refusal-веткой (savings не за
 - #426 selected_tests is removed from cohort identity inputs; identity placeholders 'declared-at-run'/'selection-evidence-of-ru
 - #425 Per-test provenance granularity is a declared non-goal of the verification-cohort contract: cohort identity binds conten
 - #424 Escape-задача investigate-the-verified-vs-unverified-escape: политику verify оставляем как есть; агрегатную строку by_ve
 - #423 Не переномеровывать эпики бэклога заранее: слот релиза освобождается только после того, как релиз фактически вышел (суще
-- #422 TAUSIK 1.x завершается линией 1.11.x: после 1.11.1 выпускаются только патч-релизы 1.11.x, а следующая версия вне этой ли
 Conventions (5):
 - #799 Переименовал тест — ответь на цитаты в том же заходе, иначе регистр покраснеет следующей проверкой
 - #792 Потолок без запаса есть запрет: у бюджета контекста должен быть проверяемый остаток, а не только пре
