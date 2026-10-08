@@ -36,8 +36,7 @@ def _seed_task(db, slug: str = "t1") -> None:
         (1, "s1", "Story 1", "open", "2026-04-25T00:00:00Z"),
     )
     db._ex(
-        "INSERT INTO tasks(story_id,slug,title,status,created_at,updated_at) "
-        "VALUES(?,?,?,?,?,?)",
+        "INSERT INTO tasks(story_id,slug,title,status,created_at,updated_at) VALUES(?,?,?,?,?,?)",
         (1, slug, "Task", "planning", "2026-04-25T00:00:00Z", "2026-04-25T00:00:00Z"),
     )
 
@@ -81,16 +80,16 @@ class TestDeriveTier:
             (None, None),
             (0, None),
             (1, "trivial"),
-            (10, "trivial"),
-            (11, "light"),
+            (24, "trivial"),
             (25, "light"),
-            (26, "moderate"),
-            (60, "moderate"),
-            (61, "substantial"),
-            (150, "substantial"),
-            (151, "deep"),
-            (400, "deep"),
-            (401, "deep"),
+            (33, "light"),
+            (34, "moderate"),
+            (66, "moderate"),
+            (67, "substantial"),
+            (113, "substantial"),
+            (114, "deep"),
+            (200, "deep"),
+            (201, "deep"),
             (10_000, "deep"),
         ],
     )
@@ -104,7 +103,8 @@ class TestTaskSetCallBudget:
         assert db.task_set_call_budget("t1", 30) is True
         row = db._q1("SELECT call_budget, tier FROM tasks WHERE slug='t1'")
         assert row["call_budget"] == 30
-        assert row["tier"] == "moderate"
+        # 30 sits in the recalibrated light band (25..33)
+        assert row["tier"] == "light"
 
     def test_clears_with_none(self, db):
         _seed_task(db)
@@ -133,7 +133,7 @@ class TestTaskSetCallBudget:
 class TestTaskSetCallActual:
     def test_sets_actual_without_changing_tier(self, db):
         _seed_task(db)
-        db.task_set_call_budget("t1", 30)  # tier='moderate'
+        db.task_set_call_budget("t1", 40)  # tier='moderate' (33 < 40 <= 66)
         assert db.task_set_call_actual("t1", 80) is True
         row = db._q1("SELECT call_actual, tier FROM tasks WHERE slug='t1'")
         assert row["call_actual"] == 80

@@ -52,14 +52,14 @@ class TestUpdateBudgetWins:
 
     def test_budget_only_auto_derives(self, svc):
         svc.task_add("s", "t1", "Task", role="developer")
-        svc.task_update("t1", call_budget=15)
+        svc.task_update("t1", call_budget=28)
         task = svc.be.task_get("t1")
-        assert task["call_budget"] == 15
+        assert task["call_budget"] == 28
         assert task["tier"] == "light"
 
     def test_other_fields_still_apply_with_budget(self, svc):
         svc.task_add("s", "t1", "Task", role="developer")
-        svc.task_update("t1", call_budget=15, tier="deep", notes="hello")
+        svc.task_update("t1", call_budget=28, tier="deep", notes="hello")
         task = svc.be.task_get("t1")
         assert task["notes"] == "hello"
         assert task["tier"] == "light"

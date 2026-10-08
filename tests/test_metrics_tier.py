@@ -139,6 +139,54 @@ class TestCalibrationDrift:
         assert m["calibration_drift"] is None  # only 4 measured < 5 threshold
 
 
+# === Budget calibration (tier thresholds vs measured p50 actuals) ===
+
+
+class TestBudgetCalibration:
+    @pytest.mark.parametrize(
+        ("upper", "actuals", "expected_verdict"),
+        [
+            (9, [10] * 5, "starved"),  # bound below p50 blocks half of real work
+            (10, [10] * 5, "ok"),  # upper == p50 is not starved
+            (20, [10] * 5, "ok"),  # 2x cushion still constrains
+            (30, [10] * 5, "ok"),  # exactly factor x p50 stays ok
+            (31, [10] * 5, "decorated"),  # beyond factor x p50 only labels
+        ],
+    )
+    def test_verdict_against_p50(self, upper, actuals, expected_verdict):
+        from backend_tier_metrics import budget_calibration_check
+
+        rows = [{"tier": "light", "b": None, "a": a, "attempts": 1} for a in actuals]
+        out = budget_calibration_check(lambda sql, params=(): rows, thresholds=((upper, "light"),))
+        assert out["tiers"]["light"]["verdict"] == expected_verdict
+
+    def test_starved_wins_the_status_over_decorated(self):
+        from backend_tier_metrics import budget_calibration_check
+
+        rows = [{"tier": "light", "b": None, "a": 10, "attempts": 1}] * 5 + [
+            {"tier": "deep", "b": None, "a": 5, "attempts": 1}
+        ] * 5
+        out = budget_calibration_check(
+            lambda sql, params=(): rows,
+            thresholds=((9, "light"), (200, "deep")),
+        )
+        assert out["status"] == "starved"  # blocking real work outranks decoration
+        assert out["tiers"]["deep"]["verdict"] == "decorated"
+
+    @pytest.mark.parametrize(
+        ("rows", "why"),
+        [
+            ([{"tier": "light", "b": 20, "a": None, "attempts": 1}] * 5, "no actuals"),
+            ([{"tier": "light", "b": 20, "a": 10, "attempts": 1}] * 4, "n below 5"),
+        ],
+    )
+    def test_unmeasured_corpuses_return_none(self, rows, why):
+        from backend_tier_metrics import budget_calibration_check
+
+        out = budget_calibration_check(lambda sql, params=(): rows, thresholds=((24, "light"),))
+        assert out is None  # a corpus with no measured tier earns no verdict
+
+
 # === CLI output smoke ===
 
 
@@ -152,6 +200,20 @@ class TestCliMetricsOutput:
         cmd_metrics(svc, args=None)
         captured = capsys.readouterr().out
         assert "Per-tier" in captured
+        assert "light" in captured
+
+    def test_budget_calibration_section_in_metrics_output(self, be, capsys):
+        from project_cli_metrics import cmd_metrics
+        from project_service import ProjectService
+
+        # 5 light tasks → p50 actual 12; light upper 33 sits under the 3.0x
+        # ceiling (36) and above p50 → the only measured tier is "ok".
+        for i in range(5):
+            _seed(be, f"t{i}", tier="light", budget=33, actual=12)
+        svc = ProjectService(be)
+        cmd_metrics(svc, args=None)
+        captured = capsys.readouterr().out
+        assert "Budget calibration: ok" in captured
         assert "light" in captured
 
 

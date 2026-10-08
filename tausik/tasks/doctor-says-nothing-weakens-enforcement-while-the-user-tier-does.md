@@ -1,0 +1,68 @@
+---
+slug: doctor-says-nothing-weakens-enforcement-while-the-user-tier-does
+title: "doctor сообщает «ничто не ослабляет контроль», пока пользовательский тир его ослабляет"
+status: done
+epic: release-19-renar-conformance
+story: gates-declare-what-they-prevent
+complexity: medium
+role: developer
+stack: python
+tier: moderate
+call_budget: 45
+defect_of: a-foreign-projects-config-weakens-qg2-in-our-own-repo
+scope: "scripts/project_cli_doctor.py — строка про config trust tier. При необходимости scripts/config_trust.py — ТОЛЬКО добавление читателя, отвечающего «какие guarded-ключи стоят слабее дефолта и из какого тира», без изменения правила разрешения. tests/ — новый тест на временном HOME. CHANGELOG.md и CHANGELOG.ru.md. РАСШИРЕНО В ХОДЕ РАБОТЫ (запись в журнале, не молча): docs/en/doctor.md и docs/ru/doctor.md — строка таблицы Trust tier описывает СЕГОДНЯШНЕЕ двухсостояние («ни один ключ конфига проектного уровня не ослабляет enforcement») и после правки станет устаревшей; память #451 — описание контроля живёт в нескольких местах, и правка поведения обязана пройти по всем."
+scope_exclude: "Правило слоёв и функции разрешения (project < user < managed, _weaker_*, Guard) НЕ МЕНЯЮТСЯ: замером #193 доказано, что они работают верно в обе стороны. Задача про ВИДИМОСТЬ, а не про защиту; попытка запретить пользовательскому тиру ослаблять сломала бы законный сценарий, ради которого тир и существует. ~/.tausik/config.json не читается тестами и не правится ни при каком исходе. .tausik/config.json этого проекта не трогается — ужесточения, поставленные задачей a-foreign-projects-config-weakens-qg2-in-our-own-repo, остаются как есть. Классификатор security_pattern.py вне предмета."
+relevant_files:
+  - "scripts/project_cli_doctor.py"
+  - "scripts/config_trust.py"
+  - "scripts/config_trust_weakening.py"
+  - "tests/test_doctor_trust_tier_weakening.py"
+  - "docs/en/doctor.md"
+  - "docs/ru/doctor.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths: []
+scope_tools: []
+depends_on: []
+completed_at: "2026-08-31T12:34:19Z"
+resolution: null
+resolution_reason: null
+tracker_refs: []
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+ЗАМЕР #193, ПРЯМОЙ. `tausik doctor` печатал «OK Config trust tier — no project-scope key weakens enforcement» в тот самый момент, когда task_done.auto_verify=true из ~/.tausik/config.json обходил подписанную квитанцию QG-2 в этом репозитории, а gates.bootstrap_drift.enabled=false глушил блокирующий гейт. Строка БУКВАЛЬНО ВЕРНА — ослабление пришло не из проектного тира — и ровно поэтому вводит в заблуждение: читатель делает вывод, что ослабления нет.
+МЕХАНИЗМ РАБОТАЕТ ВЕРНО, ДЕФЕКТ В ВИДИМОСТИ. Замерено в задаче a-foreign-projects-config-weakens-qg2-in-our-own-repo: правило доверия асимметрично и исправно — проект ужесточает беспрепятственно (0 отклонений), ослабить не может (2 отклонения, значения принудительно возвращены). Но ослабив guarded-ключ, ПОЛЬЗОВАТЕЛЬСКИЙ тир сдвигает baseline, после чего проекту нечего ослаблять и отклонений не возникает по построению. Механизм защищает снизу и по конструкции не защищает сверху; в докстринге load_config_with_rejections это прямо названо «honest threat boundary», то есть граница осознанная.
+ЧЕГО НЕ ХВАТАЕТ: ослабление сверху не имеет НИ ОДНОГО машинного признака. Оно нашлось чтением ~/.tausik/config.json глазами. Пользовательский тир общий для всех проектов машины, поэтому ключ, законно поставленный ради одного проекта (vaflower, сессия #11; дедэнд #126), молча действует на все остальные — включая репозиторий самого фреймворка.
+ЭТО ТОТ ЖЕ КЛАСС, ЧТО claudemd-state-gate-reports-passed-when-it-could-not-run: отчёт, чья формулировка не даёт отличить «проверено и чисто» от «проверено не там».
+
+## Acceptance Criteria
+
+AC1. doctor НАЗЫВАЕТ ослабление независимо от того, какой тир его внёс. Guarded-ключ, стоящий слабее дефолта фреймворка, отражается в выводе с указанием ТИРА-ИСТОЧНИКА (user / managed) и имени ключа. Сегодня такой ключ не порождает ни строки.
+AC2. РАЗЛИЧАЮТСЯ ТРИ СОСТОЯНИЯ, А НЕ ДВА: (а) ничто не ослаблено; (б) проектный тир пытался ослабить и был отклонён — сегодняшнее сообщение, оно верно и сохраняется дословно; (в) доверенный тир ослабил, и это ДЕЙСТВУЕТ. Схлопывание (в) в (а) — ровно нынешний дефект, и оно не должно стать возможным снова.
+AC3. Строгость сообщения соразмерна: ослабление сверху — не ошибка конфигурации (ключ поставлен законно и осознанно), поэтому это WARN с причиной и с путём до файла-источника, а не FAIL. Doctor не вправе объявлять чужое решение ошибкой; он обязан сделать его видимым.
+AC4. Причина, записанная рядом с ключом (поля вида _reason / _disabled_reason уже используются в ~/.tausik/config.json), ПОКАЗЫВАЕТСЯ читателю, а не проглатывается. Ослабление с объяснением и ослабление без объяснения — разные события, и первое не должно выглядеть загадкой.
+AC5. Замер повторяем на временном HOME: тест поднимает пользовательский конфиг с auto_verify=true во временном каталоге, гоняет doctor и предъявляет, что строка про ослабление ПОЯВИЛАСЬ и назвала тир. Настоящий ~/.tausik/config.json тест не читает и не пишет НИ ПРИ КАКОМ ИСХОДЕ.
+AC6. НЕГАТИВНЫЙ СЦЕНАРИЙ: на конфигурации, где ничто не ослаблено, новая строка обязана МОЛЧАТЬ. Гейт, кричащий всегда, не отличается от гейта, молчащего всегда. Мутация: возврат прежнего условия обязан красить новый тест; по реальным байтам, возврат побайтовой копией со сверкой sha256, git checkout запрещён (конвенция #449 — мутация на каждое исправленное место отдельно).
+AC7. Полная лента зелёная: `pytest -q` из PATH, 0 failed (память #450 — не venv-питоном и не с -o addopts="").
+
+## Plan
+
+## Rollback
+
+git revert коммита. Правка добавляет диагностическую строку в вывод doctor и, возможно, функцию-читатель конфига; она не меняет ни правила разрешения конфигурации, ни эффективных значений, ни поведения гейтов, ни схемы, ни данных. Откат возвращает нынешнее молчание doctor и ничего больше не ломает — ни одно закрытие задачи от этой строки не зависит.
+
+## Journal
+
+- 2026-08-31T12:17:19Z [implementation] — ПЛАН, ЧИТАНИЕ ДО ПРАВКИ. Механизм прочитан целиком: config_trust.GUARDS + _baseline_for сравнивают проектный слой с БАЗОЙ, а базой служит сам доверенный тир — поэтому тир, сравниваемый сам с собой, слабее себя не бывает НИКОГДА, и это и есть слепота. Нужен второй читатель, сравнивающий доверенный слой с ДЕФОЛТОМ ФРЕЙМВОРКА. Правило разрешения не трогается (scope_exclude). Реальный ~/.tausik/config.json прочитан глазами один раз: подтверждена форма причин — gates.bootstrap_drift._disabled_reason рядом с enabled:false, task_done._reason рядом с auto_verify:true. Оба ключа guarded, оба ослабляют относительно дефолта фреймворка (DEFAULT_GATES['bootstrap_drift']['enabled'], Guard('task_done','auto_verify').default=False). ПЯТЬ МЕСТ ПРАВКИ: (1) config_trust._framework_default — выделение хвоста _baseline_for без смены поведения; (2) config_trust.Weakening + _reason_for + _clip_reason + trusted_tier_weakenings — новый читатель; (3) project_cli_doctor:331-338 — три состояния вместо двух, WARN не FAIL по AC3; (4) docs/en/doctor.md:39 и docs/ru/doctor.md:39 — строка Trust tier сегодня утверждает ДВУХСОСТОЯНИЕ ('ни один ключ проектного уровня'), то есть после правки станет устаревшей; память #451 требует пройти по всем местам описания; (5) CHANGELOG x2. ДОКУМЕНТЫ НЕ ВХОДЯТ В ОБЪЯВЛЕННЫЙ SCOPE — расширяю его явно этой записью, а не молча.
+- 2026-08-31T12:33:28Z [implementation] — ЗАМЕРЫ. ЖИВОЙ ПРОГОН ВСКРЫЛ ЗЕРКАЛЬНЫЙ ДЕФЕКТ В МОЕЙ ЖЕ СТРОКЕ, И ЭТО ГЛАВНОЕ СОБЫТИЕ ЗАДАЧИ. Первая версия печатала два WARN «IN EFFECT and not rejected» на оба ключа пользовательского тира. Это НЕПРАВДА в этом репозитории: проектный тир ужесточает оба обратно (auto_verify=false, bootstrap_drift.enabled=true), _restore_project_tightenings отдаёт победу строгому значению, и эффективно ослабления нет. Утверждение было бы буквально верным про ТИР и ложным про ENFORCEMENT — ровно зеркало исходного дефекта, только громкое вместо тихого. AC2(в) требует «и это ДЕЙСТВУЕТ», поэтому in_effect считается по РАЗРЕШЁННОМУ конфигу, а не по слою: doctor передаёт cfg из load_config_with_rejections. Состояний вышло ЧЕТЫРЕ, а не три: чисто / отклонено / ослаблено и действует (WARN) / ослаблено тиром, но ужесточено обратно здесь (называется ВНУТРИ строки OK — молчание потеряло бы факт, что тир машины так стоит, и следующий проект на этой машине унаследует его без ужесточения). ЖИВОЙ ВЫВОД ПОСЛЕ ПОЧИНКИ: 'OK Config trust tier no key weakens enforcement (project, user, managed); a trusted tier holds task_done.auto_verify, gates.bootstrap_drift.enabled weaker - tightened back here', doctor All clean. ДО ПОЧИНКИ IN_EFFECT промежуточная версия печатала оба ключа с тиром, файлом и причиной — то есть AC1 замерен и на реальном конфиге тоже, чтением машиной, а не глазами. МУТАЦИИ: девять, все убиты, каждая на ОТДЕЛЬНОЕ исправленное место (конвенция #449), якорь однострочный (память #457), возврат побайтовый со сверкой sha256, git checkout не применялся. M1 строки ослабления не печатаются -> 4 failed. M2 строка OK печатается рядом с живым ослаблением, то есть исходное схлопывание -> 2 failed. M3 ослабления не попадают в счётчик warnings -> ПЕРВЫЙ ПРОГОН ВЫЖИЛ. Причина: тест проверял наличие слова 'warning(s)', которое печатается и без него (WARN от Verify-First на том же конфиге). Заменено на равенство счётчика числу напечатанных WARN-строк -> killed. Память #449 сработала ТРЕТИЙ раз подряд. M4 ни одно ослабление не живое -> 4 failed. M5 in_effect=True константой -> 3 failed. M6 тир всегда user -> 1 failed. M7 ключ-специфичная причина игнорируется -> 1 failed. M8 причина не режется -> 1 failed. M9 framework_default подменён guard.default (расщепление _baseline_for) -> 9 failed в test_config_trust. ЛЕНТА: 7438 passed, 24 skipped, 0 failed за 89.39 с, pytest из PATH. Было 7418 — прирост 20 тестов. ФАЙЛЫ ПОД 500: doctor 496, config_trust 412 (было 400), config_trust_weakening 191.
+- 2026-08-31T12:34:51Z [done] — AC-1: ✓ tests/test_doctor_trust_tier_weakening.py::test_doctor_names_a_weakening_the_user_tier_introduced AC-2: ✓ tests/test_doctor_trust_tier_weakening.py::test_the_three_states_never_collapse_into_each_other AC-2: ✓ tests/test_doctor_trust_tier_weakening.py::test_the_project_rejection_message_is_unchanged AC-3: ✓ tests/test_doctor_trust_tier_weakening.py::test_doctor_calls_it_a_warning_and_not_a_failure AC-3: ✓ tests/test_doctor_trust_tier_weakening.py::test_the_warning_counter_matches_the_warnings_actually_printed AC-4: ✓ tests/test_doctor_trust_tier_weakening.py::test_a_weakening_with_no_reason_says_so_rather_than_printing_a_blank AC-4: ✓ tests/test_doctor_trust_tier_weakening.py::test_key_specific_reason_beats_the_generic_one AC-4: ✓ tests/test_doctor_trust_tier_weakening.py::test_long_reason_is_clipped_and_marked AC-5: ✓ tests/test_doctor_trust_tier_weakening.py::test_the_real_user_config_is_never_opened AC-6: ✓ tests/test_doctor_trust_tier_weakening.py::test_doctor_stays_silent_when_nothing_is_weakened AC-6: ✓ tests/test_doctor_trust_tier_weakening.py::test_a_tier_that_only_tightens_produces_nothing AC-7: ✓ verification_run #1892 exit=0, квитанция подписана (ключ 103a83a212851018); полная лента 7438 passed, 24 skipped, 0 failed за 89.39 с Domain: проверено ВНЕ тестов, на реальной машине и реальном ~/.tausik/config.json. Промежуточная версия (без in_effect) напечатала оба живых ключа пользовательского тира с тиром-источником, путём до файла и причиной — то есть ослабление, которое в сессии #193 нашлось только чтением глазами, стало машинным признаком. Финальная версия на том же конфиге печатает 'OK Config trust tier no key weakens enforcement (project, user, managed); a trusted tier holds task_done.auto_verify, gates.bootstrap_drift.enabled weaker - tightened back here' и doctor All clean — потому что проектный тир ЭТОГО репозитория ужесточает оба ключа обратно, и WARN здесь был бы ложной тревогой. Обе строки семантически верны для реального входа: первая называет состояние тира, вторая — состояние enforcement. Root cause (missing-validation): предикат сравнивал кандидата с БАЗОЙ, а базой служили сами доверенные тиры, поэтому для тира-субъекта предикат тождественно ложен — ослабление сверху не имело ни одного машинного признака, и отчёт печатал утверждение про ОДИН тир так, что читалось оно про все три. Prevention: контроль, чья формулировка сужена до одного источника ('no PROJECT-SCOPE key'), обязан либо назвать источник в тексте OK, либо покрыть все источники; и предикат, вычисляемый ПО объекту проверки, всегда ложен — базу берут у стороны, которая объектом не является (framework_default, а не trusted).

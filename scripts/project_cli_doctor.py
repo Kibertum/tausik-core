@@ -140,6 +140,23 @@ from service_doctor_external import run_optional_checks  # noqa: E402
 
 
 def cmd_doctor(svc: ProjectService, args: Any) -> None:
+    if getattr(args, "harness_audit", False):
+        # A different QUESTION, not a longer doctor: the health check judges the
+        # install's moving parts, the audit re-reads the installed STATE (what an
+        # injection needs to reach). WARN verdict by construction — exit 0.
+        from harness_audit import run_harness_audit_cmd
+
+        run_harness_audit_cmd(svc)
+        return
+
+    if getattr(args, "friction", False):
+        # Agent friction becomes a FILED draft, not a swallowed log line.
+        # WARN verdict by construction; drafts are for a human, never sent.
+        from friction_detect import run_friction_cmd
+
+        run_friction_cmd(svc)
+        return
+
     failures = 0
     warnings = 0
     project_dir = os.getcwd()
@@ -390,6 +407,23 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         warnings += level != "ok"
     except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Answer shape", f"could not read: {e}")
+        warnings += 1
+
+    try:
+        from friction_detect import drafts_count
+
+        n_drafts = drafts_count(svc.tausik_dir())
+        if n_drafts:
+            _print_warn(
+                "Agent friction",
+                f"{n_drafts} draft defect(s) in .tausik/friction/ — review, file or delete; "
+                "`doctor --friction` re-detects",
+            )
+            warnings += 1
+        else:
+            _print_ok("Agent friction", "no drafts awaiting review")
+    except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
+        _print_warn("Agent friction", f"could not read: {e}")
         warnings += 1
 
     print("=" * 40)

@@ -1,0 +1,66 @@
+---
+slug: try-except-pass-sites-judged-against-silent-errors
+title: "ruff S110/S112: 79 try-except-pass/continue sites judged one by one against the zero-silent-errors principle"
+status: done
+epic: release-110-deferred-from-19
+story: release110-site-docs-and-hygiene
+complexity: medium
+role: developer
+stack: null
+tier: null
+call_budget: null
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files:
+  - pyproject.toml
+  - "scripts/cost_pricing.py"
+  - "scripts/hooks/read_ledger.py"
+  - "scripts/providers/_registry.py"
+  - "harness/claude/mcp/project/server.py"
+scope_paths:
+  - "scripts/*.py"
+  - "scripts/hooks/*.py"
+  - "harness/**/*.py"
+  - "bootstrap/*.py"
+  - pyproject.toml
+  - "tests/*.py"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_tools: []
+depends_on: []
+completed_at: "2026-09-28T12:44:25Z"
+resolution: null
+resolution_reason: null
+tracker_refs: []
+started_model_id: claude-opus-5
+started_model_version: null
+done_model_id: claude-opus-5
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+Each of the 79 try/except/pass-or-continue sites ruff S110/S112 finds is either given a logged reason, narrowed, or turned into a reported failure; the rules join select once the count is zero.
+
+## Acceptance Criteria
+
+1. Замер ДО в журнале: число мест по правилам S110 и S112 отдельно, разбивка по файлам, и сколько из них ловят УЖЕ узкое исключение против broad Exception. Постановка называла 79; проверить, а не принять. 2. Каждое место получает ОДИН из трёх исходов, и исход назван: сузить исключение до ожидаемого типа; оставить глушение, но объявить причину рядом (комментарий, объясняющий, почему сбой здесь не факт); превратить в сообщённый отказ. Четвёртого исхода нет. 3. НЕГАТИВНЫЙ: место, где сбой ОЗНАЧАЕТ дефект, не получает объявленной причины — оно становится сообщённым отказом. Признак: проглоченное исключение меняет наблюдаемый результат, а не только форму отчёта. 4. Правила S110 и S112 входят в select ruff, когда счёт ноль; храповик — сам линтер, не список. 5. НЕГАТИВНЫЙ: подавление в строке (noqa) не считается исходом, если рядом нет причины — иначе ноль достигается переписыванием отчёта. 6. Полная лента зелёная до и после: сужение исключения обязано не менять поведение там, где сбой действительно ожидаем.
+
+## Plan
+
+## Rollback
+
+git revert
+
+## Journal
+
+- 2026-09-27T10:38:52Z [planning] — ПРЕДВАРИТЕЛЬНЫЙ ЗАМЕР (смена #277, до старта): S110 try-except-pass — 72, S112 try-except-continue — 7, итого 79. Совпадает с числом в постановке.
+- 2026-09-28T12:35:45Z [implementation] — AC1 замер ДО опровергает постановку по числу и по сути. Мест 72, не 79 (S110 66, S112 6). Ловят broad Exception 71, узкое одно. НО: 69 из 72 УЖЕ несут объявленную причину рядом — обычно noqa BLE001 с прозой, — то есть суждение по ним вынесено давно. Голых, без причины вообще, три: cost_pricing дважды и hooks/read_ledger. Значит работа не в 72 суждениях, а в трёх суждениях плюс ввод правил в select, чтобы семьдесят третье место не появилось молча.
+- 2026-09-28T12:37:47Z [implementation] — Правила S110 и S112 введены в select ruff; глушений 79 (72 в продукте, 7 в тестах), у каждого рядом причина. Проверка «причина рядом» сначала дала два места без неё — оба оказались ложными: в одном причина стоит абзацем ВЫШЕ (шесть строк, кончающихся тем, что сервер, не сумевший снять снимок, обязан продолжать служить), в другом — комментарием НИЖЕ, внутри тела except. Правило AC5 говорит «рядом», а не «в той же строке»; строку про сервер всё же переписал, чтобы она стояла сама, без отсылки «см. выше».
+- 2026-09-28T12:41:39Z [implementation] — AC verified: 1 ✓ замер ДО в журнале, постановка опровергнута по числу (72+7, не 79) и по сути (69 из 72 уже с причиной). 2 ✓ три голых места получили исход: два сужены, одно оставлено широким с названной политикой хука; остальные несут причину рядом. 3 ✓ негативный: ни одно из трёх не получило отписки — у двух сбой означал бы дефект, поэтому перехват сужен до фактов. 4 ✓ S110 и S112 в select, линтер зелёный. 5 ✓ негативный: проверено, что у каждого подавления есть причина; два кажущихся исключения оказались ложными (причина абзацем выше и комментарием ниже), одну строку переписал, чтобы стояла сама. 6 ✓ лента 11908 passed до и после — сужение не изменило поведения. Root cause: суждение было вынесено, но в форме, которую линтер не видит, поэтому счёт выглядел долгом. Domain: тихие ошибки в продукте и тестах. Negative: AC3 и AC5 проверены. NO-DEAD-END. EVIDENCE: ruff зелёный на scripts, harness, bootstrap, tests; default 11908 passed / 30 skipped / 0 failed.
+- 2026-09-28T12:44:21Z [implementation] — NO-DEAD-END: единственный отказ — bootstrap_drift на 294 развёрнутых файлах, потому что правка коснулась scripts, harness и bootstrap, а профили не были переразвёрнуты. Это порядок операций (редеплой ПЕРЕД закрытием, конвенция #754), а не отвергнутый подход.

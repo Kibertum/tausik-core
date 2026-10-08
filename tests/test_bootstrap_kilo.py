@@ -208,3 +208,80 @@ def test_a_retired_managed_server_is_removed_from_the_kilo_config(tmp_path):
     cfg = json.loads((kilo_dir / "mcp.json").read_text(encoding="utf-8"))
     assert "tausik-brain" not in cfg["mcp"]
     assert "mine" in cfg["mcp"]
+
+
+# --- Permission policy (the SECOND Kilo extension point) ---------
+
+
+def _generated(tmp_path, config=None):
+    project = tmp_path / "proj"
+    project.mkdir()
+    lib = _make_lib(tmp_path)
+    written = bk.generate_kilo_config(
+        str(project), str(project / ".kilo"), "py", lib, config=config
+    )
+    data = json.loads((project / ".kilo" / "kilo.jsonc").read_text(encoding="utf-8"))
+    return project, data, written
+
+
+def test_permission_policy_written_by_default(tmp_path):
+    _, data, _ = _generated(tmp_path)
+    perm = data["permission"]
+    assert perm["edit"][".tausik/tausik.db"] == "deny"
+    assert perm["edit"][".kilo/plugins/*"] == "deny"
+    assert perm["bash"]["git push*"] == "ask"
+    assert perm["bash"]["sqlite3*"] == "ask"
+    assert perm["external_directory"] == "deny"
+
+
+def test_permission_policy_managed_rules_win_user_values_do_not_leak(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    lib = _make_lib(tmp_path)
+    (project / ".kilo").mkdir()
+    (project / ".kilo" / "kilo.jsonc").write_text(
+        json.dumps(
+            {
+                "mcp": {},
+                "permission": {
+                    "edit": {".tausik/tausik.db": "allow", "own/file.txt": "deny"},
+                    "webfetch": "ask",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    bk.generate_kilo_config(str(project), str(project / ".kilo"), "py", lib)
+    perm = json.loads((project / ".kilo" / "kilo.jsonc").read_text(encoding="utf-8"))["permission"]
+    assert perm["edit"][".tausik/tausik.db"] == "deny"  # governance wins
+    assert perm["edit"]["own/file.txt"] == "deny"  # user rule preserved
+    assert perm["webfetch"] == "ask"  # user's own op preserved
+    assert perm["edit"][".kilo/plugins/*"] == "deny"  # managed key added
+
+
+def test_permission_policy_opt_out(tmp_path):
+    _, data, _ = _generated(tmp_path, config={"kilo": {"permission_policy": False}})
+    assert "permission" not in data
+
+
+def test_global_string_permission_is_the_users_word(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    lib = _make_lib(tmp_path)
+    (project / ".kilo").mkdir()
+    (project / ".kilo" / "kilo.jsonc").write_text(
+        json.dumps({"mcp": {}, "permission": "ask"}), encoding="utf-8"
+    )
+    bk.generate_kilo_config(str(project), str(project / ".kilo"), "py", lib)
+    data = json.loads((project / ".kilo" / "kilo.jsonc").read_text(encoding="utf-8"))
+    assert data["permission"] == "ask"  # a global action is left exactly as set
+
+
+def test_permission_policy_idempotent(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    lib = _make_lib(tmp_path)
+    for _ in range(2):
+        bk.generate_kilo_config(str(project), str(project / ".kilo"), "py", lib)
+    perm = json.loads((project / ".kilo" / "kilo.jsonc").read_text(encoding="utf-8"))["permission"]
+    assert len(perm["edit"]) == 2 and len(perm["bash"]) == 2

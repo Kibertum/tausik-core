@@ -1,0 +1,70 @@
+---
+slug: capacity-counts-the-task-window-not-the-session-work
+title: "Ёмкость и калибровка считаются по окну задачи, а не по работе сессии: свежая сессия объявлена перерасходованной"
+status: done
+epic: release-110-deferred-from-19
+story: release110-tracker-promises
+complexity: complex
+role: backend
+stack: null
+tier: moderate
+call_budget: 55
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files:
+  - "scripts/backend_tier_metrics.py"
+  - "scripts/status_view.py"
+  - "tests/test_capacity_session_window.py"
+scope_paths:
+  - "scripts/**"
+  - "tests/*.py"
+scope_tools: []
+depends_on:
+  - qg0-does-not-refuse-work-for-session-time-or-capacity
+  - usage-attribution-is-keyed-by-task-not-session
+completed_at: "2026-09-23T19:23:39Z"
+resolution: null
+resolution_reason: null
+tracker_refs:
+  - "github#24"
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+Ёмкость и калибровка описывают РАБОТУ, выполненную в этой сессии, а не окно, унаследованное от чужой задачи: свежая сессия начинается с нуля и не блокирует старт задач.
+
+## Acceptance Criteria
+
+1. Замер тикета GitLab #8 воспроизведён: сессия возрастом 8 минут без единой начатой задачи показывает 373/200 и -233 remaining. Воспроизвести ДО правки, иначе чиним не то.
+2. Названы ОБА слоя, которые тикет упоминает, а не найденный: и счётчик ёмкости, и калибровка actual/budget. Правка закрывает форму.
+3. Ёмкость считает вызовы, сделанные В ЭТОЙ сессии; работа, унаследованная от задачи, начатой в прошлой сессии, не переносится в новое окно.
+4. НЕГАТИВНЫЙ сценарий: гейт ёмкости не имеет права ОТКАЗАТЬ в старте задачи по остатку, вычисленному из чужой сессии. Тест на свежей сессии обязан разрешать старт.
+5. НЕГАТИВНЫЙ сценарий: обратный перекос запрещён — работа, реально сделанная в сессии, не должна теряться при пересчёте; тест на длинной сессии с несколькими задачами.
+6. НЕГАТИВНЫЙ сценарий: калибровка на окне n=10 остаётся ОПИСАТЕЛЬНОЙ и не подаётся как прогноз (решение о непригодности коэффициента для прогноза срока уже записано).
+
+## Plan
+
+## Rollback
+
+git revert коммита; счётчик возвращается к прежнему окну
+
+## Journal
+
+- 2026-08-25T13:43:14Z [planning] — ВОСПРОИЗВЕДЕНИЕ С ТОЧНОЙ АРИФМЕТИКОЙ (сессия #179, 25 августа). Гейт ёмкости отказал старту задачи port-external-pr5-hook-coverage: 'budget=90 exceeds remaining -1723/200'. Статус показывает 'Capacity: 1923/200 used' при активном времени сессии 26 минут и примерно пятидесяти сделанных вызовах. ОТКУДА 1923: сессия закрыла две задачи, висевшие активными с 11 августа. При закрытии они отчитались call_actual=941 (survey-document-conclusions-not-transcripts) и call_actual=917 (roadmap-order-and-cut-not-add). 941+917=1858, плюс около 65 вызовов двух дефектов волны 0 и текущей работы = 1923. Совпадение точное. То есть в ёмкость СЕГОДНЯШНЕЙ сессии зачтена вся многосессионная история двух чужих окон. СЛЕДСТВИЕ ШИРЕ ПРЕДУПРЕЖДЕНИЯ: это не только ложный WARN. Гейт ёмкости БЛОКИРУЕТ старт следующей задачи, то есть закрытие давно висевшей задачи механически лишает сессию права начать новую работу. Чем дольше задача ждала закрытия, тем сильнее наказание за то, что её наконец закрыли. ЗАДЕТА И КАЛИБРОВКА: строка Calibration в тот же момент показывает actual/budget=4.03 на n=10 — те же два числа въехали в окно калибровки. Конвенция #384 уже говорит, что окно n=10 непригодно для прогноза; здесь видно, чем именно оно отравляется.
+- 2026-08-29T14:11:45Z [planning] — [#189] ВТЯНУТА В 1.9: это ЕДИНСТВЕННЫЙ замеренный дефект, делающий многоагентную работу невозможной, а владелец 29.08 поставил многоагентность целью пути разработки. Механизм из тикета GitLab #8: backend_queries.py:340 считает строки events с entity_id = slug от started_at до completed_at, то есть приписывает задаче ВСЁ, что происходило в её окне, включая вызовы по другим задачам. Фреймворк при этом сам допускает несколько активных задач. Живой замер потребителя: задача с бюджетом 25 получила call_actual = 373, из которых по ней шло минут двадцать; свежая восьмиминутная сессия объявлена перерасходованной на 186% и гейт ёмкости отказал в старте любой задачи. Пока это не починено, две параллельные задачи гарантированно портят бюджеты друг друга и блокируют третью.
+- 2026-09-23T19:22:25Z [implementation] — Замер ДО правки. Слой 1 (счётчик used) уже исправлен в 1.9.0 коммитом 9eab6893: used считает usage_events этой сессии; на 1.8 он суммировал call_actual закрытых задач (так появлялись 373/200 из GitLab #8, и 419/200 в смене #236). Слой 2 воспроизведён тестом до правки: задача с бюджетом 150, потратившая 140 вызовов в прошлой сессии, в новой сессии давала planned_active=150 (ожидалось 10); три теста красные до правки. Правка: planned = SUM(MAX(0, budget − вызовы задачи в usage_events)). Калибровка — отношение по задаче за всю её жизнь, это правильная единица; строка status теперь помечена 'descriptive, not a forecast'.
+- 2026-09-23T19:22:26Z [implementation] — AC-1: ✓ tests/test_capacity_session_window.py::test_a_fresh_session_does_not_inherit_a_task_s_spent_budget
+- 2026-09-23T19:22:26Z [implementation] — AC-3: ✓ tests/test_capacity_session_window.py::test_a_fresh_session_does_not_inherit_a_task_s_spent_budget
+- 2026-09-23T19:22:26Z [implementation] — AC-4: ✓ tests/test_capacity_session_window.py::test_a_fresh_session_allows_a_start
+- 2026-09-23T19:22:27Z [implementation] — AC-5: ✓ tests/test_capacity_session_window.py::test_work_done_in_a_long_session_is_not_lost
+- 2026-09-23T19:22:27Z [implementation] — AC-6: ✓ tests/test_capacity_session_window.py::test_calibration_is_printed_as_descriptive
+- 2026-09-23T19:22:28Z [implementation] — AC-2: ✓ оба слоя названы в докстринге tests/test_capacity_session_window.py и в CHANGELOG: счётчик (1.9.0) и резерв активных задач (здесь); калибровка — по задаче, описательная

@@ -45,6 +45,10 @@ SETTINGS_FILES = ("settings.json", "settings.local.json", "hooks.json")
 PLUGIN_SUBDIR = "plugins"
 PLUGIN_SUFFIXES = (".js", ".mjs")
 
+#: Kilo config files that may carry a `permission` policy. Read with the
+#: shared jsonc scanner, because kilo.jsonc is JSON-with-comments by name.
+KILON_CONFIG_FILES = ("kilo.jsonc", "mcp.json")
+
 
 def profile_dir_for(project_dir: str | None, ide: str | None) -> str | None:
     """The host profile bootstrap writes for ``ide``, or None when there is none.
@@ -67,16 +71,16 @@ def deployed_enforcement(profile_dir: str | None) -> dict[str, int]:
     deploy and drift from what we did, exactly as the rules text drifted from the
     mechanism.
 
-    Returns counts BY SHAPE (``hooks``, ``plugins``) rather than one total,
-    because the sentence built from it names what is deployed, and calling
-    OpenCode's plugin a hook would be a small lie of the same family as the one
-    being fixed.
+    Returns counts BY SHAPE (``hooks``, ``plugins``, ``permissions``) rather
+    than one total, because the sentence built from it names what is deployed,
+    and calling OpenCode's plugin a hook — or Kilo's permission policy either
+    of those — would be a small lie of the same family as the one being fixed.
 
     Zero on anything unreadable. Failing to read a profile means we cannot show
     that enforcement is deployed, and the honest answer to "cannot show" is the
     cautious one — never the flattering one.
     """
-    found = {"hooks": 0, "plugins": 0}
+    found = {"hooks": 0, "plugins": 0, "permissions": 0}
     if not profile_dir or not os.path.isdir(profile_dir):
         return found
     for name in SETTINGS_FILES:
@@ -103,11 +107,43 @@ def deployed_enforcement(profile_dir: str | None) -> dict[str, int]:
             found["plugins"] = sum(1 for n in os.listdir(plugins) if n.endswith(PLUGIN_SUFFIXES))
         except OSError:
             pass
+    found["permissions"] = _count_permission_rules(profile_dir)
     return found
 
 
+def _count_permission_rules(profile_dir: str) -> int:
+    """Permission rules in Kilo config files — HOST-LEVEL enforcement.
+
+    Every rule counts, not only TAUSIK's: a user-written deny is the same
+    mechanism as a generated one, and the count says what the HOST will
+    refuse, not what we meant to plant. Action-only ops ("bash": "deny")
+    count as one rule, same as each pattern entry.
+    """
+    total = 0
+    for name in KILON_CONFIG_FILES:
+        path = os.path.join(profile_dir, name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            from jsonc_utils import load_jsonc
+
+            data = load_jsonc(path)
+        except (OSError, ValueError):
+            continue  # unreadable/malformed config cannot be counted, only reported as zero
+        perm = data.get("permission") if isinstance(data, dict) else None
+        if isinstance(perm, str):
+            total += 1  # a global action is one rule covering every operation
+        elif isinstance(perm, dict):
+            for value in perm.values():
+                if isinstance(value, str):
+                    total += 1
+                elif isinstance(value, dict):
+                    total += len(value)
+    return total
+
+
 def describe_enforcement(found: dict[str, int]) -> str:
-    """ "23 hook commands", "1 plugin", "23 hook commands and 1 plugin", or ""."""
+    """ "23 hook commands", "1 plugin and 5 permission rules", or ""."""
     parts = []
     if found.get("hooks"):
         n = found["hooks"]
@@ -115,6 +151,9 @@ def describe_enforcement(found: dict[str, int]) -> str:
     if found.get("plugins"):
         n = found["plugins"]
         parts.append(f"{n} plugin{'s' if n != 1 else ''}")
+    if found.get("permissions"):
+        n = found["permissions"]
+        parts.append(f"{n} permission rule{'s' if n != 1 else ''}")
     return " and ".join(parts)
 
 

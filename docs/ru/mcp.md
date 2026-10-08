@@ -4,13 +4,13 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
-**147 инструмента** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**149 инструмента** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 154 инструментов.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 149 — итого с ним 156 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (147): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (149): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
 
@@ -58,8 +58,8 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | `tausik_task_logs` | Чтение структурированных логов (фильтр по фазе) | `slug` |
 | `tausik_reason_step` | RENAR шаг рассуждения (intent\|premise\|action\|verification) | `slug`, `kind`, `content` |
 | `tausik_task_replay` | Хронологический таймлайн задачи (logs + reasoning + events + verification) | `slug` |
-| `tausik_task_block` | Заблокировать | `slug` |
-| `tausik_task_unblock` | Разблокировать | `slug` |
+| `tausik_task_block` | Блокировка С конкретным вопросом владельцу + проверяемым критерием разблокировки (оба обязательны; вопрос не пересказывает заголовок; повторная блокировка обновляет поля) | `slug` |
+| `tausik_task_unblock` | Разблокировка с указанием, КАКОЙ критерий выполнен и почему (молчаливая запрещена; КТО разблокировал — записывается) | `slug` |
 | `tausik_task_review` | Перевести в review | `slug` |
 | `tausik_task_delete` | Удалить | `slug` |
 | `tausik_task_move` | Переместить в другую стори | `slug`, `new_story_slug` |
@@ -108,12 +108,12 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | `tausik_epic_add` | Создать эпик | `slug`, `title` |
 | `tausik_epic_list` | Список эпиков; `(stale: N)` — задач создано после последней правки описания (отчёт, не гейт) | — |
 | `tausik_epic_update` | Изменить title и/или description эпика — замысел группы задач; хотя бы одно поле | `slug` |
-| `tausik_epic_done` | Завершить эпик | `slug` |
+| `tausik_epic_done` | Завершить эпик; принимает `verify_handle` — хэндл пул-чека от `tausik_verify_hierarchy`, гасится атомарно (закрываются все участники или никто) | `slug` |
 | `tausik_epic_delete` | Удалить (cascade: стори + задачи) | `slug` |
 | `tausik_story_add` | Создать стори в эпике | `epic_slug`, `slug`, `title` |
 | `tausik_story_list` | Список стори; `(stale: N)` как у эпиков | — |
 | `tausik_story_update` | Изменить title и/или description стори; хотя бы одно поле | `slug` |
-| `tausik_story_done` | Завершить стори | `slug` |
+| `tausik_story_done` | Завершить стори; принимает `verify_handle` — хэндл пул-чека от `tausik_verify_hierarchy`, гасится атомарно (закрываются все участники или никто) | `slug` |
 | `tausik_story_delete` | Удалить (cascade: задачи) | `slug` |
 | `tausik_roadmap` | Дерево: epic → story → task | — |
 
@@ -252,6 +252,8 @@ read-only проекции над подписанными пунктами ни
 | `tausik_gates_enable` | Включить gate | `name` |
 | `tausik_gates_disable` | Выключить gate | `name` |
 | `tausik_verify` | v1.5 Verify-First: запустить heavy gates (pytest, tsc, …) и закешировать green в `verification_runs`. После этого `tausik_task_done` использует кеш и закрывается мгновенно. | `task_slug` |
+| `tausik_verify_cohort` | Пул-верификация явной когорты (≥2 слагов): ОДИН прогон гейтов по объединению `relevant_files` участников, записанная identity когорты, переиспользование отказывается именованным инвалидатором. Зеркало CLI `verify --tasks`. | `tasks` |
+| `tausik_verify_hierarchy` | Разрешает незакрытые задачи стори/эпика в одну когорту и гонит единый пул-прогон; отказывает пулам <2 и неготовым к ревью участникам. Зеркало CLI `verify --story/--epic`. | `kind`, `slug` |
 
 Доступные gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `class_surface`, `tdd_order`. Stack-scoped gates авто-включаются по обнаруженному стеку; universal gates (`filesize`, `class_surface`, `tdd_order`) применяются ко всем стекам. `class_surface` работает по всему репозиторию, а не по скоупу: он ограничивает составную публичную поверхность класса после наследования, которую пофайловый строковый лимит видеть не может.
 
@@ -333,7 +335,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 147 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 149 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Область tool-поверхности (`mcp.scope_tools_exposure`)
 
@@ -354,13 +356,38 @@ Rule 2) и всегда-безопасного ядра — целиком се�
 write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
 `list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
 
-**Замер стоимости.** Полная авторская поверхность — 147 тула ~ 62 КБ определений
-(~15.9k оценочных токенов; `tests/test_mcp_tool_token_cost.py` фиксирует это и
-держит храповиком). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
+**Замер стоимости.** Полная авторская поверхность — 149 тула ~ 60,3 КБ определений
+(60 273 байта, ~15.1k оценочных токенов при байтах/4; храповик в
+`tausik/gates.json` (`mcp_surface`) фиксирует это и отказывает росту без
+обоснованного повышения). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
 эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой
 тест держит каждое описание TAUSIK под этим лимитом, чтобы ничего не срезалось
 молча, и проверяет, что имена остаются уникальными и искомыми, чтобы диспетчер по
 имени по-прежнему находил нужный тул.
+
+## Храповик паритета поверхностей
+
+Поверхность MCP и CLI — два рендера одного сервиса, и трижды обработчик терял
+поля, которые его CLI-двойник продолжал показывать (verify печатал имена
+гейтов, `update_claudemd` стирал хвост памяти, `task_show` прятал
+`scope_paths` и `rollback_plan`) — каждый случай ловился глазами, а не
+прогоном. Карта пар живёт в одном месте — `scripts/mcp_cli_parity.py`: каждый
+MCP-инструмент объявлен вместе со своим CLI-двойником, а девять инструментов
+без двойника несут письменную причину и число.
+`tests/test_mcp_cli_surface_parity.py` гоняет обе стороны пятнадцати
+read-команд костяка на подсаженном проекте и сравнивает нормализованные метки
+полей — метка, которую CLI печатает, а MCP-инструмент роняет, есть потеря;
+обратное направление (MCP богаче) потерей не считается. Потери, существующие
+осознанно, — строки леджера с причиной и числом, и леджер может только
+сжиматься: объявленная потеря, которая зажила, роняет тест, пока её запись не
+удалена.
+
+На первом же живом прогоне (2026-10-07) храповик покраснел ровно так, как
+задуман: `tausik_gates_status` теряет колонку `cmd` каждого гейта и всю секцию
+мета-гейтов (Verify-First Contract, Continuous CHANGELOG, QG-0 Readiness,
+RENAR drift-1/7), которые печатает `gates status`. Долг записан шестью
+строками леджера; правка обработчика — отдельная задача
+`mcp-gates-status-skryvaet-kolonku-cmd-i-sektsiyu`.
 
 ## Запуск Tausik MCP-сервера
 

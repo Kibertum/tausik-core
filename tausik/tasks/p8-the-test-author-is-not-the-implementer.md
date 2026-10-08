@@ -1,0 +1,47 @@
+---
+slug: p8-the-test-author-is-not-the-implementer
+title: "P8 изоляция авторства: тест заморожен до реализации и пишется не тем агентом, что код"
+status: planning
+epic: release-113-evidence
+story: release113-proof
+complexity: complex
+role: architect
+stack: python
+tier: substantial
+call_budget: 100
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files: []
+scope_paths: []
+scope_tools: []
+depends_on:
+  - separation-of-duties-is-asserted-not-attested
+completed_at: null
+resolution: null
+resolution_reason: null
+tracker_refs:
+  - "github#132"
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+RENAR §9.18.1 (ADR-012, accepted), три оси: тест заморожен ДО реализации; пишется не тем агентом, что код; правка критериев проходит только через явную пометку test-spec-change. Плюс §9.18.3 — машинный сигнал ослабления нормы: если после правки теста падает ранее зелёная система, норма изменилась ПО ФАКТУ, как бы правку ни классифицировали. Это же требование пришло вторым путём — из производственной модели, решение #250 пункт 4, — и реализуется здесь один раз. У нас сейчас исполнитель пишет и код, и тест в одной задаче, поэтому тест систематически подгоняется под реализацию, а не наоборот; это и есть источник тестов, зелёных с рождения. Задача: закрепить три оси проверяемо. Ось «не тот агент» у нас частично есть механизмом внешнего ревьюера на другой модели — переиспользовать, а не строить второй. Ось «заморожен до реализации» опирается на порядок записей, который БД уже хранит.
+
+## Acceptance Criteria
+
+## Plan
+
+## Rollback
+
+Три оси авторства проверяются по УЖЕ хранимому порядку записей и по существующему внешнему ревьюеру. Откат: git revert; написанные тесты остаются, снимается только требование к авторству. Обесценивания сделанной работы при откате не происходит.
+
+## Journal

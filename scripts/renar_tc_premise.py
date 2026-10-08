@@ -93,6 +93,17 @@ CLASSES_AT_DECLARATION = frozenset(
         "adapt_links",
         "adapt_signatures",
         "adapts",
+        # memory-tail-by-relevance-not-recency (v74): snapshot rows backing
+        # `memory hygiene --revert`. NOT a TC artifact class — it is undo
+        # bookkeeping for a layering pass, with no assertion, polarity or
+        # environment to pair.
+        "memory_hygiene_snapshots",
+        # r1112-cohort-receipts-and-incremental-rerun (v75): pooled-verify
+        # cohort storage. NOT TC artifact classes — they are verify-run
+        # bookkeeping (membership/identity, per-unit outcomes), carrying no
+        # assertion, polarity or environment of their own.
+        "verification_cohorts",
+        "verification_cohort_results",
         # at-acceptance-tests-derived-by-an-isolated-agent (RENAR §8A): the AT
         # (Acceptance Test) header record. NOT a TC (test case) artifact class
         # — it records the RESULT of an isolated-generation procedure, not a

@@ -1,0 +1,53 @@
+---
+slug: task-ownership-is-a-dead-primitive
+title: "Владение задачей не выражено: task claim не использован ни разу за 1439 задач"
+status: planning
+epic: v2-global-mcp
+story: v2gm-core
+complexity: medium
+role: developer
+stack: python
+tier: null
+call_budget: null
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files: []
+scope_paths: []
+scope_tools: []
+depends_on:
+  - capacity-counts-the-task-window-not-the-session-work
+  - separation-of-duties-is-asserted-not-attested
+completed_at: null
+resolution: null
+resolution_reason: null
+tracker_refs:
+  - "github#151"
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+ЗАМЕР #189: примитив владения задачей СУЩЕСТВУЕТ — команда `tausik task claim <slug> <agent_id>`, колонка tasks.claimed_by — и НЕ ИСПОЛЬЗОВАН НИ РАЗУ: заполнено у 0 задач из 1439. Ровно тот же узор, что у рёбер памяти (4 ребра на 696 записей) и у общей базы знаний (ни одной записи от этого проекта): подложка построена, потребителя нет.
+ПОЧЕМУ ЭТО ВАЖНО ИМЕННО СЕЙЧАС: топология 1.9 допускает 27 задач одновременно на нулевом уровне. Без выраженного владения два агента возьмут одну задачу и узнают об этом по конфликту в git, а не по отказу при старте.
+ЧТО ДЕЛАЕТСЯ: владение перестаёт быть необязательным полем. `task start` заявляет владельца (агент, модель, роль) — идентичность деятеля уже вводится задачей separation-of-duties-is-asserted-not-attested, здесь она ПРИМЕНЯЕТСЯ, а не изобретается заново. Старт чужой активной задачи ОТКАЗЫВАЕТ с указанием владельца и времени захвата. Захват протухает по времени, иначе брошенная задача заблокирована навсегда.
+СВЯЗЬ, БЕЗ КОТОРОЙ ТОЛКУ НЕТ: `tausik team` сегодня не имеет ни одного флага и ничего не решает. Он обязан показывать, кто что держит, что свободно на нулевом уровне графа и что заблокировано ожиданием.
+НЕГАТИВНОЕ: не вводить блокировку записи в БД. Предмет — ВИДИМОСТЬ владения и честный отказ при старте, а не транзакционный замок; попытка сделать замок на SQLite при нескольких процессах породит новый класс отказов вместо решения старого.
+ЗАВИСИТ от исправления счётчика ёмкости: пока call_actual приписывает задаче чужие вызовы, параллельная работа портит бюджеты независимо от того, выражено владение или нет.
+
+## Acceptance Criteria
+
+## Plan
+
+## Rollback
+
+Заполнение существующей колонки claimed_by плюс отказ при старте чужой задачи. Откат — git revert; данные о владении остаются и не мешают.
+
+## Journal

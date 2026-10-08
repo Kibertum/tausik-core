@@ -50,7 +50,9 @@ def test_each_trigger_asks_for_a_dead_end_or_a_reason(svc, trigger):
     if trigger == "red":
         _red_run(svc)
     elif trigger == "blocked":
-        svc.task_block("t", "waiting for the fixture")
+        svc.task_block(
+            "t", "waiting for the fixture", "owner: which fixture source?", "fixture source decided"
+        )
     else:
         svc.be.task_update("t", attempts=2)
     msg = g.check(svc.be, _task(svc))
@@ -78,9 +80,12 @@ def test_a_dead_end_without_a_task_binds_to_the_single_active_one(svc):
 
 
 def test_a_dead_end_with_no_active_task_is_refused(svc):
-    svc.task_block("t", "parked")
+    svc.task_block("t", "parked", "owner: unpark now or after the release?", "release cut")
     with pytest.raises(ServiceError, match="must name its task"):
         svc.dead_end("Tried a cache", "Stale after rename")
+    # A refusal must leave no half-effect: no dead-end row may exist after it,
+    # or the next identical attempt would find two of them.
+    assert svc.be._q("SELECT id FROM memory WHERE type='dead_end'") == []
 
 
 def test_a_dead_end_with_two_active_tasks_is_refused(svc):

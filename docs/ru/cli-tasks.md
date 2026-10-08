@@ -70,14 +70,17 @@ epic add <slug> <title> [--description TEXT]
 epic update <slug> [--title T] [--description TEXT]   # замысел группы задач можно править
 epic list [--stale-over N]     # stale = задач создано после последней правки описания; отчёт, не гейт
 epic list
-epic done <slug>
+epic done <slug> [--verify-handle H]   # закрывает эпик; с H — гасит пул-чек от
+                                        # `verify --epic` атомарно (закрываются все
+                                        # участники или никто; одноразовый, с TTL)
 epic delete <slug>             # CASCADE: удаляет все стори + задачи
 
 story add <epic_slug> <slug> <title> [--description TEXT]
 story update <slug> [--title T] [--description TEXT]
 story list [--epic E] [--stale-over N]
 story list [--epic EPIC_SLUG]
-story done <slug>
+story done <slug> [--verify-handle H]   # закрывает стори; с H — гасит пул-чек от
+                                        # `verify --story` атомарно
 story delete <slug>            # CASCADE: удаляет все задачи
 ```
 
@@ -137,8 +140,15 @@ task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ..
                                 #       честно не мапится на тест: документация, конфиг, исследование.
                                 #       НЕ спасает прогон, в котором гейт БЫЛ ПРИМЕНИМ и всё равно не
                                 #       выполнился (COULD_NOT_RUN) — такой чинят, а не признают.
-task block <slug> [--reason TEXT]
-task unblock <slug>             # blocked → active
+task block <slug> --question TEXT --unblock-when TEXT [--reason TEXT]
+                                # ОБЯЗАТЕЛЬНЫ оба: конкретный вопрос владельцу и проверяемый
+                                # критерий разблокировки — блокировка без вопроса есть задача,
+                                # брошенная с объяснением для себя; вопрос не имеет права
+                                # пересказывать заголовок. Повторная блокировка обновляет поля.
+                                # `tausik status` показывает открытые вопросы ПЕРВЫМ блоком.
+task unblock <slug> --criterion-met TEXT [--by КТО]
+                                # blocked → active; молчаливая разблокировка запрещена: назови,
+                                # КАКОЙ критерий выполнен и почему; КТО разблокировал — записывается
 task review <slug>              # active → review
 task update <slug> [--title T] [--goal G] [--notes N] [--notes-overwrite] [--acceptance-criteria AC]
                   [--scope S] [--scope-exclude S] [--stack S] [--complexity C] [--role ROLE]

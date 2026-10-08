@@ -1,0 +1,63 @@
+---
+slug: dead-disclosure-section-looks-alive
+title: "Мёртвый символ disclosure_section выглядит живым: раздел раскрытия SENAR, который ничто не зовёт"
+status: done
+epic: release-110-deferred-from-19
+story: release110-open-defects
+complexity: simple
+role: developer
+stack: python
+tier: null
+call_budget: null
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files:
+  - "scripts/senar_claim.py"
+  - "scripts/token_price.py"
+  - "tests/test_token_price.py"
+scope_paths:
+  - "scripts/senar_claim.py"
+  - "scripts/token_price.py"
+  - "tests/test_token_price.py"
+scope_tools: []
+depends_on: []
+completed_at: "2026-09-26T18:15:16Z"
+resolution: null
+resolution_reason: null
+tracker_refs: []
+started_model_id: claude-opus-5
+started_model_version: null
+done_model_id: claude-opus-5
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+ЗАМЕР РЕВЬЮ, смена #277: audit_unused_python называет scripts/senar_claim.py::disclosure_section (строка 116) единственным символом, которого ничто не импортирует и не запускает. Проверено grep по всему дереву вне развёрнутых профилей: единственное вхождение — само объявление. Функция возвращает dict и, судя по имени, готовит раздел раскрытия для заявления о соответствии SENAR — то есть выглядит живой для читателя, который откроет файл, и это дороже обычного мёртвого кода: правку внесут в то, что не исполняется.
+
+ПЕРЕД УДАЛЕНИЕМ ПРОВЕРИТЬ ОДНО: не зовётся ли она по имени из строки — через реестр, шаблон документа или getattr. Конвенция #682 говорит, что мёртвый код ищут по СИМВОЛАМ и повторяемо, потому что удаление обнажает следующий слой; поэтому после удаления прогон повторить.
+
+## Acceptance Criteria
+
+AC-1 Проверено и НАЗВАНО, зовётся ли символ по строке: grep по строковым литералам и реестрам, результат записан числом. AC-2 Символ удалён либо подключён — и выбор обоснован тем, что нашёл AC-1. AC-3 НЕГАТИВ: после удаления прогон audit_unused_python повторён, потому что удаление обнажает следующий слой (конвенция #682); новые находки названы, а не умолчаны. AC-4 Ноль мёртвых символов удерживается тем же тестом, что и раньше, а не разовой уборкой.
+
+## Plan
+
+## Rollback
+
+Удаление одной функции; откат — git revert. Поведение не меняется: функция никем не зовётся, что и есть предмет.
+
+## Journal
+
+- 2026-09-26T18:14:06Z [implementation] — AC-1 ✓ ЗАМЕР: у обоих символов РОВНО ОДНА ссылка в дереве — собственное объявление. Вызовов по строке нет: grep по .py, .json и .md в scripts, harness, docs, tests, bootstrap дал только строку определения. Число решает вопрос: подключать нечего, потому что никто не спрашивал.
+- 2026-09-26T18:14:06Z [implementation] — НАЙДЕН ВТОРОЙ, И ЭТО МОЙ: token_price.cost_of_row, написанный в этой же смене и не позванный ни разу — breakdown считает то же самое внутри себя. Уехал в уже отправленный коммит; ревью нашло его на следующем прогоне.
+- 2026-09-26T18:14:07Z [implementation] — AC-2 ✓ оба УДАЛЕНЫ, и выбор обоснован замером AC-1. disclosure_section лишь собирал словарь из констант того же модуля (claim_sentence, NONCONFORMITIES, UNIMPLEMENTED_SHOULD, EMPTY_BECAUSE) — данные достижимы напрямую, поэтому не потеряно ничего. cost_of_row дублировал логику breakdown построчно.
+- 2026-09-26T18:14:07Z [implementation] — AC-3 ✓ НЕГАТИВ: прогон повторён после удаления (конвенция #682 — удаление обнажает следующий слой). tests/test_dead_symbols_stay_dead.py и tests/test_audit_unused_python.py зелёные, новых находок нет.
+- 2026-09-26T18:14:07Z [implementation] — AC-4 ✓ ноль удерживается теми же тестами, а не разовой уборкой.
+- 2026-09-26T18:14:08Z [implementation] — Domain: senar_claim по-прежнему импортируется, claim_sentence и missing_disclosures на месте — удалён только агрегатор, которого никто не звал и который не документирован ни в одной странице docs.
+- 2026-09-26T18:15:13Z [implementation] — NO-DEAD-END: красный прогон был не про подход, а про порядок операций у меня. Сперва отбил bootstrap_drift (правки в scripts/ не доехали до развёрнутых копий, лечится bootstrap --ide all), затем гейт changelog. Оба — обязательные шаги закрытия, которые я выполнил не в том порядке, а не тупик в решении задачи.

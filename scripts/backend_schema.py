@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 73
+SCHEMA_VERSION = 77
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -93,7 +93,17 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- rows stay NULL; assigning today's version to historical work would turn
     -- an unknown cohort into a fabricated one.
     started_tausik_version TEXT,
-    done_tausik_version TEXT
+    done_tausik_version TEXT,
+    -- v77 (blocked-is-a-status-without-a-question-to-unblock-it): a block
+    -- without a QUESTION to the owner and a checkable UNBLOCK CRITERIA is a
+    -- task abandoned with a note to self. `task block` refuses to write one
+    -- without both. unblocked_by/unblocked_at record WHO stated the criterion
+    -- met — silent unblocking is forbidden. LAST in the table on purpose:
+    -- the upgrade path adds them with ALTER TABLE, which appends.
+    blocked_question TEXT,
+    unblock_criteria TEXT,
+    unblocked_by TEXT,
+    unblocked_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -139,7 +149,21 @@ CREATE TABLE IF NOT EXISTS memory (
     slug TEXT,
     -- v65: where the claim came from; last, so fresh and migrated tables agree.
     provenance TEXT NOT NULL DEFAULT 'inferred'
-        CHECK(provenance IN ('observed', 'inferred', 'told'))
+        CHECK(provenance IN ('observed', 'inferred', 'told')),
+    -- v74: relevance machinery (memory-tail-by-relevance-not-recency).
+    -- Hits count explicit `memory show` only; search is exposure, not access.
+    hit_count INTEGER NOT NULL DEFAULT 0,
+    last_hit_at TEXT,
+    layer TEXT,
+    pinned INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS memory_hygiene_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL,
+    memory_id INTEGER NOT NULL REFERENCES memory(id) ON DELETE CASCADE,
+    prev_layer TEXT,
+    applied_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS explorations (
@@ -302,7 +326,38 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     -- rows as spendable.
     handle_nonce TEXT,            -- 128-bit hex; NULL = never minted
     handle_expires_at TEXT,       -- ISO-8601 UTC; the receipt carries a SIGNED copy
-    handle_redeemed_at TEXT       -- ISO-8601 UTC of the single spend; NULL = unspent
+    handle_redeemed_at TEXT,      -- ISO-8601 UTC of the single spend; NULL = unspent
+    -- v75: the pooled-verify cohort this run belongs to; NULL = a run of one
+    -- task, which is every row written before cohorts existed.
+    cohort_identity TEXT
+);
+
+CREATE TABLE IF NOT EXISTS verification_cohorts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    identity TEXT NOT NULL UNIQUE,
+    members_json TEXT NOT NULL,
+    identity_inputs_json TEXT NOT NULL,
+    union_files_hash TEXT NOT NULL,
+    gate_signature TEXT NOT NULL,
+    -- v76: 'invalidated' is the SS4 widening mark — a green cohort whose
+    -- reuse a named invalidator refused. Terminal for that row: the next
+    -- run records a NEW cohort, it never resurrects this one.
+    state TEXT NOT NULL DEFAULT 'open'
+        CHECK(state IN ('open', 'green', 'red', 'invalidated')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS verification_cohort_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cohort_pk INTEGER NOT NULL
+        REFERENCES verification_cohorts(id) ON DELETE CASCADE,
+    unit TEXT NOT NULL,
+    outcome TEXT NOT NULL CHECK(outcome IN ('passed', 'failed', 'skipped')),
+    covered_by TEXT,
+    inputs_digest TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    UNIQUE(cohort_pk, unit)
 );
 
 CREATE TABLE IF NOT EXISTS session_usage_metrics (

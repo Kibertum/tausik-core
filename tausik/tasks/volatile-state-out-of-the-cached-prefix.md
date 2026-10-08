@@ -1,0 +1,60 @@
+---
+slug: volatile-state-out-of-the-cached-prefix
+title: "Динамический блок CLAUDE.md сбивает кэш префикса каждую смену"
+status: done
+epic: release-110-deferred-from-19
+story: harness-costs-less-per-task
+complexity: medium
+role: developer
+stack: python
+tier: null
+call_budget: null
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files:
+  - "scripts/claudemd_writer.py"
+  - "tests/test_volatile_state_split.py"
+scope_paths:
+  - "scripts/claudemd_state.py"
+  - "scripts/claudemd_writer.py"
+  - "tests/test_volatile_state_split.py"
+scope_tools: []
+depends_on: []
+completed_at: "2026-09-26T17:12:15Z"
+resolution: null
+resolution_reason: null
+tracker_refs: []
+started_model_id: claude-opus-5
+started_model_version: null
+done_model_id: claude-opus-5
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+ЗАМЕР, смена #275: update-claudemd пишет в CLAUDE.md и AGENTS.md номер смены, имя ветки, счётчики задач и хвост памяти. Хост читает этот файл как часть статического контекста, значит префикс меняется при каждом checkpoint и завершении смены — и кэш провайдера обнуляется. Это ровно ловушка про волатильное содержимое в кэшируемом префиксе. Порядок, к которому надо прийти: схемы инструментов, инструкции, ГРАНИЦА, переменное окружение и память, разговор. ПРАВКА НЕ В ТОМ, ЧТОБЫ УБРАТЬ БЛОК: он полезен и читается свежим агентом. Правка в том, чтобы переменная часть отделилась от неизменной — файлом или разделом, который хост подаёт после границы.
+
+## Acceptance Criteria
+
+AC-1 ЗАМЕР: показано, сколько байт CLAUDE.md и AGENTS.md меняется между двумя последовательными update-claudemd на неизменном коде. AC-2 Неизменная часть инструкций байт-идентична между сменами — проверяется двумя вызовами и сравнением. AC-3 Переменная часть по-прежнему доходит до агента: тест доказывает, что номер смены и хвост памяти читаемы после разделения. AC-4 НЕГАТИВ: гейт claudemd_state_drift продолжает ловить опустошённый блок — разделение не смеет стать дырой в нём.
+
+## Plan
+
+## Rollback
+
+Правка в оснастке; откат — git revert. Каждая правка отдельным коммитом, чтобы откатывалась по одной.
+
+## Journal
+
+- 2026-09-26T17:05:54Z [implementation] — AC-1 ЗАМЕР: динамический блок — 3320 из 6377 символов CLAUDE.md (52%) и 2231 из 14901 AGENTS.md (14%). CLAUDE.md меняется почти каждым коммитом (1-21 строк за коммит по последним восьми).
+- 2026-09-26T17:05:54Z [implementation] — AC-2 ✓ И ОКАЗАЛСЯ УЖЕ ВЫПОЛНЕН: замер до/после update-claudemd при изменённом состоянии показал, что байты ДО и ПОСЛЕ маркеров совпадают по sha256 в обоих файлах, а меняется только блок. apply_dynamic_section режет строго по маркерам. Закреплено tests/test_volatile_state_split.py::TestOnlyTheBlockMoves.
+- 2026-09-26T17:05:55Z [implementation] — AC-3 ✓ переменная часть по-прежнему доходит: блок остаётся на месте, тест test_the_block_itself_does_change доказывает, что он ПЕРЕЗАПИСЫВАЕТСЯ — иначе предыдущий тест был бы зелен потому, что не записано ничего.
+- 2026-09-26T17:05:55Z [implementation] — AC-4 ✓ гейт claudemd_state_drift не тронут: правок в его пути нет, задача добавила только тест. Опустошённый блок он ловит по-прежнему — проверяется его собственным набором тестов.
+- 2026-09-26T17:05:55Z [implementation] — Negative: файл БЕЗ маркеров не трогается вовсе и отказ называет причину (test_nothing_is_written_and_the_skip_is_named) — чужой рукописный CLAUDE.md не наш холст; dry-run не пишет ни байта.
+- 2026-09-26T17:05:55Z [implementation] — ГЛАВНОЕ, ЧТО ЗАМЕР ЗАКРЫЛ: разделение, которого просила задача, УЖЕ существует на уровне файла. Чего НЕ существует — способа сказать хосту, куда положить переменную половину относительно границы кэша: Claude Code не даёт проектному файлу ни директивы импорта, ни объявления границы (проверено: ни в docs, ни в bootstrap, ни в claudemd_* нет ни @import, ни CLAUDE.local). Поэтому вторая половина замысла — находка, а не код.
+- 2026-09-26T17:05:56Z [implementation] — Domain: свойство проверено на СОБСТВЕННЫХ файлах репозитория, а не только на фикстуре — свойство, верное лишь в фикстуре, верно там, где ничего не стоит.

@@ -10,29 +10,107 @@ from typing import Any, Callable
 
 QueryFn = Callable[..., list[dict[str, Any]]]
 
+# A tier's inclusive upper bound may sit at most this far above the p50 of
+# that tier's measured actuals; further out it decorates instead of
+# constraining (recalibrate-tier-call-budgets-against-observed: substantial
+# budget 105.1 vs actual 53.3 — a 2x cushion that never bound anything).
+BUDGET_CALIBRATION_FACTOR = 3.0
+
+
+def _percentile(sorted_vals: list[float], frac: float) -> float | None:
+    """Linear-interpolated percentile of an already-sorted list."""
+    if not sorted_vals:
+        return None
+    k = (len(sorted_vals) - 1) * frac
+    lo, hi = int(k), min(int(k) + 1, len(sorted_vals) - 1)
+    return round(float(sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (k - lo)), 1)
+
 
 def per_tier_metrics(q: QueryFn) -> dict[str, dict[str, Any]]:
-    """Group done tasks by tier; emit count, avg_budget, avg_actual, fpsr."""
-    out: dict[str, dict[str, Any]] = {}
+    """Group done tasks by tier; emit count, avg_budget, avg_actual, fpsr.
+
+    Also emits p50/p90 of the measured actuals per tier — the evidence the
+    tier thresholds are calibrated against (avg alone hides the spread that
+    decides whether a budget blocks real work).
+    """
     rows = q(
-        "SELECT COALESCE(tier, 'unset') AS tier, COUNT(*) AS cnt, "
-        "AVG(call_budget) AS avg_budget, AVG(call_actual) AS avg_actual, "
-        "SUM(CASE WHEN attempts = 1 THEN 1 ELSE 0 END) AS first_pass "
-        "FROM tasks WHERE status='done' AND resolution IS NULL "
-        "GROUP BY COALESCE(tier, 'unset')"
+        "SELECT COALESCE(tier, 'unset') AS tier, call_budget AS b, "
+        "call_actual AS a, attempts AS attempts "
+        "FROM tasks WHERE status='done' AND resolution IS NULL"
     )
+    by_tier: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
-        cnt = r["cnt"] or 0
-        ab, aa = r["avg_budget"], r["avg_actual"]
+        by_tier.setdefault(r["tier"], []).append(r)
+    out: dict[str, dict[str, Any]] = {}
+    for tier, rs in by_tier.items():
+        cnt = len(rs)
+        budgets = [r["b"] for r in rs if r["b"] is not None]
+        actuals = sorted(float(r["a"]) for r in rs if r["a"] is not None)
+        ab = sum(budgets) / len(budgets) if budgets else None
+        aa = sum(actuals) / len(actuals) if actuals else None
         ratio = round(aa / ab, 2) if ab and aa is not None and ab > 0 else None
-        out[r["tier"]] = {
+        first_pass = sum(1 for r in rs if r["attempts"] == 1)
+        out[tier] = {
             "count": cnt,
             "avg_budget": round(ab, 1) if ab is not None else None,
             "avg_actual": round(aa, 1) if aa is not None else None,
-            "fpsr_pct": round(r["first_pass"] / cnt * 100, 1) if cnt else 0,
+            "fpsr_pct": round(first_pass / cnt * 100, 1) if cnt else 0,
             "ratio_actual_over_budget": ratio,
+            "p50_actual": _percentile(actuals, 0.5),
+            "p90_actual": _percentile(actuals, 0.9),
         }
     return out
+
+
+def budget_calibration_check(
+    q: QueryFn,
+    thresholds: tuple[tuple[int, str], ...] | None = None,
+    factor: float = BUDGET_CALIBRATION_FACTOR,
+) -> dict[str, Any] | None:
+    """Compare tier thresholds against rolling actuals; None if nothing measured.
+
+    Rule (both directions, stated once):
+    - STARVED (hard fail): a tier's upper bound sits BELOW the p50 of that
+      tier's measured actuals — half of real work would exceed the budget,
+      i.e. the budget blocks legitimate work.
+    - DECORATED: the upper bound sits more than ``factor`` x p50 — the budget
+      constrains nothing and only labels the task.
+    """
+    if thresholds is None:
+        from backend_crud import _TIER_THRESHOLDS  # lazy: avoid a cycle
+
+        thresholds = _TIER_THRESHOLDS
+    per_tier = per_tier_metrics(q)
+    tiers: dict[str, dict[str, Any]] = {}
+    measured = 0
+    worst = "ok"
+    for upper, label in thresholds:
+        stats = per_tier.get(label) or {}
+        p50 = stats.get("p50_actual")
+        # n<5 is noise, not calibration: a single deep task at 66 calls must
+        # not brand the whole tier. Unmeasured tiers never set the verdict.
+        if p50 is None or (stats.get("count") or 0) < 5:
+            tiers[label] = {"upper": upper, "p50_actual": p50, "verdict": "unmeasured"}
+            continue
+        measured += 1
+        if upper < p50:
+            verdict = "starved"
+        elif upper > factor * p50:
+            verdict = "decorated"
+        else:
+            verdict = "ok"
+        # Severity order: starved > decorated > ok; unmeasured never wins.
+        if verdict == "starved" or worst == "starved":
+            worst = "starved"
+        elif verdict == "decorated" or worst == "decorated":
+            worst = "decorated"
+        tiers[label] = {"upper": upper, "p50_actual": p50, "verdict": verdict}
+    if not tiers or not measured:
+        # All-unmeasured is no verdict: thresholds judged only by tiers with
+        # n>=5 carry the check; an empty or n<5-only corpus must not print
+        # "ok" it did not earn.
+        return None
+    return {"status": worst, "factor": factor, "tiers": tiers}
 
 
 def session_capacity_summary(

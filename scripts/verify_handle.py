@@ -239,6 +239,10 @@ _RUN_COLUMNS = (
     # ask whether its run executed anything. Without this column the refusal
     # would need a second query and would silently pass on a row shape change.
     "no_tests_declared",
+    # v75 (1.11.3): the cohort this run was stamped as the receipt for. NULL on
+    # every historical row and on ordinary single-task runs — which therefore
+    # read as cohorts of one, preserving every pre-1.11.3 behavior.
+    "cohort_identity",
 )
 
 

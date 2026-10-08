@@ -4,13 +4,13 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
-**147 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**149 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 152 count - total with it is 154 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 149 count - total with it is 156 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (147): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (149): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 
 There is also an optional `codebase-rag` server documented at the bottom.
 
@@ -58,8 +58,8 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | `tausik_task_logs` | Read structured logs (filter by phase) | `slug` |
 | `tausik_reason_step` | RENAR reasoning step (intent\|premise\|action\|verification) | `slug`, `kind`, `content` |
 | `tausik_task_replay` | Chronological task timeline (logs + reasoning + events + verification) | `slug` |
-| `tausik_task_block` | Block task | `slug` |
-| `tausik_task_unblock` | Unblock | `slug` |
+| `tausik_task_block` | Block WITH a concrete question to the owner + a checkable unblock criterion (both required; question must not restate the title; re-block updates the fields) | `slug` |
+| `tausik_task_unblock` | Unblock stating WHICH criterion is met and why (silent unblocking forbidden; WHO unblocked is recorded) | `slug` |
 | `tausik_task_review` | Move to review | `slug` |
 | `tausik_task_delete` | Delete task | `slug` |
 | `tausik_task_move` | Move to another story | `slug`, `new_story_slug` |
@@ -108,12 +108,12 @@ Session time is gap-based **active time** (paused after 10-min idle gap), not wa
 | `tausik_epic_add` | Create epic | `slug`, `title` |
 | `tausik_epic_list` | List epics; `(stale: N)` — tasks created since the description was last edited (a report, not a gate) | — |
 | `tausik_epic_update` | Change an epic's title and/or description — the group's intent; at least one field | `slug` |
-| `tausik_epic_done` | Complete epic | `slug` |
+| `tausik_epic_done` | Complete epic; accepts `verify_handle` — the pooled receipt handle from `tausik_verify_hierarchy`, redeemed atomically (every member closes or none does) | `slug` |
 | `tausik_epic_delete` | Delete (cascade: stories + tasks) | `slug` |
 | `tausik_story_add` | Create story in epic | `epic_slug`, `slug`, `title` |
 | `tausik_story_list` | List stories; `(stale: N)` as for epics | — |
 | `tausik_story_update` | Change a story's title and/or description; at least one field | `slug` |
-| `tausik_story_done` | Complete story | `slug` |
+| `tausik_story_done` | Complete story; accepts `verify_handle` — the pooled receipt handle from `tausik_verify_hierarchy`, redeemed atomically (every member closes or none does) | `slug` |
 | `tausik_story_delete` | Delete (cascade: tasks) | `slug` |
 | `tausik_roadmap` | Tree: epic → story → task | — |
 
@@ -254,6 +254,8 @@ Relation types: `supersedes`, `caused_by`, `relates_to`, `contradicts`.
 | `tausik_gates_enable` | Enable gate | `name` |
 | `tausik_gates_disable` | Disable gate | `name` |
 | `tausik_verify` | v1.5 Verify-First: run heavy gates (pytest, tsc, …) and cache green in `verification_runs`. After that `tausik_task_done` reads the cache and closes instantly. | `task_slug` |
+| `tausik_verify_cohort` | Pooled verification for an explicit cohort (≥2 slugs): ONE gate pass over the union of the members' `relevant_files`, a persisted cohort identity, reuse refused by a NAMED invalidator. Mirrors CLI `verify --tasks`. | `tasks` |
+| `tausik_verify_hierarchy` | Resolve a story's/epic's non-done tasks as one cohort and run a single pooled gate pass; refuses pools of <2 and non-review-ready members. Mirrors CLI `verify --story/--epic`. | `kind`, `slug` |
 
 Available gates: `pytest`, `ruff`, `mypy`, `bandit`, `tsc`, `eslint`, `go-vet`, `golangci-lint`, `cargo-check`, `clippy`, `phpstan`, `phpcs`, `javac`, `ktlint`, `filesize`, `class_surface`, `tdd_order`. Stack-scoped gates auto-enable based on detected stack; universal gates (`filesize`, `class_surface`, `tdd_order`) apply to all stacks. `class_surface` is repo-wide rather than scoped: it caps a class's composed public surface after inheritance, which a per-file line cap cannot see.
 
@@ -335,7 +337,7 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 147 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 149 count — they belong to the optional `codebase-rag` server.
 
 ## Scoped tool surface (`mcp.scope_tools_exposure`)
 
@@ -356,12 +358,34 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 147 tools ≈ 62 KB of tool
-definitions (~15.9k estimated tokens; `tests/test_mcp_tool_token_cost.py` pins
-this and ratchets it). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
+**Measured cost.** The full authored surface is 149 tools ≈ 60.3 KB of tool
+definitions (60,273 bytes, ~15.1k estimated tokens at bytes/4; the ratchet in
+`tausik/gates.json` (`mcp_surface`) pins this and refuses growth without an
+argued raise). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet
 test keeps every TAUSIK description under that limit so none is silently cut, and
 asserts names stay unique and searchable so name-based dispatch still resolves.
+
+## Surface parity ratchet
+
+The MCP surface and the CLI are two renders of one service, and three times a
+handler lost fields its CLI twin still showed (verify printing gate *names*,
+`update_claudemd` erasing the memory tail, `task_show` hiding `scope_paths`
+and `rollback_plan`) — each caught by eyes, not by a run. The pair map lives
+once, in `scripts/mcp_cli_parity.py`: every MCP tool is declared with its CLI
+twin, and the nine tools without one carry a written reason and a count.
+`tests/test_mcp_cli_surface_parity.py` drives both surfaces of the
+fifteen-command read spine on a planted project and compares normalised field
+labels — a label the CLI prints and the MCP tool drops is a loss; the MCP side
+being richer is fine. Losses that exist on purpose are ledger entries with a
+reason and a number, and the ledger may only shrink: a declared loss that has
+healed fails the test until its entry is deleted.
+
+On its first live run (2026-10-07) the ratchet went red exactly as designed:
+`tausik_gates_status` drops the per-gate `cmd` column and the whole meta-gate
+section (Verify-First Contract, Continuous CHANGELOG, QG-0 Readiness, RENAR
+drift-1/7) that `gates status` prints. Six ledger entries record that debt;
+the handler fix belongs to `mcp-gates-status-skryvaet-kolonku-cmd-i-sektsiyu`.
 
 ## Launching the Tausik MCP Server
 

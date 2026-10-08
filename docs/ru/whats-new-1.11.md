@@ -56,3 +56,18 @@ TAUSIK 1.11 сокращает стоимость принятой работы 
 
 - [Английские заметки](https://github.com/Kibertum/tausik-core/blob/v1.11.2/docs/en/whats-new-1.11.md)
 - [Русские заметки](https://github.com/Kibertum/tausik-core/blob/v1.11.2/docs/ru/whats-new-1.11.md)
+
+## 1.11.3 — экономия верификации измерена, Kilo завершён
+
+Пул-верификация целиком (`verify --tasks` / `--story` / `--epic`, контракт
+когорты, живое доказательство 34→1 исполнения verify); заявление об экономии
+измерено: повторяемый префикс −30,65%, медиана раундов ответа 17/25 против
+базы 89 (экономия verification-цикла НЕ заявляется — refusal). Kilo — полностью
+управляемый хост: permission-поверхность используется, вендор-агенты
+нормализуются на границе деплоя. Фреймворк читает сам себя: `doctor
+--harness-audit`, `doctor --friction`, заблокированная задача несёт свой
+вопрос, хвост памяти выбирает по значимости.
+
+- [Точный список изменений 1.11.3](https://github.com/Kibertum/tausik-core/blob/v1.11.3/CHANGELOG.md)
+- [Английские заметки](https://github.com/Kibertum/tausik-core/blob/v1.11.3/docs/en/whats-new-1.11.md)
+- [Русские заметки](https://github.com/Kibertum/tausik-core/blob/v1.11.3/docs/ru/whats-new-1.11.md)

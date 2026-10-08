@@ -48,6 +48,30 @@ def _group_rates(rows: list, key: str) -> dict[str, dict[str, Any]]:
     }
 
 
+def _stratified_verification(rows: list) -> dict[str, dict[str, dict[str, Any]]]:
+    """Verified-vs-unverified WITHIN one complexity stratum.
+
+    The aggregate "verified escapes more" is unreadable while verify is
+    selected onto harder work: complexity confounds both arms (memory #267,
+    first live run). Holding it fixed leaves a gap that is about
+    verification, not selection — the cut that turns a paradox into a
+    measurable composition effect.
+    """
+    strata: dict[str, dict[str, list]] = {}
+    for r in rows:
+        comp = r["complexity"] or "unknown"
+        strata.setdefault(comp, {"verified": [], "unverified": []})[
+            "verified" if r["verified"] else "unverified"
+        ].append(r)
+    return {
+        comp: {
+            arm: _rate(sum(1 for r in items if r["escaped"]), len(items))
+            for arm, items in arms.items()
+        }
+        for comp, arms in sorted(strata.items())
+    }
+
+
 def _done_rows(q: QueryFn) -> list:
     """Every done task tagged with escaped (a defect points at it) and verified
     (it carried a verify run). Falls back to verified=0 when verification_runs is
@@ -121,6 +145,8 @@ def defect_escape_metrics(q: QueryFn) -> dict[str, Any]:
                 sum(1 for r in rows if not r["verified"]),
             ),
         },
+        # The Simpson cut: same comparison with complexity held fixed.
+        "by_complexity_and_verification": _stratified_verification(rows),
         "risk_backtest": {
             "escaped_avg_risk": round(sum(escaped_scores) / len(escaped_scores), 4)
             if escaped_scores

@@ -1,0 +1,47 @@
+---
+slug: doc-memory-boundary
+title: "Документировать memory vs auto-memory"
+status: done
+epic: release-ready
+story: p1-value
+complexity: simple
+role: tech-writer
+stack: null
+tier: null
+call_budget: null
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files:
+  - CLAUDE.md
+  - "references/getting-started.md"
+scope_paths: []
+scope_tools: []
+depends_on: []
+completed_at: "2026-03-14T13:15:02Z"
+resolution: null
+resolution_reason: null
+tracker_refs: []
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+CLAUDE.md и getting-started.md описывают когда memory frai, когда auto-memory Claude Code
+
+## Acceptance Criteria
+
+1. CLAUDE.md секция Memory vs Auto-Memory | 2. getting-started.md описывает workflow | 3. Нет дублирования — ясная граница
+
+## Plan
+
+## Rollback
+
+## Journal

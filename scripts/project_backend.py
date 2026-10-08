@@ -69,6 +69,12 @@ _TASK_FIELDS = frozenset(
         "resolution_reason",
         "assurance_profiles",
         "assurance_impact",
+        # v77: the block contract (question + criteria) and the unblock audit
+        # trail (who/when stated the criterion met).
+        "blocked_question",
+        "unblock_criteria",
+        "unblocked_by",
+        "unblocked_at",
     }
 )
 

@@ -1,0 +1,58 @@
+---
+slug: outward-text-passes-a-forbidden-forms-gate-not-goodwill
+title: "Текст, уходящий наружу, проверяется гейтом запрещённых форм, а не добросовестностью вызывающего"
+status: planning
+epic: release-113-evidence
+story: release113-proof
+complexity: complex
+role: backend
+stack: null
+tier: substantial
+call_budget: 70
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files: []
+scope_paths:
+  - "scripts/**"
+  - "tests/*.py"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+scope_tools: []
+depends_on: []
+completed_at: null
+resolution: null
+resolution_reason: null
+tracker_refs:
+  - "github#89"
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+Ни один путь наружу — зеркало, черновик дефекта, экспорт, issue — не может вынести личный абсолютный путь, токен, ключ или имя заказчика: это проверяется гейтом по всему, что уходит, а не функцией, которую вызывающий может забыть позвать.
+
+## Acceptance Criteria
+
+1. Список запрещённых форм записан ОДИН раз и применяется ко ВСЕМ путям наружу. Минимум: личный абсолютный путь всех трёх ОС (/Users/x, /home/x, C:\Users\x, ~/x), токены gh[pousr]_ и sk-, AKIA, блок PRIVATE KEY, ARN, id инстанса, URL приватного репозитория. Источник перечня — санитайзер github.com/kiaquila/unicorn-hub (MIT); формы взяты как список, код пишется свой.
+2. Настраиваемый deny-list дополнительных терминов: имена заказчиков задаются конфигом ПОЛЬЗОВАТЕЛЬСКОГО тира и НЕ хранятся в репозитории проекта.
+3. Гарантия даётся СВОЙСТВОМ, а не перечнем точек вызова (конвенция #354): тест доказывает, что каждый путь наружу проходит через гейт, перечислением путей ИЗ КОДА, а не списком, написанным руками.
+4. Гейт переиспользуется задачей agent-friction-becomes-a-filed-defect-not-a-swallowed-one, а не дублируется в ней.
+5. НЕГАТИВНЫЙ сценарий: точность измерена на ЖИВЫХ данных — на реальном дереве проекции tausik/ и на реальной общей базе. Ложная тревога на нормальном содержимом считается провалом критерия (конвенция #351).
+6. НЕГАТИВНЫЙ сценарий: текст, не прошедший гейт, НЕ уходит наружу вовсе; отказ громкий и называет найденную форму. Молчаливое усечение или молчаливая отправка ЗАПРЕЩЕНЫ.
+7. НЕГАТИВНЫЙ сценарий: гейт, не сумевший вынести вердикт (нечитаемый файл, сбой regex), БЛОКИРУЕТ отправку, а не пропускает её.
+
+## Plan
+
+## Rollback
+
+git revert коммита; гейт отключается ключом конфига пользовательского тира
+
+## Journal

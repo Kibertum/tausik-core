@@ -160,10 +160,10 @@ class TestTheRejectionIsWholeForEveryRefusalPoint:
 
     def test_the_mixed_call_still_works_when_nothing_is_refused(self, svc, root):
         """NEGATIVE: atomicity is not achieved by refusing mixed calls."""
-        svc.task_update("t1", call_budget=12, scope_paths='["a.py"]')
+        svc.task_update("t1", call_budget=26, scope_paths='["a.py"]')
         row = svc.be.task_get("t1")
-        assert row["call_budget"] == 12
-        assert row["tier"] == "light"  # still derived on the success path
+        assert row["call_budget"] == 26
+        assert row["tier"] == "light"  # still derived on the success path (24 < 26 <= 33)
         assert "a.py" in row["scope_paths"]
         expected, _ = build_tree(svc)
         with open(os.path.join(root, "tasks", "t1.md"), encoding="utf-8", newline="") as fh:

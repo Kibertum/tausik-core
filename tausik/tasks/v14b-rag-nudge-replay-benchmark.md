@@ -1,0 +1,63 @@
+---
+slug: v14b-rag-nudge-replay-benchmark
+title: "Замер AC8 из v14b-rag-first-nudges: расход токенов на исследование до и после rag-first подсказок"
+status: done
+epic: release-19-agent-effectiveness
+story: release19-effective-context
+complexity: medium
+role: qa
+stack: python
+tier: light
+call_budget: 25
+defect_of: null
+scope: "Read-only investigation of token/usage/transcript instrumentation, protocol documentation and focused tests only; no change to RAG behavior in the baseline phase."
+scope_exclude: "Do not use deprecated per-tool PostToolUse counters as session usage; do not claim savings from one session; do not alter RAG behavior, release, tag or push."
+relevant_files:
+  - "docs/ru/research/rag-nudge-replay-protocol.md"
+scope_paths:
+  - "docs/ru/research/rag-nudge-replay-protocol.md"
+  - "docs/ru/research/_internal/rag-replay/"
+  - "tausik/tasks/v14b-rag-nudge-replay-benchmark.md"
+  - "tausik/stories/release19-effective-context.md"
+scope_tools: []
+depends_on: []
+completed_at: "2026-09-14T00:06:39Z"
+resolution: null
+resolution_reason: null
+tracker_refs: []
+started_model_id: null
+started_model_version: null
+done_model_id: claude-opus-5
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+Принимает на себя критерий, отложенный при закрытии v14b-rag-first-nudges 2026-05-03: «AC 8 (replay benchmark) deferred: requires running an exploration session both before AND after the change, then diffing per-turn token burn from usage_events. Cannot be done within a single session». Критерий отложен законно — он физически требует двух сессий, — но оставался без владельца и без срока, что и обнаружила новая проверка doctor «Deferred AC». ВАЖНАЯ ОГОВОРКА, выясненная в v14b-followup-subagent-remeasure-quant (решение #201): прежний прибор для этого не годится. scripts/hooks/token_metrics.py помечен deprecated собственными словами «PostToolUse payload carried per-tool API usage. It does not — usage is message-level», и данные это подтверждают — input_tokens равен 2 у 7116 строк из 8046, а сумма cache_read даёт 568 млн для Bash за 26 сессий, потому что один кэшированный контекст пересчитывается на каждом вызове. Значит эта задача обязана начинаться с выбора прибора, а не с прогона: либо парсер транскрипта уровня сессии, либо usage_events, если он действительно несёт подушевую атрибуцию. Мерить «до и после» несуществующим прибором значит получить красивое число ни о чём — ровно та ошибка, которой в v14b уже стоила одна цепочка задач.
+
+## Acceptance Criteria
+
+AC-1: approved session-level source and its attribution limits are demonstrated against real records; deprecated per-tool metrics are rejected. AC-2: replay protocol fixes query corpus, baseline/post condition, metric formula and raw evidence location. AC-3: paired sessions use the same protocol; result reports both absolute tokens and delta, or explicitly records why comparison is invalid. AC-4: no token-saving claim is made without paired attributable evidence.
+
+## Plan
+
+[{"step": "Inventory candidate session-level token sources and reject known per-tool misattribution.", "done": true}, {"step": "Define a reproducible before/after replay protocol with a stable query corpus and attribution boundary.", "done": true}, {"step": "Run the first baseline session and preserve raw evidence without claiming an effect.", "done": true}, {"step": "Run the post-change session in a later session, compare the same metrics, and close only with the paired result.", "done": true}]
+
+## Rollback
+
+No product mutation in instrument-selection phase; revert any later protocol/test commit.
+
+## Journal
+
+- 2026-09-11T13:15:08Z [implementation] — Instrument audit: rejected usage_events/posttool and token_metrics.jsonl for token-delta because both stamp message usage onto tool calls and re-count cache. Candidate session_usage_metrics has authoritative-per-session contract in backend_queries_usage, but live DB rows for sessions 241 and 242 are identical (input=10948, output=5053334, total=5064282), so actual per-session attribution is unproven and cannot support a baseline. Next: trace session_metrics transcript/session resolver and determine whether the duplication is expected or a defect.
+- 2026-09-11T13:20:20Z [implementation] — Debug trace confirmed a state/attribution defect: session_metrics.main parses the entire latest project transcript, then --record calls record-session without --session-id; ProjectService resolves that to the current session. The later timestamp-window resolver applies only to token_metrics.jsonl, not session_usage_metrics. Thus every SessionEnd can UPSERT a full multi-session transcript total into the current session row; the equal rows for #241/#242 are reproducible by control flow, not a valid baseline. Benchmark is blocked until this meter is repaired and regression-tested in a separate defect task.
+- 2026-09-12T16:23:33Z [implementation] — AC-1 evidence, session #249/#250: the session-level source is session_usage_metrics fed by scripts/hooks/session_metrics.parse_transcript through make_session_resolver (fixed in session-rollup-window-attribution). Demonstrated against the REAL transcript 89b9d743 of this Claude session: one file split into seven windows — #243 180,730 / #244 135,941 / #245 176,220 / #246 119,638 / #247 50,592 / #248 120,869 / #249 169,024 tokens_total; sum 953,014 of 954,210, 1,196 unattributed (outside any window). Attribution LIMIT found: tokens_total = uncached input + output only; the transcript usage fields show #248 cache_read_input_tokens 129,334,844 and cache_creation 183,391 against tokens_total 120,869 — the meter is blind to context growth, which is exactly what rag-first nudges are supposed to change. Second limit: exploration tool mix in #248/#249 counted ZERO Read/Grep/Glob/search_code calls because this session explored through Bash (grep/sed/cat) — a tool-mix metric must classify Bash commands too. Deprecated per-tool counters (token_metrics.jsonl, usage_events posttool) stay rejected.
+- 2026-09-12T16:24:39Z [implementation] — AC-2 ✓ docs/ru/research/rag-nudge-replay-protocol.md — §1 instrument and its two limits (uncached-only tokens_total; Bash-blind tool mix) with the real-record numbers, §2 fixed 10-prompt read-only corpus, §3 conditions A (deployed harness) / B (four injection sites removed in a git worktree, RAG server kept), §4 metric formula (primary Σ cache_creation + Σ output per window; secondary cache_read; tool mix with Bash classification; cross-check against session_usage_metrics) and the invalidity rule, §5 evidence location under docs/ru/research/_internal/rag-replay/<date>/{A,B}/ without the transcript itself, §6 no-claim rule (AC-4) and the cost of the two runs. AC-3/AC-4: NOT claimable now — the paired runs are two owner-scheduled sessions; blocking again on exactly that.
+- 2026-09-13T23:16:42Z [implementation] — Session #261, owner: «закрывай точку 1.9». Unblocked (attempt #3). Feasibility: headless Claude Code 2.1.270 (VS Code bundled claude.exe) answers with --model claude-opus-5[1m] (contextWindow 1,000,000 — same as the session that wrote the protocol); a stream-json driver gives one session with ten separate turns per condition, so the paired runs B→A can be done from here without two manual IDE sessions. Finding on the meter while preparing: session_metrics.parse_transcript sums usage on EVERY transcript entry, and Claude Code writes one entry per content block with the same message.id and the same usage — 20 of 25 assistant messages of this session are multi-entry, so tokens_total over-counts. Primary metric will be deduplicated by message.id; the §4 cross-check is reported as the meter computes it (un-deduped) so equality still means the window is right. Site (4) keyword_detector.py no longer recommends search_code at HEAD — the B condition removes sites (1)-(3) only; recorded as a deviation.
+- 2026-09-13T23:25:26Z [implementation] — Step 3 in progress (condition B first, per protocol §3). Worktree [вычеркнуто: dev-machine-path] at HEAD 396de834 (detached); .tausik seeded with a sqlite backup() copy of tausik.db, copies of rag/ keys/ vendor/ config.json and the CLI wrapper, venv as a junction; sites (1)-(3) removed (git diff: 6 files, 2+/35-), bootstrap --ide claude run there; deployed session_start.py has 0 search_code mentions, skills have 0 hierarchy sections, settings.json identical to A modulo path. Deviations recorded: site (4) already absent at HEAD; site (1) is inert for the Claude host in THIS repo because the tracked CLAUDE.md is preserved by bootstrap (TOOL_ROUTING lives only in QWEN.md / .opencode); the SessionStart hook took 5.9 s against a 6 s timeout and was cancelled in the smoke run (hook_cancelled), so for BOTH conditions the deployed SessionStart timeout is raised 6→60 s and Stop 5→30 s (core settings.json backed up for byte-exact restore) — otherwise the nudge under test is never delivered; root cause filed as status-takes-five-seconds-on-a-missing-defect-of-index. Driver: stream-json stdin, ten turns sent one after the previous result, --model claude-opus-5[1m], --mcp-config .mcp.json --strict-mcp-config, allowed Read/Grep/Glob/Bash/Skill + read-only MCP, disallowed Edit/Write/Agent; system suffix forbids edits/tasks/commits. A first B attempt (session 61ea115c) was killed at Q1 after ~40 s when I moved the driver out of the tool's 10-minute timeout; the real B run is session d7c6c6ee in TAUSIK session #262 of the B copy. Q1: 71 s, 19 turns, 18 tool uses, 0 denials.
+- 2026-09-13T23:38:08Z [implementation] — B run 1 (session d7c6c6ee, TAUSIK #262 in the B copy) completed 10/10 in 8.5 min, 0 denials, SessionStart context delivered, no cancelled hooks — but CONTAMINATED: the transcript carries one `[TAUSIK rag-first nudge]` injected by UserPromptSubmit (scripts/hooks/user_prompt_submit.py, where the nudge moved after leaving keyword_detector) on Q1. The protocol's four sites were stale: two more rag-first texts exist at HEAD — (5) user_prompt_submit.py SEARCH_RECOMMENDATION, (6) tool_output_truncation_nudge.py names search_code in its cure line. Both neutralized in B (run 1's truncation nudge never fired: 0 occurrences), bootstrap re-run, timeouts re-raised; B copy session #262 ended, #263 opened. B run 2 = session 3a21939b. Run 1 kept under run-B1-contaminated as a record, not as evidence.
+- 2026-09-14T00:03:54Z [implementation] — AC-3 ✓ Paired sessions under one protocol, same commit 396de834, same model claude-opus-5[1m], same ten-question corpus, cross-check §4 matched in both (B: session_usage_metrics 57,135 = Σ input+output 57,135; A: 47,221 = 47,221). B (no nudges, session 3a21939b, B-copy TAUSIK #263): primary Σ cache_creation + Σ output = 195,055 (163,546 + 31,509); cache_read 6,264,364; 52 API calls; 76 tool calls (Grep 33, Glob 4, Read 37, Bash 2, search_code 0); exploration result bytes 292,715; 516 s. A (nudges delivered — SessionStart RAG line + reminder bullet + one UserPromptSubmit nudge, verified in the transcript; session ed5c389a, TAUSIK #262): primary 198,848 (172,114 + 26,734); cache_read 5,652,601; 44 API calls; 62 tool calls (Grep 20, Glob 1, Read 39, Bash 1, ToolSearch 1, search_code 0); exploration bytes 326,323; 462 s. Delta A − B: primary +3,793 (+1.9%), exploration bytes +33,608 (+11.5%), cache_read −611,763 (−9.8%), tool calls −14 (−18.4%), Grep/Glob −16 (−43.2%), Read bytes +33,737 (+13.4%). Per §4 the savings claim is NOT allowed: both the primary metric and the exploration bytes are larger in A. The comparison itself is valid, and the hard fact is search_code = 0 in BOTH conditions — the nudges did not change tool choice. Repeat of the B condition (B1, one nudge leaked) differed from clean B by +13% primary / +25% bytes, so the 1.9% delta is inside same-condition noise. Evidence: docs/ru/research/_internal/rag-replay/2026-09-14/{A,B,B1-contaminated}/ (usage.json, mix.json, answers.md, session_id.txt, transcript.sha256, turns.json) + scripts + README with deviations; §3 corrected to six sites and §7 added to docs/ru/research/rag-nudge-replay-protocol.md. AC-4 ✓ No token-saving claim is made anywhere: §7 states the claim is not allowed on this pair; README/whats-new untouched and already promise no savings (condition 1 of the release, memory #677). Follow-ups filed, not fixed here: status-takes-five-seconds-on-a-missing-defect-of-index, session-metrics-sums-usage-once-per-content-block, rag-first-nudges-do-not-change-tool-choice. Deployed core profile restored byte-exact after A (cmp against the pre-run backup; bootstrap --check clean).

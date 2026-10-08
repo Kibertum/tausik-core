@@ -44,6 +44,59 @@ def cmd_verify(svc: Any, args: Any) -> None:
     task_slug = getattr(args, "task", None)
     scope = getattr(args, "scope", "manual")
 
+    cohort_slugs = getattr(args, "tasks", None)
+    hierarchy = None
+    for kind in ("story", "epic"):
+        if getattr(args, kind, None):
+            hierarchy = (kind, getattr(args, kind))
+    if hierarchy or cohort_slugs:
+        if task_slug:
+            # Two verification intents named, one silently chosen — the exact
+            # shape `task done` refuses for --verify/--verify-handle. The
+            # pooled lane and --task are different lanes; say so instead of
+            # letting --task vanish.
+            print(
+                "verify: --task cannot be combined with --tasks/--story/--epic — "
+                "the pooled lane verifies every member's scope in one pass; "
+                "drop --task or drop the pooled flag."
+            )
+            raise SystemExit(2)
+        # Preparation is paid INSIDE run_cohort_verify/run_hierarchy_verify —
+        # one place, so the CLI and the MCP handlers cannot disagree about
+        # whether it ran (live runs #3587/#3588 went red on exactly that
+        # divergence). --no-prepare is honored for the pooled lane like the
+        # single-task one.
+        pooled_prepare = not getattr(args, "no_prepare", False)
+
+    if hierarchy:
+        kind, parent = hierarchy
+        from verify_hierarchy import hierarchy_summary, run_hierarchy_verify
+
+        try:
+            out = run_hierarchy_verify(svc, parent, kind, scope=scope, prepare=pooled_prepare)
+        except Exception as exc:
+            print(f"Hierarchy verify error: {exc}")
+            raise SystemExit(2) from exc
+        print(hierarchy_summary(out))
+        if out.get("refused"):
+            raise SystemExit(2)
+        raise SystemExit(0 if out["passed"] else 1)
+    if cohort_slugs:
+        # The pooled lane: identity, one union-scope pass, named invalidators.
+        # Everything single-task below stays untouched — the two lanes share
+        # run_verify_for_task and its guards, nothing else.
+        from verify_cohort import cohort_summary, run_cohort_verify
+
+        try:
+            out = run_cohort_verify(svc, cohort_slugs, scope=scope, prepare=pooled_prepare)
+        except Exception as exc:
+            print(f"Cohort verify error: {exc}")
+            raise SystemExit(2) from exc
+        print(cohort_summary(out))
+        if out.get("refused"):
+            raise SystemExit(2)
+        raise SystemExit(0 if out["passed"] else 1)
+
     # verify-warn-names-a-flag-verify-does-not-have: declaring the scope IS part
     # of verifying it — a verify over an undeclared scope skips every gate and
     # still signs a receipt. The declaration is persisted rather than used

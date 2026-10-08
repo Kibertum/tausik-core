@@ -211,7 +211,13 @@ class TestTheBorderIsHeld:
         from bootstrap_generate import generate_cursorrules
 
         generate_cursorrules(str(tmp_path), "proj", ["python"])
-        assert be.deployed_enforcement(str(tmp_path / ".cursor")) == {"hooks": 0, "plugins": 0}
+        # permissions joined the shape with Kilo's policy; cursor
+        # still gets nothing — the border this test holds.
+        assert be.deployed_enforcement(str(tmp_path / ".cursor")) == {
+            "hooks": 0,
+            "plugins": 0,
+            "permissions": 0,
+        }
 
     def test_the_wrong_reason_is_gone_from_the_shipped_rules(self, tmp_path: Path):
         """The old caveat said Cursor has "no hooks API". That is a claim about
@@ -399,3 +405,42 @@ class TestCodexПлатитЗаСВОЁИмяФайла:
         profile = tmp_path / ".codex"
         profile.mkdir()
         assert be.describe_enforcement(be.deployed_enforcement(str(profile))) == ""
+
+
+# --- Kilo permission rules: the third enforcement shape ---------
+
+
+def test_kilo_permission_rules_are_counted_from_the_config(tmp_path):
+    from enforcement_coverage import deployed_enforcement
+
+    prof = tmp_path / ".kilo"
+    prof.mkdir()
+    (prof / "kilo.jsonc").write_text(
+        "// managed by bootstrap\n"
+        '{"permission": {"edit": {".tausik/tausik.db": "deny", ".kilo/plugins/*": "deny"},'
+        ' "bash": {"git push*": "ask", "sqlite3*": "ask"}, "external_directory": "deny"}}',
+        encoding="utf-8",
+    )
+    found = deployed_enforcement(str(prof))
+    assert found["permissions"] == 5  # jsonc comments tolerated, every rule counted
+
+
+def test_kilo_user_rules_count_too(tmp_path):
+    """A user-written deny is the same mechanism the host will enforce."""
+    from enforcement_coverage import deployed_enforcement
+
+    prof = tmp_path / ".kilo"
+    prof.mkdir()
+    (prof / "kilo.jsonc").write_text(
+        '{"permission": {"webfetch": "deny", "edit": {"secrets/*": "deny"}}}',
+        encoding="utf-8",
+    )
+    found = deployed_enforcement(str(prof))
+    assert found["permissions"] == 2
+
+
+def test_describe_enforcement_names_the_permission_shape():
+    from enforcement_coverage import describe_enforcement
+
+    text = describe_enforcement({"hooks": 0, "plugins": 2, "permissions": 5})
+    assert text == "2 plugins and 5 permission rules"

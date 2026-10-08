@@ -104,6 +104,18 @@ class GatesMixin:
             details=details,
             no_tests_expected=no_tests_expected,
         )
+        # The recorded run row is the authority for what this run covered:
+        # pooled cohorts stamp their per-unit outcomes with it (AC-2 of
+        # fix-pooled-verify-recovery — the report used to carry no digest, so
+        # production recorded inputs_digest='unavailable'). On a cache hit
+        # the row is the PRIOR run the certificate replays — its digest is
+        # what the verdict rests on. A run with no row (full-suite,
+        # task_slug=None) honestly reports None.
+        files_hash = None
+        row_id = details.get("run_id") or (details.get("cache_hit") or {}).get("id")
+        if row_id:
+            row = self.be._q1("SELECT files_hash FROM verification_runs WHERE id=?", (row_id,))
+            files_hash = (row or {}).get("files_hash")
         return {
             "passed": passed,
             "status": status,
@@ -112,6 +124,7 @@ class GatesMixin:
             "task_slug": task_slug,
             "results": results,
             "relevant_files": files,
+            "files_hash": files_hash,
             # cli-verify-bypasses-cache-guards: presentation data the CLI used
             # to obtain by running its own gate cycle. Surfaced here so there
             # is one verify implementation and one write path, not two.

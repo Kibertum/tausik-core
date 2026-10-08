@@ -21,18 +21,18 @@
 # `mandatory-clauses-basis` above.
 renar-version: '1.1'
 senar-version: '1.5'
-manifest-version: 26
-manifest-id: CFM-2026-09-23-tausik
+manifest-version: 27
+manifest-id: CFM-2026-10-06-tausik
 level: null
 level-target: null
 pre-adoption: false
 assessment-mode: self
-assessment-date: '2026-09-23'
+assessment-date: '2026-10-06'
 assessor:
   id: TAUSIK CI
   role: architect
   signature-ref: null
-next-assessment-due: '2026-12-22'
+next-assessment-due: '2027-01-04'
 mandatory-clauses-confirmed:
   sot-inversion: true
   substrate-v1-v6: true
@@ -103,6 +103,7 @@ normative-inapplicability:
     - renar-adoption
     - sec-config-trust-tiers
     - team-state-in-git-format
+    - verification-cohort-contract
   - clause: ADR-007 check-adapt-supersession, §10.11.1 p.485
     obligation: a control point catches a source.adapt reference left pointing at
       a withdrawn (superseded) ADAPT
@@ -124,6 +125,7 @@ normative-inapplicability:
     - renar-adoption
     - sec-config-trust-tiers
     - team-state-in-git-format
+    - verification-cohort-contract
   - clause: §13.3.8 / §10.11.1 implements-edge validation (RENAR v1.1)
     obligation: 'the carrier runs an implements-edge validation control point: target
       BR inside the approved set version of its system, no cycles, excluded target
@@ -144,6 +146,7 @@ normative-inapplicability:
     - renar-adoption
     - sec-config-trust-tiers
     - team-state-in-git-format
+    - verification-cohort-contract
 renar-11-deltas:
   source: RENAR corpus guide/12-migration-v11.md
   declared-inapplicable:
@@ -255,14 +258,14 @@ assessment-evidence:
     claimed regardless of signals
   unmet-clauses: []
   raw-counts:
-    specs_count: 4
+    specs_count: 5
     adapts_count: 1
     adapts_approved_count: 0
     delta_adapts_count: 0
-    task_specs_count: 3
-    reasoning_tasks_count: 6
+    task_specs_count: 4
+    reasoning_tasks_count: 13
     memory_edges_count: 27
-    verification_runs_count: 2747
+    verification_runs_count: 3576
   level-signals:
     substrate_v1_v6: true
     adapt_per_tz: false
@@ -289,7 +292,7 @@ assessment-evidence:
   - check: adversarial-review-issued
     ok: false
     citation: §13.3.3 p.73, p.80
-    evidence: 'AR does not exist as an artifact class: none of 41 artifact classes
+    evidence: 'AR does not exist as an artifact class: none of 45 artifact classes
       carries the §7.4.6 record shape (tz_ref, verdict, produces_adapt, status); nearest:
       actz lacks verdict, produces_adapt, actz_points lacks verdict, produces_adapt,
       status, adapt_findings lacks verdict, produces_adapt, status, adapt_interpretations
@@ -309,7 +312,7 @@ assessment-evidence:
   - check: spec-provenance-source
     ok: false
     citation: §13.3.3 p.90
-    evidence: 4 live SPEC(s) and the specs table has NO provenance column at all (looked
+    evidence: 5 live SPEC(s) and the specs table has NO provenance column at all (looked
       for ['source_adapt', 'source_tz_section', 'source_adversarial_review_ref'])
       — neither source.adapt nor source.tz-section nor source.adversarial-review-ref
       can be stored, which is the negative scenario stated literally. The manifest's
@@ -355,7 +358,7 @@ assessment-evidence:
     citation: §13.3.7 (backward findings, SPEC types, lifecycle states closed)
     evidence: every adapts row is inside the declared list
 replaced-by: <unknown-state>
-replaces: CFM-2026-09-13-tausik@v23
+replaces: CFM-2026-09-23-tausik@v26
 conformance-declaration: non-conformant
 scope-exclusion:
   clause: §1.5.4

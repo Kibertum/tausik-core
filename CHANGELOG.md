@@ -7,7 +7,349 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
-## [Unreleased]
+## [1.11.3] — 2026-10-07
+
+### Fixed — vendor agents invalid at load: the 1.11.2 fix was being wiped by every redeploy
+
+- **Root cause found on a live host restart: the fix edited DEPLOYED copies;
+  the vendor source never changed.** Vendors are third-party upstream and
+  keep Claude Code's comma-string `tools: Read, Bash, Write` spelling, while
+  Kilo's agent schema wants an object and refuses the whole definition at
+  load — so every `bootstrap --ide all` re-broke all seven seo agents (the
+  1.11.2 fix, and its reapply, both died this way).
+- **The normalization now lives at the deploy boundary.**
+  `copy_vendor_assets` rewrites a scalar `tools:` frontmatter line into the
+  object form (`Read: true`, …) on the way into the profile; already-object
+  and absent `tools` pass through byte-identical, and a `tools:` line in the
+  BODY is prose and survives untouched. The vendor source stays upstream
+  verbatim — the boundary is the only layer that sees both schemas.
+
+### Added — Kilo is now a fully governed host: the permission surface is used
+
+- **Kilo's second extension point — the `permission` key — is no longer
+  unused.** `bootstrap --ide kilo` writes a managed host-level policy
+  alongside the MCP stanza (schema measured against the live
+  `app.kilo.ai/config.json`, Kilo 7.8.8): `deny` on editing
+  `.tausik/tausik.db` and `.kilo/plugins/*`, `ask` on `git push*` and
+  `sqlite3*`, `deny` on `external_directory`. The rules TAUSIK stated in
+  prose are now refused by the host itself — closing the finding of shift
+  #232 that the surface existed and we did not use it.
+- **Merge semantics mirror the `mcp` stanza**: user keys and rules are
+  preserved, managed keys win on the same pattern and rewrite idempotently,
+  a global string `permission` the user set is left untouched, and
+  `kilo.permission_policy: false` in `.tausik/config.json` opts out.
+- **Enforcement coverage counts a third shape**: `tausik doctor` now reads
+  the deployed Kilo config (jsonc comments tolerated) and reports
+  `kilo: 2 plugins and 5 permission rules` — derived from what is on disk,
+  never from a list of intentions. Together with the QG-0 gate plugin, the
+  provider-agnostic model observation and the MCP live probe shipped in
+  1.11.2, the Kilo host line is complete; the remaining open Kilo-front
+  item is the extension MVP line (`ext-p0`/`ext-p2`), declared next.
+
+### Added — `doctor --friction`: agent friction becomes a filed draft, not a swallowed log line
+
+- **Every refusal the framework hands an agent used to die in the session
+  log.** `tausik doctor --friction` detects five measurable signals —
+  non-zero CLI exits, `--help` right after a failed call, argument-guessing
+  runs, supervision degradation (`fail_open_*`), and dead ends naming a
+  framework surface failing — and files REDACTED draft defects into
+  `.tausik/friction/`, one file per collapsed signature with an occurrence
+  counter. Plain `doctor` warns while drafts await review.
+- The CLI now records its own invocations (`.tausik/cli_invocations.jsonl`,
+  bounded by a retention policy): signals are SEQUENCES, and fail-then-green
+  — the normal edit-fix-rerun rhythm — is deliberately not friction.
+- Precision is the contract, not a hope: deliberate `bypass_*` skips are the
+  agent's audited choice (22 entities of accumulated history proved counting
+  them drowns the drafts); dead ends are windowed to 7 days because history
+  already has owners; tests pin every boundary plus a live-tree threshold.
+- NO network code exists in the module and no config flag can add any:
+  sending a draft anywhere is a human act on a specific issue (memory #352),
+  and a test guards the import surface so the guarantee stays mechanical.
+
+### Added — `doctor --harness-audit`: the installed state gets a reader
+
+- **Signatures and the install-guard protect the INCOMING tree; after
+  install, nothing re-read what is on disk.** `tausik doctor
+  --harness-audit` re-reads the installed state — deployed IDE profiles,
+  MCP configs (root `.mcp.json` and per-profile), memory rows — and every
+  finding is WARN with exit 0 (legitimate memory records carry legitimate
+  imperatives; a gate halting work on its own memory would be switched off
+  wholesale).
+- Four checks, three of them reused, not rewritten: invisible Unicode (the
+  install-guard's own detector, now pointed at installed profile trees),
+  secret patterns (imported from the `secret_scan` hook — no second set),
+  hook drift (the bootstrap-drift comparators), and the one NEW check —
+  memory rows scanned for deception-shaped imperatives addressed to a
+  future agent ("ignore previous instructions", "do not tell the owner",
+  "act without the owner knowing"), because memory is UNREVIEWED context.
+- Deterministic, offline, read-only. Noise exclusions measured on the live
+  tree: `node_modules` and Agent Manager `worktrees` inside profiles are
+  third-party/sibling-project bulk, not installed state. Precision is a
+  contract: a live-tree test fails the suite beyond five findings on a
+  clean project — the threshold at which the check retires.
+
+### Added — a blocked task now carries its question; `status` leads with it
+
+- **`task block` requires BOTH a question to the owner and a checkable
+  unblock criterion** (`--question`, `--unblock-when`). A block without a
+  question is a task abandoned with a note to self — the refusal names the
+  missing flags. The question may not restate the title (token-level guard:
+  carrying every title word plus at most three of its own is a rewording,
+  not a question). Re-blocking an already blocked task UPDATES the fields —
+  the migration path for blocks whose question lived only in journal prose.
+- **`tausik status` shows the open questions as the FIRST block**, on both
+  CLI and MCP: each blocked task with its question and `unblock when:`
+  criterion — not a "blocked: N" count. Rows blocked before this change
+  (schema v77 backfills them with the «не задан» marker) render as DEBT with
+  the remediation command, never as an acceptable state.
+- **`task unblock` is never silent**: the caller states WHICH criterion is
+  met and why (`--criterion-met`), and WHO unblocked is recorded in the row
+  (`unblocked_by`/`unblocked_at`, `--by` or OS user@host). The refusal
+  quotes the criterion recorded on the task.
+- The MCP twins (`tausik_task_block`, `tausik_task_unblock`) take the same
+  arguments — the contract is enforced on both transports or not at all.
+  Surface ratchet: bytes only, 59,602 → 60,273 (four properties and their
+  descriptions); tools stay 149.
+
+### Fixed — the pooled-verify recovery loop was a dead end (SS4 widening)
+
+- **After a green cohort, a named invalidator bricked the membership
+  forever.** The contract said the next pooled run must widen to the full
+  lane; the code only refused harder. The widening now EXECUTES: the prior
+  cohort is marked `invalidated`, the full lane runs, a new cohort row is
+  recorded, and the output names the refused reuse. A missing evidence file
+  (`missing-evidence:<slug>`) stays a hard refusal — widening is not
+  amnesty.
+- **`verification_cohort_results.inputs_digest` recorded `'unavailable'` in
+  production** because the pooled report carried no `files_hash`. The
+  report now surfaces it from the recorded run row, and the digest is the
+  real files hash or a content digest — never a placeholder.
+- **Cohort identity binds content, not strings.** `content_hashes` is a
+  real content-only digest (sorted path + full content, no mtimes — the
+  close-time recompute survives a checkout), and `selected_tests` left the
+  identity inputs; per-test provenance stays a declared non-goal.
+- **The SPEC's SS5 clause "task done --verify-handle accepts either" is
+  removed** — a single-use pooled handle on N members is a trap; pooled
+  receipts redeem via `story/epic done --verify-handle` only.
+- **Schema v76.** `verification_cohorts.state` admits `'invalidated'` — a
+  guarded table rebuild (SQLite cannot ALTER a CHECK); rows and the
+  results-side CASCADE survive column-for-column, and fresh installs
+  converge with migrated ones.
+
+### Fixed — pooled-verify close path was dead on arrival in production
+
+- **`story/epic done --verify-handle` never accepted a real receipt**: the
+  close path recomputed cohort identity with `root=None` while the mint
+  stamped `root_from_service` — in any git-backed project the identities never
+  matched. Redemption now resolves the root through the same source as the
+  mint (pinned by a production-shaped test that mints through the real driver
+  against a real git repo and would fail if either side changes its root).
+- **The pooled handle was never printed.** `cohort_summary` and
+  `hierarchy_summary` — the one render the CLI and MCP share — now surface the
+  handle and its redemption command on both transports.
+- **A handle without a dot crashed with `IndexError`**; it now returns the
+  designed REFUSED line.
+- **Hierarchy redemption reuses the single-task lane's machinery** —
+  shape-validated parse, constant-time nonce compare, TTL, single-use atomic
+  spend inside one transaction — instead of a weaker third validator.
+- **A security-sensitive union is refused pooling on a FRESH cohort too**
+  (contract SS4), not only in the drift branch; an unscoped refusal leaves no
+  open-cohort residue; the MCP pooled lane pays the same preparation as the
+  CLI and defaults to the same `standard` scope. The MCP surface baseline
+  moves 59,242 → 59,602 bytes for the `scope` parameter on the two pooled
+  tools; tool count stays 149.
+
+### Fixed — `tausik_gates_status` shows what `gates status` shows
+
+- **The MCP handler renders through `gates_status_lines` — the same formula
+  the CLI prints** — instead of its own flat one-line copy: the per-gate `cmd`
+  column and the QG-0 Readiness section reach the agent too. The six
+  known-loss entries the parity ratchet recorded on its first run are deleted
+  from the ledger (it may only shrink); the no-service ambient fallback keeps
+  the legacy flat render; the CLI output is byte-identical.
+
+### Added — MCP/CLI surface parity ratchet (Track B)
+
+- **Every MCP tool's CLI twin is declared, and losses are tested, not
+  remembered.** `scripts/mcp_cli_parity.py` maps all 149 tools to their CLI
+  commands; the 9 without a twin carry a written reason and a count.
+  `tests/test_mcp_cli_surface_parity.py` drives both surfaces of the
+  15-command read spine on one planted project and fails on any field label
+  the CLI prints and the MCP tool drops — known losses live in a ledger with
+  reasons that may only shrink.
+- **The ratchet went red on its first live run**: `tausik_gates_status` drops
+  the per-gate `cmd` column and the meta-gate section (Verify-First Contract,
+  Continuous CHANGELOG, QG-0 Readiness, RENAR drift-1/7) that `gates status`
+  prints. Six ledger entries record the debt; the handler fix is its own
+  task.
+
+### Measured — pooled verification proof, live on this release's own work
+
+- **34 → 1 executions; 1,492.1 s → 314.6 s.** The seven Track A/C tasks of
+  this release were verified per-task (34 recorded scoped runs, 4.9 per task
+  on average — the 60.7%-duplicate economy lived) and then pooled
+  (`verify --tasks`): ONE gate pass over the 44-file union scope,
+  preparation included. 34× fewer executions (34 → 1), 4.7× less wall time
+  (1,492.1 s → 314.6 s).
+- **The red path ran live and corrected the contract twice**: pooled runs
+  #3587/#3588 went red on the preparation gates — the pooled lane now pays
+  the same fixed preparation as the single-task lane; and only GREEN
+  evidence is refused reuse (a red predecessor with a new identity is the
+  next attempt, otherwise fixes would make a red cohort unfixable). RU
+  mirror of the contract + proof: `docs/ru/verification-cohort-contract.md`.
+
+### Added — `verify --story/--epic` and atomic hierarchy closure (Track A)
+
+- **`tausik verify --story <slug>` / `--epic <slug>`** resolve the exact
+  non-done descendant set and pool it: ≥2 members required (a single task is
+  pointed back at ordinary `verify --task`), and every member must be
+  review-ready — plan complete, acceptance criteria present, numbered AC
+  evidence logged — before the pooled pass starts.
+- **`story done <slug> --verify-handle` / `epic done <slug> --verify-handle`**
+  close every member plus the parent in ONE transaction on that exact
+  receipt, no gates rerun. A member added, removed, edited, reopened or
+  blocked after verify makes the handle stale (member statuses participate
+  in cohort identity — a blocked cohort is not the cohort that was
+  verified); a partial closure rolls back whole, with the cause named; the
+  handle is single-use and marked redeemed. Standalone `task done` and
+  single-task handles keep their exact contract.
+- **MCP parity**: `tausik_verify_cohort`, `tausik_verify_hierarchy`, and
+  `verify_handle` on `tausik_story_done` / `tausik_epic_done` — the same
+  commands agents reach from the IDE.
+- tests/test_verify_hierarchy.py: 11 passed (resolution, degenerate-pool
+  refusals, readiness blocks, one-pass delegation, atomic close, stale on
+  edit and on block, double-spend refusal, legacy path untouched).
+
+### Added — `verify --tasks`: one pooled gate pass for a task cohort (Track A)
+
+- **`tausik verify --tasks <slug...> <slug...>`** canonicalizes ≥2 members,
+  runs the gates ONCE over the union of their declared scopes, and persists
+  the cohort (migration v75: `verification_cohorts`,
+  `verification_cohort_results`, and a nullable
+  `verification_runs.cohort_identity` — existing rows and single-task
+  semantics untouched). Execution delegates to `run_verify_for_task` with
+  the union passed explicitly, so every cache guard the single-task lane
+  earned applies to cohorts unchanged.
+- **Reuse is refused by a NAMED invalidator, not a shrug.** The predecessor
+  is the latest cohort with the SAME membership; a changed identity under
+  the same members yields `membership-drift` / `missing-evidence:<slug>` /
+  `task-edits` / `gate-signature-drift` / `security-sensitive-scope` /
+  `uncertain-dependency-mapping`, each widening to the full applicable
+  lane. A red continuation is the pure set claim `previous failures ∪
+  tests affected by the delta` (`required_after_red`).
+- **The look-up-by-membership is load-bearing**: an edited member changes
+  the cohort identity, so matching the predecessor BY identity would always
+  miss exactly the drift the invalidators exist to name — caught by the
+  driver test that edits a member and demands the named refusal.
+- tests/test_verify_cohort.py: 14 passed (identity order-independence,
+  every named invalidator, red continuation union, union-scope-once driver
+  via the delegation seam, unscoped/single-task refusals, backward-compat
+  single-task lane unstamped).
+
+### Added — the pooled-verification contract and its measured case (Track A)
+
+- **The repeated-verify cost is 60.7% of all verify work.**
+  `scripts/verify_baseline.py` (new, reproducible, read-only) on this
+  repository, recounted 2026-10-07 after two counter fixes (a slug
+  re-entering a story after a gap opened a duplicate seat; every member's
+  runs were attributed to every window containing it): 3605 recorded
+  task-linked runs over 1418 tasks, of which **2187 are
+  re-runs of a task that already had one**; 1085 tasks verified twice or
+  more; 255 went red at least once; the heaviest task ran 14 times without a
+  single red. Release-shaped cohorts (≥5 tasks closing in one story within a
+  2h window) paid 1147 invocations / **~8.4 hours over 58 cohorts (466 task
+  seats)**, dominated by `under-declared` fallbacks (658 runs); sizes 3-4,
+  invisible to the first counter, paid 625 invocations across 71 cohorts
+  separately.
+- **SPEC `verification-cohort-contract` (ARCH, 1.0-draft)** —
+  `docs/en/verification-cohort-contract.md`. Canonical cohort identity from
+  sorted membership + task fingerprints + union scope + content hashes +
+  gate signature + repository state (selected tests were drafted as a
+  seventh input and dropped 1.11.3: selection evidence exists only after a
+  run, identity is minted before it); lifecycle
+  open → review-ready → pooled verify → atomic close; a red run's next set
+  is previous failures ∪ tests affected by files changed since; six named
+  invalidators (membership drift, task edits, config/gate drift,
+  security-sensitive scope, uncertain dependency mapping, missing evidence)
+  each refuse reuse and widen to the full lane — a refusal names which one
+  fired. Backward compatible: `verification_runs` gains a nullable
+  `cohort_identity` column, single-task verify and signed handles keep exact
+  semantics.
+
+### Added — the memory tail can now select by significance, not just recency
+
+- **The problem, measured (AC1).** The CLAUDE.md tail holds 18 lines
+  (Context/Decisions 5 each, Conventions 5, Dead ends 3) against 895 active
+  memory records — every line contested by ~50 records, and conventions by
+  43:1 (216 for 5). Mining 60 sessions of committed tails: the oldest and
+  newest snapshots share **zero** records — the tail turned over entirely on
+  recency alone; 26 records (16.5% of the 158 that ever held a line)
+  appeared exactly once. A two-month-old record cited twenty times could not
+  outlive yesterday's unopened one, because per-record access counts did not
+  exist anywhere (`brain_events` carries a query and a result count, never a
+  memory id).
+- **Migration v74 gives records a memory of being read.** Every explicit
+  `memory show <id>` bumps `hit_count`/`last_hit_at` — search results are
+  exposure, not access, and are not counted. Plus `layer`
+  (core/hot/warm/cold/frozen, assigned by accumulation: pinned or ≥20 reads,
+  ≥8, ≥2, 1 read or fresh, 0 reads and >90 days) and `pinned`.
+- **`tausik memory hygiene`** — the dry-run first: prints what the next
+  apply would do and why, writing nothing (live corpus: 895 records, plan
+  cold: 708 / frozen: 187). `--yes` applies with a snapshot;
+  `--revert` undoes the last apply in one command; pinned records are never
+  touched; a demotion deletes nothing — the record stays reachable by id.
+- **`tausik memory pin/unpin <id>`** — the never-auto-demote guarantee
+  (AC5): a pinned record always sorts first in the by-relevance tail.
+- **The by-relevance tail is opt-in (AC7).** `.tausik/config.json` →
+  `{"memory_tail_by_relevance": true}` switches the per-type head from
+  recency to pinned → layer → hit_count; absent or false keeps the legacy
+  order byte-identical. Default off on purpose: hit counting starts at zero
+  today, and the flag earns its default only after counts accumulate on
+  this corpus. Empty and single-record corpora render no empty headings
+  (AC6, the mcp-update-claudemd-erases-the-memory-tail defect class).
+
+### Added — the verified-vs-unverified escape paradox, measured to its cause
+
+- **`tausik metrics` now shows verified-vs-unverified escape rates WITHIN each
+  complexity stratum** (`by_complexity_and_verification` in
+  `defect_escape_metrics`, rendered beside the aggregate). The aggregate
+  (verified 9.9% [138/1400] vs unverified 1.5% [6/395], Fisher exact
+  two-sided p=8.8e-10) reads as "verify hurts"; the stratified cut shows the
+  gap surviving complexity held fixed (complex 18.1%/0.0% [30/166, 0/43],
+  medium 12.4%/1.1% [82/660, 2/178], simple 5.8%/2.4% [22/380, 4/166]), so
+  complexity selection alone does not explain it either.
+- **The measured cause is left-censoring plus a dead treatment, not
+  verification.** The `defect_of` filing practice begins 2026-04 — zero
+  defects point at pre-April closures — and 230 of the 395 unverified
+  closures are March work that structurally cannot appear as escaped.
+  Since QG-2 made verification mandatory (July), the unverified arm stopped
+  being assigned: 15 closures in three months against 856 verified. The
+  era-clean cut (unverified closures after 2026-04-15: 6/98 = 6.1% vs
+  verified July+ 117/856 = 13.7%) keeps a gap on a vanishing population
+  with no policy lever. Recorded decision: verify policy unchanged; the
+  aggregate line is read only beside its strata.
+- **risk_score confirmed non-predictive in both arms** (AUC 0.5377
+  aggregate, 0.5411 verified-only; complexity alone scores 0.5977). It
+  stays an input label and is never used for routing.
+
+### Changed — tier call budgets recalibrated to measured actuals
+
+- **The tier ladder no longer decorates: it constrains.** Thresholds moved
+  from 10/25/60/150/400 to **24/33/66/113/200**, each derived from the p90
+  of that tier's measured `call_actual` (done tasks), clamped to
+  [p50, 3×p50]: trivial p50 8.0/p90 24.1 (n=50) → 24; light 11/35 (n=209)
+  → 33; moderate 22/68 (n=377) → 66; substantial 38/112.8 (n=149) → 113;
+  deep unmeasured (n=1) → held below the old 400 until n≥5 lands, keeping
+  the ladder monotonic.
+- **`tausik metrics` now shows the evidence, not just the label.** Per-tier
+  rows gained `p50`/`p90` columns, and a new **Budget calibration** section
+  re-compares every tier's upper bound against rolling actuals on every
+  run: `starved` (bound below p50 — the budget blocks legitimate work),
+  `decorated` (bound beyond 3×p50 — the budget constrains nothing), `ok`
+  in between. Tiers with n<5 report `unmeasured` and never set the verdict;
+  a corpus with no measured tier prints nothing rather than an unearned
+  "ok". Live check on this repo: `Budget calibration: ok` across all
+  measured tiers.
 
 ## [1.11.2] — 2026-10-06
 

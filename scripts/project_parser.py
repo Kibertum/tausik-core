@@ -90,6 +90,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Purge exactly the .pyc files that name a directory other than their own "
         "(stale after a tree move; the interpreter recreates them). Reports otherwise.",
     )
+    doctor_p.add_argument(
+        "--harness-audit",
+        action="store_true",
+        help="Scan the INSTALLED state instead of the health check: deployed profiles, "
+        "MCP configs and memory entries re-read for invisible Unicode, secrets, "
+        "hook drift and agent-directed directives. WARN verdict only, exit 0.",
+    )
+    doctor_p.add_argument(
+        "--friction",
+        action="store_true",
+        help="Detect agent friction against the framework (non-zero CLI exits, help-after-failure, "
+        "argument guessing, gate bypasses, framework dead ends) and file REDACTED draft defects "
+        "into .tausik/friction/. WARN verdict only, exit 0; nothing is sent anywhere.",
+    )
 
     uc_p = sub.add_parser(
         "update-check", help="Ask GitHub (at most daily) whether a newer TAUSIK release exists"
@@ -267,6 +281,27 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Apply: stamp archived_at on candidates (idempotent). Without it: dry-run preview.",
     )
+    mhyg = mem_sub.add_parser(
+        "hygiene",
+        help="Plan memory layers (core/hot/warm/cold/frozen) from hit counts. "
+        "Dry-run by default; nothing is ever deleted.",
+    )
+    mhyg.add_argument(
+        "--yes",
+        action="store_true",
+        help="Apply the plan: write layers, snapshot previous values for --revert.",
+    )
+    mhyg.add_argument(
+        "--revert",
+        action="store_true",
+        help="Restore the layers the last --yes wrote. One command, exactly undone.",
+    )
+    mpin = mem_sub.add_parser(
+        "pin", help="Pin a record: never auto-demoted, always first in the by-relevance tail."
+    )
+    mpin.add_argument("id", type=int)
+    munpin = mem_sub.add_parser("unpin", help="Release a pinned record back to accumulation.")
+    munpin.add_argument("id", type=int)
     mdedupe = mem_sub.add_parser(
         "dedupe",
         help="Suggest memory pairs with similarity >= threshold. Read-only.",

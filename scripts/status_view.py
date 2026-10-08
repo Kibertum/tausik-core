@@ -172,6 +172,36 @@ def build_status_view(
     if update_line:
         data["update_available"] = update_line
 
+    # v77 (blocked-is-a-status-without-a-question): the questions blocked
+    # tasks ask the owner. First-screen signal on BOTH channels —
+    # `data["open_questions"]` feeds the compact JSON, status_primary_lines
+    # renders it as the topmost block. A row whose question is the migration
+    # marker (or empty) is DEBT and is named as such, never normal.
+    open_questions: list[dict[str, Any]] = []
+    try:
+        from service_task import BLOCK_QUESTION_UNSET
+
+        rows = svc.be._q(
+            "SELECT slug, blocked_question, unblock_criteria, blocked_at "
+            "FROM tasks WHERE status='blocked' ORDER BY blocked_at"
+        )
+        for r in rows:
+            q = (r["blocked_question"] or "").strip()
+            marker = not q or q == BLOCK_QUESTION_UNSET
+            open_questions.append(
+                {
+                    "slug": r["slug"],
+                    "question": None if marker else q,
+                    "unblock_criteria": (r["unblock_criteria"] or "").strip() or None,
+                    "asked_at": r["blocked_at"],
+                    "no_question_recorded": marker,
+                }
+            )
+    except Exception:  # noqa: BLE001 — never fail status on the question scan
+        open_questions = []
+    if open_questions:
+        data["open_questions"] = open_questions
+
     if not include_rich:
         # Compact hot path: `data` is enriched (counts, session minutes,
         # exploration, audit) which is all the compact JSON reads. Skip the
@@ -288,10 +318,42 @@ def _session_line(view: dict[str, Any]) -> str:
     return f"Session: #{session['id']} (active {m['active_min']}m / {max_min}m)"
 
 
+def _open_question_lines(view: dict[str, Any]) -> list[str]:
+    """The owner-question block — rendered FIRST, not as a 'blocked: N' count.
+
+    A blocked task without a recorded question (pre-v77 rows carrying the
+    migration marker) is printed as DEBT with the remediation command; the
+    block exists to be answered, and an unanswerable one is a defect in the
+    record, not a state to summarize past.
+    """
+    qs = view["data"].get("open_questions") or []
+    if not qs:
+        return []
+    n = len(qs)
+    head = (
+        f"Open question to the owner ({n} blocked task):"
+        if n == 1
+        else f"Open questions to the owner ({n} blocked tasks):"
+    )
+    lines = [head]
+    for q in qs:
+        if q.get("no_question_recorded"):
+            lines.append(
+                f"  {q['slug']} — DEBT: no question recorded "
+                "(re-block: task block <slug> --question ... --unblock-when ...)"
+            )
+            continue
+        lines.append(f"  {q['slug']} — {q['question']}")
+        if q.get("unblock_criteria"):
+            lines.append(f"    unblock when: {q['unblock_criteria']}")
+    return lines
+
+
 def status_primary_lines(view: dict[str, Any]) -> list[str]:
     """The ordered signal lines shared by both channels (no warnings)."""
     data = view["data"]
-    lines = [_tasks_line(data)]
+    lines = _open_question_lines(view)
+    lines.append(_tasks_line(data))
     if view["risk_line"]:
         lines.append(view["risk_line"])
     if view["renar_line"]:

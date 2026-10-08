@@ -1,0 +1,90 @@
+---
+slug: cross-model-parity-has-no-gate
+title: "Кроссмодельность не проверяется ничем: новая возможность может уехать Claude-only и никто не заметит"
+status: done
+epic: release-19-renar-conformance
+story: guarantees-are-not-claude-only
+complexity: medium
+role: architect
+stack: python
+tier: null
+call_budget: null
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files:
+  - "scripts/gate_cross_model_parity.py"
+  - "scripts/host_mechanisms.py"
+  - "scripts/gate_registry_scoped.py"
+  - "tests/test_cross_model_parity_gate.py"
+  - "tests/test_gates_catch_their_violation.py"
+  - "tausik/gates.json"
+  - pyproject.toml
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - "docs/ru/architecture.md"
+  - "docs/en/architecture.md"
+scope_paths:
+  - "scripts/gate_cross_model_parity.py"
+  - "scripts/host_mechanisms.py"
+  - "scripts/gate_registry_scoped.py"
+  - "tests/test_cross_model_parity_gate.py"
+  - "tausik/gates.json"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - "docs/ru/architecture.md"
+  - "docs/en/architecture.md"
+scope_tools: []
+depends_on:
+  - enforcement-coverage-is-two-of-five-hosts
+  - four-ide-registries-collapse-into-one
+completed_at: "2026-09-07T21:07:38Z"
+resolution: null
+resolution_reason: null
+tracker_refs: []
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+ПОВОД — ТРЕБОВАНИЕ ВЛАДЕЛЬЦА 29.08 и обещание #2 релиза («повышенное качество разработки на ЛЮБОЙ модели»). Возможность может уехать Claude-only, и сегодня этого не заметит ничто.    ЗАМЕР ДО ПРОЕКТИРОВАНИЯ (смена #230, живое дерево, не чтение кода):  — паритет claude<->qwen ОХРАНЯЕТСЯ (tests/test_bootstrap_hooks_parity.py: у qwen есть каждый хук claude и ни одного лишнего);  — три остальных хоста не охраняет НИЧТО: opencode несёт один плагин QG-0, cursor и kilo — ноль;  — реестры хостов расходятся ПРЯМО СЕЙЧАС: IDE_DIRS и ide_utils.IDE_REGISTRY знают 7 хостов, providers.available() — 4 (claude, cursor, kilo, qwen), skill_profile_detect.VALID_IDES — 4 (claude, codex, cursor, qwen). Следствие проверено вживую: команда config set ide_profile kilo отвергается как неизвестный ide, хотя kilo — отгружаемый хост со своим провайдером.    ЧТО ДЕЛАЕТСЯ — ПРАВИЛО, А НЕ РАЗОВАЯ ПОЧИНКА: гейт кроссмодельности на слое хостов. Он не требует одинакового поведения — у Cursor нет точки расширения. Предмет проверки — НАЗВАНО ли различие.
+
+## Acceptance Criteria
+
+AC1. ТАБЛИЦА ПОКРЫТИЯ ВЫВОДИТСЯ, А НЕ ЧИТАЕТСЯ ИЗ СПИСКА. Гейт получает механизмы каждого хоста запуском НАСТОЯЩИХ генераторов bootstrap в чистое дерево и чтением того, что легло на диск. Список намерений в коде запрещён — он разошёлся бы с делом ровно так же, как разошёлся текст правил с механизмом (решение #335).
+
+AC2. КРАСНЕЕТ НА НЕОБЪЯВЛЕННОМ РАЗЛИЧИИ МЕЖДУ ХОСТАМИ-НОСИТЕЛЯМИ. Возможность, которую несёт один хост с механизмом и не несёт другой хост с механизмом, обязана быть объявлена. Необъявленная — блокирующий отказ с именем возможности и именами хостов.
+
+AC3. ОБЪЯВЛЕННОЕ РАЗЛИЧИЕ ПРОХОДИТ. Гейт не имеет права требовать устранения различия. Объявление несёт причину; отсутствие причины — тоже отказ.
+
+AC4. ГЕЙТ НЕ ЯВЛЯЕТСЯ НАЛОГОМ. Срабатывает только на изменениях слоя хостов (bootstrap/, scripts/hooks/), а не на каждой задаче. Проверяется тестом: изменение вне этих путей гейт не запускает.
+
+AC5. РЕЕСТР ОБЪЯВЛЕНИЙ НЕ ГНИЁТ В ОБЕ СТОРОНЫ (решение #335). Объявление, не совпавшее ни с одним настоящим различием, — отказ. Настоящее различие без объявления — отказ.
+
+AC6. МУТАЦИОННЫЙ ТЕСТ. Снять хук у одного из хостов-носителей и убедиться, что гейт КРАСНЕЕТ. Гейт, переживающий исчезновение своего предмета, ничего не проверяет.
+
+AC7 (НЕГАТИВНЫЙ). ГЕЙТ НЕ КРАСНЕЕТ НА ОБЪЯВЛЕННОМ РАЗРЫВЕ. Хост, не несущий механизма ВООБЩЕ (cursor, kilo), не является различием возможностей — он объявленный разрыв, уже закрытый уведомлением о принуждении. Красное там научило бы читателя пропускать гейт.
+
+AC8 (НЕГАТИВНЫЙ). ГЕЙТ НЕ ПРИТВОРЯЕТСЯ, ЧТО РЕЕСТР ОДИН. Он опирается на ide_utils.IDE_REGISTRY и ЗАЯВЛЯЕТ это вслух; замеренное расхождение четырёх реестров зафиксировано тестом, чтобы не росло молча. Сведение реестров — задача four-ide-registries-collapse-into-one в эпике 1.10, здесь она НЕ делается.
+
+## Plan
+
+## Rollback
+
+Новый гейт с узким триггером. Откат — отключение гейта в конфиге или git revert.
+
+## Journal
+
+- 2026-08-29T13:57:38Z [planning] — [#189] ПЕРЕСЕЧЕНИЕ: ext-p1-provider-refactor, пункт G4 — свести четыре несинхронизированных реестра IDE (IDE_DIRS, ide_utils.IDE_REGISTRY, skill_profile_detect.VALID_IDES, providers) в один источник правды С ГЕЙТ-ТЕСТОМ. Гейт паритета кроссмодельности обязан опираться на этот единый реестр, иначе он будет сверять покрытие с одним из четырёх списков и разойдётся с остальными тремя — ровно тот дефект, против которого заведён. Порядок: G4 либо раньше, либо внутри.
+- 2026-08-29T14:22:53Z [planning] — [#189] ПОПРАВКА К ССЫЛКЕ: задача ext-p1-provider-refactor, упомянутая выше, УДАЛЕНА 29.08 после расщепления на четыре оценённые задачи (provider-generates-artifacts-not-the-if-ide-ladder, four-ide-registries-collapse-into-one, session-model-recorded-on-non-claude-hosts, bundled-root-separate-from-vendored-copy). Ссылка сохранена как происхождение формулировок, а не как указатель на живую задачу — искать её в базе бесполезно. Найдено собственной проверкой плана: это ровно тот класс сгнившей ссылки, который чинит audit evidence.
+- 2026-09-07T21:06:34Z [implementation] — ГЛАВНАЯ НАХОДКА, ради которой гейт и стоило строить: существующий tests/test_bootstrap_hooks_parity.py сравнивал ИМЕНА ФАЙЛОВ и показывал по 23 хука у claude и qwen — паритет. Сравнение по тройке (событие, матчер, скрипт) показало ШЕСТЬ расхождений в матчерах. Два из них — разные написания «все инструменты» ("" у claude, * у qwen), это диалект. Четыре настоящие: task_done_verify срабатывает у qwen на task_done_v2, Bash и PowerShell, у claude — только на MCP-инструменте task_done; task_call_counter у qwen считает каждый инструмент, у claude пять, значит два хоста достигают бюджета вызовов сессии в РАЗНЫХ точках на одной работе; то же у activity_event (ACTIVE-время) и tool_output_truncation_nudge. Проверка, не видящая этого, хуже отсутствия проверки, потому что ей верят.
+- 2026-09-07T21:06:34Z [implementation] — РЕШЕНИЕ ПО СРАВНЕНИЮ: только внутри одной формы механизма. OpenCode принуждает плагином, claude — хуками; вопрос «не потерял ли claude tausik-qg0.js» смысла не имеет, а ответ на него дал бы 23 ложных различия в первый день. Есть ли у хоста точка расширения вообще — отдельное утверждение, которое уже делают уведомление о принуждении и doctor; гейт его не повторяет. Все четыре живых различия объявлены с причинами, диалектные написания нормализованы.
+- 2026-09-07T21:06:35Z [implementation] — ГРАНИЦА СОБЛЮДЕНА: сведение четырёх реестров (IDE_DIRS и IDE_REGISTRY знают 7 хостов, VALID_IDES — 4, providers — другие 4) НЕ делалось, это four-ide-registries-collapse-into-one в эпике 1.10. Вместо этого расхождение ЗАФИКСИРОВАНО тестом ровно в измеренном виде вместе с его живым следствием: config set ide_profile kilo и opencode отвергаются для хостов, которые bootstrap полностью разворачивает. Тест краснеет и если расхождение вырастет, и если незаметно исчезнет.
+- 2026-09-07T21:06:52Z [implementation] — AC verified: 1. ✓ таблица выводится ЗАПУСКОМ настоящих генераторов (generate_settings_claude, generate_settings_qwen, generate_opencode_plugin) во временное дерево и чтением того, что легло; списка намерений нет — тест test_it_reads_a_clean_tree_not_the_repository_profiles. 2. ✓ краснеет на необъявленном различии с именем возможности и хоста — test_the_gate_blocks_when_that_happens, test_a_changed_matcher_alone_turns_it_red. 3. ✓ объявленное различие проходит (test_a_declared_difference_passes); объявление без причины отвергается (test_a_declaration_without_a_reason_is_refused). 4. ✓ не налог: правка вне bootstrap/, scripts/hooks/, harness/opencode/ пропускает гейт — test_a_change_outside_the_host_layer_skips_the_gate. 5. ✓ реестр не гниёт в обе стороны: живое различие без объявления — отказ, объявление без живого различия — отказ (test_a_declaration_matching_nothing_live_is_refused); плюс карта сборщиков сверяется с развёрнутыми профилями как с независимым свидетелем. 6. ✓ мутационный тест снимает хук у хоста-носителя и требует красного; жертва выбирается так, чтобы не задеть объявление, иначе тест падал бы не о том. 7. ✓ единственный носитель формы не сравнивается ни с кем: plugin-различий нет (test_the_only_host_with_a_kind_is_compared_with_nobody); cursor и kilo в таблице отсутствуют вовсе. 8. ✓ гейт называет вслух, на какой реестр опирается, и расхождение четырёх реестров зафиксировано тестом вместе с живым следствием. Domain: гейт прогнан на НАСТОЯЩЕМ дереве, а не на фикстурах — все 23 хука claude, 23 qwen и 1 плагин opencode получены запуском реальных генераторов bootstrap; найденные им четыре различия существуют в отгружаемом продукте и проверены независимо сравнением троек (событие, матчер, скрипт). Negative: AC7 и AC4 — негативные сценарии — прогнаны как тесты: гейт НЕ краснеет на хосте без механизма (объявленный разрыв) и НЕ запускается вне слоя хостов. Мутация подтверждает обратное направление: снятие хука делает гейт красным.

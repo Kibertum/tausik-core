@@ -233,8 +233,12 @@ TASK_HANDLERS = {
     ),
     "tausik_task_start": _do_task_start,
     "tausik_task_done": _do_task_done,
-    "tausik_task_block": lambda svc, args: svc.task_block(args["slug"], args.get("reason")),
-    "tausik_task_unblock": lambda svc, args: svc.task_unblock(args["slug"]),
+    "tausik_task_block": lambda svc, args: svc.task_block(
+        args["slug"], args.get("reason"), args.get("question"), args.get("unblock_criteria")
+    ),
+    "tausik_task_unblock": lambda svc, args: svc.task_unblock(
+        args["slug"], args.get("criterion_met"), args.get("by")
+    ),
     "tausik_task_update": _do_task_update,
     "tausik_task_plan": lambda svc, args: svc.task_plan(args["slug"], args["steps"]),
     "tausik_task_step": _do_task_step,

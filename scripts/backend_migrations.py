@@ -45,6 +45,10 @@ from backend_migrations_v70 import MIGRATION_V70
 from backend_migrations_v71 import MIGRATION_V71
 from backend_migrations_v72 import MIGRATION_V72
 from backend_migrations_v73 import MIGRATION_V73
+from backend_migrations_v74 import MIGRATION_V74
+from backend_migrations_v75 import MIGRATION_V75
+from backend_migrations_v76 import MIGRATION_V76
+from backend_migrations_v77 import MIGRATION_V77
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -447,6 +451,16 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     71: MIGRATION_V71,  # observed/configured provenance for cohort identity
     72: MIGRATION_V72,  # bind review records to reviewed task/file state
     73: MIGRATION_V73,  # sessions.model_source -- provenance stored at open (backend_migrations_v73.py)
+    74: MIGRATION_V74,  # memory layers/hits/pin + hygiene snapshots (backend_migrations_v74.py)
+    75: MIGRATION_V75,  # pooled-verification cohort storage (backend_migrations_v75.py)
+    # v76: verification_cohorts.state += 'invalidated' (SS4 widening) --
+    # guarded rebuild in run_post_migrations, empty marker here
+    # (backend_migrations_v76.py).
+    76: MIGRATION_V76,
+    # v77: blocked tasks carry question + unblock criteria + unblock audit
+    # trail; pre-v77 blocked rows backfilled with the 'не задан' debt marker
+    # (backend_migrations_v77.py).
+    77: MIGRATION_V77,
 }
 
 # Merged: legacy + current

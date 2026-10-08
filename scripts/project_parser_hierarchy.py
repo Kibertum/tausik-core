@@ -38,6 +38,12 @@ def build_hierarchy_subparsers(sub: Any) -> None:
     eu.add_argument("--description", default=None)
     ed = epic_sub.add_parser("done")
     ed.add_argument("slug")
+    ed.add_argument(
+        "--verify-handle",
+        default=None,
+        help="Atomically close every non-done task under this epic on one green "
+        "cohort receipt from `verify --epic` (single use; stale on any drift).",
+    )
     edel = epic_sub.add_parser("delete")
     edel.add_argument("slug")
 
@@ -71,5 +77,11 @@ def build_hierarchy_subparsers(sub: Any) -> None:
     su.add_argument("--description", default=None)
     sd = story_sub.add_parser("done")
     sd.add_argument("slug")
+    sd.add_argument(
+        "--verify-handle",
+        default=None,
+        help="Atomically close every non-done task in this story on one green "
+        "cohort receipt from `verify --story` (single use; stale on any drift).",
+    )
     sdel = story_sub.add_parser("delete")
     sdel.add_argument("slug")

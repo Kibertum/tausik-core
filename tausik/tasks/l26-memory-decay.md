@@ -1,0 +1,54 @@
+---
+slug: l26-memory-decay
+title: "Забывание и консолидация памяти вместо только компакции"
+status: planning
+epic: release-112-knowledge
+story: release112-knowledge
+complexity: complex
+role: architect
+stack: python
+tier: null
+call_budget: null
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files: []
+scope_paths:
+  - "scripts/service_knowledge.py"
+  - "scripts/memory_cleanup.py"
+scope_tools: []
+depends_on: []
+completed_at: null
+resolution: null
+resolution_reason: null
+tracker_refs:
+  - "github#65"
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+Сейчас memory_compact — это сборка текста по окну last_n, а не семантическая консолидация; забывания нет вообще, память растёт неограниченно. Отраслевой сдвиг 2026: забывание и затухание перешли из опции в требование. Named-системы: FadeMem (arXiv 2601.18642, январь 2026) — двухслойная иерархия с адаптивным экспоненциальным затуханием, модулируемым семантической релевантностью и частотой доступа, заявлено сокращение хранения на 45 процентов при УЛУЧШЕНИИ многошагового поиска; FSFM (arXiv 2604.20300). Консенсусный механизм — консолидация вместо накопления, то есть дистилляция эпизодического в семантическое. ВАЖНАЯ ОГОВОРКА ПО ЗАМЕРАМ: вендорские бенчмарки памяти ненадёжны — LoCoMo дискредитирован (разговоры в нём всего 16-26k токенов, а baseline вообще без памяти обошёл Mem0 со счётом 73 против 68), поэтому мерить надо на своём трафике, а из внешних смотреть на BEAM (1M и 10M токенов). Задача: спроектировать затухание с учётом того, что у TAUSIK память ДОЛГОЖИВУЩАЯ и dead_end не должен затухать так же, как context.
+
+## Acceptance Criteria
+
+AC1. Спроектирован механизм затухания/консолидации памяти (design-док): адаптивное экспоненциальное затухание, модулируемое семантической релевантностью и частотой доступа (ориентир FadeMem/FSFM), с дистилляцией эпизодического в семантическое вместо только накопления.
+AC2. dead_end и context затухают ПО-РАЗНОМУ: dead_end не затухает наравне с context — правило задано явно и покрыто тестом.
+AC3. Консолидация отделена от memory_compact: разведены сборка текста по окну last_n и семантическая консолидация — дизайн/тест фиксирует разницу.
+AC4. Замер эффекта делается на СВОЁМ трафике (LoCoMo признан недостоверным: baseline без памяти обошёл Mem0 73 против 68); внешний ориентир — BEAM (1M/10M токенов). Зафиксировано в доке.
+CHANGELOG.md [Unreleased] и зеркало CHANGELOG.ru.md обновлены прозаической записью об этом изменении.
+
+## Plan
+
+## Rollback
+
+git revert; память живёт без затухания как сейчас
+
+## Journal

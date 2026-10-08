@@ -1,0 +1,70 @@
+---
+slug: graph-show-never-reads-the-symbols-it-stores
+title: "Символы графа записываются и никем не читаются: graph show не показывает, что файл определяет"
+status: done
+epic: artifact-graph
+story: ag-payoff
+complexity: simple
+role: developer
+stack: python
+tier: null
+call_budget: null
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files:
+  - "scripts/project_cli_graph.py"
+  - "tests/test_graph_is_framework_machinery.py"
+  - "docs/ru/graph.md"
+  - "docs/en/graph.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_paths:
+  - "scripts/project_cli_graph.py"
+  - "scripts/backend_crud_graph.py"
+  - "tests/test_graph_is_framework_machinery.py"
+  - "docs/ru/graph.md"
+  - "docs/en/graph.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+scope_tools: []
+depends_on: []
+completed_at: "2026-09-08T14:18:59Z"
+resolution: null
+resolution_reason: null
+tracker_refs: []
+started_model_id: claude-opus-5
+started_model_version: null
+done_model_id: claude-opus-5
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+НАЙДЕНО РЕВЬЮ СМЕНЫ #235 после пяти закрытий.
+
+ФАКТ: `graph build` наполняет artifact_symbols — на этом дереве 13 312 строк, — а метод чтения GraphCrudMixin.symbols_for_artifact не вызывает НИКТО: ни CLI, ни MCP, ни тест. Механическая сверка объявлений против всего дерева даёт ровно одно мёртвое объявление, и это оно.
+
+ПОЧЕМУ ЭТО ТОТ ЖЕ ДЕФЕКТ, ЧТО И ВЕСЬ ЭПИК. Подложка графа приехала с нулём строк и без поверхности; это починено. Теперь строки есть, а половина из них — символы — по-прежнему не имеет читателя. Инструмент построен и не выбран, только на уровень глубже.
+
+ПРЕДМЕТ: `graph show <путь>` показывает, что файл ОПРЕДЕЛЯЕТ, а не только с чем он связан. Это прямо отвечает на вопрос, ради которого агент открывает файл, и делает записанные символы полезными вместо декоративных.
+
+ГРАНИЦА: показ ограничен и число названо — файл на 200 определений не выливается в ответ целиком, иначе ответ перестанет быть дешевле чтения файла, что и есть весь смысл (та же граница, что у tausik symbol).
+
+## Acceptance Criteria
+
+AC1. graph show <путь> печатает определения этого файла, читая их через существующий symbols_for_artifact, а не новым запросом. AC2. Показ ограничен числом и остаток НАЗВАН, как в tausik symbol: ответ обязан остаться дешевле чтения файла. AC3. Файл без символов (markdown, terraform) не печатает пустую секцию, а молчит — пустой заголовок читается как «определений нет», хотя верно «извлекателя нет». AC4. Проверено на файле, у которого символы ЕСТЬ, и на файле, у которого их нет. AC5. Мёртвых объявлений в затронутых модулях не остаётся: механическая сверка после правки чиста.
+
+## Plan
+
+## Rollback
+
+git revert. Показ символов — добавление строк в вывод graph show; откат возвращает прежний вывод и ничего не ломает.
+
+## Journal
+
+- 2026-09-08T14:18:50Z [implementation] — AC-1: ✓ tests/test_graph_is_framework_machinery.py::TestGraphShowReadsTheSymbolsItStores::test_a_file_with_definitions_lists_them — читает через существующий symbols_for_artifact, нового запроса не заводилось. Проверено и на живом дереве: graph show scripts/source_roots.py печатает шесть определений с номерами строк. AC-2: ✓ ::test_the_listing_is_bounded_and_the_remainder_is_named — предел MAX_SYMBOLS_SHOWN = 12, остаток печатается как «(+N more)». Тот же предел и по той же причине, что у tausik symbol. AC-3: ✓ ::test_a_file_the_framework_cannot_parse_says_NOTHING — markdown не печатает пустой заголовок, а молчит: пустой заголовок читался бы как «определений нет», тогда как верно «извлекателя нет» (решения #334, #349). AC-4: ✓ проверено на файле с символами (app/orders.py) и без (app/notes.md), плюс на неизвестном графу пути. AC-5: ✓ механическая сверка после правки: мёртвых объявлений в изменённых модулях не осталось. До правки symbols_for_artifact был единственным на всё дерево. Domain: осмысленно вне тестов — вывод снят с НАСТОЯЩЕГО файла этого репозитория, и он же показал работу свежести: _ide_profile_dirs в списке отсутствует, потому что граф строился до её добавления, и строка STALE это честно называет. Negative: отрицательная половина главная — молчание вместо пустого заголовка, молчание на неизвестном пути, и названный остаток вместо тихого обрезания. ПОЧЕМУ ЭТА ЗАДАЧА ВООБЩЕ ПОЯВИЛАСЬ. Её нашло ревью после пяти закрытий, механической сверкой объявлений против всего дерева. 13 312 строк символов записывались и не читались никем — это тот же дефект, ради которого затевалась вся волна, только уровнем глубже: сначала граф был построен и не наполнен, потом наполнен и не показан, теперь показан наполовину. Сверка ловит именно этот класс.

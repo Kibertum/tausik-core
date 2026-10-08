@@ -149,7 +149,13 @@ def cmd_epic(svc: ProjectService, args: Any) -> None:
     elif args.epic_cmd == "update":
         print(hierarchy_edit.update(svc, "epics", args.slug, args.title, args.description))
     elif args.epic_cmd == "done":
-        print(svc.epic_done(args.slug))
+        handle = getattr(args, "verify_handle", None)
+        if handle:
+            from verify_hierarchy import hierarchy_done_with_handle
+
+            print(hierarchy_done_with_handle(svc, args.slug, "epic", handle))
+        else:
+            print(svc.epic_done(args.slug))
     elif args.epic_cmd == "delete":
         print(svc.epic_delete(args.slug))
     else:
@@ -165,7 +171,13 @@ def cmd_story(svc: ProjectService, args: Any) -> None:
     elif args.story_cmd == "update":
         print(hierarchy_edit.update(svc, "stories", args.slug, args.title, args.description))
     elif args.story_cmd == "done":
-        print(svc.story_done(args.slug))
+        handle = getattr(args, "verify_handle", None)
+        if handle:
+            from verify_hierarchy import hierarchy_done_with_handle
+
+            print(hierarchy_done_with_handle(svc, args.slug, "story", handle))
+        else:
+            print(svc.story_done(args.slug))
     elif args.story_cmd == "delete":
         print(svc.story_delete(args.slug))
     else:

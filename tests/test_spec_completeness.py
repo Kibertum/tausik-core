@@ -287,12 +287,20 @@ def test_the_live_repository_reports_exactly_the_gap_it_has():
     describing N guarded config keys does, so no spec_coverage.json entry was
     invented to force one — see spec_completeness.py's own module docstring on
     why UNCHECKED beats a fabricated enumerator.
+
+    `verification-cohort-contract` (ARCH, 1.11.3 pooled-verify line) joined for
+    the same reason with its own shape: its body binds identity RULES, lifecycle
+    transitions and invalidation — the set of identity inputs was just pruned
+    (decision #426) and per-test provenance granularity is a declared non-goal
+    (decision #425), so the "members" an enumerator would produce are exactly
+    what the contract says identity must NOT rest on.
     """
     report = audit()
     assert report.complete == ["sec-config-trust-tiers", "team-state-in-git-format"]
     assert [(f.spec, f.kind) for f in report.findings] == [
         ("at-generation-procedure", "UNCHECKED"),
         ("renar-adoption", "UNCHECKED"),
+        ("verification-cohort-contract", "UNCHECKED"),
     ]
 
 

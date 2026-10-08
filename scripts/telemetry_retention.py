@@ -57,6 +57,13 @@ POLICIES: Final[tuple[Policy, ...]] = (
         "months-long average, so an unbounded file makes the measurement worse",
     ),
     Policy(
+        "cli_invocations.jsonl",
+        WINDOW_LINES,
+        "friction signals are SEQUENCES in the recent tail (fail→help, fail→fail→fail); "
+        "older invocations cannot change what the agent fought this week, and the file "
+        "grows by one line per CLI call",
+    ),
+    Policy(
         "semantic_rerank.jsonl",
         WINDOW_LINES,
         "one line per search, and the question it answers is whether the layer earns its keep "

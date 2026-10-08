@@ -15,12 +15,26 @@
 verify [--task SLUG] [--relevant-files PATH ...]
        [--scope {lightweight,standard,high,critical,manual}]
        [--no-tests-expected]
-                                # Запустить scoped verify-trigger gates ad-hoc; пишет в verify cache.
-                                # С --task: гейты scoped по relevant_files задачи.
-                                # Без --task: гейты с пустым file scope (full suite для pytest).
-                                # Cache hit (тот же files_hash, < 10 мин) пропускает запуск.
-                                # Security-sensitive файлы (auth/payment/hooks) обходят cache.
+                                 # Запустить scoped verify-trigger gates ad-hoc; пишет в verify cache.
+                                 # С --task: гейты scoped по relevant_files задачи.
+                                 # Без --task: гейты с пустым file scope (full suite для pytest).
+                                 # Cache hit (тот же files_hash, < 10 мин) пропускает запуск.
+                                 # Security-sensitive файлы (auth/payment/hooks) обходят cache.
+verify --tasks SLUG [SLUG ...]  # Пул: ОДИН прогон гейтов по объединению
+                                 # relevant_files участников (>=2), один
+                                 # подписанный чек на всю когорту (1.11.3).
+verify --story SLUG             # Разрешает незакрытые задачи стори/эпика в
+verify --epic SLUG              #   одну когорту и пулит их; отказывает пулам
+                                 #   <2 и неготовым к ревью участникам. Чек
+                                 #   гасится через story/epic done --verify-handle.
 ```
+
+Переиспользование пула отказывается ИМЕНОВАННЫМ инвалидатором (membership
+drift, task edits, member-status drift, gate-signature drift,
+security-sensitive scope, missing evidence, uncertain dependency mapping) — и
+отказ РАСШИРЯЕТ: полный лейн исполняется, прежняя строка когорты помечается
+`invalidated`, вывод называет причину. Контракт:
+[`verification-cohort-contract.md`](../en/verification-cohort-contract.md).
 
 **`--relevant-files`.** Объявляет область задачи И проверяет её одной командой.
 Требует `--task`: область — свойство задачи, и записывать её больше некуда.

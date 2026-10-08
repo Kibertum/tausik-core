@@ -46,6 +46,26 @@ memory archive --before <duration> [--confirm]    # Soft-archive памяти с
 memory dedupe [--threshold 0.85] [--limit 200]     # Список near-duplicate пар выше порога
                                                    # similarity (difflib.SequenceMatcher.ratio()
                                                    # по title || content). Read-only.
+
+# Слои и хвост по релевантности (v74 / 1.11.3)
+memory hygiene                                     # DRY-RUN: что сделает следующий проход и
+                                                   # почему. Ничего не пишет. Прогони на
+                                                   # дорогом хранилище ДО включения чего-либо.
+memory hygiene --yes                               # Применить план: назначить слои
+                                                   # (core >=20 чтений или pinned, hot >=8,
+                                                   # warm >=2, cold 1 чтение или свежая,
+                                                   # frozen = 0 чтений и старше 90 дней).
+                                                   # Со снапшотом под --revert; pinned не
+                                                   # трогаются вовсе; ничего не удаляется.
+memory hygiene --revert                            # Отменить последний --yes, точно, одной
+                                                   # командой.
+memory pin <id> / memory unpin <id>                # Закрепить: никогда не понижается
+                                                   # автоматически, всегда первая в хвосте по
+                                                   # релевантности.
+# «Чтение» — это явный `memory show <id>`: результаты поиска — экспозиция, не обращение.
+# Хвост CLAUDE.md сохраняет порядок по свежести, пока в .tausik/config.json не стоит
+# {"memory_tail_by_relevance": true}. Opt-in, по умолчанию выключено: дай счётчикам
+# чтений накопиться на твоём корпусе (та же осторожность, с которой kaeru ships hygiene).
 ```
 
 **Типы памяти:** pattern, gotcha, convention, context, dead_end

@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from project_backend import SQLiteBackend
 from project_service import ProjectService
-from tausik_utils import ServiceError
 
 
 def _make_service(db_path: str) -> ProjectService:
@@ -124,7 +123,8 @@ class TestEnforcement:
 class TestUnblockEnforcement:
     """Pre-v1.3.4 bypass: agent could block-then-unblock to dodge the
     session capacity check that fires on task_start. task_unblock now
-    runs the same check."""
+    runs the same check. Since v77 every unblock states its criterion
+    (`--criterion-met`); the capacity fixtures below carry one."""
 
     def test_unblock_overshoot_is_an_advisory_not_a_refusal(self, svc):
         svc.session_start()
@@ -135,27 +135,21 @@ class TestUnblockEnforcement:
         # A blocked state created directly — the task was blocked before the
         # capacity was burned.
         svc.be.task_update("big", status="blocked")
-        msg = svc.task_unblock("big")
+        msg = svc.task_unblock("big", criterion_met="capacity fixture: criterion met")
         assert "unblocked" in msg
         assert "exceeds remaining" in msg
         assert svc.be.task_get("big")["status"] == "active"
 
-    def test_unblock_force_is_refused_as_retired(self, svc):
-        """force=True used to be the audit-logged escape hatch; with no gate
-        left to bypass it is refused rather than silently accepted."""
-        svc.session_start()
-        _ready_task(svc, "big", budget=300)
-        svc.be.task_update("big", status="blocked")
-        with pytest.raises(ServiceError, match="retired"):
-            svc.task_unblock("big", force=True)
-        assert svc.be.task_get("big")["status"] == "blocked"
+    # The force-retired route (TypeError before any service code runs) lives
+    # ONCE, in tests/test_session_signal_not_gate.py — the dedupe gate counts
+    # shapes, and this file already carried an identical one until v77.
 
     def test_unblock_passes_when_under_capacity(self, svc):
         """Capacity available → unblock proceeds normally."""
         svc.session_start()
         _ready_task(svc, "small", budget=80)
         svc.be.task_update("small", status="blocked")
-        msg = svc.task_unblock("small")
+        msg = svc.task_unblock("small", criterion_met="capacity fixture: criterion met")
         assert "unblocked" in msg
         assert svc.be.task_get("small")["status"] == "active"
 
@@ -164,7 +158,7 @@ class TestUnblockEnforcement:
         start gets: an absent session is named, not passed over in silence."""
         _ready_task(svc, "t", budget=300)
         svc.be.task_update("t", status="blocked")
-        msg = svc.task_unblock("t")
+        msg = svc.task_unblock("t", criterion_met="capacity fixture: criterion met")
         assert "unblocked" in msg
         assert "no session is open" in msg
         assert svc.be.task_get("t")["status"] == "active"

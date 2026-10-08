@@ -1,0 +1,57 @@
+---
+slug: a-user-tier-workaround-leaks-into-every-project
+title: "Обходной путь в пользовательском тире молча распространяется на все проекты машины"
+status: done
+epic: release-110-deferred-from-19
+story: release110-open-defects
+complexity: medium
+role: backend
+stack: null
+tier: moderate
+call_budget: 35
+defect_of: null
+scope: null
+scope_exclude: null
+relevant_files: []
+scope_paths:
+  - "scripts/*.py"
+  - "tests/*.py"
+  - "docs/ru/*.md"
+  - "docs/en/*.md"
+scope_tools: []
+depends_on: []
+completed_at: "2026-09-24T08:11:52Z"
+resolution: obsolete
+resolution_reason: "resolved in 1.9 by 5a52ef88: doctor names every trusted-tier weakening with tier, file, MACHINE-WIDE vs project scope, the recorded reason or NO REASON RECORDED, and points at the per-project form; pinned by tests/test_doctor_trust_tier_weakening.py (machine_wide, disabled_reason, no_reason tests). Checked in session #272."
+tracker_refs:
+  - "github#105"
+started_model_id: null
+started_model_version: null
+done_model_id: null
+done_model_version: null
+model_mismatch: 0
+no_file_changes_declared: 0
+token_budget: null
+cost_budget_usd: null
+---
+
+## Goal
+
+Послабление, включённое в пользовательском тире как обход дефекта одного проекта, видно и объяснимо: сегодня оно молча действует на каждый проект машины, а причина его появления нигде не записана.
+
+## Acceptance Criteria
+
+1. Живой замер записан как основание: ~/.tausik/config.json на машине владельца выключает гейт bootstrap_drift и включает task_done.auto_verify. Первое — обход дефекта, заведённого тикетами GitHub #7 и GitLab #3 (гейт вечно красный в потребительском проекте). Второе — legacy-режим, о котором doctor и предупреждает.
+2. `doctor` и `status` показывают, какие настройки пришли из ПОЛЬЗОВАТЕЛЬСКОГО тира, а не только факт их значения. Сегодня видно «auto_verify=true», но не видно, что это глобально и откуда.
+3. Отключение гейта в пользовательском тире требует ПРИЧИНЫ текстом — как rollback_plan у задачи. Молчаливое глобальное отключение гейта ЗАПРЕЩЕНО: оно переживает тот проект, ради которого сделано.
+4. Конвенция записана: обход дефекта одного проекта не имеет права жить в тире, действующем на все. Место такого обхода — проектный тир либо задача на устранение причины.
+5. НЕГАТИВНЫЙ сценарий: тест на то, что гейт, выключенный в пользовательском тире без причины, ОТВЕРГАЕТСЯ или громко помечается — а не применяется тихо.
+6. НЕГАТИВНЫЙ сценарий: правка не имеет права ужесточить трастовые тиры так, чтобы сломать законное послабление в пользовательском тире — ломающее изменение 3 в 1.8 разрешило его намеренно.
+
+## Plan
+
+## Rollback
+
+git revert коммита; вывод doctor возвращается прежним
+
+## Journal

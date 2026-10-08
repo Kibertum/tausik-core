@@ -71,14 +71,17 @@ epic add <slug> <title> [--description TEXT]
 epic update <slug> [--title T] [--description TEXT]   # the group's intent can be edited
 epic list [--stale-over N]     # stale = tasks created since the description was last edited; a report, not a gate
 epic list
-epic done <slug>
+epic done <slug> [--verify-handle H]   # closes the epic; with H — redeems the pooled
+                                        # receipt from `verify --epic` atomically (every
+                                        # member closes or none does; single-use, TTL)
 epic delete <slug>             # CASCADE: deletes all stories + tasks
 
 story add <epic_slug> <slug> <title> [--description TEXT]
 story update <slug> [--title T] [--description TEXT]
 story list [--epic E] [--stale-over N]
 story list [--epic EPIC_SLUG]
-story done <slug>
+story done <slug> [--verify-handle H]   # closes the story; with H — redeems the pooled
+                                        # receipt from `verify --story` atomically
 story delete <slug>            # CASCADE: deletes all tasks
 ```
 
@@ -123,8 +126,15 @@ task done <slug> --ac-verified [--no-knowledge] [--relevant-files FILE1 FILE2 ..
                                 #       investigation. It does NOT rescue a run in which a gate was
                                 #       APPLICABLE and still did not execute (COULD_NOT_RUN) — that
                                 #       one is fixed, not acknowledged.
-task block <slug> [--reason TEXT]
-task unblock <slug>             # blocked -> active
+task block <slug> --question TEXT --unblock-when TEXT [--reason TEXT]
+                                # REQUIRED both: the concrete question to the owner and the
+                                # checkable unblock criterion — a block without a question is a
+                                # task abandoned with a note to self; question may not restate
+                                # the title. Re-blocking updates the fields. `tausik status`
+                                # shows open questions as the FIRST block.
+task unblock <slug> --criterion-met TEXT [--by WHO]
+                                # blocked -> active; silent unblocking forbidden: state WHICH
+                                # criterion is met and why; WHO unblocked is recorded
 task review <slug>              # active -> review
 task update <slug> [--title T] [--goal G] [--notes N] [--acceptance-criteria AC]
                   [--scope S] [--scope-exclude S] [--stack S] [--complexity C] [--role ROLE]

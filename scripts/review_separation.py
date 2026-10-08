@@ -20,14 +20,21 @@ from model_routing import _model_family
 
 
 _OPENAI_MODEL = re.compile(r"^gpt-\d+(?:\.\d+)?(?:-(?:luna|terra|sol|astra))?$")
+# Same shape for GLM generations: a released id carries its number, optionally
+# one hyphenated variant word (glm-4.5-air). The registry's starter lineup
+# cannot track every point release (glm-5.2 shipped after it), so an
+# unrecognized-but-well-formed generation must not silently read as "unknown
+# family" — that would refuse every honest review record on the host running it.
+_GLM_MODEL = re.compile(r"^glm-\d+(?:\.\d+)?(?:-[a-z][a-z0-9-]*)?$")
 
 
 def review_model_family(model_id: str | None) -> str | None:
     """Review-separation family across supported model providers.
 
     The historical Claude tier tokens remain stable. Known profile models use
-    vendor plus abstract rank. A bare released GPT generation is recognized by
-    its exact normalized id; invented values such as ``gpt-x`` remain unknown.
+    vendor plus abstract rank. A bare released GPT or GLM generation is
+    recognized by its exact normalized id; invented values such as ``gpt-x``
+    or ``glm-x`` remain unknown.
     """
     claude_tier = _model_family(model_id)
     if claude_tier is not None:
@@ -38,6 +45,8 @@ def review_model_family(model_id: str | None) -> str | None:
         return f"{hit[0]}:{hit[1]}"
     if _OPENAI_MODEL.fullmatch(normalized):
         return f"openai:{normalized}"
+    if _GLM_MODEL.fullmatch(normalized):
+        return f"glm:{normalized}"
     return None
 
 
