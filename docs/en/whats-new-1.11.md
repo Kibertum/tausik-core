@@ -56,3 +56,18 @@ GitHub Release links:
 
 - [English notes](https://github.com/Kibertum/tausik-core/blob/v1.11.2/docs/en/whats-new-1.11.md)
 - [Russian notes](https://github.com/Kibertum/tausik-core/blob/v1.11.2/docs/ru/whats-new-1.11.md)
+
+## 1.11.3 — verification economy measured, Kilo completed
+
+Pooled verification end to end (`verify --tasks` / `--story` / `--epic`, the
+cohort contract, a live 34→1 verify-execution proof); the economy claim is
+measured: repeated-prefix −30.65%, natural response-round median 17/25 against
+a baseline of 89 (verification-cycle savings not claimed, by refusal). Kilo is
+a fully governed host — the `permission` surface is used and vendor agents are
+normalized at the deploy boundary. The framework reads itself: `doctor
+--harness-audit`, `doctor --friction`, a blocked task carries its question,
+the memory tail selects by significance.
+
+- [Exact 1.11.3 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.3/CHANGELOG.md)
+- [English notes](https://github.com/Kibertum/tausik-core/blob/v1.11.3/docs/en/whats-new-1.11.md)
+- [Russian notes](https://github.com/Kibertum/tausik-core/blob/v1.11.3/docs/ru/whats-new-1.11.md)
