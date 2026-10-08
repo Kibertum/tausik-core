@@ -57,6 +57,80 @@ PLUGIN_FILES = (
     "tausik-observe.js",  # provider-agnostic live model observation
 )
 
+# Kilo's SECOND extension point (measured against the live schema
+# https://app.kilo.ai/config.json(measured against the live schema): the
+# `permission` key accepts a per-operation policy, and the rule-shaped
+# operations (`edit`, `bash`, ...) accept `{pattern: "ask"|"allow"|"deny"}`.
+# This is HOST-LEVEL enforcement of rules TAUSIK already states in prose —
+# the same rules, now refused by the host itself, not merely by the agent's
+# good behavior. Managed keys are exactly the ones TAUSIK can argue for:
+#
+#   edit  ".tausik/tausik.db"  deny — the DB belongs to the service layer;
+#                                a raw edit corrupts what every tool reads.
+#   edit  ".kilo/plugins/*"    deny — enforcement artifacts are bootstrap-
+#                                managed; a hand edit is drift by definition.
+#   bash  "git push*"          ask  — publication leaves the machine only
+#                                with the owner's word (SENAR Rule 7).
+#   bash  "sqlite3*"           ask  — no raw SQLite against the project DB.
+#   external_directory        deny — the agent works inside the project
+#                                (Rule 2 scope boundaries).
+#
+# Merge semantics mirror the `mcp` stanza: user keys are preserved, managed
+# keys are rewritten idempotently and WIN over a user value on the same
+# pattern (a governance rule the user can name is one the file must keep).
+# A STRING `permission` (global "allow"/"ask"/"deny") is left untouched: a
+# string cannot hold per-pattern rules, and overriding the user's global
+# choice is not ours to do. Opt out via config kilo.permission_policy=false.
+PERMISSION_POLICY: dict[str, dict[str, str] | str] = {
+    "edit": {
+        ".tausik/tausik.db": "deny",
+        ".kilo/plugins/*": "deny",
+    },
+    "bash": {
+        "git push*": "ask",
+        "sqlite3*": "ask",
+    },
+    "external_directory": "deny",
+}
+
+
+def _merge_permission(existing: dict) -> dict | None:
+    """Fold the managed policy into the config's ``permission`` key.
+
+    Returns the merged value to store, or None when nothing should be
+    written (existing global string choice left as the user set it).
+    """
+    perm = existing.get("permission")
+    if perm is None:
+        merged: dict[str, dict[str, str] | str] = {}
+    elif isinstance(perm, str):
+        return None  # a global action cannot carry patterns; the user's word stands
+    elif isinstance(perm, dict):
+        merged = perm
+    else:
+        return None
+    for op, rules in PERMISSION_POLICY.items():
+        if isinstance(rules, str):
+            merged[op] = rules
+        else:
+            slot = merged.get(op)
+            if not isinstance(slot, dict):
+                slot = {}
+                merged[op] = slot
+            slot.update(rules)
+    return merged
+
+
+def _permission_enabled(config: dict | None) -> bool:
+    if not isinstance(config, dict):
+        return True
+    kilo_cfg = config.get("kilo")
+    if isinstance(kilo_cfg, dict):
+        flag = kilo_cfg.get("permission_policy")
+        if flag is False:
+            return False
+    return True
+
 
 def _abs_portable(abs_path: str) -> str:
     """Absolute, forward-slashed path for embedding in Kilo's JSON config.
@@ -110,12 +184,18 @@ def _build_mcp_servers(
     return out
 
 
-def _merge_into_file(path: str, servers: dict[str, Any]) -> None:
-    """Merge TAUSIK servers into one Kilo config file under the ``mcp`` key.
+def _merge_into_file(
+    path: str,
+    servers: dict[str, Any],
+    permission: dict[str, dict[str, str] | str] | None = PERMISSION_POLICY,
+) -> None:
+    """Merge TAUSIK servers (and the managed permission policy) into one Kilo
+    config file under the ``mcp`` (and ``permission``) keys.
 
     Preserves user-added servers and any other top-level keys. A malformed
     existing file is replaced (not crashed on). Idempotent: re-running rewrites
-    the TAUSIK stanzas to the same value without duplicating.
+    the TAUSIK stanzas to the same value without duplicating. Pass
+    ``permission=None`` to skip the policy (the config opt-out path).
     """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     existing: dict[str, Any] = {}
@@ -133,6 +213,10 @@ def _merge_into_file(path: str, servers: dict[str, Any]) -> None:
     retire_managed_servers(mcp)
     mcp.update(servers)
     existing["mcp"] = mcp
+    if permission is not None:
+        merged_perm = _merge_permission(existing)
+        if merged_perm is not None:
+            existing["permission"] = merged_perm
     with open(path, "w", encoding="utf-8") as f:
         json.dump(existing, f, indent=2)
 
@@ -161,9 +245,10 @@ def generate_kilo_config(
             if isinstance(override, list) and override:
                 rel_paths = [str(p) for p in override if isinstance(p, str) and p.strip()]
     written: list[str] = []
+    policy = PERMISSION_POLICY if _permission_enabled(config) else None
     for rel in rel_paths:
         path = os.path.join(project_dir, rel)
-        _merge_into_file(path, servers)
+        _merge_into_file(path, servers, policy)
         written.append(path)
     return written
 

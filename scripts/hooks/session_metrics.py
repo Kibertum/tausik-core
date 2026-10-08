@@ -290,7 +290,9 @@ def record_to_db(
         "--tokens-total",
         str(metrics.get("tokens_total", 0)),
         "--cost-usd",
-        str(metrics.get("cost_usd", 0.0)),
+        # `or 0.0`: an UNPRICED session carries cost_usd=None, and str(None)
+        # made argparse refuse the record call until the friction lane caught it.
+        str(metrics.get("cost_usd") or 0.0),
         "--tool-calls",
         str(metrics.get("tool_calls", 0)),
         "--model",

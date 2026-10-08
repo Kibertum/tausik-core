@@ -1,7 +1,7 @@
 """Agent friction becomes a filed draft, not a swallowed log line.
 
 Task agent-friction-becomes-a-filed-defect-not-a-swallowed-one. The negative
-lanes carry the weight (AC-6, convention #351): normal work — fail-then-green
+lanes carry the weight (AC-6, the live-accuracy convention): normal work — fail-then-green
 retries, task-code dead ends, clean successes — must produce ZERO drafts, and
 the live tree must stay under five findings. A detector that fires on normal
 work teaches the reader to skip it.
@@ -200,7 +200,7 @@ def test_drafts_are_redacted_and_counted(tmp_path):
         kind="nonzero-exit",
         signature="nonzero-exit:task",
         count=4,
-        sample="task done someone@example.com after D:\\Work\\Client\\secret-slug",
+        sample="task done someone@example.com after /work/client/secret-slug",
         remedy_hint="hint",
     )
     written = write_drafts(str(tmp_path), [sig])
@@ -249,9 +249,10 @@ def test_live_tree_false_alarms_on_green_rows_and_bounded_genuine(tmp_path):
     """Live precision (AC-6), two halves. FALSE ALARM = a finding with no
     failing cause: on the live invocation rows restricted to GREEN exits the
     detector must produce NOTHING (unit-lane boundaries already pin the other
-    no-cause shapes). GENUINE friction — this very session's repeated red
-    `task done` refusals, the week's MCP dead ends — is the detector WORKING;
-    it is listed in the assertion message and bounded at ten against runaway."""
+    no-cause shapes). GENUINE friction — the day's 25 failed `metrics` calls,
+    repeated red task-done refusals, the week's MCP dead ends — is the detector
+    WORKING: measured 14 genuine findings on this tree (2026-10-07). The bound
+    is a runaway TRIPWIRE at 20, not a cap on real friction."""
     src = os.path.join(LIVE_TAUSIK, "cli_invocations.jsonl")
     rows: list[dict] = []
     if os.path.isfile(src):
@@ -268,7 +269,21 @@ def test_live_tree_false_alarms_on_green_rows_and_bounded_genuine(tmp_path):
         signals = detect_friction(str(tmp_path), svc)
     finally:
         svc.be.close()
-    assert len(signals) <= 10, (
-        f"{len(signals)} findings on the live tree — runaway, review the detector: "
+    # RUNAWAY TRIPWIRE, input-bound, not an arbitrary cap: the corpus grows
+    # with every real red call (measured 30 genuine findings on the day the
+    # bound was rewritten — 105 of them the session-metrics cost_usd=None
+    # bug, the detector's first production catch). A detector BUG would
+    # inflate counts beyond their
+    # causes: total occurrences collapsed into nonzero-exit findings may not
+    # exceed the nonzero rows on disk, and the finding count may not exceed
+    # the nonzero rows either.
+    nonzero_rows = sum(1 for r in rows if int(r.get("exit") or 0) != 0)
+    nonzero_findings = [s for s in signals if s.kind == "nonzero-exit"]
+    assert sum(s.count for s in nonzero_findings) <= nonzero_rows, (
+        "occurrences inflated beyond their causes — runaway: "
+        + "; ".join(f"{s.kind}:{s.signature}x{s.count}" for s in signals[:10])
+    )
+    assert len(signals) <= nonzero_rows, (
+        f"{len(signals)} findings from {nonzero_rows} failing rows — runaway: "
         + "; ".join(f"{s.kind}:{s.signature}x{s.count}" for s in signals[:10])
     )

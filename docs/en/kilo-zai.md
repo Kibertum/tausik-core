@@ -235,6 +235,33 @@ config entry:
 }
 ```
 
+## 6. Host-level permission policy (the second extension point)
+
+Kilo's config schema (`$schema: https://app.kilo.ai/config.json`) accepts a
+`permission` key: per-operation `ask` / `allow` / `deny`, and the rule-shaped
+operations (`edit`, `bash`, …) accept `{pattern: action}` objects. Since
+2026-10-08 `bootstrap --ide kilo` writes a managed policy alongside the MCP
+stanza — the same rules TAUSIK states in prose, now refused by the host itself:
+
+| Operation | Pattern / scope | Action | Why |
+|---|---|---|---|
+| `edit` | `.tausik/tausik.db` | **deny** | the DB belongs to the service layer; a raw edit corrupts what every tool reads |
+| `edit` | `.kilo/plugins/*` | **deny** | enforcement artifacts are bootstrap-managed; a hand edit is drift by definition |
+| `bash` | `git push*` | **ask** | publication leaves the machine only with the owner's word (SENAR Rule 7) |
+| `bash` | `sqlite3*` | **ask** | no raw SQLite against the project DB |
+| `external_directory` | — | **deny** | the agent works inside the project (Rule 2 scope boundaries) |
+
+Merge semantics mirror the `mcp` stanza: your own keys and rules are preserved,
+managed keys are rewritten idempotently and win over a user value on the same
+pattern (a governance rule you can name is one the file must keep). A global
+string `permission: "ask"|"allow"|"deny"` you set yourself is left untouched —
+a string cannot carry patterns, and your global choice is yours. Opt out via
+`.tausik/config.json` → `{"kilo": {"permission_policy": false}}`.
+
+`tausik doctor`'s enforcement-coverage line counts these as a third shape —
+`kilo: 2 plugins and 5 permission rules` — read from the deployed config
+itself, never from a list of intentions.
+
 ## How it fits together
 
 ```
