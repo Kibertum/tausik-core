@@ -1,7 +1,7 @@
 ---
 slug: declare-crosscutting-scope-in-vendor-boundary-test
 title: "declare CROSSCUTTING_SCOPE in vendor boundary test"
-status: active
+status: done
 epic: null
 story: null
 complexity: null
@@ -19,7 +19,7 @@ scope_tools: []
 assurance_profiles: []
 assurance_impact: null
 depends_on: []
-completed_at: null
+completed_at: "2026-10-08T09:18:17Z"
 resolution: null
 resolution_reason: null
 tracker_refs: []
