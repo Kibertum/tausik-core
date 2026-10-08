@@ -32,14 +32,15 @@ telemetry, never on prose judgment:
      FRAMEWORK itself              — memory rows `type='dead_end'` whose text
      names a framework surface failing (MCP empty params, drift, stale server).
 
-PRECISION IS THE CONTRACT (AC-6, convention #351): a detector that fires on
+PRECISION IS THE CONTRACT (AC-6, convention on live-data accuracy): a detector
+that fires on
 normal work — a red verify, a fail-then-green retry loop, a dead end about the
 agent's OWN code — is worse than none, because it teaches the reader to skip
 the drafts. The negative lanes pin each boundary: fail-then-green is NOT
 signal C, a task-code dead end is NOT signal E, and the live-tree test fails
 the suite beyond five findings on this very repository.
 
-NETWORK (AC-4, memory #352): this module contains NO network code and no
+NETWORK (AC-4, the owner's per-issue-only rule): this module contains NO network code and no
 config flag can add any. Sending a draft anywhere is a human act on a specific
 issue; a test guards the import surface so the guarantee is mechanical.
 

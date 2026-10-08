@@ -208,7 +208,7 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         advisories: list[str] = []
         if not _internal_force:
             qg0_warnings = self._check_qg0_start(slug, task)
-            # Signals, not gates (decision #376): printed with the start, never refusals.
+            # Signals, not gates: printed with the start, never refusals.
             advisories = start_advisories(self, slug, task)
         updates: dict[str, Any] = {
             "status": "active",

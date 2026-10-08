@@ -227,6 +227,14 @@ def _task_doc(task: dict[str, Any], story_slug: str | None, epic_slug: str | Non
         # the tell: all three are the same kind of statement about intended cost.
         ("token_budget", task.get("token_budget")),
         ("cost_budget_usd", task.get("cost_budget_usd")),
+        # v77: a blocked task carries its QUESTION and unblock criterion as fields,
+        # and the answer's audit (who stated the criterion met, when) is the proof
+        # the unblock was not silent. All four are intent, so they travel; without
+        # them a cloned blocked task is a riddle whose answer stayed home.
+        ("blocked_question", task.get("blocked_question")),
+        ("unblock_criteria", task.get("unblock_criteria")),
+        ("unblocked_by", task.get("unblocked_by")),
+        ("unblocked_at", normalize_ts(task.get("unblocked_at"))),
     ]
     body = join_sections(
         section("Goal", task.get("goal")),

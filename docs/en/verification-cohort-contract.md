@@ -1,5 +1,7 @@
 # Verification Cohort Contract (1.11.3 pooled verification, Track A)
 
+**English** | [Русский](../ru/verification-cohort-contract.md)
+
 <!-- doc-map: reader=agent; zone=quality -->
 
 SPEC `verification-cohort-contract` · status draft · task

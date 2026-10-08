@@ -87,6 +87,7 @@ def _git_state(root: str | None) -> dict[str, str]:
             text=True,
             check=True,
             timeout=30,
+            stdin=subprocess.DEVNULL,
         ).stdout.strip()
         dirty = subprocess.run(
             ["git", "-C", root, "status", "--porcelain"],
@@ -94,6 +95,7 @@ def _git_state(root: str | None) -> dict[str, str]:
             text=True,
             check=True,
             timeout=30,
+            stdin=subprocess.DEVNULL,
         ).stdout
     except Exception:  # noqa: BLE001 — unmeasurable repo state IS the invalidator
         return {"head": "unavailable", "dirty_digest": "unavailable"}

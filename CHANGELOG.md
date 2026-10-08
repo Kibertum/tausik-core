@@ -7,7 +7,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
-## [Unreleased]
+## [1.11.3] — 2026-10-07
+
+### Added — Kilo is now a fully governed host: the permission surface is used
+
+- **Kilo's second extension point — the `permission` key — is no longer
+  unused.** `bootstrap --ide kilo` writes a managed host-level policy
+  alongside the MCP stanza (schema measured against the live
+  `app.kilo.ai/config.json`, Kilo 7.8.8): `deny` on editing
+  `.tausik/tausik.db` and `.kilo/plugins/*`, `ask` on `git push*` and
+  `sqlite3*`, `deny` on `external_directory`. The rules TAUSIK stated in
+  prose are now refused by the host itself — closing the finding of shift
+  #232 that the surface existed and we did not use it.
+- **Merge semantics mirror the `mcp` stanza**: user keys and rules are
+  preserved, managed keys win on the same pattern and rewrite idempotently,
+  a global string `permission` the user set is left untouched, and
+  `kilo.permission_policy: false` in `.tausik/config.json` opts out.
+- **Enforcement coverage counts a third shape**: `tausik doctor` now reads
+  the deployed Kilo config (jsonc comments tolerated) and reports
+  `kilo: 2 plugins and 5 permission rules` — derived from what is on disk,
+  never from a list of intentions. Together with the QG-0 gate plugin, the
+  provider-agnostic model observation and the MCP live probe shipped in
+  1.11.2, the Kilo host line is complete; the remaining open Kilo-front
+  item is the extension MVP line (`ext-p0`/`ext-p2`), declared next.
 
 ### Added — `doctor --friction`: agent friction becomes a filed draft, not a swallowed log line
 

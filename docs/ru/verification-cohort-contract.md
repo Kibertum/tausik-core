@@ -1,5 +1,7 @@
 # Контракт пул-верификации (зеркало; полный текст — EN)
 
+[English](../en/verification-cohort-contract.md) | **Русский**
+
 <!-- doc-map: reader=agent; zone=quality -->
 <!-- audit-translation-drift: skip -->
 <!-- Причина skip: намеренно сокращённое зеркало — полный контракт с доказательством

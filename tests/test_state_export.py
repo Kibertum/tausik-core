@@ -151,6 +151,10 @@ def test_fixed_frontmatter_key_order_for_task(svc):
         "no_file_changes_declared",
         "token_budget",
         "cost_budget_usd",
+        "blocked_question",
+        "unblock_criteria",
+        "unblocked_by",
+        "unblocked_at",
     ]
 
 

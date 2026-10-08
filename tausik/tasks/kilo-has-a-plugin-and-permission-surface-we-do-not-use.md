@@ -1,7 +1,7 @@
 ---
 slug: kilo-has-a-plugin-and-permission-surface-we-do-not-use
 title: "Kilo умеет plugin и permission: у него ЕСТЬ точка расширения, мы её не используем"
-status: planning
+status: done
 epic: v2-global-mcp
 story: v2gm-surfaces
 complexity: complex
@@ -10,13 +10,24 @@ stack: python
 tier: null
 call_budget: null
 defect_of: null
-scope: null
-scope_exclude: null
-relevant_files: []
+scope: "Плагин-половина уже исполнена задачей kilo-gate-plugin (1.11.2). Эта задача закрывает PERMISSION-половину: bootstrap_kilo генерирует permissions-политику TAUSIK в .kilo/kilo.jsonc (deny на external_directory и прямые записи в .tausik/tausik.db, ask на bash-обход гейтов) с merge-семантикой как у mcp-станзы; enforcement_coverage/plugins-паритет; тесты генератора; доки kilo-zai EN/RU; changelog."
+scope_exclude: "kilo.jsonc пользователя (не перезаписывать чужие ключи), ext-линия (epic universal-vscode-extension), runtime Kilo"
+relevant_files:
+  - "bootstrap/bootstrap_kilo.py"
+  - "scripts/enforcement_coverage.py"
+  - "tests/test_bootstrap_kilo.py"
+  - "tests/test_enforcement_coverage.py"
+  - "docs/en/kilo-zai.md"
+  - "docs/ru/kilo-zai.md"
+  - CHANGELOG.md
+  - CHANGELOG.ru.md
+  - ".kilo/kilo.jsonc"
 scope_paths: []
 scope_tools: []
+assurance_profiles: []
+assurance_impact: null
 depends_on: []
-completed_at: null
+completed_at: "2026-10-08T08:19:34Z"
 resolution: null
 resolution_reason: null
 tracker_refs:
@@ -29,6 +40,10 @@ model_mismatch: 0
 no_file_changes_declared: 0
 token_budget: null
 cost_budget_usd: null
+blocked_question: null
+unblock_criteria: null
+unblocked_by: null
+unblocked_at: null
 ---
 
 ## Goal
@@ -61,4 +76,8 @@ AC5 (НЕГАТИВНЫЙ). НЕ ИМИТИРОВАТЬ. Пока механиз
 
 ## Rollback
 
+git revert коммита генератора; у уже развёрнутых конфигов ключ tausik-managed permissions удаляется повторным запуском bootstrap со сброшенным флагом (merge идемпотентен, пользовательские ключи не трогаются)
+
 ## Journal
+
+- 2026-10-08T08:19:20Z [implementation] — AC1: ✓ МЕХАНИЗМ РАЗВЁРНУТ И ВИДЕН ИЗ ФАКТА: живой .kilo/kilo.jsonc несёт управляемую permission-политику (edit deny .tausik/tausik.db + .kilo/plugins/*, bash ask git push*/sqlite3*, external_directory deny — проверено чтением живого файла после bootstrap --ide all); scripts/enforcement_coverage.deployed_enforcement считает её САМ из конфига на диске (jsonc-комментарии терпимы): третья форма «permissions», счётчик не правился — форма описана и выведена. tests/test_enforcement_coverage.py::test_kilo_permission_rules_are_counted_from_the_config (5 правил из живого формата), ::test_kilo_user_rules_count_too. AC2 (схема измерена, не угадана): политика соответствует живой схеме https://app.kilo.ai/config.json, снятой 2026-10-08 (PermissionConfig = action | {op: rule}, rule = action | {pattern: action}); пробы по локальному бандлу Kilo 7.8.8 в .tausik/planning/kilo-permission-probe.py. Merge-семантика: tests/test_bootstrap_kilo.py::test_permission_policy_managed_rules_win_user_values_do_not_leak (пользовательские сохраняются, управляемые выигрывают), ::test_global_string_permission_is_the_users_word, ::test_permission_policy_opt_out, ::test_permission_policy_idempotent, ::test_permission_policy_written_by_default. Доки: docs/en/kilo-zai.md §6 + docs/ru/kilo-zai.md §6 (таблица правил, семантика, отключение); changelog [1.11.3] EN/RU — «Kilo is now a fully governed host». НЕГАТИВ: плагин-половина поверхности исполнена ранее задачей kilo-gate-plugin (1.11.2); эта задача закрыла permission-половину — формулировка «у Kilo нет точки расширения» более не существует ни в коде, ни в доке; ext-линия объявлена следующей и НЕ тронута. Domain: хост-уровень отклоняет то, что раньше было прозой правил: git push без слова владельца, сырой SQLite, правка БД и артефактов принуждения. Verify: run #3648 PASS, handle 3648.af027e2094cb00ba2474009128052f6e.
