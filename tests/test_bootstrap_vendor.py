@@ -17,6 +17,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
 from bootstrap_vendor import copy_vendor_assets, normalize_agent_tools
 
+#: This file reads the local vendor corpus (a source tree) in its live lane.
+CROSSCUTTING_SCOPE = [".tausik/vendor"]
+
 
 def _agent(frontmatter_tools: str) -> str:
     return (
