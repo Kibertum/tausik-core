@@ -22,6 +22,7 @@ from gate_test_resolver import (
     count_test_files,
     resolve_test_files_for_relevant,
 )
+
 # Импортируется под другим именем НАРОЧНО: `test_roots` начинается с `test_`,
 # и pytest собрал бы саму функцию как тест — он и собрал, отчитавшись ошибкой
 # «fixture 'base' not found» вместо честного прогона.

@@ -6,6 +6,7 @@ import os
 import sqlite3
 import sys
 import time
+from copy import deepcopy
 
 import pytest
 
@@ -23,6 +24,36 @@ from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
 # hand-written copy. A copy proves the copy, not production, and drifts
 # silently (see conftest.canonical_ddl for the two incidents that cost).
 _VERIFICATION_RUNS_DDL = VERIFICATION_RUNS_DDL + ";"
+
+
+def _resolved_semantic_field_cases(cfg):
+    """One real resolved runner field per case; no hand-maintained mini-schema."""
+    import project_config
+
+    cases = {}
+    for trigger in ("verify", "task-done", "commit", "review"):
+        for gate in project_config.get_gates_for_trigger(trigger, cfg):
+            for field in gate:
+                if field in {"description", "prevents"} or field.startswith("_"):
+                    continue
+                cases.setdefault(field, (trigger, gate["name"], field))
+    return sorted(cases.values(), key=lambda case: case[2])
+
+
+def _changed(value):
+    if isinstance(value, bool):
+        return not value
+    if isinstance(value, int):
+        return value + 1
+    if isinstance(value, str):
+        return value + "-changed"
+    if isinstance(value, list):
+        return [*value, "semantic-change"]
+    if isinstance(value, dict):
+        return {**value, "semantic-change": True}
+    if value is None:
+        return "semantic-change"
+    raise AssertionError(f"no mutation rule for resolved gate field {value!r}")
 
 
 @pytest.fixture
@@ -284,6 +315,18 @@ class TestIsSecuritySensitive:
 # --- record_run + lookup_recent_for_task -----------------------------------
 
 
+def _proof(*, trigger="verify", files=("x.py",), signature="sig"):
+    from verify_run_descriptor import VerificationRunDescriptor
+
+    return VerificationRunDescriptor.create(
+        trigger=trigger,
+        files=list(files),
+        gate_signature=signature,
+        replayable=True,
+        presentable_once=False,
+    )
+
+
 class TestRecordAndLookup:
     def test_record_returns_id(self, conn):
         rid = sv.record_run(
@@ -295,6 +338,7 @@ class TestRecordAndLookup:
             summary="ok",
             files_hash="abc",
             duration_ms=42,
+            descriptor=_proof(),
         )
         assert rid >= 1
 
@@ -307,13 +351,14 @@ class TestRecordAndLookup:
             exit_code=0,
             summary="ok",
             files_hash="hash-abc",
+            descriptor=_proof(),
         )
-        hit = sv.lookup_recent_for_task(conn, "t1", files_hash="hash-abc", command="cmd-x")
+        hit = sv.lookup_recent_for_task(conn, "t1", files_hash="hash-abc", descriptor=_proof())
         assert hit is not None
         assert hit["scope"] == "lightweight"
 
     def test_lookup_misses_on_no_runs(self, conn):
-        assert sv.lookup_recent_for_task(conn, "never", files_hash="x", command="y") is None
+        assert sv.lookup_recent_for_task(conn, "never", files_hash="x", descriptor=_proof()) is None
 
     def test_lookup_misses_on_files_hash_mismatch(self, conn):
         sv.record_run(
@@ -324,8 +369,9 @@ class TestRecordAndLookup:
             exit_code=0,
             summary="ok",
             files_hash="hash-OLD",
+            descriptor=_proof(),
         )
-        miss = sv.lookup_recent_for_task(conn, "t1", files_hash="hash-NEW", command="cmd-x")
+        miss = sv.lookup_recent_for_task(conn, "t1", files_hash="hash-NEW", descriptor=_proof())
         assert miss is None
 
     def test_lookup_misses_on_command_mismatch(self, conn):
@@ -337,8 +383,11 @@ class TestRecordAndLookup:
             exit_code=0,
             summary="ok",
             files_hash="h",
+            descriptor=_proof(signature="old"),
         )
-        miss = sv.lookup_recent_for_task(conn, "t1", files_hash="h", command="cmd-NEW")
+        miss = sv.lookup_recent_for_task(
+            conn, "t1", files_hash="h", descriptor=_proof(signature="new")
+        )
         assert miss is None
 
     def test_lookup_misses_on_red_run(self, conn):
@@ -351,8 +400,9 @@ class TestRecordAndLookup:
             exit_code=1,
             summary="FAIL",
             files_hash="h",
+            descriptor=_proof(),
         )
-        miss = sv.lookup_recent_for_task(conn, "t1", files_hash="h", command="cmd")
+        miss = sv.lookup_recent_for_task(conn, "t1", files_hash="h", descriptor=_proof())
         assert miss is None
 
     def test_lookup_misses_when_stale(self, conn):
@@ -365,6 +415,7 @@ class TestRecordAndLookup:
             exit_code=0,
             summary="ok",
             files_hash="h",
+            descriptor=_proof(),
         )
         # Backdate the run by 1 hour
         conn.execute(
@@ -372,7 +423,9 @@ class TestRecordAndLookup:
             ("2020-01-01T00:00:00Z", "t1"),
         )
         conn.commit()
-        miss = sv.lookup_recent_for_task(conn, "t1", files_hash="h", command="cmd", max_age_s=600)
+        miss = sv.lookup_recent_for_task(
+            conn, "t1", files_hash="h", descriptor=_proof(), max_age_s=600
+        )
         assert miss is None
 
     def test_lookup_takes_most_recent(self, conn):
@@ -385,6 +438,7 @@ class TestRecordAndLookup:
             exit_code=1,  # red older
             summary="x",
             files_hash="h",
+            descriptor=_proof(),
         )
         sv.record_run(
             conn,
@@ -394,8 +448,9 @@ class TestRecordAndLookup:
             exit_code=0,  # green newer
             summary="ok",
             files_hash="h",
+            descriptor=_proof(),
         )
-        hit = sv.lookup_recent_for_task(conn, "t1", files_hash="h", command="cmd")
+        hit = sv.lookup_recent_for_task(conn, "t1", files_hash="h", descriptor=_proof())
         assert hit is not None
         assert hit["exit_code"] == 0
 
@@ -409,6 +464,7 @@ class TestRecordAndLookup:
             exit_code=0,
             summary="pytest=PASS",
             files_hash="h1",
+            descriptor=_proof(trigger="verify", signature="a"),
         )
         sv.record_run(
             conn,
@@ -418,18 +474,19 @@ class TestRecordAndLookup:
             exit_code=0,
             summary="filesize=PASS",
             files_hash="h1",
+            descriptor=_proof(trigger="task-done", signature="b"),
         )
         hit = sv.lookup_recent_for_task(
             conn,
             "t1",
             files_hash="h1",
-            command="trigger=verify|sig=a|files=x.py",
+            descriptor=_proof(trigger="verify", signature="a"),
         )
         assert hit is not None
         assert "trigger=verify|" in hit["command"]
 
     def test_lookup_empty_slug_returns_none(self, conn):
-        assert sv.lookup_recent_for_task(conn, "", files_hash="h", command="c") is None
+        assert sv.lookup_recent_for_task(conn, "", files_hash="h", descriptor=_proof()) is None
 
 
 # --- is_cache_allowed ------------------------------------------------------
@@ -447,7 +504,7 @@ class TestIsCacheAllowed:
 
 
 class TestResolveGateSignature:
-    """A1 fix: cache key includes hash of resolved gate commands."""
+    """The cache key binds the complete resolved execution semantics."""
 
     def test_returns_stable_hash_when_config_loadable(self):
         """Real project_config.load_config + DEFAULT_GATES → 16-char hex."""
@@ -473,26 +530,130 @@ class TestResolveGateSignature:
         monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: [])
         assert sv.resolve_gate_signature("task-done") == "empty"
 
-    def test_signature_changes_when_command_changes(self, monkeypatch):
-        """Same trigger, different gate command → different signature."""
+    def test_each_resolved_semantic_field_changes_the_signature(self, monkeypatch):
         import project_config
 
-        monkeypatch.setattr(
-            project_config,
-            "get_gates_for_trigger",
-            lambda _t, _c: [{"name": "pytest", "command": "pytest -q", "severity": "block"}],
-        )
-        sig_old = sv.resolve_gate_signature("task-done")
+        cfg = project_config.load_config()
+        get_gates = project_config.get_gates_for_trigger
+        cases = _resolved_semantic_field_cases(cfg)
+        for trigger, gate_name, field in cases:
+            gates = get_gates(trigger, cfg)
+            changed = deepcopy(gates)
+            target = next(gate for gate in changed if gate["name"] == gate_name)
+            target[field] = _changed(target[field])
+            monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: gates)
+            sig_old = sv.resolve_gate_signature(trigger)
+            monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: changed)
+            sig_new = sv.resolve_gate_signature(trigger)
+            assert sig_old != sig_new, field
 
+    def test_cases_cover_the_runner_contract_named_by_the_task(self):
+        import project_config
+
+        fields = {
+            field
+            for _trigger, _name, field in _resolved_semantic_field_cases(
+                project_config.load_config()
+            )
+        }
+        assert {
+            "name",
+            "severity",
+            "trigger",
+            "command",
+            "file_extensions",
+            "file_patterns",
+            "stacks",
+            "timeout",
+        } <= fields
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "evidence_capabilities",
+            "exempt_dirs",
+            "exempt_files",
+            "file_extensions",
+            "file_patterns",
+            "stacks",
+            "trigger",
+        ],
+    )
+    def test_membership_field_order_and_duplicates_are_semantically_stable(
+        self, monkeypatch, field
+    ):
+        import project_config
+
+        gate = {"name": "ordered", "command": "tool", field: ["b", "a"]}
+        reordered = {**gate, field: ["a", "b", "a"]}
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: [gate])
+        original = sv.resolve_gate_signature("verify")
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: [reordered])
+        assert sv.resolve_gate_signature("verify") == original
+
+    def test_stack_dispatch_change_changes_stack_scoped_signature(self, monkeypatch):
+        import gate_stack_dispatch
+        import project_config
+
+        gate = {"name": "pytest", "command": "pytest", "stacks": ["python"]}
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: [gate])
         monkeypatch.setattr(
-            project_config,
-            "get_gates_for_trigger",
-            lambda _t, _c: [
-                {"name": "pytest", "command": "pytest -q --strict", "severity": "block"}
-            ],
+            gate_stack_dispatch,
+            "stack_dispatch_semantics",
+            lambda _stacks: {"extensions": {".py": ["python"]}},
         )
-        sig_new = sv.resolve_gate_signature("task-done")
-        assert sig_old != sig_new
+        original = sv.resolve_gate_signature("verify")
+        monkeypatch.setattr(
+            gate_stack_dispatch,
+            "stack_dispatch_semantics",
+            lambda _stacks: {"extensions": {}},
+        )
+        assert sv.resolve_gate_signature("verify") != original
+
+    def test_unrelated_stack_dispatch_change_keeps_signature_stable(self, monkeypatch):
+        import gate_stack_dispatch
+        import project_config
+
+        gate = {"name": "pytest", "command": "pytest", "stacks": ["python"]}
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: [gate])
+        monkeypatch.setattr(
+            gate_stack_dispatch,
+            "_EXT_TO_STACKS",
+            {".py": frozenset({"python"})},
+        )
+        original = sv.resolve_gate_signature("verify")
+        monkeypatch.setattr(
+            gate_stack_dispatch,
+            "_EXT_TO_STACKS",
+            {
+                ".py": frozenset({"python"}),
+                ".new": frozenset({"new-stack"}),
+            },
+        )
+        assert sv.resolve_gate_signature("verify") == original
+
+    def test_mapping_and_gate_order_do_not_change_the_signature(self, monkeypatch):
+        import project_config
+
+        gates = project_config.get_gates_for_trigger("verify", project_config.load_config())
+        reordered = [dict(reversed(list(gate.items()))) for gate in reversed(gates)]
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: gates)
+        original = sv.resolve_gate_signature("verify")
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: reordered)
+        assert sv.resolve_gate_signature("verify") == original
+
+    def test_prose_annotations_do_not_change_execution_signature(self, monkeypatch):
+        import project_config
+
+        gates = project_config.get_gates_for_trigger("verify", project_config.load_config())
+        annotated = deepcopy(gates)
+        for gate in annotated:
+            gate["description"] = "rewritten explanation"
+            gate["_reason"] = "new rationale"
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: gates)
+        original = sv.resolve_gate_signature("verify")
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: annotated)
+        assert sv.resolve_gate_signature("verify") == original
 
     def test_signature_stable_across_flow_with_trusted_tier_present(self, tmp_path, monkeypatch):
         """l26-config-not-repo-state-audit verdict (consumer 1, no code change):
@@ -516,7 +677,7 @@ class TestResolveGateSignature:
 
 
 class TestCacheInvalidatesOnGateChange:
-    """A1 fix end-to-end: changing gate command between runs misses cache."""
+    """An applicability change between runs makes the old green unreachable."""
 
     def test_cache_misses_when_signature_changes(self, conn, monkeypatch):
         import gate_runner
@@ -531,27 +692,76 @@ class TestCacheInvalidatesOnGateChange:
             ),
         )
 
-        # First run with command "alpha"
+        # First run with Python-only applicability.
         monkeypatch.setattr(
             project_config,
             "get_gates_for_trigger",
-            lambda _t, _c: [{"name": "pytest", "command": "alpha", "severity": "block"}],
+            lambda _t, _c: [
+                {
+                    "name": "pytest",
+                    "command": "pytest -q",
+                    "severity": "block",
+                    "file_extensions": [".py"],
+                }
+            ],
         )
         passed1, _, status1 = sv.run_gates_with_cache(
             conn, "x-task", ["scripts/foo.py"], scope="lightweight"
         )
         assert passed1 and status1 == "miss"
 
-        # Second run, same files, same scope, but command changed → MISS again
+        # Same command and files, but the gate now applies to a different set.
         monkeypatch.setattr(
             project_config,
             "get_gates_for_trigger",
-            lambda _t, _c: [{"name": "pytest", "command": "beta", "severity": "block"}],
+            lambda _t, _c: [
+                {
+                    "name": "pytest",
+                    "command": "pytest -q",
+                    "severity": "block",
+                    "file_extensions": [".py", ".js"],
+                }
+            ],
         )
         passed2, _, status2 = sv.run_gates_with_cache(
             conn, "x-task", ["scripts/foo.py"], scope="lightweight"
         )
         assert passed2 and status2 == "miss"  # not "hit"
+
+    def test_cache_misses_when_stack_dispatch_changes(self, conn, monkeypatch):
+        import gate_runner
+        import gate_stack_dispatch
+        import project_config
+
+        monkeypatch.setattr(
+            gate_runner,
+            "run_gates",
+            lambda *_a, **_k: (
+                True,
+                [{"name": "x", "passed": True, "severity": "warn", "output": ""}],
+            ),
+        )
+        gate = {
+            "name": "pytest",
+            "command": "pytest -q",
+            "severity": "block",
+            "stacks": ["python"],
+        }
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _t, _c: [gate])
+        dispatch = {"extensions": {".py": ["python"]}}
+        monkeypatch.setattr(
+            gate_stack_dispatch, "stack_dispatch_semantics", lambda _stacks: dispatch
+        )
+        passed1, _, status1 = sv.run_gates_with_cache(
+            conn, "x-task", ["scripts/foo.py"], scope="lightweight"
+        )
+        assert passed1 and status1 == "miss"
+
+        dispatch = {"extensions": {}}
+        passed2, _, status2 = sv.run_gates_with_cache(
+            conn, "x-task", ["scripts/foo.py"], scope="lightweight"
+        )
+        assert passed2 and status2 == "miss"
 
 
 class TestRunGatesWithCacheIntegration:
@@ -664,7 +874,7 @@ class TestRunGatesWithCacheIntegration:
             conn,
             "task-red",
             files_hash=sv.compute_files_hash(["scripts/zzz.py"]),
-            command="ignored",  # mismatched intentionally
+            descriptor=_proof(files=("scripts/zzz.py",), signature="ignored"),
         )
         assert hit is None
         # gate-runs-record-failures: a red run IS recorded now — that is the

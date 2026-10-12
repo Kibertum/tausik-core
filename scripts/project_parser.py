@@ -101,8 +101,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--friction",
         action="store_true",
         help="Detect agent friction against the framework (non-zero CLI exits, help-after-failure, "
-        "argument guessing, gate bypasses, framework dead ends) and file REDACTED draft defects "
-        "into .tausik/friction/. WARN verdict only, exit 0; nothing is sent anywhere.",
+        "argument guessing, gate bypasses, framework dead ends) and file REDACTED local planning "
+        "tasks. WARN verdict only, exit 0; nothing is sent anywhere.",
     )
 
     uc_p = sub.add_parser(

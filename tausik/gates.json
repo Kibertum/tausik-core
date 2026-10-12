@@ -118,7 +118,7 @@
     }
   },
   "ruff_format": {
-    "_comment": "Files that diverged from ruff format when the gate landed (1.10, decision #386). Skipped by scripts/gate_ruff_format.py; every other task file must be formatted. RATCHET, may only shrink: tests/test_gate_ruff_format.py refuses a listed file that is now formatted and an unformatted file that is not listed. СОКРАЩЁН со 110 до 101 (решение #386, смена #277): девять файлов отформатированы и обязаны были уйти из перечня той же правкой. ПОЧЕМУ ЭТО ЗАМЕТИЛ ТОЛЬКО CI: у этих девяти в рабочей копии были СМЕШАННЫЕ переводы строк (CRLF плюс одиночные LF), а смешанные ruff считает расходящимися. Git нормализует при коммите, поэтому на Linux файл однороден и отформатирован, а грязная копия под Windows — нет. Одиночные LF внесены инструментами, писавшими в дерево с newline='' — это порча инструментом, не авторство. Переводы строк выровнены той же правкой, поэтому локальный и выложенный вердикт теперь совпадают. Сокращён до 99: project_cli_graph.py и project_cli_task.py отформатировались попутно при разрезе остаточных модулей CLI, и по решению #386 уходят из перечня той же правкой. Сокращён до 98: tests/test_graph_memory.py отформатирован при правке его же теста об отвязке, и по решению #386 уходит из перечня той же правкой.",
+    "_comment": "Files that diverged from ruff format when the gate landed (1.10, decision #386). Skipped by scripts/gate_ruff_format.py; every other task file must be formatted. RATCHET, may only shrink: tests/test_gate_ruff_format.py refuses a listed file that is now formatted and an unformatted file that is not listed. СОКРАЩЁН со 110 до 101 (решение #386, смена #277): девять файлов отформатированы и обязаны были уйти из перечня той же правкой. ПОЧЕМУ ЭТО ЗАМЕТИЛ ТОЛЬКО CI: у этих девяти в рабочей копии были СМЕШАННЫЕ переводы строк (CRLF плюс одиночные LF), а смешанные ruff считает расходящимися. Git нормализует при коммите, поэтому на Linux файл однороден и отформатирован, а грязная копия под Windows — нет. Одиночные LF внесены инструментами, писавшими в дерево с newline='' — это порча инструментом, не авторство. Переводы строк выровнены той же правкой, поэтому локальный и выложенный вердикт теперь совпадают. Сокращён до 99: project_cli_graph.py и project_cli_task.py отформатировались попутно при разрезе остаточных модулей CLI, и по решению #386 уходят из перечня той же правкой. Сокращён до 98: tests/test_graph_memory.py отформатирован при правке его же теста об отвязке, и по решению #386 уходит из перечня той же правкой. Сокращён до 95: resolver и два его теста отформатированы при выделении per-source индекса; проверка требует удалить созревшие исключения той же правкой. Сокращён до 93: test_verify_cache.py и test_verify_own_export.py отформатированы при переводе verify-proof на structured descriptor.",
     "legacy_unformatted": [
       "harness/claude/mcp/codebase-rag/rag_web_cache.py",
       "scripts/backend_crud_brain.py",
@@ -126,7 +126,6 @@
       "scripts/config_trust_weakening.py",
       "scripts/gate_class_surface.py",
       "scripts/gate_qg0_score.py",
-      "scripts/gate_test_resolver.py",
       "scripts/knowledge_export.py",
       "scripts/memory_relevance.py",
       "scripts/observed_coverage.py",
@@ -156,8 +155,6 @@
       "tests/test_fresh_install_has_every_migrated_table.py",
       "tests/test_fts5_sync.py",
       "tests/test_gate_progress_run_start.py",
-      "tests/test_gate_test_resolver.py",
-      "tests/test_gate_test_resolver_import_edge.py",
       "tests/test_hooks_package_import.py",
       "tests/test_keyword_detector_hook.py",
       "tests/test_memory_markers.py",
@@ -165,7 +162,6 @@
       "tests/test_migration_chain_on_real_volume.py",
       "tests/test_migrations.py",
       "tests/test_push_ok_cli.py",
-      "tests/test_push_ok_reports_the_published_lane.py",
       "tests/test_renar_drift7_provenance.py",
       "tests/test_renar_normative_inapplicability.py",
       "tests/test_review_l3_marker.py",
@@ -183,19 +179,17 @@
       "tests/test_tausik_utils.py",
       "tests/test_token_accounting.py",
       "tests/test_v13_hardening.py",
-      "tests/test_verify_cache.py",
       "tests/test_verify_commit_ownership.py",
       "tests/test_verify_handle_integration.py",
-      "tests/test_verify_own_export.py",
       "tests/test_web_cache.py"
     ]
   },
   "test_dedupe": {
     "_comment": "Structurally indistinguishable tests, measured by scripts/audit_pytest_dedupe.py (AST shape modulo names, strings and numbers) and enforced by scripts/gate_test_dedupe.py. The detector predates the gate by a long way and had a --check flag nobody ran, so the number grew unwatched: 294 groups / 683 tests in session #178, 322 / 753 when the gate landed.",
-    "_baseline_comment": "RATCHET, may only turn down. Existing debt does not block; GROWTH does. A baseline found ABOVE the measurement is itself a failure — tests/test_gate_test_dedupe.py::test_the_baseline_only_ratchets_down requires lowering it to what was achieved, or the line stops being a ratchet and becomes a list. The subject is DISTINGUISHABILITY, not count: this gate never looks at how many tests exist, so it can never be satisfied by deleting them. Опущено до 286/677 в смене #277: не целенаправленной прополкой, а побочно — четыре теста санитайзера FTS были переписаны с утверждения о СТРОКЕ на утверждение о СМЫСЛЕ (test_plain_query_unchanged и test_fts5_boolean_operators_stripped получили разные утверждения и докстринги), и группа неразличимых распалась. Записано здесь, потому что число, опущенное без объяснения рядом, нельзя проверить: следующий читатель не отличит прополку от случайности. Нашло адверсариальное ревью, а не автор. ПЕРЕСМОТР ПОРОГА, задача 683-structurally-identical-tests-in-294-groups: замер показал, что число групп НИКОГДА не означало дублирование. Из 286 групп 284 (99,3%) различаются ровно в тех частях, которые подпись стирает, — именах, строках, числах, то есть это один контракт на разных входах, как набору тестов и положено. Дословно совпадающих тел было 2, стало 0. Третья категория (шаблон, ничего не проверяющий) замерена отдельно и ПУСТА: из 7829 тестовых функций ни одна не может быть вечно зелёной. Поэтому groups/tests остаются ОБЪЯВЛЕННЫМ ОСТАТКОМ о похожести, а краснеет теперь copies — то, что действительно является копией. База: 284/673/0.",
+    "_baseline_comment": "RATCHET, may only turn down. Existing debt does not block; GROWTH does. A baseline found ABOVE the measurement is itself a failure — tests/test_gate_test_dedupe.py::test_the_baseline_only_ratchets_down requires lowering it to what was achieved, or the line stops being a ratchet and becomes a list. The subject is DISTINGUISHABILITY, not count: this gate never looks at how many tests exist, so it can never be satisfied by deleting them. Опущено до 286/677 в смене #277: не целенаправленной прополкой, а побочно — четыре теста санитайзера FTS были переписаны с утверждения о СТРОКЕ на утверждение о СМЫСЛЕ (test_plain_query_unchanged и test_fts5_boolean_operators_stripped получили разные утверждения и докстринги), и группа неразличимых распалась. Записано здесь, потому что число, опущенное без объяснения рядом, нельзя проверить: следующий читатель не отличит прополку от случайности. Нашло адверсариальное ревью, а не автор. ПЕРЕСМОТР ПОРОГА, задача 683-structurally-identical-tests-in-294-groups: замер показал, что число групп НИКОГДА не означало дублирование. Из 286 групп 284 (99,3%) различаются ровно в тех частях, которые подпись стирает, — именах, строках, числах, то есть это один контракт на разных входах, как набору тестов и положено. Дословно совпадающих тел было 2, стало 0. Третья категория (шаблон, ничего не проверяющий) замерена отдельно и ПУСТА: из 7829 тестовых функций ни одна не может быть вечно зелёной. Поэтому groups/tests остаются ОБЪЯВЛЕННЫМ ОСТАТКОМ о похожести, а краснеет теперь copies — то, что действительно является копией. База: 284/673/0. Опущено до 281/667: две одноформатные проверки command/scope объединены в параметризованный policy-mutation contract.",
     "baseline": {
-      "groups": 282,
-      "tests": 669,
+      "groups": 281,
+      "tests": 667,
       "copies": 0
     }
   },
@@ -225,9 +219,8 @@
   },
   "comment_history_refs": {
     "_comment": "Комментарий, записывающий СОБЫТИЕ (смена #N, решение #N, дата, ЗАМЕР), есть записка памяти, поданная туда, где её никто не ищет: в комментарии она оплачивается при каждом чтении файла, не обновляется и находится только тем, кто уже открыл файл. Докстринг НЕ считается — это объявленный дом ИНВАРИАНТА, и обоснование там сильная сторона проекта. Читается tests/test_comment_history_refs.py.",
-    "_baseline_comment": "ОБЪЯВЛЕННЫЙ ОСТАТОК, может только уменьшаться. Смена #277 насчитала 2584 ссылки на историю во всей прозе 642 файлов, но в КОММЕНТАРИЯХ из них 239 в 151 файлах — остальное в докстрингах, то есть на своём месте. Вырезать существующие нельзя: правка задним числом переписывает историю, чтобы она смотрелась опрятнее, а это и есть вред. Рост — сигнал; закрытие задачи НАЗЫВАЕТ добавленную ссылку и даёт команду переноса, но не блокирует. Опущено до 236 в 148 файлах: дата ВЕРСИИ внешней спецификации перестала считаться событием проекта (2 случая, оба «MCP 2026-07-28»), плюс один снят перефразированием собственной записки модуля. Число мало и само по себе правки не оправдывало; оправдывает то, что класс растёт с каждым стандартом, который проект читает, а находка, которую нельзя исправить, учит пролистывать всю свою категорию. Опущено до 235 в 147 файлах: единственный на всё дерево ЦИТИРУЕМЫЙ ПРИМЕР (1 из 236) снят там, где возник — в комментарии самого детектора. Разряд ILLUSTRATIVE не заведён нарочно: один случай его не оправдывает, а правило по кавычкам ложно срабатывает на английском притяжательном падеже («task's defect» плюс обратный апостроф читаются как цитата). Замер попутно показал предел детектора: цитата, переносимая на следующую строку, ему НЕ ВИДНА, потому что комментарии читаются построчно; предел закреплён тестом, а не обещанием. Опущено до 234: сужение правила спецдат (разрыв между именем и датой допускает только версию, без букв; имя распознаётся заглавными) вернуло в остаток ноль ссылок и убрало одну — комментарий, чья дата теперь читается как версия там, где раньше проходила как проза. Файлов по-прежнему 147.",
-    "comment_refs": 234,
-    "files": 147
+    "_baseline_comment": "ИСТОРИЧЕСКИЙ ЗАМЕР сохранён только как объяснение происхождения правила. Числового допуска больше нет: каждое добавление проверяется по строкам относительно task-start baseline, поэтому удаление старой ссылки не может отмыть новую.",
+    "tracking": "item-level task-baseline diff; no aggregate allowance"
   },
   "journal_budget": {
     "_comment": "Запись журнала оплачивается не один раз: её читают `task show`, перенос через сжатие контекста, хвост памяти на старте смены и любой свежий агент, открывший задачу. Релиз 1.10 объявлен про экономию токенов, поэтому у собственной прозы агента есть предел. БЮДЖЕТУ ПОДЛЕЖИТ ТОЛЬКО ПЕРЕСКАЗ: запись с доказательством закрытия (AC с галочкой, Root cause, Domain, Negative, NO-DEAD-END, EVIDENCE-*) не ограничивается ни на каком объёме — сжимать её значило бы обменять дорогое на дешёвое. Читается tests/test_journal_budget.py. Реализация scripts/journal_budget.py.",

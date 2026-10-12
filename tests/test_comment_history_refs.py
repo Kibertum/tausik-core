@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -31,10 +32,13 @@ import comment_history_refs as chr_  # noqa: E402
 CROSSCUTTING_SCOPE = ["scripts/", "tests/"]
 
 
-@pytest.fixture(scope="module")
-def ratchet() -> dict:
-    node = json.loads((_REPO / "tausik" / "gates.json").read_text(encoding="utf-8"))
-    return node["comment_history_refs"]
+def test_ratchet_uses_task_baseline_instead_of_an_aggregate_allowance():
+    """The fast ratchet lane must execute the guard for this non-numeric contract."""
+    gates = json.loads((_REPO / "tausik" / "gates.json").read_text(encoding="utf-8"))
+    ratchet = gates["comment_history_refs"]
+
+    assert "task-baseline" in ratchet["tracking"]
+    assert not any(isinstance(value, (int, float)) for value in ratchet.values())
 
 
 class TestAnEventReferenceIsRecognised:
@@ -129,6 +133,7 @@ class TestOnlyWhatThisTaskAddedIsReported:
             cwd=tmp_path,
             check=True,
         )
+        assert chr_.task_baseline.anchor(str(tmp_path), "t") is not None
         return target
 
     def test_an_untouched_old_note_is_not_reported(self, tmp_path):
@@ -137,7 +142,8 @@ class TestOnlyWhatThisTaskAddedIsReported:
             target.read_text(encoding="utf-8") + "y = 2  # holds the parsed value\n",
             encoding="utf-8",
         )
-        assert chr_.new_refs_for_close(str(tmp_path), ["mod.py"]) == []
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", ["mod.py"])
+        assert scan.checked and scan.findings == ()
 
     def test_a_note_this_task_added_is_reported(self, tmp_path):
         target = self._repo(tmp_path)
@@ -145,13 +151,122 @@ class TestOnlyWhatThisTaskAddedIsReported:
             target.read_text(encoding="utf-8") + "z = 3  # решение #399: так решено\n",
             encoding="utf-8",
         )
-        found = chr_.new_refs_for_close(str(tmp_path), ["mod.py"])
-        assert [f[0] for f in found] == ["mod.py"]
-        assert "decision" in found[0][2]
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", ["mod.py"])
+        assert [f[0] for f in scan.findings] == ["mod.py"]
+        assert "decision" in scan.findings[0][2]
 
-    def test_no_git_yields_nothing(self, tmp_path):
-        """A closure must not hinge on the shape of someone's working tree."""
-        assert chr_.new_refs_for_close(str(tmp_path), ["mod.py"]) == []
+    def test_no_git_is_not_checked_not_clean(self, tmp_path):
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", ["mod.py"])
+        assert not scan.checked and scan.reason
+
+    @pytest.mark.parametrize("state", ["committed", "staged", "unstaged", "untracked"])
+    def test_baseline_sees_every_live_git_state(self, tmp_path, state):
+        target = self._repo(tmp_path)
+        if state == "untracked":
+            target = tmp_path / "new.py"
+        target.write_text("x = 1  # decision #399\n", encoding="utf-8")
+        if state in {"staged", "committed"}:
+            subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+        if state == "committed":
+            subprocess.run(
+                ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "wip"],
+                cwd=tmp_path,
+                check=True,
+            )
+
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", [target.name])
+        assert scan.checked and len(scan.findings) == 1
+
+    def test_rename_keeps_added_comment_visible(self, tmp_path):
+        target = self._repo(tmp_path)
+        renamed = tmp_path / "renamed.py"
+        target.rename(renamed)
+        renamed.write_text("x = 1  # decision #399\n", encoding="utf-8")
+
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", ["renamed.py"])
+        assert scan.checked and scan.findings[0][0] == "renamed.py"
+
+    def test_unchanged_rename_does_not_re_report_old_comment(self, tmp_path):
+        target = self._repo(tmp_path)
+        subprocess.run(["git", "mv", target.name, "renamed.py"], cwd=tmp_path, check=True)
+
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", ["renamed.py"])
+        assert scan.checked and scan.findings == ()
+
+    def test_deleting_old_reference_cannot_launder_a_new_one(self, tmp_path):
+        old = self._repo(tmp_path)
+        old.write_text("x = 1  # invariant only\n", encoding="utf-8")
+        new = tmp_path / "new.py"
+        new.write_text("x = 1  # decision #399\n", encoding="utf-8")
+
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", ["mod.py", "new.py"])
+        assert [finding[0] for finding in scan.findings] == ["new.py"]
+
+    def test_unicode_tracked_path_is_not_lost_in_patch_headers(self, tmp_path):
+        self._repo(tmp_path)
+        target = tmp_path / "módulo.py"
+        target.write_text("x = 1\n", encoding="utf-8")
+        subprocess.run(["git", "add", str(target.name)], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "add"],
+            cwd=tmp_path,
+            check=True,
+        )
+        target.write_text("x = 1  # decision #399\n", encoding="utf-8")
+
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", [target.name])
+        assert scan.checked and scan.findings[0][0] == target.name
+
+    def test_untracked_symlink_is_not_read(self, tmp_path):
+        self._repo(tmp_path)
+        outside = tmp_path.parent / "outside.py"
+        outside.write_text("x = 1  # decision #399\n", encoding="utf-8")
+        link = tmp_path / "linked.py"
+        try:
+            link.symlink_to(outside)
+        except OSError:
+            pytest.skip("host does not permit file symlinks")
+
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", [link.name])
+        assert not scan.checked and scan.findings == ()
+
+    def test_oversized_untracked_file_is_not_echoed(self, tmp_path):
+        self._repo(tmp_path)
+        target = tmp_path / "large.py"
+        target.write_text("# decision #399\n" + "x" * 1_000_000, encoding="utf-8")
+
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", [target.name])
+        assert not scan.checked and scan.findings == ()
+
+    def test_unicode_untracked_path_is_not_lost(self, tmp_path):
+        self._repo(tmp_path)
+        target = tmp_path / "новый.py"
+        target.write_text("x = 1  # decision #399\n", encoding="utf-8")
+
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", [target.name])
+        assert scan.checked and scan.findings[0][0] == target.name
+
+    def test_many_paths_use_a_bounded_number_of_git_calls(self, tmp_path, monkeypatch):
+        self._repo(tmp_path)
+        paths = []
+        for index in range(25):
+            rel = f"many_{index}.py"
+            (tmp_path / rel).write_text("x = 1  # decision #399\n", encoding="utf-8")
+            paths.append(rel)
+        subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+        real_run = chr_.subprocess.run
+        calls = []
+
+        def counted_run(*args, **kwargs):
+            calls.append(args[0])
+            return real_run(*args, **kwargs)
+
+        monkeypatch.setattr(chr_.subprocess, "run", counted_run)
+        scan = chr_.new_refs_for_close(str(tmp_path), "t", paths)
+
+        assert scan.checked and len(scan.findings) == 25
+        # One baseline lookup plus one tree diff and one untracked-files query.
+        assert len(calls) == 3
 
 
 class TestTheNoteNamesTheFix:
@@ -169,6 +284,11 @@ class TestTheNoteNamesTheFix:
         assert "ИНВАРИАНТА" in note
 
 
+def test_not_checked_is_visible_at_closure():
+    note = chr_.closure_note("t", chr_.CommentRefScan(False, reason="baseline missing"))
+    assert "not checked" in note and "baseline missing" in note
+
+
 class TestClosureAsksTheQuestion:
     """A module that works and nobody calls is the class this release removes."""
 
@@ -184,28 +304,26 @@ class TestClosureAsksTheQuestion:
 
         assert closure_reminders._comment_note("t", {"relevant_files": '["docs/x.md"]'}) is None
 
+    def test_missing_baseline_is_visible_in_closure_output(self, tmp_path, monkeypatch):
+        import closure_reminders
+        import project_config
 
-class TestRemainderDoesNotGrow:
-    def test_comment_references_do_not_grow(self, ratchet):
-        total = 0
-        files = 0
-        for sub in ("scripts", "bootstrap", "harness", "tests"):
-            for path in (_REPO / sub).rglob("*.py"):
-                if "__pycache__" in path.parts:
-                    continue
-                found = chr_.refs_in_source(path.read_text(encoding="utf-8"))
-                if found:
-                    total += len(found)
-                    files += 1
-        assert total <= ratchet["comment_refs"], (
-            f"event references in comments GREW: {total} > {ratchet['comment_refs']} "
-            f"(in {files} files). A note about what happened belongs in memory."
-        )
+        (tmp_path / ".tausik").mkdir()
+        monkeypatch.setattr(project_config, "find_tausik_dir", lambda: str(tmp_path / ".tausik"))
 
-    def test_the_reason_sits_next_to_the_number(self, ratchet):
-        comment = ratchet["_baseline_comment"]
-        assert "2584" in comment and "докстринг" in comment
-        assert "только уменьшаться" in comment
+        note = closure_reminders._comment_note("t", {"relevant_files": '["mod.py"]'})
+        assert note and "not checked" in note
+
+    def test_unexpected_scan_error_is_visible_not_silent(self, monkeypatch):
+        import closure_reminders
+        import project_config
+
+        def fail_root():
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(project_config, "find_tausik_dir", fail_root)
+        note = closure_reminders._comment_note("t", {"relevant_files": '["mod.py"]'})
+        assert note and "not checked" in note and "RuntimeError" in note
 
 
 class TestTheHashInsideAStringIsNotAComment:
@@ -323,6 +441,32 @@ class TestASpecVersionIsNotAProjectEvent:
                 (line, text) for line, text, kinds in chr_.refs_in_source(source) if "date" in kinds
             ]
             assert dated == [], f"{rel}: {dated}"
+
+
+class TestFutureDatesNeedAnOwnerAndAction:
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "deadline 2099-04-02 owner=release action=renew",
+            "expiry 2099-04-02 owner=security@example.com action=rotate-key",
+        ],
+    )
+    def test_owned_future_action_is_not_history(self, text):
+        assert "date" not in chr_.event_refs(text, today=date(2026, 10, 12))
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "deadline 2099-04-02",
+            "deadline 2099-04-02 owner=release",
+            "expires 2099-04-02 owner=release action=renew",
+            "2099-04-02 owner=release action=renew",
+            "deadline 2020-04-02 owner=release action=renew",
+            "deadline 2099-04-02 owner=release action=renew; milestone 2099-05-03",
+        ],
+    )
+    def test_ambiguous_future_date_stays_reportable(self, text):
+        assert "date" in chr_.event_refs(text, today=date(2026, 10, 12))
 
 
 class TestTheModuleCarriesNoNoteOfItsOwn:

@@ -612,8 +612,8 @@ class TestColumnCountComesFromSqlite:
 
     @pytest.mark.parametrize(
         "table,expected",
-        # verification_runs: 16 → 17 by v75 (cohort_identity, pooled verify).
-        [("verification_runs", 17), ("session_usage_metrics", 9)],
+        # verification_runs: 17 → 22 by v78 (structured proof descriptor).
+        [("verification_runs", 22), ("session_usage_metrics", 9)],
     )
     def test_the_measured_miscount_is_pinned(self, table, expected):
         """Замер закреплён числом: регулярка по запятым даёт 31 и 10.

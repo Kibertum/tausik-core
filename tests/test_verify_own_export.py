@@ -54,6 +54,7 @@ from crypto_receipt import build_receipt  # noqa: E402
 from verify_cache import _build_cache_command, has_fresh_verify_run, resolve_gate_signature  # noqa: E402
 from verify_files_hash import compute_files_hash  # noqa: E402
 from verify_handle_check import check_handle  # noqa: E402
+from verify_run_descriptor import VerificationRunDescriptor  # noqa: E402
 from verify_own_export import (  # noqa: E402
     coverage_files,
     declares_own_export,
@@ -116,11 +117,32 @@ def _record_run(conn, project_dir, *, slug=SLUG, declared, exit_code=0, ttl_s=36
     declared = sorted(declared)
     files_hash = compute_files_hash(coverage_files(declared, slug))
     cmd = _build_cache_command("verify", declared)
+    descriptor = VerificationRunDescriptor.create(
+        trigger="verify",
+        files=declared,
+        gate_signature=resolve_gate_signature("verify"),
+        replayable=True,
+        presentable_once=True,
+    )
     ran = _iso(datetime.now(timezone.utc))
     cur = conn.execute(
         "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-        "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-        (slug, "standard", cmd, exit_code, "pytest=PASS", files_hash, ran),
+        "summary, files_hash, ran_at, run_trigger, run_files_json, gate_signature, "
+        "replay_policy, presentation_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            slug,
+            "standard",
+            cmd,
+            exit_code,
+            "pytest=PASS",
+            files_hash,
+            ran,
+            descriptor.trigger,
+            descriptor.files_json(),
+            descriptor.gate_signature,
+            descriptor.replay_policy,
+            descriptor.presentation_policy,
+        ),
     )
     run_id = int(cur.lastrowid)
     expires_at = vh.compute_expires_at(ran, ttl_s)
@@ -448,9 +470,7 @@ class TestRecordedHashIsTakenOverCoverage:
         ).fetchone()[0]
         assert command.startswith("noncacheable|"), command
 
-    def test_a_normal_scope_is_still_cacheable(
-        self, conn, project, monkeypatch, no_envelope
-    ):
+    def test_a_normal_scope_is_still_cacheable(self, conn, project, monkeypatch, no_envelope):
         """Negative control: the ordinary path is untouched by the subtraction."""
         _write(project, SOURCE, "def records():\n    return 1\n")
 
@@ -472,9 +492,17 @@ class TestFreshnessLookupSubtractsToo:
         export = _own_export(project)
         _write(project, SOURCE, "def records():\n    return 1\n")
         declared = sorted([SOURCE, export])
+        descriptor = VerificationRunDescriptor.create(
+            trigger="verify",
+            files=declared,
+            gate_signature=resolve_gate_signature("verify"),
+            replayable=True,
+            presentable_once=True,
+        )
         conn.execute(
             "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
+            "summary, files_hash, ran_at, run_trigger, run_files_json, gate_signature, "
+            "replay_policy, presentation_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 SLUG,
                 "standard",
@@ -483,6 +511,11 @@ class TestFreshnessLookupSubtractsToo:
                 "pytest=PASS",
                 compute_files_hash(coverage_files(declared, SLUG)),
                 _iso(datetime.now(timezone.utc)),
+                descriptor.trigger,
+                descriptor.files_json(),
+                descriptor.gate_signature,
+                descriptor.replay_policy,
+                descriptor.presentation_policy,
             ),
         )
         conn.commit()

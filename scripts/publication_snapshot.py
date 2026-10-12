@@ -160,7 +160,17 @@ def snapshot_tree(repo_root: str, rev: str = "HEAD") -> str:
         rules = [rule.rstrip("/") for rule in EXCLUDED_FROM_PUBLIC_SNAPSHOT]
         if rules:
             r = subprocess.run(
-                ["git", "rm", "--cached", "-r", "-q", "--ignore-unmatch", "--", *rules],
+                [
+                    "git",
+                    "rm",
+                    "--cached",
+                    "-r",
+                    "-q",
+                    "-f",
+                    "--ignore-unmatch",
+                    "--",
+                    *rules,
+                ],
                 cwd=repo_root,
                 env=env,
                 capture_output=True,
@@ -241,11 +251,87 @@ def build_snapshot_commit(repo_root: str, base: str, message: str, source: str =
     gains a commit rather than being replaced (`base_is_reachable` proves it
     afterwards). `commit-tree`, not checkout/commit: no ref moves here.
     """
+    public, why = snapshot_history_is_public(repo_root, base, source)
+    if not public:
+        raise PublicationError(f"unsafe public parent {base}: {why}")
     tree = snapshot_tree(repo_root, source)
     result = _git(repo_root, "commit-tree", tree, "-p", base, "-m", message)
     if result.returncode != 0:
         raise PublicationError(f"commit-tree failed: {result.stderr.strip()}")
     return result.stdout.strip()
+
+
+def build_recovery_snapshot_commit(repo_root: str, message: str, source: str = "HEAD") -> str:
+    """Build a filtered root commit for recovery from a contaminated public line.
+
+    The returned object has no parent and moves no ref.  That is intentional:
+    putting a clean tree on top of a development commit leaves every exposed
+    ancestor reachable.  Whether a public ref may be replaced with this object
+    is a separate owner-authorised act.
+    """
+    result = _git(repo_root, "commit-tree", snapshot_tree(repo_root, source), "-m", message)
+    if result.returncode != 0:
+        raise PublicationError(f"recovery commit-tree failed: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def history_exclusion_counts(repo_root: str, rev: str) -> dict[str, int]:
+    """Count commits reachable from ``rev`` that touched each excluded rule."""
+    counts: dict[str, int] = {}
+    for rule in EXCLUDED_FROM_PUBLIC_SNAPSHOT:
+        result = _git(repo_root, "rev-list", "--count", rev, "--", rule.rstrip("/"))
+        if result.returncode != 0:
+            raise PublicationError(
+                f"cannot inspect reachable history of {rev} for {rule}: {result.stderr.strip()}"
+            )
+        try:
+            counts[rule] = int(result.stdout.strip() or "0")
+        except ValueError as exc:
+            raise PublicationError(
+                f"git returned a non-count while inspecting {rev} for {rule}"
+            ) from exc
+    return counts
+
+
+def snapshot_history_is_public(
+    repo_root: str, snapshot: str, source: str = "HEAD"
+) -> tuple[bool, str]:
+    """Prove the reachable snapshot line is disjoint from development and filtered."""
+    candidate = _git(repo_root, "rev-parse", "--verify", f"{snapshot}^{{commit}}")
+    if candidate.returncode != 0:
+        raise PublicationError(f"cannot resolve snapshot {snapshot}: {candidate.stderr.strip()}")
+    development = _git(repo_root, "rev-parse", "--verify", f"{source}^{{commit}}")
+    if development.returncode != 0:
+        raise PublicationError(f"cannot resolve source {source}: {development.stderr.strip()}")
+    common = _git(repo_root, "merge-base", candidate.stdout.strip(), development.stdout.strip())
+    if common.returncode == 0:
+        return False, ("snapshot shares development history at " + common.stdout.strip()[:12])
+    if common.returncode != 1:
+        raise PublicationError(
+            f"cannot compare snapshot and source history: {common.stderr.strip()}"
+        )
+    exposed = {
+        rule: count
+        for rule, count in history_exclusion_counts(repo_root, snapshot).items()
+        if count
+    }
+    if exposed:
+        summary = ", ".join(f"{rule} ({count} commit(s))" for rule, count in exposed.items())
+        return False, f"snapshot has excluded history: {summary}"
+    return True, "snapshot history is disjoint from development and contains no excluded paths"
+
+
+def snapshot_candidate_is_public(
+    repo_root: str, snapshot: str, source: str = "HEAD"
+) -> tuple[bool, str]:
+    """Verify both the candidate tree and everything reachable behind it."""
+    same, why_tree = snapshot_matches(repo_root, snapshot, source)
+    clean, why_history = snapshot_history_is_public(repo_root, snapshot, source)
+    if not (same and clean):
+        return False, "; ".join(
+            reason for passed, reason in ((same, why_tree), (clean, why_history)) if not passed
+        )
+    return True, f"{why_tree}; {why_history}"
 
 
 def snapshot_matches(repo_root: str, snapshot: str, source: str = "HEAD") -> tuple[bool, str]:

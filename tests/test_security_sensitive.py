@@ -26,8 +26,10 @@ from service_verification import (
     is_cache_allowed,
     is_security_sensitive,
     record_run,
+    resolve_gate_signature,
 )
 from verify_files_hash import compute_files_hash
+from verify_run_descriptor import VerificationRunDescriptor
 
 
 class TestPositiveCases:
@@ -282,6 +284,13 @@ class TestVerifyFirstRegression:
             summary="pytest pass",
             files_hash=compute_files_hash(relevant_files),
             duration_ms=100,
+            descriptor=VerificationRunDescriptor.create(
+                trigger="verify",
+                files=relevant_files,
+                gate_signature=resolve_gate_signature("verify"),
+                replayable=True,
+                presentable_once=False,
+            ),
         )
         fresh, hit = has_fresh_verify_run(conn, "t-defect-regression", relevant_files)
         assert fresh is True, "fresh verify run on hook file must satisfy verify-first"

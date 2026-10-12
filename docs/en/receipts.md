@@ -169,15 +169,18 @@ over a row into a document.
 - `files` — the sorted list of declared paths. The security predicate applies to
   THIS list, not to the argument of the `task done` call: otherwise a closer
   could declare a harmless scope while presenting a receipt that covered `auth/`.
-- `gate_signature` — the same 16 hex that go into `verification_runs.command`.
-  It is **not** recomputed: the gate-set signature is taken from one source, or
+- `gate_signature` — the same 16 hex stored in the run's structured
+  `gate_signature` column. It is **not** recomputed: the gate-set signature is
+  taken from one source, or
   the receipt could agree with itself and disagree with the row that produced it.
 - `expires_at` — the shelf life **inside the signature**. A policy that sits
   beside the document gets edited along with it; a policy inside the signature
   does not.
 
-Receipts of schema `v1` and `v2` remain cryptographically valid, and the old
-closing path (looking up a fresh run) still accepts them. But such a receipt
+Receipts of schema `v1` and `v2` remain cryptographically valid, and old
+command text remains readable as audit history. But replay and presentation
+require the complete structured run descriptor introduced by database schema
+v78; legacy command-only rows gain no rights by inference. Such a receipt
 cannot be **presented** by handle: it reads as **partial**, and the refusal
 names the missing fields outright. The unknown is reported as unknown — never
 rounded down to "complete" nor up to "tampered".
@@ -206,6 +209,13 @@ The handle is `<run_id>.<nonce>`, where the nonce is 128 bits from `secrets` (a
 SEP-2567 requirement). The server does a **point** lookup by `run_id` rather
 than a search by freshness.
 
+The row separates two independent doors. `replay_policy=replayable` permits a
+freshness lookup; `presentation_policy=single_use` permits a signed handle.
+Security-sensitive green runs deliberately use `non_replayable` plus
+`single_use`: they cannot be cached, but the exact run can be presented once.
+The `noncacheable|` command prefix is retained for compatible audit display and
+is never parsed for authority.
+
 **The shelf life is 3600 seconds (one hour)**, against 600 for the previous
 cache. That is not a loosening but a consequence of the clock no longer being
 the main criterion: on redemption `files_hash` is recomputed over the **live**
@@ -213,6 +223,17 @@ files and the gate signature over the **live** config. A tree that has moved is
 caught by what actually changed, not by a timer. The clock remains only as the
 bound on how long an unredeemed handle may hang about. Overridden by the config
 key `verify_handle_ttl_seconds`.
+
+The gate signature covers the complete effective execution mapping, not only a
+gate's name, command and severity. Applicability (`trigger`, `stacks`,
+`file_extensions`, `file_patterns`), timeouts, and gate-specific controls such
+as filesize limits and exemptions are signed semantics too. Stack-scoped gates
+also bind the resolved extension, filename, and path-hint dispatch tables that
+decide whether they run. Reordering gates, mapping keys, or membership-only
+lists is stable; changing human-only descriptions is ignored. Receipts
+made with the narrower legacy digest remain cryptographically intact but no
+longer match the live gate set, so cache replay and handle presentation refuse
+them and require a new verify run.
 
 The shelf life is named in the `tausik_verify` tool description, in the CLI
 output, and in the receipt's own `expires_at` field — on SEP-2567's explicit
@@ -229,13 +250,15 @@ Every clause refuses; none passes silently:
 | nonce mismatch (constant-time compare) | handles are single-use and replaced by every verify |
 | the run was red | a red run confers no right to close a task |
 | the run verified a different task | a handle is valid for the task it was issued under |
-| the run is marked `noncacheable\|` | recorded for audit, not as a certificate |
+| the structured descriptor is absent or corrupt | named legacy refusal; command text grants no rights |
+| `presentation_policy` is `none` | the row was never entitled to a handle |
 | the handle is already redeemed | single use (replay, SEP-2322) |
 | expired / unreadable expiry | an unreadable expiry is **not** read as "no expiry" |
 | the project has no usable public key | the handle path is CLOSED; this is a **named mode**, not a failed check — either `tausik key init`, or close without `--verify-handle` |
 | no receipt / broken JSON / bad signature | there is nothing to present |
 | the receipt is signed for a different task than the run row | a substituted receipt |
 | the receipt's `ran_at` disagrees with the run row | a substituted receipt |
+| the receipt's `scope` disagrees with the run row | a substituted receipt |
 | a v1/v2 receipt | the missing v3 fields are listed |
 | `files` cover a security path | such scopes are re-checked on every close |
 | `files_hash` over the live files diverged | a **substantive** refusal, not a cache miss |

@@ -79,8 +79,10 @@ def repo(tmp_path):
     _write(root, "tausik/memory/m1.md", "memory\n")
     _write(root, "docs/ru/research/release-111-economy-plan-2026-10-01.md", "private plan\n")
     _write(root, ".gitlab-ci.yml", "stages: []\n")
-    public_head = _commit(root, "public head")
+    _commit(root, "development root")
+    public_head = snap.build_recovery_snapshot_commit(str(root), "public root")
     _write(root, "scripts/tool.py", "print('hi again')\n")
+    _write(root, "tausik/tasks/some-task.md", "task changed\n")
     _write(root, "tausik/tasks/other-task.md", "task 2\n")
     _commit(root, "development")
     return root, public_head
@@ -170,6 +172,13 @@ class TestTheSnapshotIsBuiltFromObjects:
         )
         assert commit and len(commit) == 40
 
+    def test_an_older_source_ignores_newer_excluded_worktree_content(self, repo):
+        root, _ = repo
+        before = _git(root, "status", "--porcelain=v1").stdout
+        tree = snap.snapshot_tree(str(root), "HEAD^")
+        assert "tausik/tasks/some-task.md" not in _tree_paths(root, tree)
+        assert _git(root, "status", "--porcelain=v1").stdout == before
+
     def test_the_snapshot_sits_on_top_of_the_public_head(self, repo):
         root, public_head = repo
         commit = snap.build_snapshot_commit(str(root), public_head, "snapshot")
@@ -177,12 +186,50 @@ class TestTheSnapshotIsBuiltFromObjects:
         assert ok, why
         assert _git(root, "rev-parse", f"{commit}^").stdout.strip() == public_head
 
+    def test_a_recovery_snapshot_is_a_filtered_root_with_no_development_ancestor(self, repo):
+        root, _ = repo
+        recovery = snap.build_recovery_snapshot_commit(str(root), "recovery")
+        assert _git(root, "rev-list", "--parents", "-n", "1", recovery).stdout.split() == [recovery]
+        assert _tree_paths(root, recovery) == set(snap.snapshot_paths(str(root), "HEAD")[0])
+        assert _git(root, "merge-base", recovery, "HEAD").returncode == 1
+
+
+class TestTheWholeReachableLineIsTheBoundary:
+    def test_a_development_parent_is_refused_even_if_the_new_tip_would_be_filtered(self, repo):
+        root, _ = repo
+        with pytest.raises(PublicationError, match="shares development history|excluded history"):
+            snap.build_snapshot_commit(str(root), "HEAD", "unsafe snapshot")
+
+    def test_a_filtered_child_cannot_launder_an_excluded_ancestor(self, repo):
+        root, _ = repo
+        filtered_tree = snap.snapshot_tree(str(root), "HEAD")
+        laundered = _git(
+            root, "commit-tree", filtered_tree, "-p", "HEAD", "-m", "filtered child"
+        ).stdout.strip()
+        ok, why = snap.snapshot_history_is_public(str(root), laundered, "HEAD")
+        assert not ok
+        assert "shares development history" in why or "excluded history" in why
+
+    def test_the_1113_failure_shapes_are_both_refused(self, repo):
+        root, public_head = repo
+        whole_tree_on_public_line = _git(
+            root, "commit-tree", "HEAD^{tree}", "-p", public_head, "-m", "whole tree"
+        ).stdout.strip()
+        ok_tree, why_tree = snap.snapshot_candidate_is_public(
+            str(root), whole_tree_on_public_line, "HEAD"
+        )
+        ok_lineage, why_lineage = snap.snapshot_candidate_is_public(str(root), "HEAD", "HEAD")
+        assert not ok_tree and "differs from the filtered tree" in why_tree
+        assert not ok_lineage and (
+            "shares development history" in why_lineage or "excluded history" in why_lineage
+        )
+
 
 class TestIdenticalIsATreeComparison:
     def test_a_faithful_snapshot_matches(self, repo):
         root, public_head = repo
         commit = snap.build_snapshot_commit(str(root), public_head, "snapshot")
-        ok, why = snap.snapshot_matches(str(root), commit, "HEAD")
+        ok, why = snap.snapshot_candidate_is_public(str(root), commit, "HEAD")
         assert ok, why
 
     def test_a_snapshot_that_lost_a_file_is_refused_by_name(self, repo):

@@ -199,22 +199,29 @@ def main() -> None:
         svc.be.close()
 
 
-if __name__ == "__main__":
-    _exit_code = 0
-    _raise_exit: SystemExit | None = None
+def _run_entrypoint(main_fn, record_fn) -> None:
+    """Record every exit, including an unexpected exception, without swallowing it."""
+    exit_code = 0
+    raised: BaseException | None = None
+    traceback = None
     try:
-        main()
-    except SystemExit as _e:  # friction telemetry needs the code the process exits with
-        _exit_code = int(_e.code or 0) if isinstance(_e.code, int) else 1
-        _raise_exit = _e
+        main_fn()
+    except SystemExit as exc:  # friction telemetry needs the code the process exits with
+        exit_code = int(exc.code or 0) if isinstance(exc.code, int) else 1
+        raised, traceback = exc, exc.__traceback__
+    except BaseException as exc:  # noqa: BLE001 — record it, then preserve the traceback
+        exit_code = 1
+        raised, traceback = exc, exc.__traceback__
     try:
-        # Agent-friction telemetry (best-effort, never breaks the CLI): every
-        # invocation — successes too, because the friction signals are SEQUENCES.
-        from friction_detect import record_invocation_exit
-
-        record_invocation_exit(_exit_code)
+        record_fn(exit_code)
     except Exception:  # noqa: BLE001,S110 — measurement must not break the measured
         pass
-    if _raise_exit is not None:
-        raise _raise_exit
-    sys.exit(_exit_code)
+    if raised is not None:
+        raise raised.with_traceback(traceback)
+    raise SystemExit(exit_code)
+
+
+if __name__ == "__main__":
+    from friction_detect import record_invocation_exit
+
+    _run_entrypoint(main, record_invocation_exit)

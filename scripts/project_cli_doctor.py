@@ -410,18 +410,18 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         warnings += 1
 
     try:
-        from friction_detect import drafts_count
+        from friction_filing import pending_friction_count
 
-        n_drafts = drafts_count(svc.tausik_dir())
-        if n_drafts:
+        n_tasks = pending_friction_count(svc)
+        if n_tasks:
             _print_warn(
                 "Agent friction",
-                f"{n_drafts} draft defect(s) in .tausik/friction/ — review, file or delete; "
-                "`doctor --friction` re-detects",
+                f"{n_tasks} local friction task(s) await review; `doctor --friction` "
+                "re-detects and updates evidence",
             )
             warnings += 1
         else:
-            _print_ok("Agent friction", "no drafts awaiting review")
+            _print_ok("Agent friction", "no filed friction tasks awaiting review")
     except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Agent friction", f"could not read: {e}")
         warnings += 1

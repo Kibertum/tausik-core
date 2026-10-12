@@ -103,6 +103,15 @@ TAUSIK automatically checks quality at two points:
 These gates cannot be bypassed — the agent cannot start work without a goal
 and cannot close a task without verification.
 
+Task closure also performs a non-blocking comment-history check. It compares
+added lines with the persisted task-start snapshot, including intermediate
+commits, staged and unstaged edits, untracked files, and renames. A missing or
+unreadable snapshot is printed as **not checked**, never treated as clean.
+Future `deadline`/`expiry` dates are not history only when the same comment has
+machine-readable `owner=<id>` and `action=<verb>` markers; past dates remain
+reportable. The check is item-level, so deleting an old reference cannot create
+an allowance for a new one.
+
 ### Automatic versus forced review
 
 `/ship` reads `review_route` from the task package. The canonical residual-

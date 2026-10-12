@@ -22,19 +22,25 @@ is not. That is a syntactic difference, which a check can hold, rather than a
 stylistic one, which it cannot.
 
 WHAT THIS DOES NOT DO: block. The note is offered at closure with the command
-that files it, while the author still remembers what the note meant. A gate that
-refused a close over prose would be switched off the same week, and the 2584
-already here are a DECLARED REMAINDER for the same reason the closure-citation
-count is: the journal is append-only and rewriting history to look tidy is the
-harm, not the fix.
+that files it, while the author still remembers what the note meant. Each task is
+compared with its persisted start snapshot, so deleting an old note cannot buy an
+allowance for a new one. A missing snapshot is named as NOT CHECKED, never clean.
 """
 
 from __future__ import annotations
 
+import ast
+import fnmatch
 import io
+import os
 import re
+import stat
 import subprocess
 import tokenize
+from dataclasses import dataclass
+from datetime import date
+
+import task_baseline
 
 #: Addresses into the project's own record. Each one is a memory that exists (or
 #: should) under its own id, so a comment repeating it is a second copy that
@@ -114,9 +120,47 @@ _VERSION_GAP = _SEPARATORS + _VERSION_TOKEN
 _SPEC_DATE = re.compile(
     r"\b(?:" + "|".join(_EXTERNAL_STANDARDS) + r")\b" + _VERSION_GAP + r"\b20\d\d-\d\d-\d\d\b"
 )
+_ISO_DATE = re.compile(r"\b20\d\d-\d\d-\d\d\b")
+_ACTIONABLE_FUTURE = re.compile(r"\b(?:deadline|expiry)\b", re.IGNORECASE)
+_OWNER_MARKER = re.compile(r"\bowner=[A-Za-z0-9_.@/-]+\b")
+_ACTION_MARKER = re.compile(r"\baction=[A-Za-z0-9_.:/-]+\b")
+_MAX_UNTRACKED_BYTES = 1_000_000
 
 
-def event_refs(text: str) -> list[str]:
+@dataclass(frozen=True)
+class CommentRefScan:
+    """Result of comparing live comments with a persisted task baseline."""
+
+    checked: bool
+    findings: tuple[tuple[str, str, list[str]], ...] = ()
+    reason: str | None = None
+
+
+def _date_is_event(text: str, *, today: date | None = None) -> bool:
+    """Whether an unmasked date is history rather than an owned future action."""
+    current = today or date.today()
+    matches = list(_ISO_DATE.finditer(text))
+    for match in matches:
+        raw = match.group()
+        try:
+            parsed = date.fromisoformat(raw)
+        except ValueError:
+            return True
+        start = text.rfind(";", 0, match.start()) + 1
+        end = text.find(";", match.end())
+        clause = text[start:] if end < 0 else text[start:end]
+        actionable = bool(
+            len(_ISO_DATE.findall(clause)) == 1
+            and _ACTIONABLE_FUTURE.search(clause)
+            and _OWNER_MARKER.search(clause)
+            and _ACTION_MARKER.search(clause)
+        )
+        if parsed <= current or not actionable:
+            return True
+    return False
+
+
+def event_refs(text: str, *, today: date | None = None) -> list[str]:
     """Which kinds of event reference a piece of prose carries, in a stable order.
 
     A list rather than a bool: the closure note says WHAT kind of record the
@@ -130,7 +174,7 @@ def event_refs(text: str) -> list[str]:
     return [
         kind
         for kind, pattern in _EVENT_PATTERNS
-        if pattern.search(without_specs if kind == "date" else text)
+        if (_date_is_event(without_specs, today=today) if kind == "date" else pattern.search(text))
     ]
 
 
@@ -190,19 +234,52 @@ def refs_in_source(source: str) -> list[tuple[int, str, list[str]]]:
     return found
 
 
-def _added_lines(root: str, paths: list[str]) -> dict[str, list[str]]:
+def _matches_declared(path: str, declared: list[str]) -> bool:
+    normalized = path.replace("\\", "/")
+    for raw in declared:
+        candidate = raw.replace("\\", "/").rstrip("/")
+        if normalized == candidate or normalized.startswith(candidate + "/"):
+            return True
+        if any(char in candidate for char in "*?[") and fnmatch.fnmatch(normalized, candidate):
+            return True
+    return False
+
+
+def _patch_path(header: str) -> str:
+    """Decode one Git ``---``/``+++`` path header into repo-relative form."""
+    raw = header[4:]
+    if raw == "/dev/null":
+        return ""
+    if raw.startswith('"'):
+        try:
+            raw = ast.literal_eval(raw)
+        except (SyntaxError, ValueError):
+            return ""
+    return raw[2:] if raw.startswith(("a/", "b/")) else raw
+
+
+def _added_lines(root: str, paths: list[str], baseline: str) -> dict[str, list[str]] | None:
     """Lines ADDED to `paths` since the task started, per file.
 
-    Git decides what is new, because the alternative -- comparing against a
-    stored snapshot -- would make the check depend on a file that can go stale,
-    and a stale snapshot reports the whole file as new. Any git failure yields
-    nothing: a closure must not hinge on the shape of someone's working tree.
+    Git compares the persisted task-start commit with the live tree. This spans
+    intermediate commits, the index, ordinary working-tree edits and renames.
+    Untracked relevant files are added explicitly because ``git diff`` omits
+    them. ``None`` means the comparison was not checked, never that it was clean.
     """
     if not paths:
         return {}
     try:
-        proc = subprocess.run(
-            ["git", "diff", "--unified=0", "--", *paths],
+        patch = subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.quotePath=false",
+                "diff",
+                "--find-renames",
+                "--no-ext-diff",
+                "--unified=0",
+                baseline,
+            ],
             cwd=root,
             # Путь достижим из MCP: git, спросивший что-нибудь у пустого stdin,
             # подвесил бы сервер, а не только закрытие задачи.
@@ -214,28 +291,86 @@ def _added_lines(root: str, paths: list[str]) -> dict[str, list[str]]:
             timeout=20,
         )
     except (OSError, subprocess.SubprocessError):
-        return {}
-    if proc.returncode != 0:
-        return {}
+        return None
+    if patch.returncode != 0:
+        return None
     per_file: dict[str, list[str]] = {}
+    old_path = ""
     current = ""
-    for line in (proc.stdout or "").splitlines():
-        if line.startswith("+++ b/"):
-            current = line[6:]
-        elif line.startswith("+") and not line.startswith("+++") and current:
+    included = False
+    in_hunk = False
+    for line in (patch.stdout or "").splitlines():
+        if line.startswith("diff --git "):
+            in_hunk = False
+            included = False
+        elif not in_hunk and line.startswith("--- "):
+            old_path = _patch_path(line)
+        elif not in_hunk and line.startswith("+++ "):
+            new_path = _patch_path(line)
+            current = new_path or old_path
+            included = bool(
+                current
+                and (_matches_declared(old_path, paths) or _matches_declared(new_path, paths))
+            )
+        elif line.startswith("@@"):
+            in_hunk = True
+        elif in_hunk and included and line.startswith("+"):
             per_file.setdefault(current, []).append(line[1:])
+    try:
+        untracked = subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.quotePath=false",
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+                "-z",
+                "--",
+                *paths,
+            ],
+            cwd=root,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=False,
+            timeout=20,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if untracked.returncode != 0:
+        return None
+    untracked_paths = (untracked.stdout or b"").decode("utf-8", errors="replace").split("\0")
+    for rel in (path for path in untracked_paths if path):
+        normalized = rel.replace("\\", "/")
+        try:
+            absolute = os.path.abspath(os.path.join(root, normalized))
+            if os.path.commonpath((os.path.abspath(root), absolute)) != os.path.abspath(root):
+                return None
+            info = os.lstat(absolute)
+            if not stat.S_ISREG(info.st_mode) or info.st_size > _MAX_UNTRACKED_BYTES:
+                return None
+            with open(absolute, encoding="utf-8") as fh:
+                per_file[normalized] = fh.read().splitlines()
+        except (OSError, ValueError):
+            return None
     return per_file
 
 
-def new_refs_for_close(root: str, paths: list[str]) -> list[tuple[str, str, list[str]]]:
+def new_refs_for_close(root: str, slug: str, paths: list[str]) -> CommentRefScan:
     """`(file, comment text, kinds)` for event references the task itself added.
 
-    Only added lines are read, so a file edited beside an old note does not drag
-    that note into the report. Reporting what the author did not write is how a
-    reminder becomes noise.
+    Only lines added since the task baseline are read, so a WIP commit cannot
+    erase the reminder and an old adjacent note is not dragged into the report.
     """
+    baseline = task_baseline.baseline_of(root, slug)
+    if baseline is None:
+        return CommentRefScan(False, reason="task baseline is missing or unreadable")
+    added = _added_lines(root, paths, baseline)
+    if added is None:
+        return CommentRefScan(False, reason="git baseline diff could not be read")
     found: list[tuple[str, str, list[str]]] = []
-    for rel, lines in _added_lines(root, paths).items():
+    for rel, lines in added.items():
         if not rel.endswith(".py"):
             continue
         for raw in lines:
@@ -245,15 +380,20 @@ def new_refs_for_close(root: str, paths: list[str]) -> list[tuple[str, str, list
             kinds = event_refs(text)
             if kinds:
                 found.append((rel, text, kinds))
-    return found
+    return CommentRefScan(True, tuple(found))
 
 
-def closure_note(slug: str, found: list[tuple[str, str, list[str]]]) -> str | None:
+def closure_note(slug: str, scan: CommentRefScan | list[tuple[str, str, list[str]]]) -> str | None:
     """The reminder, or ``None`` when the task added no event reference.
 
     ``None`` is the common case and has to stay silent: a note printed on every
     close is read on none of them.
     """
+    if isinstance(scan, list):
+        scan = CommentRefScan(True, tuple(scan))
+    if not scan.checked:
+        return f"\nCOMMENT HISTORY: not checked — {scan.reason or 'unknown baseline error'}."
+    found = scan.findings
     if not found:
         return None
     kinds = sorted({kind for _, _, entry in found for kind in entry})

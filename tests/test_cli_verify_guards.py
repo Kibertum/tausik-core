@@ -425,6 +425,7 @@ class TestInheritedFromParentTask:
         Родительская задача проверила это только чтением кода.
         """
         from verify_recent_lookup import lookup_recent_for_task
+        from verify_run_descriptor import VerificationRunDescriptor
 
         _patch_gates(monkeypatch, [_gate("pytest", True)])
         svc = _FakeSvc(conn, [])
@@ -433,7 +434,14 @@ class TestInheritedFromParentTask:
         rows = conn.execute("SELECT task_slug, command FROM verification_runs").fetchall()
         assert rows, "наблюдаемость сохраняется и здесь"
         assert all(r[0] is None for r in rows), "строка не привязана ни к одной задаче"
-        assert lookup_recent_for_task(conn, "", files_hash="x", command="y") is None
+        descriptor = VerificationRunDescriptor.create(
+            trigger="verify",
+            files=[],
+            gate_signature="x",
+            replayable=True,
+            presentable_once=False,
+        )
+        assert lookup_recent_for_task(conn, "", files_hash="x", descriptor=descriptor) is None
 
     def test_pre_fix_row_expires_and_cannot_be_reused(self, conn, monkeypatch, no_envelope):
         """AC6: строки, записанные CLI ДО фикса, не принимаются задним числом.

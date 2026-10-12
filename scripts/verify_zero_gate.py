@@ -193,25 +193,45 @@ def verdict_note(state: str) -> str:
     )
 
 
-#: Prefix stamped on rows that passed but may never be replayed (empty scope,
-#: a security-sensitive file set). `verify_cached_run` writes it; a handle must
-#: honour it or the prefix would guard one door and not the other. It lives
-#: beside the zero-gate notion because both answer the same question — whether
-#: a recorded row is a certificate or only an audit trail — and because its
-#: reader is thirty lines from the filesize gate.
+#: Compatibility marker retained in command audit text. Since schema v78 no
+#: policy reader consults it; replay_policy and presentation_policy are the
+#: authority, and legacy command-only rows acquire no rights by inference.
 NONCACHEABLE_PREFIX = "noncacheable|"
 
 
 def is_non_replayable(run: dict[str, Any]) -> bool:
     """True for a row recorded for the audit trail rather than as a certificate."""
-    return str(run.get("command") or "").startswith(NONCACHEABLE_PREFIX)
+    from verify_run_descriptor import NON_REPLAYABLE, descriptor_from_row
+
+    descriptor = descriptor_from_row(run)
+    return descriptor is None or descriptor.replay_policy == NON_REPLAYABLE
+
+
+def is_presentable_once(run: dict[str, Any]) -> bool:
+    """True for a stamped row that was MINTED as a single-use certificate.
+
+    security-verify-handle-deadlock: a green run over a security-sensitive
+    declared set is stamped (the CACHE still refuses to replay it) yet minted
+    with a handle — the one presentation its task's close needs. The mint is
+    the authority: it already required green, real gates, non-empty coverage,
+    trigger=verify and allow_handle. A stamped row with no nonce stays audit
+    trail, exactly as before.
+    """
+    from verify_run_descriptor import PRESENTABLE_ONCE, descriptor_from_row
+
+    descriptor = descriptor_from_row(run)
+    return bool(
+        descriptor
+        and descriptor.presentation_policy == PRESENTABLE_ONCE
+        and run.get("handle_nonce")
+    )
 
 
 def non_replayable_refusal(run_id: Any, task_slug: str) -> str:
     """Why a non-replayable row cannot certify a closure."""
     return (
         f"verify-handle: run #{run_id} is marked non-replayable "
-        "(empty scope, all gates skipped, or a security-sensitive file set). "
+        "(empty scope or all gates skipped). "
         "It was recorded for the audit trail, not as a certificate. "
         f"Declare the scope and re-run `tausik verify --task {task_slug}`."
     )

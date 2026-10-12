@@ -9,6 +9,12 @@ Verification, gates, reviews, audit. Part of the command reference. Start, and t
 
 **v1.5 Verify-First Contract.** Heavy gates (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeconform, hadolint, ansible-lint) live on the `verify` trigger, not `task-done`. This decouples "task closure" (milliseconds) from "full verification" (potentially minutes on large projects). The `verify` result is cached in the `verification_runs` table for 10 minutes (TTL is configurable via `verify_cache_ttl_seconds` in config.json), and `task done` uses the cache for instant closure.
 
+Since schema v78, replay and presentation rights come from structured
+`run_trigger`, `run_files_json`, `gate_signature`, `replay_policy`, and
+`presentation_policy` columns. `command` is display-only. Rows migrated without
+a complete descriptor remain audit history and are never inferred to be
+replayable or presentable.
+
 **Two phases inside a gate run (1.10).** Static gates go FIRST and report together; a test run starts only when none of them blocked. Measured: ruff plus the duplicate-test audit plus the prose-language audit answer in 3.5 seconds against about four minutes for the full lane, and fifteen times in one shift a static gate failed AFTER the lane had run — each costing the lane again plus two or three calls. Within a phase a failure does NOT stop the rest: three defects have to come back in one report, not in three rounds. A test gate that did not run reports `COULD_NOT_RUN` rather than a pass — it applies and produced no evidence (SENAR §8.6(e)).
 
 ```bash

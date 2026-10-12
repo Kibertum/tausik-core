@@ -41,6 +41,7 @@ from crypto_receipt import build_receipt, missing_v3_fields  # noqa: E402
 from verify_cache import _build_cache_command, resolve_gate_signature  # noqa: E402
 from verify_files_hash import compute_files_hash  # noqa: E402
 from verify_handle_check import check_handle, redeem_handle  # noqa: E402
+from verify_run_descriptor import VerificationRunDescriptor  # noqa: E402
 
 _DDL = canonical_ddl("verification_runs")
 
@@ -91,6 +92,8 @@ def _make_run(
     exit_code=0,
     command=None,
     sign=True,
+    replayable=True,
+    presentable_once=True,
 ):
     """Insert a green verify run + a signed v3 receipt + a minted handle.
 
@@ -104,11 +107,32 @@ def _make_run(
     declared = _write_files(project_dir, files)
     files_hash = compute_files_hash(declared)
     cmd = command if command is not None else _build_cache_command("verify", declared)
+    descriptor = VerificationRunDescriptor.create(
+        trigger="verify",
+        files=declared,
+        gate_signature=resolve_gate_signature("verify"),
+        replayable=replayable,
+        presentable_once=presentable_once,
+    )
     ran = ran_at or _iso(datetime.now(timezone.utc))
     cur = conn.execute(
         "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-        "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-        (slug, "standard", cmd, exit_code, "pytest=PASS", files_hash, ran),
+        "summary, files_hash, ran_at, run_trigger, run_files_json, gate_signature, "
+        "replay_policy, presentation_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            slug,
+            "standard",
+            cmd,
+            exit_code,
+            "pytest=PASS",
+            files_hash,
+            ran,
+            descriptor.trigger,
+            descriptor.files_json(),
+            descriptor.gate_signature,
+            descriptor.replay_policy,
+            descriptor.presentation_policy,
+        ),
     )
     run_id = int(cur.lastrowid)
     expires_at = vh.compute_expires_at(ran, ttl_s)
@@ -246,6 +270,50 @@ class TestRefusals:
         verdict = check_handle(conn, handle, task_slug="demo-task", project_dir=keyed_project)
         assert not verdict.ok and "gate set changed" in verdict.reason
 
+    def test_applicability_change_since_verify_refuses_handle(
+        self, conn, keyed_project, monkeypatch
+    ):
+        import project_config
+
+        gate = {
+            "name": "pytest",
+            "command": "pytest -q",
+            "severity": "block",
+            "trigger": ["verify"],
+            "file_extensions": [".py"],
+        }
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _trigger, _cfg: [gate])
+        _, handle, _ = _make_run(conn, keyed_project)
+        changed = {**gate, "file_extensions": [".py", ".js"]}
+        monkeypatch.setattr(
+            project_config, "get_gates_for_trigger", lambda _trigger, _cfg: [changed]
+        )
+        verdict = check_handle(conn, handle, task_slug="demo-task", project_dir=keyed_project)
+        assert not verdict.ok and "gate set changed" in verdict.reason
+
+    def test_stack_dispatch_change_since_verify_refuses_handle(
+        self, conn, keyed_project, monkeypatch
+    ):
+        import gate_stack_dispatch
+        import project_config
+
+        gate = {
+            "name": "pytest",
+            "command": "pytest -q",
+            "severity": "block",
+            "trigger": ["verify"],
+            "stacks": ["python"],
+        }
+        monkeypatch.setattr(project_config, "get_gates_for_trigger", lambda _trigger, _cfg: [gate])
+        dispatch = {"extensions": {".py": ["python"]}}
+        monkeypatch.setattr(
+            gate_stack_dispatch, "stack_dispatch_semantics", lambda _stacks: dispatch
+        )
+        _, handle, _ = _make_run(conn, keyed_project)
+        dispatch = {"extensions": {}}
+        verdict = check_handle(conn, handle, task_slug="demo-task", project_dir=keyed_project)
+        assert not verdict.ok and "gate set changed" in verdict.reason
+
     def test_red_run_cannot_certify(self, conn, keyed_project):
         _, handle, _ = _make_run(conn, keyed_project, exit_code=1)
         verdict = check_handle(conn, handle, task_slug="demo-task", project_dir=keyed_project)
@@ -256,6 +324,8 @@ class TestRefusals:
             conn,
             keyed_project,
             command="noncacheable|" + _build_cache_command("verify", ["scripts/demo.py"]),
+            replayable=False,
+            presentable_once=False,
         )
         verdict = check_handle(conn, handle, task_slug="demo-task", project_dir=keyed_project)
         assert not verdict.ok and "non-replayable" in verdict.reason
@@ -288,13 +358,13 @@ class TestRefusals:
         """The receipt and the ROW must tell the same story about the gate set.
         Checking the receipt only against the live config would miss a receipt
         that agrees with today's config but not with the run that produced it."""
-        run_id, handle, files = _make_run(conn, keyed_project)
-        # Rewrite the row's command with a different sig, leaving the receipt
+        run_id, handle, _files = _make_run(conn, keyed_project)
+        # Rewrite the row's structured signature, leaving the receipt
         # (and therefore the live-config comparison) untouched.
-        bad = _build_cache_command("verify", files).replace(
-            f"sig={resolve_gate_signature('verify')}", "sig=" + "f" * 16
+        conn.execute(
+            "UPDATE verification_runs SET gate_signature=? WHERE id=?",
+            ("f" * 16, run_id),
         )
-        conn.execute("UPDATE verification_runs SET command=? WHERE id=?", (bad, run_id))
         conn.commit()
         verdict = check_handle(conn, handle, task_slug="demo-task", project_dir=keyed_project)
         assert not verdict.ok
@@ -399,10 +469,19 @@ class TestSecuritySensitiveScope:
     def test_security_paths_are_read_from_the_receipt(self, conn, keyed_project):
         """The predicate must judge what the receipt COVERED. Judging the
         caller's argument instead let a harmless declared scope at close time
-        launder a receipt that covered auth/."""
-        _, handle, _ = _make_run(conn, keyed_project, files=("auth/login.py",))
+        launder a receipt that covered auth/. The new contract admits exactly
+        that signed security scope once when its row stays noncacheable."""
+        files = ("auth/login.py",)
+        _, handle, _ = _make_run(
+            conn,
+            keyed_project,
+            files=files,
+            command="noncacheable|" + _build_cache_command("verify", list(files)),
+            replayable=False,
+            presentable_once=True,
+        )
         verdict = check_handle(conn, handle, task_slug="demo-task", project_dir=keyed_project)
-        assert not verdict.ok and "security-sensitive" in verdict.reason
+        assert verdict.ok, verdict.reason
 
 
 # --------------------------------------------------------- AC7: keyless mode

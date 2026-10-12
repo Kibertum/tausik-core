@@ -284,7 +284,7 @@ def handle_lines(report: dict[str, Any], task_slug: str) -> list[str]:
             ]
         return [
             "Verify handle: none — this run is not presentable (no declared "
-            "files, all gates skipped, or a security-sensitive scope). "
+            "files or all gates skipped). "
             f"`task done {task_slug}` will fall back to the freshness lookup."
         ]
     return [

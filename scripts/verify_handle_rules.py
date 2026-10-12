@@ -29,7 +29,7 @@ from __future__ import annotations
 from typing import Any
 
 from verify_handle import HandleVerdict
-from verify_recent_lookup import extract_gate_signature
+from verify_run_descriptor import descriptor_from_row, legacy_descriptor_refusal
 
 
 def _no(
@@ -50,7 +50,6 @@ def _check_receipt(
     *,
     task_slug: str,
     project_dir: str,
-    command: str,
 ) -> HandleVerdict:
     """The half of validation that reads the signed document itself."""
     import json
@@ -139,8 +138,14 @@ def _check_receipt(
             f"match run #{run_id} ({run.get('ran_at')!r}) — substituted receipt.",
             run,
         )
+    if receipt.get("scope") != run.get("scope"):
+        return _no(
+            f"verify-handle: receipt scope {receipt.get('scope')!r} does not "
+            f"match run #{run_id} ({run.get('scope')!r}) — substituted receipt.",
+            run,
+        )
 
-    return _check_coverage(run, receipt, task_slug=task_slug, command=command)
+    return _check_coverage(run, receipt, task_slug=task_slug)
 
 
 def _check_coverage(
@@ -148,7 +153,6 @@ def _check_coverage(
     receipt: dict[str, Any],
     *,
     task_slug: str,
-    command: str,
 ) -> HandleVerdict:
     """Re-derive coverage from LIVE state and compare it to the document."""
     from verify_cache import is_cache_allowed, resolve_gate_signature
@@ -157,13 +161,30 @@ def _check_coverage(
 
     run_id = run["id"]
     files = [str(f) for f in (receipt.get("files") or [])]
+    descriptor = descriptor_from_row(run)
+    if descriptor is None:
+        return _no(legacy_descriptor_refusal(run_id, task_slug), run, files)
+    if files != list(descriptor.files):
+        return _no(
+            f"verify-handle: receipt files disagree with run #{run_id}'s structured file identity.",
+            run,
+            files,
+        )
 
     # (5) of the task plan: the security predicate is applied to the files the
     # RECEIPT names, not to whatever the caller passed to `task done`. Applying
     # it to the argument was the quiet failure mode — a caller could declare a
     # harmless scope at close time while presenting a receipt that covered
     # auth/. The receipt is the claim, so the receipt is what gets judged.
-    if not is_cache_allowed(files):
+    #
+    # security-verify-handle-deadlock: a minted single-use row is the ONE
+    # exception — its run WAS the fresh re-verification over the security
+    # paths, and the handle is its single presentation (spent below, never
+    # replayed by the cache). Replay and presentation policy are orthogonal
+    # structured fields; legacy rows carry neither authority.
+    from verify_zero_gate import is_presentable_once
+
+    if not is_cache_allowed(files) and not is_presentable_once(run):
         return _no(
             f"verify-handle: run #{run_id} covers security-sensitive paths, "
             "which are never certified by a stored result — they are re-verified "
@@ -222,7 +243,7 @@ def _check_coverage(
             files,
         )
 
-    row_sig = extract_gate_signature(command)
+    row_sig = descriptor.gate_signature
     receipt_sig = str(receipt.get("gate_signature") or "")
     if not row_sig or receipt_sig != row_sig:
         return _no(

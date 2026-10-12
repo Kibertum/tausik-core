@@ -48,6 +48,8 @@ import re
 import subprocess
 import sys
 
+import pytest
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _TESTS = os.path.join(_ROOT, "tests")
 _SCRIPTS = os.path.join(_ROOT, "scripts")
@@ -250,6 +252,29 @@ def _flagged_undeclared() -> set[str]:
 
 
 class TestCrosscuttingVisibility:
+    @pytest.mark.parametrize(
+        ("declaration", "expected"),
+        [
+            ("", {"test_planted_guard.py"}),
+            ('CROSSCUTTING_SCOPE = ["scripts/hooks/"]\n', set()),
+            ("CROSSCUTTING_SCOPE = []\n", set()),
+        ],
+        ids=["undeclared-fails", "narrow-declaration-passes", "explicit-optout-passes"],
+    )
+    def test_planted_tree_guard_has_an_immediate_declaration_verdict(
+        self, tmp_path, monkeypatch, declaration, expected
+    ):
+        body = (
+            declaration
+            + 'ROOT = Path(__file__).parents[1] / "scripts"\n'
+            + "FILES = list(ROOT.rglob('*.py'))\n"
+            + "def test_guard(): assert FILES is not None\n"
+        )
+        (tmp_path / "test_planted_guard.py").write_text(body, encoding="utf-8")
+        monkeypatch.setattr(sys.modules[__name__], "_TESTS", str(tmp_path))
+        monkeypatch.setattr(sys.modules[__name__], "_test_files", lambda: ["test_planted_guard.py"])
+        assert _flagged_undeclared() == expected
+
     def test_new_tree_iterator_must_declare_or_optout(self):
         """AC3: a tree-iterating test that neither declares a scope nor opts out
         must be caught — the whole point is that the gap can no longer hide."""

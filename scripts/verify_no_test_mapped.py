@@ -33,6 +33,7 @@ from verify_run_record import (
     _record_verification,
     record_failure_result,
 )
+from verify_run_descriptor import VerificationRunDescriptor
 
 
 def handle_no_test_mapped(
@@ -47,6 +48,7 @@ def handle_no_test_mapped(
     duration_ms: int,
     scope_desc: dict[str, Any],
     trigger: str,
+    gate_signature: str,
     details: dict[str, Any] | None,
     no_tests_expected: bool,
     append_notes_fn: Callable[[str, str], None] | None,
@@ -111,6 +113,14 @@ def handle_no_test_mapped(
                 trigger=trigger,
                 details=details,
                 no_tests_declared=True,
+                allow_handle=False,
+                descriptor=VerificationRunDescriptor.create(
+                    trigger=trigger,
+                    files=files,
+                    gate_signature=gate_signature,
+                    replayable=True,
+                    presentable_once=False,
+                ),
             )
         except VerificationRecordError as exc:
             # This branch is greener than any other in the file, and it rests
@@ -176,6 +186,13 @@ def handle_no_test_mapped(
             scope_desc=scope_desc,
             trigger=trigger,
             details=details,
+            descriptor=VerificationRunDescriptor.create(
+                trigger=trigger,
+                files=files,
+                gate_signature=gate_signature,
+                replayable=False,
+                presentable_once=False,
+            ),
         )
     except VerificationRecordError as exc:
         # Already blocking, so no verdict to escalate — but #242 says the

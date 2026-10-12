@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 from tausik_utils import ServiceError
 from project_backend import SQLiteBackend
 from project_service import ProjectService
+from verify_run_descriptor import VerificationRunDescriptor
 
 
 @pytest.fixture
@@ -119,6 +120,13 @@ class TestRunQualityGates:
             summary="pytest=PASS",
             files_hash=files_hash,
             duration_ms=42,
+            descriptor=VerificationRunDescriptor.create(
+                trigger="verify",
+                files=_SCOPE,
+                gate_signature=sv.resolve_gate_signature("verify"),
+                replayable=True,
+                presentable_once=False,
+            ),
         )
         mock_run = MagicMock(return_value=(True, []))
         with patch.dict("sys.modules", {"gate_runner": MagicMock(run_gates=mock_run)}):

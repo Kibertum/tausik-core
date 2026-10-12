@@ -23,7 +23,7 @@ from typing import Any, Callable
 # not formatting.
 from gate_runner import summarize_results
 from tausik_utils import cli_invocation
-from verify_cache import _build_cache_command, is_cache_allowed
+from verify_cache import _build_cache_command, is_cache_allowed, resolve_gate_signature
 
 # The envelope-timeout machinery moved to `verify_envelope` when this file
 # crossed the filesize gate. Re-exported: `service_verification` re-exports
@@ -46,6 +46,7 @@ from verify_run_record import (
     _record_verification,
     record_failure_result,
 )
+from verify_run_descriptor import VerificationRunDescriptor
 from verify_scope_honesty import (
     STATUS_UNDER_DECLARED,
     describe_declared_scope,
@@ -163,7 +164,8 @@ def run_gates_with_cache(
     # carries the reasoning and the named boundary.
     coverage = coverage_files(files, slug)
     files_hash = compute_files_hash(coverage)
-    cache_command = _build_cache_command(trigger, files)
+    gate_signature = resolve_gate_signature(trigger)
+    cache_command = _build_cache_command(trigger, files, gate_signature=gate_signature)
     cache_ok = is_cache_allowed(files)
 
     # l26-verify-git-diff-wire: describe the declared scope ALWAYS, not only
@@ -226,6 +228,13 @@ def run_gates_with_cache(
                 scope_desc=scope_desc,
                 trigger=trigger,
                 details=details,
+                descriptor=VerificationRunDescriptor.create(
+                    trigger=trigger,
+                    files=files,
+                    gate_signature=gate_signature,
+                    replayable=False,
+                    presentable_once=False,
+                ),
             )
         except VerificationRecordError as exc:
             # The verdict is already a block, so there is nothing to escalate —
@@ -253,7 +262,17 @@ def run_gates_with_cache(
         except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
             ttl = DEFAULT_CACHE_TTL_S
         hit = lookup_recent_for_task(
-            conn, slug, files_hash=files_hash, command=cache_command, max_age_s=ttl
+            conn,
+            slug,
+            files_hash=files_hash,
+            descriptor=VerificationRunDescriptor.create(
+                trigger=trigger,
+                files=files,
+                gate_signature=gate_signature,
+                replayable=True,
+                presentable_once=True,
+            ),
+            max_age_s=ttl,
         )
         if hit is not None and rests_on_a_declaration(hit) and not zero_gate_ack:
             # review-209-third-door: THE THIRD READER of `lookup_recent_for_task`.
@@ -348,6 +367,7 @@ def run_gates_with_cache(
             duration_ms=duration_ms,
             scope_desc=scope_desc,
             trigger=trigger,
+            gate_signature=gate_signature,
             details=details,
             no_tests_expected=no_tests_expected,
             append_notes_fn=append_notes_fn,
@@ -373,6 +393,13 @@ def run_gates_with_cache(
     # so neither the strict lookup nor a presented handle can replay it
     # (`verify_handle_check` honours the same prefix).
     cacheable = passed and cache_ok and has_real_pass and bool(coverage)
+    # security-verify-handle-deadlock: a green that ran real gates over real
+    # coverage and is non-cacheable ONLY because the declared set is
+    # security-sensitive still deserves ONE presentation. The `noncacheable|`
+    # stamp below keeps the CACHE door shut (reuse ban intact); the row is
+    # minted as a single-use handle instead — the only door that was never
+    # wired, which is the deadlock being fixed.
+    single_use_security = passed and not cache_ok and has_real_pass and bool(coverage)
     # Record whenever gates actually ran — cache eligibility governs *reuse*,
     # not observability. Tying the two together meant a blocking failure from
     # this path was never written down, so "how often does this gate block?"
@@ -413,6 +440,18 @@ def run_gates_with_cache(
                 trigger=trigger,
                 details=details,
                 allow_handle=allow_handle,
+                descriptor=VerificationRunDescriptor.create(
+                    trigger=trigger,
+                    files=files,
+                    gate_signature=gate_signature,
+                    replayable=cacheable,
+                    presentable_once=bool(
+                        trigger == "verify"
+                        and allow_handle
+                        and passed
+                        and (cacheable or single_use_security)
+                    ),
+                ),
             )
         except VerificationRecordError as exc:
             # The one branch where the fix actually changes a verdict. Gates may

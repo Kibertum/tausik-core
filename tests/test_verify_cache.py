@@ -32,9 +32,11 @@ from conftest import VERIFICATION_RUNS_DDL
 from verify_cache import (
     _build_cache_command,
     has_fresh_verify_run,
+    resolve_gate_signature,
 )
 from verify_files_hash import compute_files_hash
 from service_verification import record_run
+from verify_run_descriptor import VerificationRunDescriptor
 
 
 @pytest.fixture
@@ -58,6 +60,13 @@ def _record_manual_verify(conn: sqlite3.Connection, slug: str) -> int:
         summary="pytest pass",
         files_hash=compute_files_hash([]),
         duration_ms=42,
+        descriptor=VerificationRunDescriptor.create(
+            trigger="verify",
+            files=[],
+            gate_signature=resolve_gate_signature("verify"),
+            replayable=False,
+            presentable_once=False,
+        ),
     )
 
 
@@ -73,6 +82,13 @@ def _record_explicit_verify(conn: sqlite3.Connection, slug: str, files: list[str
         summary="pytest pass",
         files_hash=compute_files_hash(files),
         duration_ms=42,
+        descriptor=VerificationRunDescriptor.create(
+            trigger="verify",
+            files=files,
+            gate_signature=resolve_gate_signature("verify"),
+            replayable=True,
+            presentable_once=True,
+        ),
     )
 
 
@@ -150,7 +166,9 @@ class TestReverseDirectionRejected:
     via relaxed fallback. Reverse direction must stay strict so mtime /
     gate-signature invalidation keeps working."""
 
-    def test_explicit_verify_does_not_match_different_explicit_files(self, conn, tmp_path, monkeypatch):
+    def test_explicit_verify_does_not_match_different_explicit_files(
+        self, conn, tmp_path, monkeypatch
+    ):
         # Verify recorded against ["scripts/a.py"], task_done arrives with
         # ["scripts/b.py"]. Strict misses (different files_hash + command),
         # relaxed sees a row but with files=['scripts/a.py'] in command —

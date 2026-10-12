@@ -114,7 +114,10 @@ class TestResolverFollowsImports:
 
     def test_direct_import_count_excludes_a_mere_mention(self, tmp_path):
         self._tree(tmp_path)
-        assert gtr.direct_import_count_for_relevant(["scripts/backend_schema.py"], root=str(tmp_path)) == 1
+        assert (
+            gtr.direct_import_count_for_relevant(["scripts/backend_schema.py"], root=str(tmp_path))
+            == 1
+        )
 
     def test_transitive_import_is_deliberately_not_followed(self, tmp_path):
         """DEPTH ONE, measured and chosen. A test importing `handlers` does NOT run

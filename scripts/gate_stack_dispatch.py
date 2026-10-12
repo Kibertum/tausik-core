@@ -112,6 +112,43 @@ def _build_dispatch_tables() -> tuple[
 _EXT_TO_STACKS, _FILENAME_TO_STACKS, _PATH_HINTS = _build_dispatch_tables()
 
 
+def stack_dispatch_semantics(referenced_stacks: set[str] | None = None) -> dict[str, object]:
+    """Return the resolved stack-inference tables in a canonical shape.
+
+    Gate applicability uses these in-memory tables, not only the gate mapping.
+    Verification receipts therefore bind this projection whenever a selected
+    gate has a ``stacks`` filter. If ``referenced_stacks`` is supplied, mappings
+    unrelated to those gates are omitted: they cannot change whether those
+    gates run. Values are sorted because membership, not declaration order,
+    controls dispatch.
+    """
+    wanted = referenced_stacks
+
+    def relevant(stacks: frozenset[str]) -> list[str]:
+        return sorted(stacks if wanted is None else stacks & wanted)
+
+    return {
+        "extensions": {
+            extension: matched
+            for extension, stacks in sorted(_EXT_TO_STACKS.items())
+            if (matched := relevant(stacks))
+        },
+        "filenames": {
+            filename: matched
+            for filename, stacks in sorted(_FILENAME_TO_STACKS.items())
+            if (matched := relevant(stacks))
+        },
+        "path_hints": sorted(
+            (
+                {"fragment": fragment, "stacks": matched}
+                for fragment, stacks in _PATH_HINTS
+                if (matched := relevant(stacks))
+            ),
+            key=lambda item: (item["fragment"], item["stacks"]),
+        ),
+    }
+
+
 def _stacks_from_basename(basename: str) -> frozenset[str]:
     # Exact match (e.g. "Dockerfile", "Chart.yaml")
     if basename in _FILENAME_TO_STACKS:

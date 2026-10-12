@@ -125,7 +125,7 @@ def test_node_modules_and_worktrees_are_not_installed_state(tmp_path):
     assert audit_installed_harness(str(tmp_path)) == []
 
 
-def test_secret_patterns_come_from_the_hook_module():
+def test_secret_patterns_come_from_the_shared_registry():
     names = {name for name, _pat in _secret_patterns()}
     assert "aws_access_key" in names and "private_key_block" in names
 

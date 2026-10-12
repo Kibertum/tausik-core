@@ -34,6 +34,7 @@ import sqlite3
 
 from verify_zero_gate import (
     is_non_replayable,
+    is_presentable_once,
     non_replayable_refusal,
     rests_on_a_declaration,
 )
@@ -50,6 +51,7 @@ from verify_handle import (
 # refusal policy and the spend. See verify_handle_rules for why the seam is
 # there rather than anywhere else.
 from verify_handle_rules import _check_receipt, _no
+from verify_run_descriptor import descriptor_from_row, legacy_descriptor_refusal
 
 
 def check_handle(
@@ -124,8 +126,24 @@ def check_handle(
             run,
         )
 
-    if is_non_replayable(run):
-        return _no(non_replayable_refusal(run_id, task_slug), run)
+    descriptor = descriptor_from_row(run)
+    if descriptor is None:
+        return _no(legacy_descriptor_refusal(run_id, task_slug), run)
+    if descriptor.trigger != "verify":
+        return _no(
+            f"verify-handle: run #{run_id} was recorded for trigger "
+            f"{descriptor.trigger!r}, not verify; it has no presentation right.",
+            run,
+        )
+
+    if not is_presentable_once(run):
+        if is_non_replayable(run):
+            return _no(non_replayable_refusal(run_id, task_slug), run)
+        return _no(
+            f"verify-handle: run #{run_id} has presentation_policy='none'; "
+            "this audit/cache row was never entitled to a handle.",
+            run,
+        )
 
     # Asked BEFORE the spend, like every other refusal here: a handle must not
     # be consumed by a close that then refuses. Asked AFTER the non-replayable
@@ -168,7 +186,6 @@ def check_handle(
         run,
         task_slug=task_slug,
         project_dir=project_dir,
-        command=str(run.get("command") or ""),
     )
 
 

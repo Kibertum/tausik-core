@@ -44,6 +44,18 @@ def svc(tmp_path):
 _SCOPE = ["scripts/x.py"]
 
 
+def _proof(sv, files, *, trigger="verify", replayable=True, presentable_once=True):
+    from verify_run_descriptor import VerificationRunDescriptor
+
+    return VerificationRunDescriptor.create(
+        trigger=trigger,
+        files=files,
+        gate_signature=sv.resolve_gate_signature(trigger),
+        replayable=replayable,
+        presentable_once=presentable_once,
+    )
+
+
 @pytest.fixture
 def task_ready(svc):
     """Task with goal + AC + declared scope + started, ready for `task done`."""
@@ -155,6 +167,7 @@ class TestVerifyFirstEnforcement:
             summary="pytest=PASS",
             files_hash=files_hash,
             duration_ms=42,
+            descriptor=_proof(sv, _SCOPE),
         )
         with patch.dict(
             "sys.modules",
@@ -228,6 +241,7 @@ class TestCacheBucketSeparation:
             summary="x=PASS",
             files_hash=files_hash,
             duration_ms=10,
+            descriptor=_proof(sv, [], trigger="task-done", replayable=True, presentable_once=False),
         )
         # _enforce_verify_first looks up by trigger="verify" cache key — the
         # task-done row above must NOT satisfy it.
@@ -321,6 +335,7 @@ class TestRelevantFilesFallback:
             summary="pytest=PASS",
             files_hash=sv.compute_files_hash(files),
             duration_ms=10,
+            descriptor=_proof(sv, files),
         )
         with patch.dict(
             "sys.modules",
@@ -342,6 +357,7 @@ class TestRelevantFilesFallback:
             summary="pytest=PASS",
             files_hash=sv.compute_files_hash(files),
             duration_ms=10,
+            descriptor=_proof(sv, files, replayable=False),
         )
         with patch.dict(
             "sys.modules",
@@ -371,6 +387,7 @@ class TestRelevantFilesFallback:
             summary="pytest=PASS",
             files_hash=sv.compute_files_hash(files),
             duration_ms=10,
+            descriptor=_proof(sv, files),
         )
         with patch.dict(
             "sys.modules",
@@ -453,22 +470,65 @@ class TestRelevantFilesFallback:
         assert lookup_relevant_files_from_recent_verify(db, "t") is None
 
         from datetime import datetime, timezone
+        from verify_run_descriptor import VerificationRunDescriptor
 
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        descriptor = VerificationRunDescriptor.create(
+            trigger="verify",
+            files=["a.py", "b.py"],
+            gate_signature="x",
+            replayable=True,
+            presentable_once=False,
+        )
         db.execute(
             "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-            ("t", "manual", "trigger=verify|sig=x|files=a.py,b.py", 0, "ok", "h", now),
+            "summary, files_hash, ran_at, run_trigger, run_files_json, gate_signature, "
+            "replay_policy, presentation_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "t",
+                "manual",
+                "trigger=verify|sig=x|files=a.py,b.py",
+                0,
+                "ok",
+                "h",
+                now,
+                descriptor.trigger,
+                descriptor.files_json(),
+                descriptor.gate_signature,
+                descriptor.replay_policy,
+                descriptor.presentation_policy,
+            ),
         )
         db.commit()
         assert lookup_relevant_files_from_recent_verify(db, "t") == ["a.py", "b.py"]
 
         # `files=` empty → None (not [])
         db.execute("DELETE FROM verification_runs")
+        empty_descriptor = VerificationRunDescriptor.create(
+            trigger="verify",
+            files=[],
+            gate_signature="x",
+            replayable=False,
+            presentable_once=False,
+        )
         db.execute(
             "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-            ("t", "manual", "trigger=verify|sig=x|files=", 0, "ok", "h", now),
+            "summary, files_hash, ran_at, run_trigger, run_files_json, gate_signature, "
+            "replay_policy, presentation_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "t",
+                "manual",
+                "trigger=verify|sig=x|files=",
+                0,
+                "ok",
+                "h",
+                now,
+                empty_descriptor.trigger,
+                empty_descriptor.files_json(),
+                empty_descriptor.gate_signature,
+                empty_descriptor.replay_policy,
+                empty_descriptor.presentation_policy,
+            ),
         )
         db.commit()
         assert lookup_relevant_files_from_recent_verify(db, "t") is None
@@ -477,8 +537,22 @@ class TestRelevantFilesFallback:
         db.execute("DELETE FROM verification_runs")
         db.execute(
             "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-            ("t", "manual", "trigger=verify|sig=x|files=a.py", 1, "fail", "h", now),
+            "summary, files_hash, ran_at, run_trigger, run_files_json, gate_signature, "
+            "replay_policy, presentation_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "t",
+                "manual",
+                "trigger=verify|sig=x|files=a.py",
+                1,
+                "fail",
+                "h",
+                now,
+                descriptor.trigger,
+                descriptor.files_json(),
+                descriptor.gate_signature,
+                descriptor.replay_policy,
+                descriptor.presentation_policy,
+            ),
         )
         db.commit()
         assert lookup_relevant_files_from_recent_verify(db, "t") is None
@@ -499,14 +573,45 @@ class TestRelevantFilesFallback:
         db.row_factory = sqlite3.Row
         db.executescript(VERIFICATION_RUNS_DDL + ";")
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        db.execute(
-            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
-            ("t", "manual", "trigger=verify|sig=x|files=src/foo.py", 0, "pytest=PASS", "h1", now),
+        from verify_run_descriptor import VerificationRunDescriptor
+
+        verify_descriptor = VerificationRunDescriptor.create(
+            trigger="verify",
+            files=["src/foo.py"],
+            gate_signature="x",
+            replayable=True,
+            presentable_once=False,
         )
         db.execute(
             "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
-            "summary, files_hash, ran_at) VALUES (?,?,?,?,?,?,?)",
+            "summary, files_hash, ran_at, run_trigger, run_files_json, gate_signature, "
+            "replay_policy, presentation_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "t",
+                "manual",
+                "trigger=verify|sig=x|files=src/foo.py",
+                0,
+                "pytest=PASS",
+                "h1",
+                now,
+                verify_descriptor.trigger,
+                verify_descriptor.files_json(),
+                verify_descriptor.gate_signature,
+                verify_descriptor.replay_policy,
+                verify_descriptor.presentation_policy,
+            ),
+        )
+        done_descriptor = VerificationRunDescriptor.create(
+            trigger="task-done",
+            files=["src/bar.py", "src/baz.py"],
+            gate_signature="y",
+            replayable=True,
+            presentable_once=False,
+        )
+        db.execute(
+            "INSERT INTO verification_runs (task_slug, scope, command, exit_code, "
+            "summary, files_hash, ran_at, run_trigger, run_files_json, gate_signature, "
+            "replay_policy, presentation_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 "t",
                 "standard",
@@ -515,6 +620,11 @@ class TestRelevantFilesFallback:
                 "filesize=PASS",
                 "h2",
                 now,
+                done_descriptor.trigger,
+                done_descriptor.files_json(),
+                done_descriptor.gate_signature,
+                done_descriptor.replay_policy,
+                done_descriptor.presentation_policy,
             ),
         )
         db.commit()

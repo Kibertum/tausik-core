@@ -21,6 +21,8 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
+from verify_run_descriptor import VerificationRunDescriptor
+
 
 def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -74,6 +76,7 @@ def record_run(
     no_tests_declared: bool = False,
     handle_out: dict[str, Any] | None = None,
     allow_handle: bool = True,
+    descriptor: VerificationRunDescriptor | None = None,
 ) -> int:
     """Insert a verify run. Returns the new row id.
 
@@ -113,13 +116,9 @@ def record_run(
     alone; the label is still needed for the cache, so the entitlement says so
     separately.
 
-    ENTITLEMENT IS NARROW, deliberately. A handle is minted only for a run that
-    is green, names a task, names files, and is NOT stamped `noncacheable|` —
-    the same four conditions under which the old freshness lookup would have
-    accepted the row. The handle changes HOW a green is presented, not WHICH
-    greens count. A run that certifies nothing is still recorded (that is
-    observability, and it is why the recording is unconditional), it just
-    cannot be handed out.
+    ENTITLEMENT IS NARROW. The structured descriptor independently states
+    replay and single-use presentation policy. Command text is audit display
+    only: omitting the descriptor creates a legacy row with no rights.
     """
     status = str((scope_description or {}).get("status") or "unknown")
     undeclared = list((scope_description or {}).get("undeclared") or [])
@@ -129,8 +128,9 @@ def record_run(
         INSERT INTO verification_runs
             (task_slug, scope, command, exit_code, summary, files_hash,
              ran_at, duration_ms, declared_scope_status, undeclared_files,
-             no_tests_declared)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             no_tests_declared, run_trigger, run_files_json, gate_signature,
+             replay_policy, presentation_policy)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             task_slug,
@@ -144,6 +144,11 @@ def record_run(
             status,
             json.dumps(undeclared, ensure_ascii=True, sort_keys=True) if undeclared else None,
             1 if no_tests_declared else 0,
+            descriptor.trigger if descriptor else None,
+            descriptor.files_json() if descriptor else None,
+            descriptor.gate_signature if descriptor else None,
+            descriptor.replay_policy if descriptor else None,
+            descriptor.presentation_policy if descriptor else None,
         ),
     )
     run_id = int(cur.lastrowid or 0)
@@ -157,15 +162,24 @@ def record_run(
             conn,
             verification_run_id=run_id,
             task_slug=task_slug,
-            trigger=trigger,
+            trigger=descriptor.trigger if descriptor else trigger,
             gate_results=gate_results,
         )
     conn.commit()
     if task_slug and gate_results is not None:
         from verify_receipt_emit import STATUS_SIGNED, emit_signed_receipt
+        from verify_run_descriptor import PRESENTABLE_ONCE
 
-        files, gate_signature, entitled = describe_run_command(command)
-        entitled = entitled and exit_code == 0 and bool(files) and allow_handle
+        files = list(descriptor.files) if descriptor else []
+        gate_signature = descriptor.gate_signature if descriptor else None
+        entitled = bool(
+            allow_handle
+            and descriptor
+            and descriptor.trigger == "verify"
+            and exit_code == 0
+            and files
+            and descriptor.presentation_policy == PRESENTABLE_ONCE
+        )
         # The expiry is computed BEFORE the receipt is built because it must be
         # SIGNED. A durability policy stapled on afterwards could be edited
         # afterwards; inside the signature it cannot (SEP-2567).
@@ -201,38 +215,6 @@ def record_run(
         elif entitled and handle_out is not None:
             handle_out["no_handle_reason"] = receipt_status if expires_at else "expiry-unavailable"
     return run_id
-
-
-def describe_run_command(command: str) -> tuple[list[str], str | None, bool]:
-    """Read a cache `command` back into (files, gate_signature, replayable).
-
-    The command string `trigger=verify|sig=<16hex>|files=a.py,b.py` is already
-    the authoritative statement of what this run covered and which gate set
-    produced it — it is what the cache key was built from and what the row
-    stores. Parsing it back is therefore not a second derivation that could
-    disagree with the first; it is a read of the one that exists. Building the
-    receipt's `files`/`gate_signature` from a separately-threaded argument
-    would have created the second source.
-
-    `replayable` is False for the `noncacheable|` prefix (empty scope,
-    all-skipped gates, security-sensitive set) and for a non-verify trigger.
-    Only a `trigger=verify` run is ever presentable: the `task-done` bucket
-    exists so a close cannot certify itself.
-    """
-    from verify_recent_lookup import (
-        _extract_files_from_cache_command,
-        extract_gate_signature,
-    )
-
-    if not command or command.startswith("noncacheable|"):
-        return [], None, False
-    if not command.startswith("trigger=verify|"):
-        return [], None, False
-    return (
-        _extract_files_from_cache_command(command),
-        extract_gate_signature(command),
-        True,
-    )
 
 
 def _handle_expiry(conn: sqlite3.Connection, run_id: int) -> str | None:
@@ -370,6 +352,7 @@ def _record_verification(
     details: dict[str, Any] | None = None,
     no_tests_declared: bool = False,
     allow_handle: bool = True,
+    descriptor: VerificationRunDescriptor | None = None,
 ) -> int:
     """The single write point into `verification_runs`.
 
@@ -411,6 +394,7 @@ def _record_verification(
                 no_tests_declared=no_tests_declared,
                 handle_out=handle_out,
                 allow_handle=allow_handle,
+                descriptor=descriptor,
             )
         except Exception as exc:
             # `record_run` inserts, writes the gate rows, then commits. A

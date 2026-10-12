@@ -38,6 +38,8 @@ for _p in (str(_REPO / "scripts"),):
         sys.path.insert(0, _p)
 
 import observed_coverage as oc  # noqa: E402
+import affected_test_selection as ats  # noqa: E402
+from gate_test_observed_edges import observed_tests_for  # noqa: E402
 from backend_schema_graph import EDGE_LAYERS  # noqa: E402
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService  # noqa: E402
@@ -248,24 +250,18 @@ class TestSelectionUsesTheGraphAndKeepsTheNamesAsFallback:
     nothing observed must select exactly what it selected before."""
 
     def test_an_empty_graph_changes_nothing(self, tmp_path, monkeypatch):
-        from gate_test_resolver import _observed_tests_for
-
         monkeypatch.chdir(tmp_path)
-        assert _observed_tests_for(str(tmp_path), ["scripts/thing.py"]) == set()
+        assert observed_tests_for(str(tmp_path), ["scripts/thing.py"]) == set()
 
     def test_an_unreadable_database_is_absence_not_a_crash(self, tmp_path):
-        from gate_test_resolver import _observed_tests_for
-
         (tmp_path / ".tausik").mkdir()
         (tmp_path / ".tausik" / "tausik.db").write_bytes(b"not a database")
-        assert _observed_tests_for(str(tmp_path), ["scripts/thing.py"]) == set()
+        assert observed_tests_for(str(tmp_path), ["scripts/thing.py"]) == set()
 
     def test_an_observed_edge_selects_a_test_the_names_would_miss(self, tmp_path, monkeypatch):
         """THE POINT OF THE WHOLE TASK. `scripts/thing.py` and
         `tests/test_something_else.py` share no name and no import, so every
         existing edge misses the pair. The observation does not."""
-        from gate_test_resolver import _observed_tests_for
-
         root = tmp_path / "proj"
         (root / "tests").mkdir(parents=True)
         (root / "scripts").mkdir(parents=True)
@@ -282,8 +278,29 @@ class TestSelectionUsesTheGraphAndKeepsTheNamesAsFallback:
             svc.be.close()
 
         monkeypatch.chdir(root)
-        found = _observed_tests_for(str(root), ["scripts/thing.py"])
+        found = observed_tests_for(str(root), ["scripts/thing.py"])
         assert found == {"tests/test_something_else.py"}
+
+    def test_observed_non_test_path_cannot_certify_a_source(self, tmp_path):
+        root = tmp_path / "proj"
+        (root / "tests").mkdir(parents=True)
+        (root / "scripts").mkdir(parents=True)
+        (root / "scripts" / "thing.py").write_text("x = 1\n", encoding="utf-8")
+        (root / "tests" / "helpers.py").write_text("x = 1\n", encoding="utf-8")
+        (root / "tests" / "test_other.py").write_text("def test_other(): pass\n", encoding="utf-8")
+        (root / ".tausik").mkdir()
+
+        svc = ProjectService(SQLiteBackend(str(root / ".tausik" / "tausik.db")))
+        try:
+            helper = svc.be.artifact_upsert("tests/helpers.py", "code", "h1")
+            source = svc.be.artifact_upsert("scripts/thing.py", "code", "h2")
+            svc.be.artifact_edge_add(helper, source, "covers", "observed_coverage", 1.0)
+        finally:
+            svc.be.close()
+
+        plan = ats.select_affected_tests(["scripts/thing.py"], root=str(root))
+        assert plan.mode == "full"
+        assert "scripts/thing.py" in (plan.fallback_reason or "")
 
     def test_the_resolver_adds_the_observed_test_to_its_own_answer(self, tmp_path, monkeypatch):
         """Additive, not substitutive: the name-based answer must survive."""

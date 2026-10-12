@@ -11,6 +11,7 @@ import ast
 import json
 import os
 
+from gate_test_observed_edges import observed_tests_for as _observed_tests_for
 from tausik_utils import tausik_config_path
 
 # Module-level constant a cross-cutting test declares to name the source trees it
@@ -261,6 +262,32 @@ def top_level_imports(text: str) -> set[str]:
     return out
 
 
+def is_test_module_path(base: str, rel: str, roots: list[str] | None = None) -> bool:
+    """Whether a Python path is a collectable named test in a test root.
+
+    Root-level named tests remain supported for small projects. A production
+    module called ``scripts/test_helper.py`` is not a test merely by basename.
+    """
+    normalized = rel.replace("\\", "/")
+    name = os.path.basename(normalized)
+    if not normalized.endswith(".py") or not (
+        name.startswith("test_") or name.endswith("_test.py")
+    ):
+        return False
+    absolute = os.path.abspath(os.path.join(base, normalized.replace("/", os.sep)))
+    if os.path.dirname(absolute) == os.path.abspath(base):
+        return True
+    for test_root in roots if roots is not None else test_roots(base):
+        try:
+            if os.path.commonpath((absolute, os.path.abspath(test_root))) == os.path.abspath(
+                test_root
+            ):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def _tests_importing(base: str, modules: set[str], tests_index: dict[str, list[str]]) -> set[str]:
     """Find depth-one import edges; transitive imports deliberately do not count."""
     if not modules:
@@ -280,7 +307,9 @@ def _tests_importing(base: str, modules: set[str], tests_index: dict[str, list[s
     return out
 
 
-def parse_errors_for_relevant(relevant_files: list[str] | None, *, root: str | None = None) -> list[str]:
+def parse_errors_for_relevant(
+    relevant_files: list[str] | None, *, root: str | None = None
+) -> list[str]:
     """Name candidate test sources the import resolver could not parse."""
     if not relevant_files:
         return []
@@ -306,7 +335,9 @@ def parse_errors_for_relevant(relevant_files: list[str] | None, *, root: str | N
     return sorted(errors)
 
 
-def direct_import_count_for_relevant(relevant_files: list[str] | None, *, root: str | None = None) -> int:
+def direct_import_count_for_relevant(
+    relevant_files: list[str] | None, *, root: str | None = None
+) -> int:
     """Count depth-one import edges for an honest scoped-pytest label."""
     if not relevant_files:
         return 0
@@ -356,7 +387,9 @@ def deferred_global_crosscutting_for_relevant(
     return {
         test_rel
         for test_rel, prefixes in _crosscutting_index(base).items()
-        if any(_is_global_tree_prefix(p) and _under_prefix(rel, p) for rel in rels for p in prefixes)
+        if any(
+            _is_global_tree_prefix(p) and _under_prefix(rel, p) for rel in rels for p in prefixes
+        )
     }
 
 
@@ -414,8 +447,10 @@ def resolve_test_files_for_relevant(
         if not raw or not isinstance(raw, str):
             continue
         rel = raw.replace("\\", "/")
-        # A test file is accepted as-is; a fixture (.sql) in pytest argv made it collect nothing.
-        is_test = "/tests/" in f"/{rel}" or os.path.basename(rel).startswith("test_")
+        # A test MODULE is accepted as-is. Merely living under tests/ is not
+        # enough: helpers.py is source support and handing it to pytest can
+        # collect zero tests while falsely giving that source a selection edge.
+        is_test = is_test_module_path(base, rel)
         if is_test and rel.endswith(".py"):
             abs_p = rel if os.path.isabs(rel) else os.path.join(base, rel)
             if os.path.isfile(abs_p):
@@ -458,43 +493,3 @@ def resolve_test_files_for_relevant(
     for test_rel in sorted(_observed_tests_for(base, relevant_files)):
         _add(test_rel)
     return found
-
-
-def _observed_tests_for(base: str, relevant_files: list[str] | None) -> set[str]:
-    """Test files the GRAPH observed reaching any of `relevant_files`.
-
-    Empty whenever the graph is unreachable, empty, or has never been fed an
-    observation — all of which mean "we do not know", never "nothing covers
-    this". The caller adds this to the name-based edges rather than replacing
-    them, so an unknown answer costs nothing.
-    """
-    if not relevant_files:
-        return set()
-    db = os.path.join(base, ".tausik", "tausik.db")
-    if not os.path.isfile(db):
-        return set()
-
-    wanted = [r.replace("\\", "/") for r in relevant_files if r and isinstance(r, str)]
-    if not wanted:
-        return set()
-
-    import sqlite3
-
-    placeholders = ",".join("?" for _ in wanted)
-    try:
-        with sqlite3.connect(db, timeout=2) as conn:
-            rows = conn.execute(
-                "SELECT src.path FROM artifact_edges e "
-                "JOIN artifacts src ON src.id = e.source_artifact_id "
-                "JOIN artifacts dst ON dst.id = e.target_artifact_id "
-                "WHERE e.layer = 'observed_coverage' "
-                f"AND dst.path IN ({placeholders})",
-                wanted,
-            ).fetchall()
-    except sqlite3.Error:
-        return set()
-    return {
-        str(row[0])
-        for row in rows
-        if os.path.isfile(os.path.join(base, str(row[0])))
-    }

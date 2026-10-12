@@ -88,6 +88,12 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
 
     def _project_task(self, slug: str) -> None:
         """Re-serialize one task to ``tausik/``; the helper is fail-open."""
+        if self.be._in_tx:
+            # A service operation may still fail after this call. Queue the
+            # projection with the transaction so rollback cannot leave a file
+            # for a row that never committed.
+            self.be._project_write("tasks", slug)
+            return
         from state_triggers import auto_export_entity
 
         auto_export_entity(cast("ProjectService", self), "tasks", slug)

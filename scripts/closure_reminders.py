@@ -58,7 +58,7 @@ def _comment_note(slug: str, task: dict) -> str | None:
     import json
     import os
 
-    from comment_history_refs import closure_note, new_refs_for_close
+    from comment_history_refs import CommentRefScan, closure_note, new_refs_for_close
 
     try:
         declared = task.get("relevant_files") or task.get("scope_paths")
@@ -69,6 +69,9 @@ def _comment_note(slug: str, task: dict) -> str | None:
         from project_config import find_tausik_dir
 
         root = os.path.dirname(os.path.abspath(find_tausik_dir()))
-        return closure_note(slug, new_refs_for_close(root, paths))
-    except Exception:  # noqa: BLE001 — напоминание не смеет уронить закрытие
-        return None
+        return closure_note(slug, new_refs_for_close(root, slug, paths))
+    except Exception as exc:  # noqa: BLE001 — напоминание не смеет уронить закрытие
+        return closure_note(
+            slug,
+            CommentRefScan(False, reason=f"closure scan failed: {type(exc).__name__}"),
+        )

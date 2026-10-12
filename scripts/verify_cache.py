@@ -14,6 +14,7 @@ re-exports these names for backwards compatibility (no caller changes).
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 from typing import Any
 
@@ -22,6 +23,7 @@ from verify_constants import DEFAULT_CACHE_TTL_S
 from verify_files_hash import compute_files_hash
 from verify_own_export import coverage_files
 from verify_recent_lookup import lookup_recent_for_task
+from verify_run_descriptor import VerificationRunDescriptor
 from verify_zero_gate import rests_on_a_declaration
 
 
@@ -34,14 +36,72 @@ def is_cache_allowed(file_paths: list[str]) -> bool:
     return not is_security_sensitive(file_paths)
 
 
-def resolve_gate_signature(trigger: str = "task-done") -> str:
-    """Stable hash of the active gate commands for `trigger`.
+_NON_EXECUTION_GATE_FIELDS = frozenset({"description", "prevents"})
+_UNORDERED_GATE_LIST_FIELDS = frozenset(
+    {
+        "evidence_capabilities",
+        "exempt_dirs",
+        "exempt_files",
+        "file_extensions",
+        "file_patterns",
+        "stacks",
+        "trigger",
+    }
+)
 
-    Used as part of the verify-cache key so changing a gate's command in
-    `project_config.DEFAULT_GATES` (or via `[tausik.verify]` overrides)
-    invalidates stale-green runs that were recorded against the previous
-    command. On config-load failure returns a sentinel so verification is
-    not blocked.
+
+def _canonical_gate_value(field: str, value: Any) -> Any:
+    """Normalize fields whose consumers use membership rather than order."""
+    if field not in _UNORDERED_GATE_LIST_FIELDS or not isinstance(value, list):
+        return value
+    by_json = {
+        json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")): item
+        for item in value
+    }
+    return [by_json[key] for key in sorted(by_json)]
+
+
+def _semantic_gate_projection(trigger: str, gates: list[dict[str, Any]]) -> dict[str, Any]:
+    """Canonical effective gate config, excluding prose-only annotations.
+
+    The runner and built-in implementations may consume gate-specific fields,
+    so an allow-list would become incomplete each time a new gate knob ships.
+    Hash the full resolved mapping instead. Only human rationale is excluded;
+    leading-underscore keys are config annotations such as `_timeout_reason`.
+    """
+    projected = []
+    for gate in gates:
+        projected.append(
+            {
+                key: _canonical_gate_value(key, value)
+                for key, value in gate.items()
+                if key not in _NON_EXECUTION_GATE_FIELDS and not key.startswith("_")
+            }
+        )
+    projected.sort(
+        key=lambda gate: (
+            str(gate.get("name", "")),
+            json.dumps(gate, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        )
+    )
+    result: dict[str, Any] = {"trigger": trigger, "gates": projected}
+    referenced_stacks = {
+        stack for gate in gates for stack in (gate.get("stacks") or []) if isinstance(stack, str)
+    }
+    if referenced_stacks:
+        from gate_stack_dispatch import stack_dispatch_semantics
+
+        result["stack_dispatch"] = stack_dispatch_semantics(referenced_stacks)
+    return result
+
+
+def resolve_gate_signature(trigger: str = "task-done") -> str:
+    """Stable hash of every effective execution field for `trigger`.
+
+    Used as part of the verify-cache key so changing applicability, command,
+    timeout, severity or a built-in gate's own config invalidates stale-green
+    runs. On config-load failure returns a sentinel so verification is not
+    blocked.
 
     l26-config-not-repo-state-audit — verdict: uses the EFFECTIVE `load_config`
     (merged tiers) deliberately, NOT the repo-only `load_project_config`. Its
@@ -64,21 +124,25 @@ def resolve_gate_signature(trigger: str = "task-done") -> str:
         return "unavailable"
     if not gates:
         return "empty"
-    parts = sorted(
-        f"{g.get('name', '?')}={(g.get('command') or '')}|sev={g.get('severity', '')}"
-        for g in gates
+    canonical = json.dumps(
+        _semantic_gate_projection(trigger, gates),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
     )
     h = hashlib.sha256()
-    h.update("\n".join(parts).encode("utf-8"))
+    h.update(canonical.encode("utf-8"))
     return h.hexdigest()[:16]
 
 
-def _build_cache_command(trigger: str, files: list[str]) -> str:
+def _build_cache_command(
+    trigger: str, files: list[str], *, gate_signature: str | None = None
+) -> str:
     """Cache key includes trigger so verify-run cache and task-done-run cache
     are stored in distinct buckets — prevents the legacy task-done bucket
     from satisfying a Verify-First lookup, and vice versa.
     """
-    sig = resolve_gate_signature(trigger)
+    sig = gate_signature or resolve_gate_signature(trigger)
     return f"trigger={trigger}|sig={sig}|files={','.join(sorted(files))}"
 
 
@@ -116,10 +180,9 @@ def has_fresh_verify_run(
     files = relevant_files or []
     if not files:
         # Defence in depth, independent of the write side. `run_gates_with_cache`
-        # now stamps empty-scope rows `noncacheable|` so this strict lookup can
-        # no longer match them by command — but rows written before that change
-        # (and any future writer that forgets the prefix) would still carry a
-        # clean command plus the empty-marker hash, and would strict-match here.
+        # records empty-scope rows as non-replayable, so this strict lookup can
+        # no longer match them. Legacy rows carry no structured policy and any
+        # future incomplete writer therefore also fails closed.
         # An unknown scope must never certify, whichever side is asked.
         return False, None
     if not is_cache_allowed(files):
@@ -140,28 +203,32 @@ def has_fresh_verify_run(
         # could not compute its own coverage must not certify (#221).
         return False, None
     files_hash = compute_files_hash(coverage)
-    # Keyed on the DECLARED list, not the coverage: the command names what the
-    # agent claimed, and the write side (`verify_cached_run`) builds it the same
-    # way. Narrowing it here would make the two spellings disagree and turn
-    # every lookup into a miss.
-    cache_command = _build_cache_command("verify", files)
+    # Keyed on the DECLARED list, not the coverage: the descriptor records what
+    # the agent claimed, and the write side builds it the same way. Narrowing
+    # it here would make the identities disagree and turn every lookup into a
+    # miss.
+    descriptor = VerificationRunDescriptor.create(
+        trigger="verify",
+        files=files,
+        gate_signature=resolve_gate_signature("verify"),
+        replayable=True,
+        presentable_once=False,
+    )
     hit = lookup_recent_for_task(
         conn,
         slug,
         files_hash=files_hash,
-        command=cache_command,
+        descriptor=descriptor,
         max_age_s=max_age_s,
     )
     if hit is None:
         return False, None
     if rests_on_a_declaration(hit) and not zero_gate_ack:
         # senar-14-fail-closed-when-no-gate-actually-ran. The handle path is not
-        # the only door: this lookup matches on command and files_hash, and the
-        # no-test-mapped branch records its row with a CLEAN command — the
-        # `noncacheable|` stamp that `verify_cached_run` describes is applied
-        # after that branch has already returned. So a run in which no gate
-        # executed was replayable here for the whole TTL. The row is returned
-        # alongside the refusal so the caller can name which run it rejected.
+        # the only door. A run in which no gate executed still needs the
+        # closer's explicit acknowledgement even when its structured replay
+        # policy permits lookup. The row is returned alongside the refusal so
+        # the caller can name which run it rejected.
         #
         # `zero_gate_ack` opens the same door here as on the handle path. The
         # acknowledgement is an act of the CLOSER, not a property of how the

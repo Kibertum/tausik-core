@@ -22,16 +22,19 @@ from gate_test_resolver import (
     _observed_tests_for,
     _under_prefix,
     build_tests_index,
+    is_test_module_path,
     parse_errors_for_relevant,
     read_crosscutting_scope,
     resolve_test_files_for_relevant,
     test_roots,
     top_level_imports,
 )
+from gate_test_source_edges import source_test_edges_for_relevant
 from security_pattern import is_security_sensitive
 from tausik_utils import tausik_config_path
 
 _CROSSCUTTING_CONST = "CROSSCUTTING_SCOPE"
+_DECLARATION_VALIDATOR = "test_crosscutting_registry.py"
 
 
 @dataclass(frozen=True)
@@ -216,15 +219,40 @@ def select_affected_tests(
             selected.append(rel)
 
     normalized_files = [rel.replace("\\", "/") for rel in files]
+    changed_tests = [rel for rel in normalized_files if is_test_module_path(base, rel, roots)]
+    validator_reasons: dict[str, tuple[str, ...]] = {}
+    if changed_tests:
+        validators = build_tests_index(base).get(_DECLARATION_VALIDATOR, [])
+        for validator in validators:
+            if validator not in selected:
+                selected.append(validator)
+            validator_reasons[validator] = tuple(
+                f"declaration-validator:{changed}" for changed in changed_tests
+            )
+        core_selector = os.path.isfile(os.path.join(base, "scripts", "affected_test_selection.py"))
+        validator_was_changed = any(
+            os.path.basename(rel) == _DECLARATION_VALIDATOR for rel in normalized_files
+        )
+        if not validators and (core_selector or validator_was_changed):
+            uncertainty = "test declaration validator is missing: " + _DECLARATION_VALIDATOR
     python_sources = [
         rel
         for rel in normalized_files
         if rel.endswith(".py")
-        and "/tests/" not in f"/{rel}"
-        and not os.path.basename(rel).startswith("test_")
+        and rel not in changed_tests
+        and os.path.basename(rel) != "conftest.py"
     ]
-    if uncertainty is None and python_sources and not selected:
-        uncertainty = "Python source has no defensible test dependency mapping"
+    source_reasons: dict[str, list[str]] = {}
+    if uncertainty is None:
+        source_edges = source_test_edges_for_relevant(python_sources, root=base)
+        for source, test_edges in source_edges.items():
+            if not test_edges:
+                uncertainty = "Python source has no defensible test dependency mapping: " + source
+                break
+            for test_rel, labels in test_edges.items():
+                if test_rel not in selected:
+                    selected.append(test_rel)
+                source_reasons.setdefault(test_rel, []).extend(labels)
 
     if uncertainty is not None:
         reasons: dict[str, tuple[str, ...]] = {
@@ -234,6 +262,10 @@ def select_affected_tests(
     if not selected:
         return AffectedTestPlan("none", (), {})
     reasons = _explain_affected(base, files, selected, fixture_reasons)
+    for test_rel, source_labels in source_reasons.items():
+        if test_rel in reasons:
+            reasons[test_rel] = tuple(dict.fromkeys((*reasons[test_rel], *source_labels)))
+    reasons.update(validator_reasons)
     # The legacy basename resolver also paired arbitrary prose/config names
     # (for example docs/en/mcp.md) with every test_mcp_*.py module. Basename is
     # evidence for Python source, not for unrelated file types. Keep a test only

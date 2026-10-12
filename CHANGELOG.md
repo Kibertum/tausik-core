@@ -7,6 +7,96 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
+## [1.11.4] — 2026-10-12
+
+### Fixed — repeated framework friction becomes one local task
+
+- Explicit `doctor --friction` now groups failures by the parser-recognized
+  command path, so `task show` and `task done` cannot contaminate one signal.
+  It reads the full retained invocation window, excludes pytest-origin rows,
+  records truncation, and refuses malformed telemetry instead of calling it clean.
+- Each correlation key creates or updates one redacted, QG-0-ready local
+  planning task. Filing is atomic, never starts or claims work, refuses on a
+  scrub failure, applies canonical credential patterns to complete values before
+  display truncation, reports unreadable evidence sources instead of a clean scan, and performs
+  no network, remote issue, push or publication. Identical reruns are no-ops.
+  Ordinary `doctor` remains read-only.
+
+### Fixed — verification rights no longer depend on command text
+
+- Schema v78 stores trigger, declared files, gate signature, replay policy,
+  and presentation policy as one structured verification-run descriptor.
+  `verification_runs.command` remains human-readable audit text and grants no
+  rights; migrated command-only rows fail closed with a named legacy refusal.
+- Cache lookup reads only structured identity plus `replayable`. Handle minting
+  and redemption read only `single_use`, recheck the signed scope, live files
+  hash, and live gate signature. Security runs remain non-replayable but can be
+  presented once; empty, all-skipped, and inline auto-verify runs cannot.
+
+### Fixed — comment-history reminders survive intermediate commits
+
+- Closure compares added comment lines with the persisted task-start snapshot,
+  covering committed, staged, unstaged, untracked and renamed paths. Missing or
+  unreadable baseline evidence is reported as `not checked`, never as clean.
+- The aggregate count ratchet was replaced by item-level evidence, so deleting
+  an old reference cannot launder a new one. Future deadline/expiry dates require
+  `owner=<id>` and `action=<verb>` markers; past and ambiguous dates still report.
+
+### Fixed — affected-test selection is total per changed source
+
+- Every changed Python source now needs its own selection edge. A covered file
+  can no longer hide an unmapped sibling; full-lane fallback names the uncovered
+  source in its evidence.
+- A changed Python test pulls in the cross-cutting declaration validator in the
+  same scoped run. Nested roots and duplicate basenames retain repo-relative
+  identities. The measured self-check selects 19 of 674 test files in 1.9 s.
+
+### Fixed — verification proof now binds gate applicability and execution
+
+- The gate signature now hashes the complete resolved execution mapping,
+  including triggers, stack/file applicability, timeouts, and gate-specific
+  controls. Stack-scoped signatures also bind the live extension, filename and
+  path-hint dispatch tables. Changing one of them invalidates both cache replay
+  and a presented one-time handle.
+- Canonical JSON keeps mapping-key and gate order stable. Prose-only annotations
+  do not churn proofs; receipts carrying the legacy narrow digest fail closed
+  and require a fresh verify run.
+
+### Fixed — release tags now wait for CI on the exact public snapshot SHA
+
+- `publish snapshot` prints only the fast-forward `main` push, then directs the
+  owner to `publish ci-check`. The tag refspec remains unreachable until the
+  GitHub `Tests` workflow succeeds for that exact filtered commit.
+- Old green runs never satisfy the check. Red, cancelled, missing, timed-out,
+  or unreadable results fail closed. GitLab CI is explicitly not evidence for
+  the different public tree.
+
+### Fixed — a filtered public tip can no longer launder exposed history
+
+- Publication now binds both the candidate tree and every reachable ancestor.
+  A parent that shares development ancestry or ever carried an excluded path is
+  refused, even when its new tip would be filtered.
+- `publish recovery` creates a no-parent filtered candidate without moving refs
+  or printing a push command. `publish remote-audit` fetches one exact anonymous
+  ref into a temporary bare repository and fails closed on a wrong tree,
+  excluded history, a missing ref, or network uncertainty.
+- The 1.11.3 incident shapes are regression tests: an unfiltered snapshot tip
+  and a filtered child of development history both refuse.
+- On 2026-10-12 the authorized containment moved GitHub `main` and `v1.11.3`
+  to verified parentless snapshot `3dd6f5d`, deleted the accidental
+  `v1-11-3` branch, and anonymously audited all 16 advertised refs. None
+  reaches the contaminated commits.
+
+### Fixed — security-sensitive verify runs can close exactly once
+
+- A green `verify --task` over security-sensitive files still carries the
+  `noncacheable|` stamp, so freshness lookup can never replay it. It now mints
+  a signed single-use handle that binds the project, files hash, and live gate
+  signature; `task done --verify-handle` rechecks those bindings and spends it.
+- Empty-scope, all-skipped, and inline `auto_verify` runs still mint no handle.
+  This removes the 1.11.3 deadlock where a close demanded proof while the
+  recording path prohibited presenting the proof it had just produced.
+
 ## [1.11.3] — 2026-10-07
 
 ### Fixed — vendor agents invalid at load: the 1.11.2 fix was being wiped by every redeploy

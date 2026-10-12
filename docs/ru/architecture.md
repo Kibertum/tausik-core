@@ -229,7 +229,7 @@ TAUSIK разделяет *где* он работает и *какая моде
 | `fts_task_logs` | FTS5 индекс по логам задач |
 | `roles` | Реестр ролей (гибрид: метаданные + harness/roles/{slug}.md) |
 | `session_activity` | Per-tool-call таймстемпы для gap-based active time |
-| `verification_runs` | Verify cache: file_hash + timestamp для QG-2 reuse (10 min TTL) |
+| `verification_runs` | Verify-доказательства: структурированная identity trigger/files/gates и независимые политики replay и одноразового предъявления; `command` — только аудит |
 | `benchmark_observations` | Обезличенные наблюдения естественной работы для когорт версия/модель |
 
 ## Шлюзы качества

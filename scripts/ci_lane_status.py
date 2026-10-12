@@ -33,8 +33,12 @@ THREE RULES, and the second is the one this project keeps having to relearn.
 from __future__ import annotations
 
 import json
+import math
+import re
 import subprocess
+import time
 from typing import Any
+from urllib.parse import urlparse
 
 #: Seconds. Deliberately well under the push ticket's own lifetime.
 DEFAULT_TIMEOUT = 8
@@ -43,6 +47,11 @@ DEFAULT_TIMEOUT = 8
 #: "the newest run of anything", because the repository also runs coverage and
 #: review bots whose colour says nothing about whether the tests pass.
 VERIFICATION_WORKFLOW = "Tests"
+PUBLISH_WORKFLOW = ".github/workflows/tests.yml"
+PUBLISH_BRANCH = "main"
+PUBLISH_EVENT = "push"
+PUBLISH_WAIT_TIMEOUT = 90 * 60
+PUBLISH_POLL_INTERVAL = 15
 
 
 def _run(argv: list[str], timeout: int) -> tuple[int, str, str]:
@@ -65,19 +74,45 @@ def _run(argv: list[str], timeout: int) -> tuple[int, str, str]:
     return proc.returncode, proc.stdout or "", (proc.stderr or "").strip()
 
 
+def _github_url_slug(url: str) -> str | None:
+    """Parse only URLs whose actual host is github.com."""
+    if "://" in url:
+        parsed = urlparse(url)
+        if (parsed.hostname or "").lower() != "github.com":
+            return None
+        tail = parsed.path.lstrip("/")
+    else:
+        match = re.fullmatch(r"(?:[^@/:]+@)?github\.com:(.+)", url, re.IGNORECASE)
+        if not match:
+            return None
+        tail = match.group(1)
+    if tail.endswith(".git"):
+        tail = tail[:-4]
+    if tail.count("/") == 1 and all(tail.split("/")):
+        return tail
+    return None
+
+
 def github_slug(remotes: str) -> str | None:
-    """`owner/repo` for the first GitHub remote in `git remote -v` output."""
+    """`owner/repo` for the first structurally valid GitHub remote URL."""
     for line in remotes.splitlines():
         parts = line.split()
-        if len(parts) < 2 or "github.com" not in parts[1]:
-            continue
-        url = parts[1]
-        tail = url.split("github.com", 1)[1].lstrip(":/")
-        if tail.endswith(".git"):
-            tail = tail[:-4]
-        if tail.count("/") == 1 and all(tail.split("/")):
-            return tail
+        if len(parts) >= 2 and (slug := _github_url_slug(parts[1])):
+            return slug
     return None
+
+
+def named_github_slug(remotes: str, remote_name: str) -> str | None:
+    """One GitHub slug from every push URL of the named release remote."""
+    urls = []
+    for line in remotes.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[0] == remote_name and parts[-1] == "(push)":
+            urls.append(parts[1])
+    slugs = [_github_url_slug(url) for url in urls]
+    if not slugs or any(slug is None for slug in slugs) or len(set(slugs)) != 1:
+        return None
+    return slugs[0]
 
 
 def describe(slug: str | None, timeout: int = DEFAULT_TIMEOUT) -> tuple[str, str]:
@@ -147,3 +182,89 @@ def describe(slug: str | None, timeout: int = DEFAULT_TIMEOUT) -> tuple[str, str
 def report(remotes: str, timeout: int = DEFAULT_TIMEOUT) -> tuple[str, str]:
     """`describe` for whichever GitHub remote `git remote -v` shows."""
     return describe(github_slug(remotes), timeout)
+
+
+def describe_exact(slug: str | None, sha: str, timeout: int = DEFAULT_TIMEOUT) -> tuple[str, str]:
+    """Verdict for the required workflow on one exact candidate SHA."""
+    if not slug:
+        return "unknown", "no GitHub repository — exact-SHA CI was not checked"
+    rc, out, err = _run(
+        [
+            "gh",
+            "run",
+            "list",
+            "--repo",
+            slug,
+            "--workflow",
+            PUBLISH_WORKFLOW,
+            "--commit",
+            sha,
+            "--branch",
+            PUBLISH_BRANCH,
+            "--event",
+            PUBLISH_EVENT,
+            "--limit",
+            "20",
+            "--json",
+            "databaseId,conclusion,status,event,headBranch,headSha,createdAt,url",
+        ],
+        timeout,
+    )
+    if rc == 127:
+        return "unknown", "gh CLI not installed — exact-SHA CI was not checked"
+    if rc == 124:
+        return "unknown", "gh timed out — exact-SHA CI was not checked"
+    if rc != 0:
+        detail = err.splitlines()[0] if err else f"exit {rc}"
+        return "unknown", f"gh failed ({detail}) — exact-SHA CI was not checked"
+    try:
+        runs: Any = json.loads(out)
+    except ValueError:
+        return "unknown", "gh returned unreadable output — exact-SHA CI was not checked"
+    if not isinstance(runs, list):
+        return "unknown", "gh returned a non-list result — exact-SHA CI was not checked"
+    exact = [
+        run
+        for run in runs
+        if isinstance(run, dict)
+        and run.get("headSha") == sha
+        and run.get("event") == PUBLISH_EVENT
+        and run.get("headBranch") == PUBLISH_BRANCH
+    ]
+    if not exact:
+        return "missing", f"no {PUBLISH_EVENT} run of {PUBLISH_WORKFLOW!r} for exact SHA {sha[:12]}"
+    run = exact[0]
+    status = str(run.get("status") or "")
+    conclusion = str(run.get("conclusion") or "")
+    where = f"SHA {sha[:12]}, run #{run.get('databaseId') or '?'}"
+    if status != "completed":
+        if status:
+            return "running", f"candidate {where} is still {status}"
+        return "unknown", f"candidate {where} has no status — exact-SHA CI is unreadable"
+    if conclusion == "success":
+        return "pass", f"candidate {where} is GREEN"
+    if conclusion:
+        return "fail", f"candidate {where} is {conclusion.upper()}"
+    return "unknown", f"candidate {where} has no terminal conclusion — exact-SHA CI is unreadable"
+
+
+def wait_for_exact(
+    slug: str | None,
+    sha: str,
+    timeout: int = PUBLISH_WAIT_TIMEOUT,
+    poll_interval: int = PUBLISH_POLL_INTERVAL,
+) -> tuple[bool, str]:
+    """Wait a bounded time for exact-SHA success; every other terminal state refuses."""
+    deadline = time.monotonic() + max(0, timeout)
+    while True:
+        remaining = deadline - time.monotonic()
+        probe_timeout = max(1, min(DEFAULT_TIMEOUT, math.ceil(max(0, remaining))))
+        state, message = describe_exact(slug, sha, timeout=probe_timeout)
+        if state == "pass":
+            return True, message
+        if state in {"fail", "unknown"}:
+            return False, message
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False, f"timed out waiting for exact SHA {sha[:12]}: {message}"
+        time.sleep(min(max(0, poll_interval), remaining))

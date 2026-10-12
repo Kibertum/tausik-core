@@ -48,17 +48,31 @@ byte for byte, and a machine checks that equality, not a memory.
    tausik publish snapshot --from v1.9.0 --parent github/main
    # "identical": the snapshot's tree == the filtered tree of the source
    tausik publish verify --snapshot <sha> --from v1.9.0
+   # after push, audit one exact ref and its history through the anonymous endpoint
+   tausik publish remote-audit --remote https://github.com/Kibertum/tausik-core.git \
+     --ref refs/heads/main --from v1.9.0
    ```
 
    The command acts on OBJECTS: the working tree, the index, branches and
    remotes are not touched. It refuses when a leak class on the snapshot is not
-   zero, when `--parent` is not a commit, or when the snapshot does not equal
-   the filter. What it cannot know is the REMOTE's tip: a stale local
+   zero, when `--parent` is not a commit, when that parent shares development
+   ancestry or contains an excluded path anywhere in reachable history, or
+   when the snapshot does not equal the filter. What it cannot know is the REMOTE's tip: a stale local
    `github/main` is caught by git's fast-forward-only push in step 3, and the
    answer to that refusal is to fetch and rebuild the snapshot on the new tip.
    Force is not a flag the command has — and the firewall forbids it anyway.
-3. Push and tag are the owner's acts, by hand, after reading what the command
-   printed: `git push github <sha>:refs/heads/main` (fast-forward only), then
+3. The claimed SENAR edition is public: `tausik publish senar-check` asks GitHub Kibertum/SENAR for the tag of the edition TAUSIK claims. It exits 1 when the tag is missing and 2 when it could not ask; either way the TAUSIK release is not tagged. It prints both versions and the SENAR releases link.
+4. Push `main` as the owner's act, by hand, after reading what the command
+   printed: `git push github <sha>:refs/heads/main` (fast-forward only). Do not
+   push the tag yet.
+5. Wait for GitHub's `Tests` workflow on that exact public snapshot SHA:
+   `tausik publish ci-check --snapshot <sha> --from v1.9.0 --tag v1.9.0`.
+   The command polls for at most 90 minutes. A stale green run, a red or
+   cancelled run, a missing run, a timeout, or an unreadable API all refuse and
+   print no tag command. Retry after a pending run completes; fix and rebuild a
+   red candidate. GitLab CI is necessary for the development commit, but it
+   does not prove the filtered public tree.
+6. Only a successful `ci-check` prints
    `git push github <sha>:refs/tags/v1.9.0` — a **refspec push**, not a second
    `git tag -a`: the name `v1.9.0` already names the release commit on the
    development line (that is what step 2 built from), and git refuses to
@@ -72,10 +86,43 @@ byte for byte, and a machine checks that equality, not a memory.
    the GitHub Release, and `published_tags.json` records the commit either
    way. In the same pass, on the development line, `tausik/published_tags.json`
    is updated (see "Tags" below).
-4. The claimed SENAR edition is public: `tausik publish senar-check` asks GitHub Kibertum/SENAR for the tag of the edition TAUSIK claims. It exits 1 when the tag is missing and 2 when it could not ask; either way the TAUSIK release is not tagged. It prints both versions and the SENAR releases link.
-5. Release notes: the GitHub Release body is written in English, the full text lives in `docs/en/whats-new-X.Y.md` and `docs/ru/whats-new-X.Y.md`, and the body links both pages. `tausik publish notes --version X.Y.Z --body-file <file>` refuses a body that misses either page; run it before creating the release. The rule applies from 1.10 on; published tags are not re-cut for it.
-6. External authorship survives: a contributor's commits land by merge or by a
+7. Release notes: the GitHub Release body is written in English, the full text lives in `docs/en/whats-new-X.Y.md` and `docs/ru/whats-new-X.Y.md`, and the body links both pages. `tausik publish notes --version X.Y.Z --body-file <file>` refuses a body that misses either page; run it before creating the release and only after exact-SHA CI is green. The rule applies from 1.10 on; published tags are not re-cut for it.
+8. External authorship survives: a contributor's commits land by merge or by a
    squash carrying their `Co-Authored-By` — otherwise the authorship is erased.
+
+## Containment when a public ref is contaminated
+
+A filtered tip does not repair an exposed ancestor. Stop publication and use
+this incident path when `publish remote-audit` reports a wrong tree, an excluded
+historical path, or development ancestry:
+
+1. Record the exact anonymous `ls-remote` values for every affected branch and
+   tag. Keep the manifest and any bundle in owner-controlled storage, never in
+   the public repository.
+2. Scan reachable content for credentials and personal data without copying
+   matched literals into a report. Rotate a confirmed credential first. The
+   owner decides legal or customer notification for confirmed personal data.
+3. Build a history-independent candidate with `tausik publish recovery --from
+   <development-release-ref>`. It creates an orphan commit object, moves no ref,
+   and deliberately prints no push command. `publish verify` must report both an
+   equal filtered tree and no excluded reachable history.
+4. Before mutation, name the exact old SHA, replacement SHA and every affected
+   ref. Back up the old objects privately. Rewriting `main` disrupts clones;
+   deleting a branch removes links; moving or deleting a tag changes or breaks
+   consumer pins.
+5. A force-with-lease replacement, branch deletion, tag move/deletion, Release
+   edit, cached-object removal request, or public notice requires the owner's
+   explicit approval for those exact acts. Ordinary release permission is not
+   containment permission.
+6. After approved mutation, run `publish remote-audit` through the anonymous URL
+   for every surviving exact ref. Missing, network, or fetch error is a refusal,
+   not green. Also prove no remaining advertised ref reaches the contaminated
+   commits.
+7. Rollback restores the recorded old refs and therefore re-exposes the data.
+   Use it only on a new explicit owner decision.
+
+The normal fast-forward-only publication path remains the rule. Recovery exists
+for a measured exposure and cannot be enabled by project configuration.
 
 ## What is published: a filter, not the whole tree
 

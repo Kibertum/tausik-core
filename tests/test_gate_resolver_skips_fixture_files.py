@@ -38,3 +38,9 @@ def test_the_test_beside_the_fixture_is_still_returned(tmp_path):
         ["tests/test_upgrade.py", "tests/fixtures/schema_v44.sql"], root=base
     )
     assert got == ["tests/test_upgrade.py"]
+
+
+def test_python_support_file_under_tests_is_not_mistaken_for_a_test(tmp_path):
+    base = _tree(tmp_path, "tests/helpers.py", "tests/test_other.py")
+    got = resolve_test_files_for_relevant(["tests/helpers.py"], root=base)
+    assert got == []

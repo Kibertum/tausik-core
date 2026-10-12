@@ -1,8 +1,8 @@
 """`tausik publish` — build and verify the public snapshot (decision #368).
 
-Two subcommands, both acts on OBJECTS: neither touches the working tree, the
-index, a branch or a remote. Pushing the result and tagging it are the owner's
-separate acts, done by hand after reading what this printed.
+Snapshot construction acts on OBJECTS: it touches neither the working tree,
+index, branches nor remotes. Pushing and tagging remain the owner's separate
+acts, done by hand only when the preceding check prints them.
 
   publish snapshot --from <ref> --parent <public-head> [--message M] [--dry-run]
       Build the filtered tree of <ref> and commit it on top of <public-head>.
@@ -15,6 +15,10 @@ separate acts, done by hand after reading what this printed.
       "GitLab is identical to GitHub": the snapshot's tree equals the filtered
       tree of <ref>, byte for byte; a mismatch names the paths.
 
+  publish ci-check --snapshot <sha> --from <ref> --tag <tag>
+      Read GitHub Actions and wait for Tests success on that exact snapshot.
+      Only success reveals the public tag refspec; this command moves no ref.
+
   publish notes --version X.Y.Z --body-file F     (release_notes)
   publish senar-check                             (senar_claim)
       Two checks of the release procedure, run before the owner tags: the
@@ -25,11 +29,14 @@ separate acts, done by hand after reading what this printed.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from typing import Any
 
 import publication_scope as scope
 import publication_snapshot as snap
+
+_RELEASE_TAG = re.compile(r"^v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$")
 
 
 def _root(svc: Any) -> str:
@@ -45,6 +52,15 @@ def cmd_publish(svc: Any, args: Any) -> None:
         if sub == "verify":
             _verify(_root(svc), args)
             return
+        if sub == "ci-check":
+            _ci_check(_root(svc), args)
+            return
+        if sub == "recovery":
+            _recovery(_root(svc), args)
+            return
+        if sub == "remote-audit":
+            _remote_audit(_root(svc), args)
+            return
         if sub == "notes":
             _notes(args)
             return
@@ -59,7 +75,10 @@ def cmd_publish(svc: Any, args: Any) -> None:
     if True:
         print(
             "Usage: tausik publish snapshot --from <ref> --parent <public-head> [--dry-run]\n"
+            "       tausik publish recovery --from <ref> [--dry-run]\n"
+            "       tausik publish remote-audit --remote <url> --ref <ref> --from <ref>\n"
             "       tausik publish verify --snapshot <sha> --from <ref>\n"
+            "       tausik publish ci-check --snapshot <sha> --from <ref> --tag <tag>\n"
             "       tausik publish notes --version <X.Y.Z> --body-file <file>\n"
             "       tausik publish senar-check"
         )
@@ -99,6 +118,10 @@ def _snapshot(root: str, args: Any) -> None:
             f"REFUSED: --parent {parent} is not a commit in this repository: {check.stderr.strip()}"
         )
         sys.exit(1)
+    public, why_public = snap.snapshot_history_is_public(root, parent, source)
+    if not public:
+        print(f"REFUSED: unsafe public parent {parent}: {why_public}")
+        sys.exit(1)
     kept, left = snap.snapshot_paths(root, source)
     print(f"Public snapshot of {source}:")
     print(f"  published: {len(kept)} file(s)")
@@ -133,18 +156,16 @@ def _snapshot(root: str, args: Any) -> None:
     if not (ok_match and ok_base):
         sys.exit(1)
     tag = _tag_named_by(root, source) or "v<version>"
+    source_commit = scope._git(root, "rev-parse", "--verify", f"{source}^{{commit}}")
     print(
         "Next (the owner's acts, by hand, after reading the above). The push is\n"
         "fast-forward only: if github/main moved since it was fetched, git refuses\n"
         "here and the snapshot is rebuilt on the new tip — never --force.\n"
         f"  git push github {commit}:refs/heads/main\n"
-        f"  git push github {commit}:refs/tags/{tag}\n"
-        "  then record the tag in tausik/published_tags.json (publishing.md)\n"
-        "The tag is a refspec push, not `git tag -a`: the same NAME already names\n"
-        "the release commit on the development line, and git will not create it\n"
-        "twice. One name, two objects, one filtered tree — `publish verify` is the proof.\n"
-        "It lands on GitHub as a LIGHTWEIGHT tag (no tag object, no message): the\n"
-        "release notes are the CHANGELOG and the GitHub Release, not the tag."
+        f"  tausik publish ci-check --snapshot {commit} "
+        f"--from {source_commit.stdout.strip()} --tag {tag}\n"
+        "Do not push the tag or create the GitHub Release until `ci-check` succeeds\n"
+        "for this exact public snapshot SHA. GitLab CI proves a different tree."
     )
 
 
@@ -156,18 +177,107 @@ def _tag_named_by(root: str, source: str) -> str | None:
     tags on the commit is an ambiguity, and a placeholder is printed rather
     than a guess.
     """
-    if scope._git(root, "rev-parse", "--verify", "--quiet", f"refs/tags/{source}").returncode == 0:
+    if (
+        _RELEASE_TAG.fullmatch(source)
+        and scope._git(root, "rev-parse", "--verify", "--quiet", f"refs/tags/{source}").returncode
+        == 0
+    ):
         return source
     commit = scope._git(root, "rev-parse", "--verify", "--quiet", f"{source}^{{commit}}")
     if commit.returncode != 0:
         return None
     names = scope._git(root, "tag", "--points-at", commit.stdout.strip()).stdout.split()
-    return names[0] if len(names) == 1 else None
+    return names[0] if len(names) == 1 and _RELEASE_TAG.fullmatch(names[0]) else None
 
 
 def _verify(root: str, args: Any) -> None:
-    ok, why = snap.snapshot_matches(root, args.snapshot, args.source)
+    ok, why = snap.snapshot_candidate_is_public(root, args.snapshot, args.source)
     print(("OK  " if ok else "BAD ") + why)
+    if not ok:
+        sys.exit(1)
+
+
+def _ci_check(root: str, args: Any) -> None:
+    """Unlock the tag act only after GitHub Tests succeeds for the exact SHA."""
+    import ci_lane_status
+
+    ok, why = snap.snapshot_candidate_is_public(root, args.snapshot, args.source)
+    if not ok:
+        print("REFUSED: candidate failed the local snapshot audit: " + why)
+        sys.exit(1)
+    snapshot = scope._git(root, "rev-parse", "--verify", f"{args.snapshot}^{{commit}}")
+    source = scope._git(root, "rev-parse", "--verify", f"{args.source}^{{commit}}")
+    tag = str(args.tag)
+    if not _RELEASE_TAG.fullmatch(tag):
+        print("REFUSED: --tag must be a plain vMAJOR.MINOR.PATCH release tag")
+        sys.exit(1)
+    tagged = scope._git(root, "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}")
+    if tagged.returncode != 0:
+        print(f"REFUSED: local release tag {tag} does not exist")
+        sys.exit(1)
+    if tagged.stdout.strip() != source.stdout.strip():
+        print(f"REFUSED: local release tag {tag} does not name --from {args.source}")
+        sys.exit(1)
+    remotes = scope._git(root, "remote", "-v")
+    slug = (
+        ci_lane_status.named_github_slug(remotes.stdout, "github")
+        if remotes.returncode == 0
+        else None
+    )
+    if not slug:
+        print("REFUSED: remote 'github' is missing or is not a canonical GitHub repository URL")
+        sys.exit(1)
+    passed, verdict = ci_lane_status.wait_for_exact(
+        slug,
+        snapshot.stdout.strip(),
+        timeout=args.timeout,
+        poll_interval=args.poll_interval,
+    )
+    if not passed:
+        print("REFUSED: " + verdict)
+        sys.exit(1)
+    print("OK  " + verdict)
+    print(
+        "Next (the owner's act, by hand). Push the LIGHTWEIGHT public tag only now:\n"
+        f"  git push github {snapshot.stdout.strip()}:refs/tags/{tag}\n"
+        "Then record the tag in tausik/published_tags.json and create the GitHub Release.\n"
+        "The local annotated tag remains on the development commit; the public tag is a\n"
+        "refspec to the filtered snapshot."
+    )
+
+
+def _recovery(root: str, args: Any) -> None:
+    """Build an orphan candidate without implying permission to replace a ref."""
+    source = args.source
+    leaks = snap.leaks_in_snapshot(root, source)
+    if any(leaks.values()):
+        print("REFUSED: a leak class is non-zero on the recovery snapshot.")
+        sys.exit(1)
+    tree = snap.snapshot_tree(root, source)
+    if args.dry_run:
+        print(f"Recovery snapshot of {source}: filtered tree {tree}")
+        print("DRY RUN — no commit written and no ref moved.")
+        return
+    message = args.message or f"TAUSIK recovery snapshot of {source}"
+    commit = snap.build_recovery_snapshot_commit(root, message, source)
+    ok, why = snap.snapshot_candidate_is_public(root, commit, source)
+    if not ok:
+        print("REFUSED: recovery candidate failed its own audit: " + why)
+        sys.exit(1)
+    print(f"  recovery commit: {commit}")
+    print("  OK  " + why)
+    print(
+        "OWNER APPROVAL REQUIRED — this command moved no ref and deliberately prints no push "
+        "command. Back up exact remote refs and follow the containment runbook before any "
+        "replacement."
+    )
+
+
+def _remote_audit(root: str, args: Any) -> None:
+    from publication_remote_audit import audit_remote_ref
+
+    ok, why, observed = audit_remote_ref(root, args.remote, args.ref, args.source)
+    print(("OK  " if ok else "BAD ") + f"{observed} — {why}")
     if not ok:
         sys.exit(1)
 

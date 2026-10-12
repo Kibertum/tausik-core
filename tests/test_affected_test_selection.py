@@ -15,6 +15,7 @@ if _SCRIPTS not in sys.path:
 
 import affected_test_selection as ats  # noqa: E402
 import gate_command_runner as command_runner  # noqa: E402
+import gate_test_source_edges as source_edges  # noqa: E402
 
 
 def _write(root, rel, body=""):
@@ -45,6 +46,7 @@ def test_every_affected_test_carries_its_selection_evidence(tmp_path):
     assert all(plan.reasons[test] for test in plan.test_files)
     assert plan.reasons["tests/test_alpha.py"] == ("basename:scripts/alpha.py",)
     assert "direct-import:alpha" in plan.reasons["tests/test_importer.py"]
+    assert "direct-import:scripts/alpha.py" in plan.reasons["tests/test_importer.py"]
     assert "declared-scope:scripts/alpha.py" in plan.reasons["tests/test_declared.py"]
 
 
@@ -60,6 +62,168 @@ def test_changed_conftest_selects_only_its_fixture_subtree(tmp_path):
     assert plan.mode == "affected"
     assert plan.test_files == ("tests/unit/test_unit.py",)
     assert plan.reasons["tests/unit/test_unit.py"] == ("fixture-scope:tests/unit/conftest.py",)
+
+
+@pytest.mark.parametrize(
+    "relevant",
+    [
+        ["scripts/covered.py", "scripts/orphan.py"],
+        ["scripts/orphan.py", "scripts/covered.py"],
+    ],
+    ids=["covered-first", "orphan-first"],
+)
+def test_each_changed_python_source_needs_its_own_selection_edge(tmp_path, relevant):
+    _write(tmp_path, "scripts/covered.py", "def covered(): pass\n")
+    _write(tmp_path, "scripts/orphan.py", "def orphan(): pass\n")
+    _write(tmp_path, "tests/test_covered.py", "def test_covered(): pass\n")
+    _write(tmp_path, "tests/test_other.py", "def test_other(): pass\n")
+
+    plan = ats.select_affected_tests(relevant, root=str(tmp_path))
+
+    assert plan.mode == "full"
+    assert plan.fallback_reason == (
+        "Python source has no defensible test dependency mapping: scripts/orphan.py"
+    )
+    assert all(
+        plan.reasons[test] == (f"fail-open:{plan.fallback_reason}",) for test in plan.test_files
+    )
+
+
+def test_changed_test_always_selects_declaration_validator(tmp_path):
+    _write(tmp_path, "tests/test_new_guard.py", "def test_guard(): pass\n")
+    _write(tmp_path, "tests/test_crosscutting_registry.py", "def test_registry(): pass\n")
+
+    plan = ats.select_affected_tests(["tests/test_new_guard.py"], root=str(tmp_path))
+
+    assert plan.mode == "affected"
+    assert plan.test_files == (
+        "tests/test_new_guard.py",
+        "tests/test_crosscutting_registry.py",
+    )
+    assert plan.reasons["tests/test_crosscutting_registry.py"] == (
+        "declaration-validator:tests/test_new_guard.py",
+    )
+
+
+def test_nested_roots_keep_duplicate_basenames_as_distinct_tests(tmp_path):
+    _write(
+        tmp_path,
+        ".tausik/config.json",
+        json.dumps({"testing": {"roots": ["backend/tests", "frontend/tests"]}}),
+    )
+    _write(tmp_path, "src/alpha.py", "def alpha(): pass\n")
+    _write(tmp_path, "backend/tests/test_alpha.py", "def test_backend(): pass\n")
+    _write(tmp_path, "frontend/tests/test_alpha.py", "def test_frontend(): pass\n")
+
+    plan = ats.select_affected_tests(["src/alpha.py"], root=str(tmp_path))
+
+    assert plan.mode == "affected"
+    assert plan.test_files == (
+        "backend/tests/test_alpha.py",
+        "frontend/tests/test_alpha.py",
+    )
+    assert set(plan.reasons) == set(plan.test_files)
+
+
+@pytest.mark.parametrize(
+    ("test_body", "expected_mode"),
+    [
+        ("def test_it(): pass\n", "full"),
+        ("import helpers\n\ndef test_it(): pass\n", "affected"),
+    ],
+    ids=["unmapped-test-helper-widens", "imported-test-helper-is-covered"],
+)
+def test_non_test_python_inside_test_root_still_needs_a_disposition(
+    tmp_path, test_body, expected_mode
+):
+    _write(tmp_path, "tests/helpers.py", "def helper(): pass\n")
+    _write(tmp_path, "tests/test_consumer.py", test_body)
+
+    plan = ats.select_affected_tests(["tests/helpers.py"], root=str(tmp_path))
+
+    assert plan.mode == expected_mode
+
+
+def test_duplicate_source_basenames_need_unambiguous_edges(tmp_path):
+    _write(tmp_path, "src/a/util.py", "VALUE = 'a'\n")
+    _write(tmp_path, "src/b/util.py", "VALUE = 'b'\n")
+    _write(
+        tmp_path,
+        "tests/test_util.py",
+        "from src.a import util\n\ndef test_a(): assert util.VALUE == 'a'\n",
+    )
+
+    plan = ats.select_affected_tests(["src/a/util.py", "src/b/util.py"], root=str(tmp_path))
+
+    assert plan.mode == "full"
+    assert plan.fallback_reason == (
+        "Python source has no defensible test dependency mapping: src/b/util.py"
+    )
+
+    sibling_only = ats.select_affected_tests(["src/b/util.py"], root=str(tmp_path))
+    assert sibling_only.mode == "full"
+    assert "src/b/util.py" in (sibling_only.fallback_reason or "")
+
+
+def test_qualified_import_is_selected_even_without_a_basename_match(tmp_path):
+    _write(tmp_path, "src/a/util.py", "VALUE = 'a'\n")
+    _write(
+        tmp_path,
+        "tests/test_behavior.py",
+        "from src.a import util\n\ndef test_behavior(): assert util.VALUE == 'a'\n",
+    )
+
+    plan = ats.select_affected_tests(["src/a/util.py"], root=str(tmp_path))
+
+    assert plan.mode == "affected"
+    assert plan.test_files == ("tests/test_behavior.py",)
+    assert "direct-import:src/a/util.py" in plan.reasons["tests/test_behavior.py"]
+
+
+def test_deleted_duplicate_source_cannot_inherit_bare_import_edge(tmp_path):
+    _write(tmp_path, "src/b/util.py", "VALUE = 'b'\n")
+    _write(tmp_path, "tests/test_behavior.py", "import util\n\ndef test_it(): pass\n")
+
+    edges = source_edges.source_test_edges_for_relevant(["src/a/util.py"], root=str(tmp_path))
+
+    assert edges["src/a/util.py"] == {}
+
+
+def test_shared_qualified_suffix_is_not_a_defensible_import_edge(tmp_path):
+    _write(tmp_path, "src/a/util.py", "VALUE = 'src'\n")
+    _write(tmp_path, "lib/a/util.py", "VALUE = 'lib'\n")
+    _write(tmp_path, "tests/test_behavior.py", "import a.util\n\ndef test_it(): pass\n")
+
+    edges = source_edges.source_test_edges_for_relevant(["src/a/util.py"], root=str(tmp_path))
+
+    assert edges["src/a/util.py"] == {}
+
+
+def test_test_named_production_module_is_not_a_test_target(tmp_path):
+    _write(tmp_path, "scripts/test_helper.py", "def helper(): pass\n")
+    _write(tmp_path, "tests/test_other.py", "def test_other(): pass\n")
+
+    plan = ats.select_affected_tests(["scripts/test_helper.py"], root=str(tmp_path))
+
+    assert plan.mode == "full"
+    assert "scripts/test_helper.py" in (plan.fallback_reason or "")
+
+
+@pytest.mark.parametrize("core_marker", [True, False], ids=["core-tree", "validator-deleted"])
+def test_expected_declaration_validator_cannot_disappear(tmp_path, core_marker):
+    _write(tmp_path, "tests/test_new_guard.py", "def test_guard(): pass\n")
+    relevant = ["tests/test_new_guard.py"]
+    if core_marker:
+        _write(tmp_path, "scripts/affected_test_selection.py", "# core marker\n")
+    else:
+        relevant.append("tests/test_crosscutting_registry.py")
+
+    plan = ats.select_affected_tests(relevant, root=str(tmp_path))
+
+    assert plan.mode == "full"
+    assert plan.fallback_reason == (
+        "test declaration validator is missing: test_crosscutting_registry.py"
+    )
 
 
 @pytest.mark.parametrize(

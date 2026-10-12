@@ -266,10 +266,34 @@ class TestTaskCLI:
         run_cli(["task", "update", "t1", "--acceptance-criteria", "1. Works"], env, str(cwd))
         run_cli(["task", "start", "t1"], env, str(cwd))
 
-        r = run_cli(["task", "block", "t1", "--reason", "Waiting"], env, str(cwd))
+        r = run_cli(
+            [
+                "task",
+                "block",
+                "t1",
+                "--reason",
+                "Waiting",
+                "--question",
+                "Which dependency result should we use?",
+                "--unblock-when",
+                "The dependency result is recorded.",
+            ],
+            env,
+            str(cwd),
+        )
         assert r.returncode == 0
 
-        r = run_cli(["task", "unblock", "t1"], env, str(cwd))
+        r = run_cli(
+            [
+                "task",
+                "unblock",
+                "t1",
+                "--criterion-met",
+                "The dependency result was recorded in the task journal.",
+            ],
+            env,
+            str(cwd),
+        )
         assert r.returncode == 0
 
     def test_task_plan_steps(self, tausik_env):

@@ -71,3 +71,23 @@ the memory tail selects by significance.
 - [Exact 1.11.3 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.3/CHANGELOG.md)
 - [English notes](https://github.com/Kibertum/tausik-core/blob/v1.11.3/docs/en/whats-new-1.11.md)
 - [Russian notes](https://github.com/Kibertum/tausik-core/blob/v1.11.3/docs/ru/whats-new-1.11.md)
+
+## 1.11.4 — security proof and publication containment
+
+Security-sensitive verification remains non-replayable, but a successful run
+can now close its task exactly once through a signed handle that is rechecked
+against the live files and gate configuration. Verification identity and its
+replay/presentation rights are structured data, not command-text conventions.
+
+The release line is safer as well: tags wait for CI on the exact public SHA,
+publication verifies the complete reachable history, recovery produces a
+parentless snapshot, and anonymous remote audit fails closed. The authorized
+1.11.3 containment moved GitHub `main` and `v1.11.3` to parentless snapshot
+`3dd6f5d`, deleted `v1-11-3`, and audited all 16 advertised refs; none reaches
+the contaminated commits. A stricter affected-test map, durable
+comment-reference evidence, complete gate signatures, and idempotent local
+friction tasks close the other framework-review findings.
+
+- [Exact 1.11.4 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.4/CHANGELOG.md)
+- [English notes](https://github.com/Kibertum/tausik-core/blob/v1.11.4/docs/en/whats-new-1.11.md)
+- [Russian notes](https://github.com/Kibertum/tausik-core/blob/v1.11.4/docs/ru/whats-new-1.11.md)

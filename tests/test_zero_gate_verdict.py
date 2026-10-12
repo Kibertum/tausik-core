@@ -28,6 +28,7 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 from conftest import VERIFICATION_RUNS_DDL  # noqa: E402
+from verify_cache import resolve_gate_signature  # noqa: E402
 from verify_handle_check import check_handle  # noqa: E402
 from verify_zero_gate import (  # noqa: E402
     ACK_FLAG,
@@ -134,8 +135,9 @@ def _insert_run(conn, *, no_tests_declared=1, command="trigger=verify|files=a.md
     conn.execute(
         "INSERT INTO verification_runs "
         "(task_slug, scope, command, exit_code, summary, files_hash, ran_at, "
-        " duration_ms, no_tests_declared, handle_nonce, handle_expires_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        " duration_ms, no_tests_declared, handle_nonce, handle_expires_at, "
+        " run_trigger, run_files_json, gate_signature, replay_policy, "
+        " presentation_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             "doc-task",
             "manual",
@@ -148,6 +150,11 @@ def _insert_run(conn, *, no_tests_declared=1, command="trigger=verify|files=a.md
             no_tests_declared,
             NONCE,
             "2099-01-01T00:00:00Z",
+            "verify",
+            '["a.md"]',
+            resolve_gate_signature("verify"),
+            "replayable",
+            "single_use",
         ),
     )
     conn.commit()
@@ -269,6 +276,7 @@ def _handle(conn, results, *, no_tests_expected=True):
         duration_ms=1,
         scope_desc={},
         trigger="verify",
+        gate_signature=resolve_gate_signature("verify"),
         details=None,
         no_tests_expected=no_tests_expected,
         append_notes_fn=None,
@@ -377,13 +385,23 @@ def test_only_two_call_sites_read_the_recent_lookup():
     )
 
 
-def _run_with_cache(conn, tmp_path, monkeypatch, *, zero_gate_ack=False):
+def _run_with_cache(
+    conn,
+    tmp_path,
+    monkeypatch,
+    *,
+    zero_gate_ack=False,
+    trigger="verify",
+    allow_handle=False,
+):
     import verify_cached_run
 
+    gate_signature = resolve_gate_signature(trigger)
     monkeypatch.chdir(tmp_path)
     (tmp_path / "a.md").write_text("# x", encoding="utf-8")
     monkeypatch.setattr(verify_cached_run, "compute_files_hash", lambda _f: "hash")
     monkeypatch.setattr(verify_cached_run, "is_cache_allowed", lambda _f: True)
+    monkeypatch.setattr(verify_cached_run, "resolve_gate_signature", lambda _t: gate_signature)
     monkeypatch.setattr(verify_cached_run, "_build_cache_command", lambda *_a, **_k: "cmd")
     monkeypatch.setattr(
         verify_cached_run, "describe_declared_scope", lambda *_a, **_k: {"status": "declared"}
@@ -401,8 +419,8 @@ def _run_with_cache(conn, tmp_path, monkeypatch, *, zero_gate_ack=False):
         conn,
         "doc-task",
         ["a.md"],
-        trigger="verify",
-        allow_handle=False,
+        trigger=trigger,
+        allow_handle=allow_handle,
         zero_gate_ack=zero_gate_ack,
     )
     return passed, status, ran["n"]
@@ -428,6 +446,21 @@ def test_an_ordinary_cached_run_is_still_replayed(conn, tmp_path, monkeypatch):
     _insert_run(conn, no_tests_declared=0, command="cmd")
     passed, status, ran = _run_with_cache(conn, tmp_path, monkeypatch)
     assert (passed, status, ran) == (True, "hit", 0)
+
+
+def test_task_done_run_has_no_presentation_entitlement(conn, tmp_path, monkeypatch):
+    passed, status, ran = _run_with_cache(
+        conn,
+        tmp_path,
+        monkeypatch,
+        trigger="task-done",
+        allow_handle=True,
+    )
+    row = conn.execute(
+        "SELECT presentation_policy, handle_nonce FROM verification_runs ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    assert (passed, status, ran) == (True, "miss", 1)
+    assert tuple(row) == ("none", None)
 
 
 # --- the acknowledgement must survive the layer boundary ------------------
@@ -517,6 +550,7 @@ def test_the_block_after_a_reset_names_the_closing_side_flag(conn):
         duration_ms=1,
         scope_desc={},
         trigger="verify",
+        gate_signature=resolve_gate_signature("verify"),
         details=None,
         no_tests_expected=False,
         append_notes_fn=lambda _s, note: notes.append(note),
@@ -545,6 +579,7 @@ def test_the_ordinary_block_still_gives_the_ordinary_advice(conn):
         duration_ms=1,
         scope_desc={},
         trigger="verify",
+        gate_signature=resolve_gate_signature("verify"),
         details=None,
         no_tests_expected=False,
         append_notes_fn=None,

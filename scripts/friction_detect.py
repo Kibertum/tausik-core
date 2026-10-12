@@ -1,4 +1,4 @@
-"""Agent friction against the framework becomes a FILED defect draft, not a swallowed log line.
+"""Agent friction against the framework becomes a local planning task.
 
 Task agent-friction-becomes-a-filed-defect-not-a-swallowed-one. The asymmetry:
 every refusal the framework hands an agent — a non-zero CLI exit, a rejected
@@ -36,31 +36,30 @@ PRECISION IS THE CONTRACT (AC-6, convention on live-data accuracy): a detector
 that fires on
 normal work — a red verify, a fail-then-green retry loop, a dead end about the
 agent's OWN code — is worse than none, because it teaches the reader to skip
-the drafts. The negative lanes pin each boundary: fail-then-green is NOT
+the findings. The negative lanes pin each boundary: fail-then-green is NOT
 signal C, a task-code dead end is NOT signal E, and the live-tree test fails
 the suite beyond five findings on this very repository.
 
 NETWORK (AC-4, the owner's per-issue-only rule): this module contains NO network code and no
-config flag can add any. Sending a draft anywhere is a human act on a specific
-issue; a test guards the import surface so the guarantee is mechanical.
+config flag can add any. Sending anything elsewhere is a separate human act;
+a test guards the import surface so the guarantee is mechanical.
 
-Verdict is WARN-grade everywhere: drafts land in `.tausik/friction/*.md`,
-redacted (AC-3) by reusing brain_scrubbing's detectors — the matched spans are
-replaced, no second pattern set is written.
+Verdict is WARN-grade everywhere. Explicit `doctor --friction` files one
+redacted, QG-0-ready local planning task per correlation key; ordinary doctor
+only reports those tasks and remains read-only.
 """
 
 from __future__ import annotations
 
-import contextlib
+import functools
 import json
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 _INVOCATIONS_FILE = "cli_invocations.jsonl"
-_DRAFTS_DIR = "friction"
-_TAIL_ROWS = 500
 _HELP_WINDOW_MIN = 10
 
 _NETWORK_IMPORT_RE = re.compile(
@@ -96,10 +95,11 @@ def record_invocation_exit(exit_code: int, argv: list[str] | None = None) -> boo
         if not tdir:
             return False
         row = {
-            "schema_version": 1,
+            "schema_version": 2,
             "ts": datetime.now(timezone.utc).isoformat(),
             "argv": list(sys_argv(argv)),
             "exit": int(exit_code),
+            "origin": "pytest" if os.environ.get("PYTEST_CURRENT_TEST") else "cli",
         }
         with open(os.path.join(tdir, _INVOCATIONS_FILE), "a", encoding="utf-8") as fh:
             fh.write(json.dumps(row) + "\n")
@@ -116,27 +116,97 @@ def sys_argv(argv: list[str] | None = None) -> list[str]:
     return list(sys.argv[1:])
 
 
-def _read_invocations(tausik_dir: str) -> list[dict]:
+def _read_invocations(tausik_dir: str) -> tuple[list[dict], int, int, int, int]:
     path = os.path.join(tausik_dir, _INVOCATIONS_FILE)
-    rows: list[dict] = []
     try:
         with open(path, encoding="utf-8") as fh:
-            rows = [json.loads(line) for line in fh if line.strip()]
-    except (OSError, ValueError):
-        return []
-    return rows[-_TAIL_ROWS:]
+            raw = [line for line in fh if line.strip()]
+    except OSError:
+        return [], 0, 0, 0, 0
+    from telemetry_retention import POLICIES
+
+    keep = next(p.keep_lines for p in POLICIES if p.name == _INVOCATIONS_FILE)
+    assert keep is not None
+    omitted = max(0, len(raw) - keep)
+    rows: list[dict] = []
+    malformed = legacy = test_generated = 0
+    for line in raw[-keep:]:
+        try:
+            row = json.loads(line)
+        except (TypeError, ValueError):
+            malformed += 1
+            continue
+        if not isinstance(row, dict):
+            malformed += 1
+            continue
+        if row.get("schema_version") != 2:
+            legacy += 1
+            continue
+        argv = row.get("argv")
+        if (
+            not isinstance(argv, list)
+            or not all(isinstance(part, str) for part in argv)
+            or not isinstance(row.get("exit"), int)
+            or isinstance(row.get("exit"), bool)
+            or not isinstance(row.get("ts"), str)
+            or _ts(row) is None
+            or row.get("origin") not in ("cli", "pytest")
+        ):
+            malformed += 1
+            continue
+        if row["origin"] == "pytest":
+            test_generated += 1
+            continue
+        rows.append(row)
+    return rows, omitted, malformed, legacy, test_generated
+
+
+def command_path(argv: list[str]) -> str:
+    """Return the parser-recognized command path, stopping before arguments."""
+    choices = _command_tree()
+    path: list[str] = []
+    for token in argv:
+        child = choices.get(str(token))
+        if child is not None:
+            path.append(str(token))
+            choices = child
+            continue
+        if str(token).startswith("-"):
+            continue
+        break
+    return " ".join(path)
+
+
+@functools.lru_cache(maxsize=1)
+def _command_tree() -> dict[str, Any]:
+    import argparse
+
+    from project_parser import build_parser
+
+    def children(parser) -> dict[str, Any]:
+        action = next(
+            (a for a in parser._actions if isinstance(a, argparse._SubParsersAction)), None
+        )
+        if action is None:
+            return {}
+        return {name: children(child) for name, child in action.choices.items()}
+
+    return children(build_parser())
 
 
 def _cmd(row: dict) -> str:
     argv = row.get("argv") or []
-    return str(argv[0]) if argv else ""
+    return command_path([str(part) for part in argv])
 
 
 def _ts(row: dict) -> datetime | None:
     try:
-        return datetime.fromisoformat(str(row.get("ts")))
+        parsed = datetime.fromisoformat(str(row.get("ts")))
     except ValueError:
         return None
+    if parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
 
 
 def _minutes_between(a: datetime, b: datetime) -> float:
@@ -151,27 +221,31 @@ def _signal_a(rows: list[dict]) -> list[FrictionSignal]:
     remediation), and the live corpus proved one-shot reds are the ordinary
     rhythm — this session's own task-done refusal lit the detector up.
     """
-    by_cmd: dict[str, FrictionSignal] = {}
+    grouped: dict[str, list[dict]] = {}
     for row in rows:
-        if int(row.get("exit") or 0) == 0:
-            continue
         cmd = _cmd(row) or "?"
-        if cmd in by_cmd:
-            by_cmd[cmd].count += 1
-        else:
-            by_cmd[cmd] = FrictionSignal(
+        grouped.setdefault(cmd, []).append(row)
+    out: list[FrictionSignal] = []
+    for cmd, attempts in grouped.items():
+        failures = [row for row in attempts if int(row.get("exit") or 0) != 0]
+        if len(failures) < 2 or int(attempts[-1].get("exit") or 0) == 0:
+            continue
+        out.append(
+            FrictionSignal(
                 kind="nonzero-exit",
                 signature=f"nonzero-exit:{cmd}",
-                sample=" ".join(str(a) for a in (row.get("argv") or []))[:200],
+                count=len(failures),
+                sample=" ".join(str(a) for a in (failures[-1].get("argv") or [])),
                 remedy_hint=f"`tausik {cmd} --help` documents the real signature; a refusal names the missing piece",
             )
-    return [s for s in by_cmd.values() if s.count >= 2]
+        )
+    return out
 
 
 def _signal_b(rows: list[dict]) -> list[FrictionSignal]:
     """>--help of the same command right after its failure — the agent guessed."""
     out: list[FrictionSignal] = []
-    for prev, cur in zip(rows, rows[1:]):
+    for index, (prev, cur) in enumerate(zip(rows, rows[1:])):
         if int(prev.get("exit") or 0) == 0:
             continue
         argv = cur.get("argv") or []
@@ -182,11 +256,24 @@ def _signal_b(rows: list[dict]) -> list[FrictionSignal]:
         t1, t2 = _ts(prev), _ts(cur)
         if t1 and t2 and _minutes_between(t1, t2) > _HELP_WINDOW_MIN:
             continue
+        recovered = False
+        for later in rows[index + 2 :]:
+            later_argv = later.get("argv") or []
+            if _cmd(later) != _cmd(prev) or "--help" in later_argv or "-h" in later_argv:
+                continue
+            later_ts = _ts(later)
+            if t1 and later_ts and _minutes_between(t1, later_ts) > _HELP_WINDOW_MIN:
+                break
+            if int(later.get("exit") or 0) == 0:
+                recovered = True
+                break
+        if recovered:
+            continue
         out.append(
             FrictionSignal(
                 kind="help-after-failure",
                 signature=f"help-after-failure:{_cmd(prev)}",
-                sample=" ".join(str(a) for a in argv)[:200],
+                sample=" ".join(str(a) for a in argv),
                 remedy_hint="the agent did not know the arguments — the command's discoverability failed",
             )
         )
@@ -208,7 +295,8 @@ def _signal_c(rows: list[dict]) -> list[FrictionSignal]:
         if len(run) >= 3:
             fails = [r for r in run if int(r.get("exit") or 0) != 0]
             argvs = {json.dumps(r.get("argv") or [], sort_keys=True) for r in run}
-            if len(fails) >= 2 and len(argvs) > 1:
+            recovered = int(run[-1].get("exit") or 0) == 0
+            if len(fails) >= 2 and len(argvs) > 1 and not recovered:
                 cmd = _cmd(run[0])
                 out.append(
                     FrictionSignal(
@@ -216,7 +304,7 @@ def _signal_c(rows: list[dict]) -> list[FrictionSignal]:
                         signature=f"arg-guessing:{cmd}",
                         count=len(run),
                         sample=" ; ".join(
-                            " ".join(str(a) for a in (r.get("argv") or []))[:80] for r in run[:3]
+                            " ".join(str(a) for a in (r.get("argv") or [])) for r in run
                         ),
                         remedy_hint="the agent retried one command with different arguments — the signature it needed was not discoverable",
                     )
@@ -272,7 +360,8 @@ def _recent_iso(dt: datetime | None) -> bool:
     now = datetime.now(timezone.utc)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return (now - dt).days <= _DEAD_END_WINDOW_DAYS
+    age = now - dt
+    return timedelta(0) <= age <= timedelta(days=_DEAD_END_WINDOW_DAYS)
 
 
 def _signal_e(memories: list[dict]) -> list[FrictionSignal]:
@@ -291,108 +380,98 @@ def _signal_e(memories: list[dict]) -> list[FrictionSignal]:
             out.append(
                 FrictionSignal(
                     kind="framework-dead-end",
-                    signature=f"framework-dead-end:{(row.get('title') or '')[:60]}",
-                    sample=blob[:300],
+                    signature=f"framework-dead-end:{row.get('title') or ''}",
+                    sample=blob,
                     remedy_hint="an agent documented the FRAMEWORK failing — a defect candidate, not agent error",
                 )
             )
     return out
 
 
-# --- Drafts (AC-2/AC-3/AC-5) ---------------------------------------------------
-
-
-def redact(text: str, cfg: dict | None = None) -> str:
-    """Replace what brain_scrubbing flags: paths, emails, URLs, blocklist names.
-
-    Reuses the DETECTOR (its pattern set is the single source); the only new
-    code here is the replacement itself — detecting twice with two pattern
-    lists is the defect this task exists to prevent.
-    """
-    from brain_scrubbing import scrub
-
-    issues = scrub(text).get("issues", [])
-    for issue in issues:
-        match = issue.get("match") or ""
-        if match:
-            text = text.replace(match, "[redacted]")
-    return text
-
-
-def write_drafts(
-    tausik_dir: str, signals: list[FrictionSignal], cfg: dict | None = None
-) -> list[str]:
-    """One file per signature — identical signals collapse to a counter (AC-5)."""
-    out_dir = os.path.join(tausik_dir, _DRAFTS_DIR)
-    os.makedirs(out_dir, exist_ok=True)
-    written: list[str] = []
-    for sig in signals:
-        slug = re.sub(r"[^a-z0-9]+", "-", sig.signature.lower()).strip("-")[:80]
-        path = os.path.join(out_dir, f"{slug}.md")
-        body = (
-            f"# Friction draft: {sig.kind}\n\n"
-            f"- signature: `{sig.signature}`\n"
-            f"- collapsed occurrences: {sig.count}\n"
-            f"- remedy hint: {sig.remedy_hint}\n"
-            f"- sample (redacted):\n\n```\n{redact(sig.sample)}\n```\n\n"
-            "Draft, not an issue: review, then either file it with the owner's word\n"
-            "or delete this file. Nothing is sent anywhere by this tool.\n"
-        )
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(body)
-        written.append(path)
-    return written
+def _collapse(signals: list[FrictionSignal]) -> list[FrictionSignal]:
+    """One signal per correlation key, with all observed occurrences counted."""
+    unique: dict[tuple[str, str], FrictionSignal] = {}
+    for signal in signals:
+        key = (signal.kind, signal.signature)
+        current = unique.get(key)
+        if current is None:
+            unique[key] = signal
+            continue
+        current.count += signal.count
+        current.sample = signal.sample
+        current.remedy_hint = signal.remedy_hint
+    return list(unique.values())
 
 
 # --- The audit entry -----------------------------------------------------------
 
 
-def detect_friction(tausik_dir: str, svc=None) -> list[FrictionSignal]:
+def detect_friction(
+    tausik_dir: str, svc=None, *, notices: list[str] | None = None
+) -> list[FrictionSignal]:
     signals: list[FrictionSignal] = []
-    rows = _read_invocations(tausik_dir)
-    signals += _signal_a(rows)
-    signals += _signal_b(rows)
-    signals += _signal_c(rows)
+    rows, omitted, malformed, legacy, test_generated = _read_invocations(tausik_dir)
+    if omitted and notices is not None:
+        notices.append(
+            f"invocation analysis used the declared retained tail; {omitted} older row(s) "
+            "were outside the window"
+        )
+    if legacy and notices is not None:
+        notices.append(f"ignored {legacy} legacy invocation row(s) without trusted origin")
+    if test_generated and notices is not None:
+        notices.append(f"excluded {test_generated} pytest-generated invocation row(s)")
+    if malformed:
+        if notices is not None:
+            notices.append(
+                f"REFUSED CLI filing: {malformed} malformed invocation row(s) make the "
+                "retained corpus incomplete"
+            )
+    else:
+        signals += _signal_a(rows)
+        signals += _signal_b(rows)
+        signals += _signal_c(rows)
     if svc is not None:
-        with contextlib.suppress(Exception):
+        try:
             events = svc.events_list(entity_type="supervision", n=200)
             signals += _signal_d(events)
-        with contextlib.suppress(Exception):
+        except Exception as exc:  # noqa: BLE001 - every source stays independent
+            if notices is not None:
+                notices.append(
+                    f"REFUSED supervision filing: event source failed ({type(exc).__name__})"
+                )
+        try:
             memories = svc.memory_list(mem_type="dead_end", n=500, include_archived=True)
             signals += _signal_e(memories)
-    return signals
+        except Exception as exc:  # noqa: BLE001 - every source stays independent
+            if notices is not None:
+                notices.append(
+                    f"REFUSED dead-end filing: memory source failed ({type(exc).__name__})"
+                )
+    return _collapse(signals)
 
 
 def run_friction_cmd(svc) -> None:  # ProjectService arrives from the CLI dispatcher
-    """`tausik doctor --friction`: detect, file redacted drafts, print. Exit 0."""
+    """`tausik doctor --friction`: detect and file local planning tasks. Exit 0."""
+    from friction_filing import file_signals
     from project_config import find_tausik_dir
 
     tdir = find_tausik_dir() or os.path.join(os.getcwd(), ".tausik")
-    print("TAUSIK doctor — agent friction (filed drafts, WARN verdict)")
+    print("TAUSIK doctor — agent friction (local planning tasks, WARN verdict)")
     print("=" * 56)
-    signals = detect_friction(tdir, svc)
+    notices: list[str] = []
+    signals = detect_friction(tdir, svc, notices=notices)
     if not signals:
-        print("  no friction signals — invocations, bypasses and dead ends re-read clean")
+        if notices:
+            print("  no actionable signal in the supported rows; corpus notices follow")
+        else:
+            print("  no friction signals — invocations, bypasses and dead ends re-read clean")
     else:
-        written = write_drafts(tdir, signals)
-        for sig in signals:
-            print(f"  ! [{sig.kind}] x{sig.count} — {sig.signature}")
-            print(f"      {sig.remedy_hint}")
-        print(
-            f"\n  {len(written)} redacted draft(s) in .tausik/{_DRAFTS_DIR}/ — review, then file or delete."
-        )
+        for line in file_signals(svc, signals, tdir):
+            print(f"  {line}")
+    for notice in notices:
+        print(f"  NOTE: {notice}")
     print("=" * 56)
     print("Nothing is sent anywhere: no network code exists in this module (AC-4).")
-
-
-def drafts_count(tausik_dir: str) -> int:
-    """How many filed drafts await a human — doctor prints this on every run."""
-    try:
-        return len(
-            [f for f in os.listdir(os.path.join(tausik_dir, _DRAFTS_DIR)) if f.endswith(".md")]
-        )
-    except OSError:
-        return 0
 
 
 def assert_no_network_surface(module_path: str | None = None) -> bool:

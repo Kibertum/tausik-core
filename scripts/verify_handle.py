@@ -243,6 +243,11 @@ _RUN_COLUMNS = (
     # every historical row and on ordinary single-task runs — which therefore
     # read as cohorts of one, preserving every pre-1.11.3 behavior.
     "cohort_identity",
+    "run_trigger",
+    "run_files_json",
+    "gate_signature",
+    "replay_policy",
+    "presentation_policy",
 )
 
 

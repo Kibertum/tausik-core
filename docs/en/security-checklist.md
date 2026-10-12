@@ -84,3 +84,12 @@ sameSite: strict  # CSRF protection
 - [ ] Secrets in secure storage
 - [ ] Logging configured properly
 - [ ] Debug mode disabled
+
+## Public Release Boundary
+
+- [ ] Candidate tree equals the declared filtered source tree
+- [ ] Candidate and parent share no development ancestry
+- [ ] No excluded path exists anywhere in reachable public history
+- [ ] Exact remote refs are audited through an anonymous endpoint after push
+- [ ] Network, fetch, or ref-resolution error is a refusal, never a clean result
+- [ ] Recovery or ref rewrite has separate owner approval and a private backup

@@ -19,12 +19,22 @@ from gate_runner import (
     gate_applies_to,
     infer_stacks_from_files,
 )
+from gate_stack_dispatch import stack_dispatch_semantics
 
 
 # === infer_stacks_from_files ===
 
 
 class TestInferStacks:
+    def test_dispatch_semantics_matches_live_inference(self):
+        semantics = stack_dispatch_semantics()
+        assert "python" in semantics["extensions"][".py"]
+        assert "docker" in semantics["filenames"]["dockerfile"]
+        assert any(
+            item["fragment"] == "/k8s/" and "kubernetes" in item["stacks"]
+            for item in semantics["path_hints"]
+        )
+
     @pytest.mark.parametrize(
         "files,expected_member",
         [

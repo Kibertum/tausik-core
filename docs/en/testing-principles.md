@@ -29,6 +29,16 @@ pytest fixture subtree of a changed `conftest.py`. Every selected file and its
 reason are written to `.tausik/evidence/affected-tests-<digest>.json`; verify
 returns only the path, so the explanation does not inflate model-visible output.
 
+The mapping is total per changed Python source: one covered source cannot hide
+an unmapped sibling. An uncovered source widens the lane and is named in the
+fallback reason. Changing a Python test also selects
+`test_crosscutting_registry.py` when that validator exists, so a new tree guard
+must declare a truthful `CROSSCUTTING_SCOPE` (or an explicit empty opt-out) in
+the same scoped run. Repository-relative paths keep tests with duplicate
+basenames in nested configured roots distinct. In the TAUSIK core tree, a
+missing or deleted declaration validator widens the lane instead of silently
+disabling this check.
+
 Selection is fail-open. Invalid test-root configuration, an unreadable or
 unparseable candidate, a malformed dependency declaration, an unmapped Python
 source, or a security-sensitive path runs the complete applicable default lane.

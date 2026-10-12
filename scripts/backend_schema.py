@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 77
+SCHEMA_VERSION = 78
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -329,7 +329,15 @@ CREATE TABLE IF NOT EXISTS verification_runs (
     handle_redeemed_at TEXT,      -- ISO-8601 UTC of the single spend; NULL = unspent
     -- v75: the pooled-verify cohort this run belongs to; NULL = a run of one
     -- task, which is every row written before cohorts existed.
-    cohort_identity TEXT
+    cohort_identity TEXT,
+    -- v78: command is display-only. These five fields are the immutable
+    -- identity/policy descriptor used by cache and handle readers. NULL marks
+    -- a legacy row and grants no replay or presentation right.
+    run_trigger TEXT,
+    run_files_json TEXT,
+    gate_signature TEXT,
+    replay_policy TEXT CHECK(replay_policy IN ('replayable', 'non_replayable')),
+    presentation_policy TEXT CHECK(presentation_policy IN ('none', 'single_use'))
 );
 
 CREATE TABLE IF NOT EXISTS verification_cohorts (
