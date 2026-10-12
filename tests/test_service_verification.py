@@ -40,6 +40,19 @@ def _resolved_semantic_field_cases(cfg):
     return sorted(cases.values(), key=lambda case: case[2])
 
 
+def _all_scoped_gates_enabled_config():
+    """Resolve the complete built-in runner contract, independent of host stacks."""
+    import project_config
+
+    return {
+        "gates": {
+            name: {"enabled": True}
+            for name, gate in project_config.DEFAULT_GATES.items()
+            if gate.get("phase") != "post_scope"
+        }
+    }
+
+
 def _changed(value):
     if isinstance(value, bool):
         return not value
@@ -533,7 +546,7 @@ class TestResolveGateSignature:
     def test_each_resolved_semantic_field_changes_the_signature(self, monkeypatch):
         import project_config
 
-        cfg = project_config.load_config()
+        cfg = _all_scoped_gates_enabled_config()
         get_gates = project_config.get_gates_for_trigger
         cases = _resolved_semantic_field_cases(cfg)
         for trigger, gate_name, field in cases:
@@ -548,12 +561,10 @@ class TestResolveGateSignature:
             assert sig_old != sig_new, field
 
     def test_cases_cover_the_runner_contract_named_by_the_task(self):
-        import project_config
-
         fields = {
             field
             for _trigger, _name, field in _resolved_semantic_field_cases(
-                project_config.load_config()
+                _all_scoped_gates_enabled_config()
             )
         }
         assert {
