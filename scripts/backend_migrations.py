@@ -1,0 +1,514 @@
+"""Versioned, irreversible TAUSIK schema migrations."""
+
+from __future__ import annotations
+
+from backend_migrations_legacy import LEGACY_MIGRATIONS, seed_v18_roles
+from backend_schema import SCHEMA_VERSION
+from backend_migrations_postseed import run_post_migrations
+from backend_migrations_guard import _column_already_there, _stamp
+from backend_migrations_v35 import MIGRATION_V35
+from backend_migrations_v36 import MIGRATION_V36
+from backend_migrations_v37 import MIGRATION_V37
+from backend_migrations_v38 import MIGRATION_V38
+from backend_migrations_parity import check_schema_migration_parity
+from backend_migrations_v39 import MIGRATION_V39
+from backend_migrations_v40 import MIGRATION_V40
+from backend_migrations_v41 import MIGRATION_V41
+from backend_migrations_v42 import MIGRATION_V42
+from backend_migrations_v43 import MIGRATION_V43
+from backend_migrations_v44 import MIGRATION_V44
+from backend_migrations_v45 import MIGRATION_V45
+from backend_migrations_v46 import MIGRATION_V46
+from backend_migrations_v47 import MIGRATION_V47
+from backend_migrations_v48 import MIGRATION_V48
+from backend_migrations_v49 import MIGRATION_V49
+from backend_migrations_v50 import MIGRATION_V50
+from backend_migrations_v52 import MIGRATION_V52
+from backend_migrations_v53 import MIGRATION_V53
+from backend_migrations_v54 import MIGRATION_V54
+from backend_migrations_v55 import MIGRATION_V55
+from backend_migrations_v56 import MIGRATION_V56
+from backend_migrations_v57 import MIGRATION_V57
+from backend_migrations_v58 import MIGRATION_V58
+from backend_migrations_v59 import MIGRATION_V59
+from backend_migrations_v60 import MIGRATION_V60
+from backend_migrations_v61 import MIGRATION_V61
+from backend_migrations_v62 import MIGRATION_V62
+from backend_migrations_v63 import MIGRATION_V63
+from backend_migrations_v64 import MIGRATION_V64
+from backend_migrations_v65 import MIGRATION_V65
+from backend_migrations_v66 import MIGRATION_V66
+from backend_migrations_v67 import MIGRATION_V67
+from backend_migrations_v68 import MIGRATION_V68
+from backend_migrations_v69 import MIGRATION_V69
+from backend_migrations_v70 import MIGRATION_V70
+from backend_migrations_v71 import MIGRATION_V71
+from backend_migrations_v72 import MIGRATION_V72
+from backend_migrations_v73 import MIGRATION_V73
+from backend_migrations_v74 import MIGRATION_V74
+from backend_migrations_v75 import MIGRATION_V75
+from backend_migrations_v76 import MIGRATION_V76
+from backend_migrations_v77 import MIGRATION_V77
+
+__all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
+
+# Current migrations (v12+; v10-v11 live in backend_migrations_legacy.py)
+_CURRENT_MIGRATIONS: dict[int, list[str]] = {
+    # --- v12: Scope field on tasks (SENAR Core Rule 2) ---
+    12: [
+        "ALTER TABLE tasks ADD COLUMN scope TEXT",
+    ],
+    # --- v13: Scope exclusion field (SENAR Core Start Gate #4) ---
+    13: [
+        "ALTER TABLE tasks ADD COLUMN scope_exclude TEXT",
+    ],
+    # --- v14: Structured task logs table ---
+    14: [
+        """CREATE TABLE IF NOT EXISTS task_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+            message TEXT NOT NULL,
+            phase TEXT CHECK(phase IS NULL OR phase IN
+                ('planning', 'implementation', 'review', 'testing', 'done')),
+            diff_stats TEXT,
+            created_at TEXT NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_task_logs_slug ON task_logs(task_slug)",
+        "CREATE INDEX IF NOT EXISTS idx_task_logs_phase ON task_logs(phase)",
+        "CREATE INDEX IF NOT EXISTS idx_task_logs_created ON task_logs(created_at)",
+        """CREATE VIRTUAL TABLE IF NOT EXISTS fts_task_logs USING fts5(
+            message,
+            content='task_logs', content_rowid='id'
+        )""",
+    ],
+    # --- v15: Rebuild memory_edges with proper constraints + orphan cleanup ---
+    15: [
+        # Clean up orphaned edges before rebuild
+        "DELETE FROM memory_edges WHERE source_type='memory' AND source_id NOT IN (SELECT id FROM memory)",
+        "DELETE FROM memory_edges WHERE source_type='decision' AND source_id NOT IN (SELECT id FROM decisions)",
+        "DELETE FROM memory_edges WHERE target_type='memory' AND target_id NOT IN (SELECT id FROM memory)",
+        "DELETE FROM memory_edges WHERE target_type='decision' AND target_id NOT IN (SELECT id FROM decisions)",
+        # Rebuild memory_edges with proper constraints
+        """CREATE TABLE memory_edges_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_type TEXT NOT NULL CHECK(source_type IN ('memory', 'decision')),
+            source_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL CHECK(target_type IN ('memory', 'decision')),
+            target_id INTEGER NOT NULL,
+            relation TEXT NOT NULL CHECK(relation IN ('supersedes', 'caused_by', 'relates_to', 'contradicts')),
+            confidence REAL NOT NULL DEFAULT 1.0,
+            created_by TEXT,
+            valid_from TEXT NOT NULL,
+            valid_to TEXT,
+            invalidated_by INTEGER REFERENCES memory_edges(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL
+        )""",
+        "INSERT INTO memory_edges_new SELECT * FROM memory_edges",
+        "DROP TABLE memory_edges",
+        "ALTER TABLE memory_edges_new RENAME TO memory_edges",
+        "CREATE INDEX IF NOT EXISTS idx_edges_source ON memory_edges(source_type, source_id)",
+        "CREATE INDEX IF NOT EXISTS idx_edges_target ON memory_edges(target_type, target_id)",
+        "CREATE INDEX IF NOT EXISTS idx_edges_relation ON memory_edges(relation)",
+        "CREATE INDEX IF NOT EXISTS idx_edges_valid ON memory_edges(valid_to)",
+    ],
+    # --- v16: verification_runs table for SENAR Rule 5 scoped verify cache ---
+    16: [
+        """CREATE TABLE IF NOT EXISTS verification_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_slug TEXT,
+            scope TEXT NOT NULL CHECK(scope IN
+                ('lightweight', 'standard', 'high', 'critical', 'manual')),
+            command TEXT NOT NULL,
+            exit_code INTEGER NOT NULL,
+            summary TEXT,
+            files_hash TEXT NOT NULL,
+            ran_at TEXT NOT NULL,
+            duration_ms INTEGER
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_verify_task ON verification_runs(task_slug, ran_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_verify_files_hash ON verification_runs(files_hash)",
+    ],
+    # --- v17: agent-native planning units (call_budget/call_actual/tier) ---
+    17: [
+        "ALTER TABLE tasks ADD COLUMN call_budget INTEGER",
+        "ALTER TABLE tasks ADD COLUMN call_actual INTEGER",
+        "ALTER TABLE tasks ADD COLUMN tier TEXT "
+        "CHECK(tier IS NULL OR tier IN "
+        "('trivial','light','moderate','substantial','deep'))",
+    ],
+    # --- v18: roles table — DDL only. Seeding moved to Python helper
+    # (backend_migrations_v18_seed) so it can normalize legacy free-text
+    # values (whitespace, mixed case, unicode) and rewrite tasks.role to
+    # match — preventing orphan rows where tasks.role doesn't appear in
+    # the new roles table.
+    18: [
+        """CREATE TABLE IF NOT EXISTS roles (
+            slug TEXT PRIMARY KEY CHECK(length(slug) <= 64),
+            title TEXT NOT NULL,
+            description TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )""",
+    ],
+    # --- v19: session token/cost usage metrics ---
+    19: [
+        """CREATE TABLE IF NOT EXISTS session_usage_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            tokens_input INTEGER NOT NULL DEFAULT 0,
+            tokens_output INTEGER NOT NULL DEFAULT 0,
+            tokens_total INTEGER NOT NULL DEFAULT 0,
+            cost_usd REAL NOT NULL DEFAULT 0,
+            tool_calls INTEGER NOT NULL DEFAULT 0,
+            model TEXT,
+            recorded_at TEXT NOT NULL,
+            UNIQUE(session_id)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_session_usage_session_id ON session_usage_metrics(session_id)",
+        "CREATE INDEX IF NOT EXISTS idx_session_usage_recorded_at ON session_usage_metrics(recorded_at)",
+    ],
+    # --- v20: SENAR Rule 10.13 — record agent model id+version per session ---
+    20: [
+        "ALTER TABLE sessions ADD COLUMN model_id TEXT",
+        "ALTER TABLE sessions ADD COLUMN model_version TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_model ON sessions(model_id)",
+    ],
+    # --- v21: SENAR Rule 10.15 — track L1/L2/L3 reviews + critical findings ---
+    21: [
+        """CREATE TABLE IF NOT EXISTS reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+            run_type TEXT NOT NULL CHECK(run_type IN ('L1','L2','L3')),
+            critical_findings INTEGER NOT NULL DEFAULT 0,
+            warnings INTEGER NOT NULL DEFAULT 0,
+            run_at TEXT NOT NULL,
+            notes TEXT
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_reviews_task ON reviews(task_slug)",
+        "CREATE INDEX IF NOT EXISTS idx_reviews_type ON reviews(run_type)",
+    ],
+    # --- v22: brain usage tracking — searches/hits/writes per session ---
+    22: [
+        """CREATE TABLE IF NOT EXISTS brain_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+            event_type TEXT NOT NULL
+                CHECK(event_type IN ('search','hit','write','ignored')),
+            query TEXT,
+            result_count INTEGER NOT NULL DEFAULT 0,
+            ts TEXT NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_brain_events_session ON brain_events(session_id)",
+        "CREATE INDEX IF NOT EXISTS idx_brain_events_type ON brain_events(event_type)",
+        "CREATE INDEX IF NOT EXISTS idx_brain_events_ts ON brain_events(ts)",
+    ],
+    # --- v23: append-only LLM usage ledger (rollup / cost dashboards later) ---
+    23: [
+        """CREATE TABLE IF NOT EXISTS usage_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+            model_id TEXT,
+            tokens_input INTEGER NOT NULL CHECK(tokens_input >= 0),
+            tokens_output INTEGER NOT NULL CHECK(tokens_output >= 0),
+            tokens_total INTEGER NOT NULL CHECK(tokens_total >= 0),
+            cost_usd REAL NOT NULL DEFAULT 0 CHECK(cost_usd >= 0),
+            tool_calls INTEGER NOT NULL DEFAULT 0 CHECK(tool_calls >= 0),
+            source TEXT NOT NULL CHECK(source IN ('session_record', 'manual')),
+            recorded_at TEXT NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_session "
+        "ON usage_events(session_id, recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_task ON usage_events(task_slug, recorded_at)",
+    ],
+    # --- v24: per-tool granularity for usage_events (PostToolUse hook) ---
+    # Adds tool_name column + relaxes source CHECK to include 'posttool'.
+    # SQLite cannot modify CHECK in-place — rebuild via temp table.
+    24: [
+        """CREATE TABLE usage_events_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+            model_id TEXT,
+            tokens_input INTEGER NOT NULL CHECK(tokens_input >= 0),
+            tokens_output INTEGER NOT NULL CHECK(tokens_output >= 0),
+            tokens_total INTEGER NOT NULL CHECK(tokens_total >= 0),
+            cost_usd REAL NOT NULL DEFAULT 0 CHECK(cost_usd >= 0),
+            tool_calls INTEGER NOT NULL DEFAULT 0 CHECK(tool_calls >= 0),
+            source TEXT NOT NULL CHECK(source IN ('session_record', 'manual', 'posttool')),
+            recorded_at TEXT NOT NULL,
+            tool_name TEXT
+        )""",
+        "INSERT INTO usage_events_new("
+        "id, session_id, task_slug, model_id, tokens_input, tokens_output, "
+        "tokens_total, cost_usd, tool_calls, source, recorded_at, tool_name) "
+        "SELECT id, session_id, task_slug, model_id, tokens_input, tokens_output, "
+        "tokens_total, cost_usd, tool_calls, source, recorded_at, NULL FROM usage_events",
+        "DROP TABLE usage_events",
+        "ALTER TABLE usage_events_new RENAME TO usage_events",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_session "
+        "ON usage_events(session_id, recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_task ON usage_events(task_slug, recorded_at)",
+        "CREATE INDEX IF NOT EXISTS idx_usage_events_tool ON usage_events(tool_name, recorded_at)",
+    ],
+    # --- v25: archived_at on tasks (soft-delete for hygiene archive --confirm) ---
+    # Done tasks older than task_archive.done_age_days get archived_at timestamp;
+    # task_list filters them out by default. Status remains 'done' (not 'archived')
+    # so historical metrics, FTS, and direct task_show by slug stay intact.
+    25: [
+        "ALTER TABLE tasks ADD COLUMN archived_at TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_tasks_archived_at ON tasks(archived_at)",
+    ],
+    # --- v26: archived_at on memory (soft-delete for `memory archive --before <duration>`) ---
+    # Long-running projects accumulate noise; rather than DROP rows we mark them
+    # archived. memory_list/memory_search filter by default; --include-archived
+    # opts back in. Mirrors v25 design on tasks.
+    26: [
+        "ALTER TABLE memory ADD COLUMN archived_at TEXT",
+        "CREATE INDEX IF NOT EXISTS idx_memory_archived_at ON memory(archived_at)",
+    ],
+    # --- v27: per-task cost/token budgets (v14c-token-budget-task) ---
+    27: [
+        "ALTER TABLE tasks ADD COLUMN cost_budget_usd REAL",
+        "ALTER TABLE tasks ADD COLUMN cost_actual_usd REAL",
+        "ALTER TABLE tasks ADD COLUMN token_budget INTEGER",
+        "ALTER TABLE tasks ADD COLUMN tokens_actual INTEGER",
+    ],
+    # --- v28: rollback_plan on tasks (SENAR Rule 6, v15s-rule6-rollback-plan) ---
+    # QG-0 blocks start of medium/complex tasks without it; task_done warns.
+    28: [
+        "ALTER TABLE tasks ADD COLUMN rollback_plan TEXT",
+    ],
+    # --- v29: signed receipt on verify runs (v15-receipt-emit-on-verify) ---
+    # tausik-signed/v1 envelope (ed25519 over canonical tausik-receipt/v1)
+    # emitted by record_run when the project key exists. NULL = unsigned run
+    # (pre-v29 row or keyless project).
+    29: [
+        "ALTER TABLE verification_runs ADD COLUMN receipt_json TEXT",
+    ],
+    # --- v30: declared scope ACL on tasks (SENAR Rule 2, v15-scope-declare) ---
+    # JSON lists: scope_paths = allowed write globs, scope_tools = allowed
+    # tools. NULL = no ACL declared (legacy behavior). Enforcement lands in
+    # v15-scope-enforce-write; canonical (de)serialization in scope_acl.py.
+    30: [
+        "ALTER TABLE tasks ADD COLUMN scope_paths TEXT",
+        "ALTER TABLE tasks ADD COLUMN scope_tools TEXT",
+    ],
+    # --- v31: closure risk score (v15-risk-compute-on-done) ---
+    # risk_score 0.0-1.0 + full risk_json ({score, level, factors,
+    # defaulted}) computed by risk_model at task_done. NULL = closed
+    # before v31 or collection failed (best-effort, never blocks close).
+    31: [
+        "ALTER TABLE tasks ADD COLUMN risk_score REAL",
+        "ALTER TABLE tasks ADD COLUMN risk_json TEXT",
+    ],
+    # --- v32: RENAR reasoning trace (v16r-reasoning-steps-table) ---
+    # Structured per-task reasoning steps (RENAR audit §4.4, blocker #1).
+    # Append-only, FTS5-indexed. kind is a CLOSED list (intent|premise|
+    # action|verification). Purely additive — no existing table touched.
+    32: [
+        """CREATE TABLE IF NOT EXISTS reasoning_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+            seq INTEGER NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN
+                ('intent', 'premise', 'action', 'verification')),
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_reasoning_steps_slug ON reasoning_steps(task_slug, seq)",
+        "CREATE INDEX IF NOT EXISTS idx_reasoning_steps_created ON reasoning_steps(created_at)",
+        """CREATE VIRTUAL TABLE IF NOT EXISTS fts_reasoning_steps USING fts5(
+            content,
+            content='reasoning_steps', content_rowid='id'
+        )""",
+        """CREATE TRIGGER IF NOT EXISTS reasoning_steps_ai
+            AFTER INSERT ON reasoning_steps BEGIN
+            INSERT INTO fts_reasoning_steps(rowid, content)
+            VALUES (new.id, new.content);
+        END""",
+        """CREATE TRIGGER IF NOT EXISTS reasoning_steps_ad
+            AFTER DELETE ON reasoning_steps BEGIN
+            INSERT INTO fts_reasoning_steps(fts_reasoning_steps, rowid, content)
+            VALUES ('delete', old.id, old.content);
+        END""",
+    ],
+    # v33: per-task model pinning (v16r-model-pinning) — pin model at start/done +
+    # flag mid-task model changes (RENAR blocker #2). Purely additive ALTERs on tasks.
+    33: [
+        "ALTER TABLE tasks ADD COLUMN started_model_id TEXT",
+        "ALTER TABLE tasks ADD COLUMN started_model_version TEXT",
+        "ALTER TABLE tasks ADD COLUMN done_model_id TEXT",
+        "ALTER TABLE tasks ADD COLUMN done_model_version TEXT",
+        # NOT NULL omitted on the ALTER (SQLite < 3.32 rejects NOT NULL ADD
+        # COLUMN); DEFAULT 0 + code always writing 0/1 keeps it effectively
+        # non-null. The CREATE TABLE baseline keeps NOT NULL for fresh DBs.
+        "ALTER TABLE tasks ADD COLUMN model_mismatch INTEGER DEFAULT 0",
+        "CREATE INDEX IF NOT EXISTS idx_tasks_started_model ON tasks(started_model_id)",
+        "CREATE INDEX IF NOT EXISTS idx_tasks_model_mismatch ON tasks(model_mismatch)",
+    ],
+    # v34: audit event hash-chain — nullable chain cols + anchor table; historical
+    # rows sealed by Python backfill maybe_backfill_v34 (SQLite lacks sha256/JCS).
+    34: [
+        "ALTER TABLE events ADD COLUMN prev_hash TEXT",
+        "ALTER TABLE events ADD COLUMN entry_hash TEXT",
+        "CREATE TABLE IF NOT EXISTS events_anchor ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, head_id INTEGER NOT NULL, "
+        "head_hash TEXT NOT NULL, event_count INTEGER NOT NULL, "
+        "envelope_json TEXT NOT NULL, created_at TEXT NOT NULL)",
+    ],
+    # v35: RENAR SPEC artifacts (v16r-spec-types) — SQL in backend_migrations_v35.py
+    35: MIGRATION_V35,
+    # v36: RENAR ADAPT artifacts (v16r-adapt) — SQL in backend_migrations_v36.py
+    36: MIGRATION_V36,
+    # v37: dedicated snippets store (v15-snippet-table) — SQL in backend_migrations_v37.py
+    37: MIGRATION_V37,
+    # v38: declared-scope honesty on verification runs (l26-verify-git-diff-wire)
+    38: MIGRATION_V38,
+    # v39: per-gate run records (l26-gate-results-persist)
+    39: MIGRATION_V39,
+    # v40: declared "no test expected" on verify runs (verify-no-test-mapped-dead-end)
+    40: MIGRATION_V40,
+    # v41: declared "no file changes" on tasks (qg2-cannot-close-fileless-task)
+    41: MIGRATION_V41,
+    # v42: stable slug identity for decisions and memory (state-git-stable-ids).
+    # Columns only; the backfill + UNIQUE index run in backend_migrations_v42_backfill.
+    42: MIGRATION_V42,
+    # v43: rebuild tasks so model_mismatch is NOT NULL DEFAULT 0 on the upgrade path
+    # (schema-model-mismatch-nullable-on-upgrade). Also aligns tasks column order.
+    43: MIGRATION_V43,
+    # v44: explicit state handle on verify runs (v2-verify-receipt-as-argument,
+    # decision #218 / SEP-2567). Three nullable columns; no rebuild.
+    44: MIGRATION_V44,
+    # v45: the trace a redaction leaves behind
+    # (nothing-can-redact-the-memory-the-framework-publishes, decision #258).
+    # One additive table; nothing existing is touched.
+    45: MIGRATION_V45,
+    # v46: the edge that makes a plan's ORDER expressible
+    # (task-next-cannot-express-plan-order). One additive table.
+    46: MIGRATION_V46,
+    # v47: a gate row records its OUTCOME and its REASON, so a check that
+    # could not run stops being stored as one that passed
+    47: MIGRATION_V47,
+    # v48: атрибуция расхода ключуется ЗАДАЧЕЙ, а не сессией
+    # (usage-attribution-is-keyed-by-task-not-session). Список пуст намеренно —
+    # перестройка usage_events живёт охраняемым пост-шагом, чтобы уметь
+    # пропустить себя на частичной фикстуре без этой таблицы (см. v48-модуль).
+    48: MIGRATION_V48,
+    # v49: закрытый перечень типов SPEC доводится до одиннадцати (ADR-013).
+    # Список пуст намеренно — перестройка specs живёт охраняемым пост-шагом,
+    # чтобы уметь пропустить себя на частичной фикстуре (см. v49-модуль).
+    49: MIGRATION_V49,
+    # v50: закрытый перечень статусов ADAPT приводится к §7.8.1, плюс
+    # две колонки ADR-007 (trigger_stage, supersession_rationale). Список пуст
+    # намеренно — перестройка adapts живёт охраняемым пост-шагом (см. v50-модуль).
+    50: MIGRATION_V50,
+    # v51: каждая строка gate_runs несёт ОБЪЯВЛЕННЫЙ ЭФФЕКТ гейта
+    # (SENAR 1.4 §8.6(a) и §8.6(g)). Старые строки остаются с NULL —
+    # это честное «записано до появления различения», а не догадка.
+    51: [
+        "ALTER TABLE gate_runs ADD COLUMN prevents TEXT",
+    ],
+    # v52: RENAR ACTZ artifacts (actz-the-contract-contour-artifact-is-missing,
+    # RENAR §5A). New tables only -- SQL in backend_schema_actz.py, reused
+    # verbatim (this is ACTZ's first migration, no historical delta to keep
+    # separate from the fresh-DB shape).
+    52: MIGRATION_V52,
+    # v53: actz_points.tz_ref (final-tz-is-the-acceptance-reference-and-we-have-none)
+    # -- which ТЗ clause a point clarifies, so the final-TZ view can group by it.
+    53: MIGRATION_V53,
+    # v54: RENAR AT (Acceptance Test) artifacts (at-acceptance-tests-derived-by-an-isolated-agent)
+    # -- SQL in backend_schema_at.py, reused verbatim (AT's first migration).
+    54: MIGRATION_V54,
+    # v55: at_results append-only outcome history (at-red-with-tc-green-routes-to-interpretation-not-code).
+    55: MIGRATION_V55,
+    # v56: artifact graph -- code and docs as entities, edges carry their layer (ag-artifacts-and-edges-with-provenance).
+    56: MIGRATION_V56,
+    # v57: collapse the session_record pile -- DATA ONLY, a frozen literal in
+    # backend_migrations_v57.py (usage-events-sums-cumulative-snapshots-...).
+    57: MIGRATION_V57,
+    58: MIGRATION_V58,
+    59: MIGRATION_V59,
+    60: MIGRATION_V60,
+    61: MIGRATION_V61,
+    # v62: idx_tasks_defect_of -- status spent 5 s in one unindexed EXISTS and
+    # the SessionStart hook timed out on it (backend_migrations_v62.py).
+    62: MIGRATION_V62,
+    # v63: sessions.host_session_id -- the TAUSIK session is the host session
+    # (decision #376; backend_migrations_v63.py).
+    63: MIGRATION_V63,
+    # v64: SPEC-UC, twelfth SPEC type (RENAR 1.1 §8.3) -- guarded rebuild in
+    # run_post_migrations, empty marker here (backend_migrations_v64.py).
+    64: MIGRATION_V64,
+    # v65: memory.provenance -- observed | inferred | told (backend_migrations_v65.py).
+    65: MIGRATION_V65,
+    # v66: decisions.rejected -- alternatives turned down (backend_migrations_v66.py).
+    66: MIGRATION_V66,
+    67: MIGRATION_V67,  # obsolete resolution
+    68: MIGRATION_V68,  # assurance declarations
+    69: MIGRATION_V69,  # structured residual-assurance review records
+    70: MIGRATION_V70,  # natural accepted-task benchmark observations
+    71: MIGRATION_V71,  # observed/configured provenance for cohort identity
+    72: MIGRATION_V72,  # bind review records to reviewed task/file state
+    73: MIGRATION_V73,  # sessions.model_source -- provenance stored at open (backend_migrations_v73.py)
+    74: MIGRATION_V74,  # memory layers/hits/pin + hygiene snapshots (backend_migrations_v74.py)
+    75: MIGRATION_V75,  # pooled-verification cohort storage (backend_migrations_v75.py)
+    # v76: verification_cohorts.state += 'invalidated' (SS4 widening) --
+    # guarded rebuild in run_post_migrations, empty marker here
+    # (backend_migrations_v76.py).
+    76: MIGRATION_V76,
+    # v77: blocked tasks carry question + unblock criteria + unblock audit
+    # trail; pre-v77 blocked rows backfilled with the 'не задан' debt marker
+    # (backend_migrations_v77.py).
+    77: MIGRATION_V77,
+}
+
+# Merged: legacy + current
+MIGRATIONS: dict[int, list[str]] = {**LEGACY_MIGRATIONS, **_CURRENT_MIGRATIONS}
+
+
+check_schema_migration_parity(SCHEMA_VERSION, MIGRATIONS)
+
+
+def run_migrations(conn: "sqlite3.Connection", current_version: int) -> int:  # noqa: F821
+    """Apply pending migrations. Returns new version.
+
+    Each migration is a list of SQL statements executed in order.
+    FK checks are disabled during table rebuilds (SQLite requirement).
+    Migrations are irreversible -- no rollback support.
+    """
+    for ver in sorted(MIGRATIONS.keys()):
+        if ver > current_version:
+            statements = MIGRATIONS[ver]
+            # Disable FK checks for table rebuilds (DROP/RENAME)
+            conn.execute("PRAGMA foreign_keys=OFF")
+            # Write lock up front, version re-read under it: the loser of a race skips
+            # what the winner applied (#266 — deferred BEGIN died "database is locked").
+            conn.execute("BEGIN IMMEDIATE")
+            try:  # everything after BEGIN releases the lock on failure, the re-read too
+                row = conn.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
+                if row and int(row[0]) >= ver:
+                    conn.execute("COMMIT")
+                    conn.execute("PRAGMA foreign_keys=ON")
+                    current_version = int(row[0])
+                    continue
+                for stmt in statements:
+                    stmt = stmt.strip()
+                    if stmt and not stmt.startswith("--"):
+                        if _column_already_there(conn, stmt):
+                            continue
+                        conn.execute(stmt)
+                _stamp(conn, ver)
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                conn.execute("PRAGMA foreign_keys=ON")
+                raise
+            # Re-enable and verify FK integrity
+            conn.execute("PRAGMA foreign_keys=ON")
+            violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+            if violations:
+                raise RuntimeError(f"Migration v{ver} broke FK integrity: {violations}")
+            current_version = ver
+    run_post_migrations(conn, current_version)
+    return current_version

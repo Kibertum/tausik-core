@@ -1,0 +1,438 @@
+"""TAUSIK bootstrap configuration — config loading, stack detection, IDE selection."""
+
+from __future__ import annotations
+
+import datetime
+import json
+import os
+import re
+import sys
+from typing import Any
+
+# Environment variable → top-level `model_profile` in `.tausik/config.json` (bootstrap).
+TAUSIK_MODEL_PROFILE_ENV = "TAUSIK_MODEL_PROFILE"
+GOVERNANCE_PROFILES = frozenset({"full", "memory-only"})
+
+
+def resolve_governance_profile(config: dict[str, Any] | None) -> str:
+    """Resolve the explicit project governance footprint; never infer it from stacks."""
+    raw = (config or {}).get("governance_profile", "full")
+    if not isinstance(raw, str) or raw.strip().lower() not in GOVERNANCE_PROFILES:
+        raise ValueError(
+            f"governance_profile must be one of {sorted(GOVERNANCE_PROFILES)}, got {raw!r}"
+        )
+    return raw.strip().lower()
+
+
+def normalize_model_profile_slug(raw: str) -> str:
+    """Lowercase `a-z0-9-` slug; mirrors skill host profiles."""
+    s = raw.strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    return s.strip("-")
+
+
+def parse_strict_model_profile_env() -> str | None:
+    """Return canonical slug if ``TAUSIK_MODEL_PROFILE`` requests an override.
+
+    - Env absent → ``None`` (caller keeps existing ``model_profile`` in JSON).
+    - Env blank after strip → ``None`` (no override).
+    - Non-blank invalid → raises ``ValueError``.
+    """
+    raw = os.environ.get(TAUSIK_MODEL_PROFILE_ENV)
+    if raw is None:
+        return None
+    if not raw.strip():
+        return None
+    slug = normalize_model_profile_slug(raw)
+    if not slug:
+        raise ValueError(
+            f"Invalid {TAUSIK_MODEL_PROFILE_ENV}={raw!r}: use letters/digits (e.g. claude, codex)."
+        )
+    if len(slug) > 64:
+        raise ValueError(
+            f"Invalid {TAUSIK_MODEL_PROFILE_ENV}: normalized slug exceeds 64 characters."
+        )
+    return slug
+
+
+def apply_model_profile_env_to_config(tausik_config: dict[str, Any]) -> None:
+    """Merge ``TAUSIK_MODEL_PROFILE`` into ``tausik_config`` (mutates)."""
+    slug = parse_strict_model_profile_env()
+    if slug is not None:
+        tausik_config["model_profile"] = slug
+
+
+DEFAULT_CONFIG: dict[str, Any] = {
+    "core_skills": [
+        "start",
+        "end",
+        "task",
+        "plan",
+        "checkpoint",
+        "commit",
+        "explore",
+        "review",
+        "test",
+        "ship",
+        "debug",
+        "run",
+    ],
+    "extension_skills": [],
+    "installed_skills": [],
+    "ide": "claude",
+}
+
+
+# Supported IDEs → their config dir. DERIVED from ide_utils.IDE_REGISTRY, the
+# one registry that holds per-host facts (config_dir, rules_file, skills_subdir)
+# and whose contract already says "adding a new IDE = registering it there"
+# (four-ide-registries-collapse). Consumed by bootstrap.get_ide_target,
+# `--ide all`, and the CLI wrapper template (injected at copy time by
+# install_cli_wrapper). The literal below is the annotated defensive mirror for
+# when scripts/ is not importable across the sys.path boundary; the
+# single-source tests hold the derived and mirrored sets equal.
+def _ide_dirs() -> dict[str, str]:
+    try:
+        from ide_utils import (
+            IDE_REGISTRY,
+        )  # ruff-not-enabled: PLC0415 — scripts/ is on sys.path in every runner
+
+        return {ide: str(entry["config_dir"]) for ide, entry in IDE_REGISTRY.items()}
+    except ImportError:
+        # MIRROR of ide_utils.IDE_REGISTRY (config_dir column) — keep in step with it.
+        return {
+            "claude": ".claude",
+            "cursor": ".cursor",
+            "windsurf": ".windsurf",
+            "codex": ".codex",
+            "qwen": ".qwen",
+            "kilo": ".kilo",
+            "opencode": ".opencode",
+        }
+
+
+IDE_DIRS: dict[str, str] = _ide_dirs()
+
+# IDEs that have a full scaffold branch in bootstrap (generate_*_config).
+# These are the only individually-selectable `--ide` targets and the set
+# that `--ide all` expands to. windsurf lives in IDE_DIRS (so the wrapper can
+# discover scripts that land there) but has no generator yet, so it is
+# intentionally excluded here. Add an IDE once its scaffold branch exists in
+# bootstrap.run_for_ide.
+#
+# `opencode` was the cautionary tale that produced this split: the docs called it
+# supported while no generator existed, and an agent filling that gap by hand took
+# a user's host down. It joins the list only now — with bootstrap_opencode
+# (config + rules) and harness/opencode/plugins/tausik-qg0.js (QG-0 enforcement)
+# both shipped. Membership here is a promise; keep it backed by code.
+#
+# `codex` joins on the same terms, and its measurement is worth keeping: the host
+# DOES have a hook API (`hooks.json`, PreToolUse/PostToolUse/SessionStart, the
+# `permissionDecision` protocol — all present in codex.exe), so Rule 2 and the
+# write ACL are HARD there, not advisory. What it does not have is any
+# workspace variable, and a `.codex/hooks.json` written with Claude's
+# `${CLAUDE_PROJECT_DIR}` expanded to nothing and silently disabled all thirteen
+# gates. bootstrap_codex writes absolute paths for exactly that reason.
+SCAFFOLD_IDES: list[str] = ["claude", "cursor", "qwen", "kilo", "opencode", "codex"]
+
+# --- Agent OUTPUT economy (orthogonal to context_tier, which sizes the INPUT rules) ---
+# `caveman` = telegraphic compressed output (bootstrap_templates.CAVEMAN_DIRECTIVE).
+OUTPUT_MODE_VALUES = frozenset({"off", "caveman"})
+DEFAULT_OUTPUT_MODE = "off"
+
+
+def resolve_output_mode(cfg: dict | None) -> str:
+    """Normalized ``output_mode`` from the config root; a bad value → ``off`` (never raises).
+
+    Unlike ``context_tier``, a typo in an output-economy knob must not break a bootstrap:
+    missing / null / non-string / unknown → ``off``; whitespace and case are normalized.
+    """
+    raw = cfg.get("output_mode", DEFAULT_OUTPUT_MODE) if isinstance(cfg, dict) else ""
+    mode = raw.strip().lower() if isinstance(raw, str) else ""
+    return mode if mode in OUTPUT_MODE_VALUES else DEFAULT_OUTPUT_MODE
+
+
+# Hardcoded fallback signatures — used when stack_registry can't be loaded
+# (very early bootstrap, missing stacks/ dir). The canonical source is
+# `<repo>/stacks/<name>/stack.json` consumed via `stack_registry`.
+_FALLBACK_STACK_SIGNATURES: dict[str, list[tuple[str, str]]] = {
+    "python": [("pyproject.toml", ""), ("requirements.txt", ""), ("setup.py", "")],
+    "fastapi": [("requirements.txt", "fastapi"), ("pyproject.toml", "fastapi")],
+    "django": [("manage.py", ""), ("requirements.txt", "django")],
+    "react": [("package.json", '"react"')],
+    "next": [("package.json", '"next"')],
+    "vue": [("package.json", '"vue"')],
+    "typescript": [("tsconfig.json", "")],
+    "go": [("go.mod", "")],
+    "rust": [("Cargo.toml", "")],
+    "java": [("pom.xml", ""), ("build.gradle", "")],
+    "laravel": [("artisan", ""), ("composer.json", "laravel")],
+    "php": [("composer.json", "")],
+    "terraform": [("*.tf", ""), ("*.tfvars", "")],
+    "ansible": [("ansible.cfg", ""), ("playbooks/", ""), ("roles/", "")],
+    "helm": [("Chart.yaml", ""), ("Chart.yml", "")],
+    "kubernetes": [("k8s/", ""), ("manifests/", ""), (".kube/", "")],
+    "docker": [("Dockerfile", ""), ("Containerfile", "")],
+}
+
+
+def _load_stack_signatures() -> dict[str, list[tuple[str, str]]]:
+    """Build STACK_SIGNATURES from stack_registry, falling back to hardcoded.
+
+    Each registry decl entry `{file, type, keyword}` is rendered to the
+    `(filename, keyword)` tuple form _signature_match() understands:
+      * type=exact   → use file as-is
+      * type=glob    → keep as-is (containing '*')
+      * type=dir-marker → append a trailing '/' so _signature_match treats it as dir
+    """
+    try:
+        import os as _os
+        import sys as _sys
+
+        # bootstrap/ → repo root → scripts/ for the registry import.
+        _scripts = _os.path.join(
+            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "scripts"
+        )
+        if _scripts not in _sys.path:
+            _sys.path.insert(0, _scripts)
+        from stack_registry import default_registry
+
+        reg = default_registry()
+        out: dict[str, list[tuple[str, str]]] = {}
+        for name in reg.all_stacks():
+            entries: list[tuple[str, str]] = []
+            for sig in reg.signatures_for(name):
+                f = sig.get("file", "")
+                t = sig.get("type", "exact")
+                k = sig.get("keyword", "") or ""
+                if t == "dir-marker" and not f.endswith("/"):
+                    f = f + "/"
+                entries.append((f, k))
+            if entries:
+                out[name] = entries
+        if out:
+            return out
+        return _FALLBACK_STACK_SIGNATURES
+    except Exception:
+        import logging
+
+        logging.getLogger("tausik.bootstrap").warning(
+            "Stack registry unavailable; using hardcoded STACK_SIGNATURES",
+            exc_info=True,
+        )
+        return _FALLBACK_STACK_SIGNATURES
+
+
+STACK_SIGNATURES: dict[str, list[tuple[str, str]]] = _load_stack_signatures()
+
+# Extension skills are now in tausik/skills repo (official) or vendor repos.
+# This list is used only by the analyzer for auto-detection hints.
+ALL_EXTENSION_SKILLS = [
+    "docs",
+    "pdf",
+    "excel",
+    "ui-ux-pro-max",
+    "seo",
+]
+
+
+def load_config(config_path: str) -> dict[str, Any]:
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            import logging
+
+            logging.getLogger("tausik.config").warning(
+                "Config corrupted (%s): %s — using defaults", config_path, e
+            )
+    return dict(DEFAULT_CONFIG)
+
+
+def save_config(config_path: str, cfg: dict[str, Any]) -> None:
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+
+def _signature_match(project_dir: str, filename: str) -> str | None:
+    """Resolve a signature pattern to a concrete path, or None if no match.
+
+    Supports three forms:
+      - exact filename → os.path.isfile
+      - glob pattern (contains '*') → recursive glob with small depth cap
+      - path ending with '/' → os.path.isdir
+    """
+    if filename.endswith("/"):
+        return (
+            os.path.join(project_dir, filename.rstrip("/"))
+            if os.path.isdir(os.path.join(project_dir, filename.rstrip("/")))
+            else None
+        )
+    if "*" in filename:
+        import glob
+
+        # Search up to 3 levels deep — covers monorepos like modules/aws/main.tf
+        for depth in ("", "*/", "*/*/"):
+            for hit in glob.glob(os.path.join(project_dir, depth + filename)):
+                if os.path.isfile(hit):
+                    return hit
+        return None
+    candidate = os.path.join(project_dir, filename)
+    return candidate if os.path.isfile(candidate) else None
+
+
+def detect_stacks(project_dir: str) -> list[str]:
+    """Detect technology stacks by file signatures."""
+    found: list[str] = []
+    for stack, signatures in STACK_SIGNATURES.items():
+        for filename, keyword in signatures:
+            match = _signature_match(project_dir, filename)
+            if match is None:
+                continue
+            if not keyword:
+                found.append(stack)
+                break
+            # Keyword check only meaningful for files (not directories).
+            if not os.path.isfile(match):
+                continue
+            try:
+                with open(match, encoding="utf-8", errors="ignore") as f:
+                    content = f.read(65536)
+                if keyword in content:
+                    found.append(stack)
+                    break
+            except OSError:
+                pass
+    return list(set(found))
+
+
+def detect_extension_skills(
+    project_dir: str,
+    core_skills: list[str] | None = None,
+    available_skills: set[str] | None = None,
+) -> list[str]:
+    """Smart-detect which extension skills are useful for this project.
+
+    Skills that are already in core_skills are excluded to avoid duplicates. When
+    ``available_skills`` is supplied, recommendations are limited to sources the
+    current bootstrap can actually deploy; a clean public checkout must not advertise
+    an adjacent-store skill that is not present.
+    """
+    _core = set(core_skills or [])
+    skills: list[str] = []
+    # NOTE: no .git -> "diff" mapping — there is no "diff" extension skill in the
+    # official registry (git workflow is covered by the built-in commit/review
+    # skills). Recommending it produced a phantom "skills not found: diff" warning.
+    # Docs
+    for marker in ["docs/", "sphinx/", "mkdocs.yml", "docusaurus.config.js"]:
+        if os.path.exists(os.path.join(project_dir, marker)):
+            skills.append("docs")
+            break
+    detected = set(skills) - _core
+    if available_skills is not None:
+        detected &= available_skills
+    return sorted(detected)
+
+
+def deployable_extension_skills(
+    lib_dir: str,
+    *,
+    include_official: bool = False,
+    explicitly_installed: list[str] | None = None,
+) -> set[str]:
+    """Names bootstrap can deploy without inventing or downloading a source."""
+    available = set(explicitly_installed or [])
+    builtin = os.path.join(lib_dir, "harness", "skills")
+    if os.path.isdir(builtin):
+        available.update(
+            name
+            for name in os.listdir(builtin)
+            if not name.startswith((".", "_")) and os.path.isdir(os.path.join(builtin, name))
+        )
+    if not include_official:
+        return available
+    roots = (lib_dir, os.path.dirname(os.path.abspath(lib_dir)))
+    for root in roots:
+        for dirname in ("skills-official", "skills"):
+            registry = os.path.join(root, dirname, "registry.json")
+            try:
+                with open(registry, encoding="utf-8") as fh:
+                    available.update(json.load(fh).get("skills", {}))
+            except (OSError, ValueError, AttributeError):
+                continue
+    return available
+
+
+def save_tausik_config(
+    tausik_config_path: str,
+    config: dict,
+    lib_commit: str | None,
+    stacks: list[str],
+    ides: list[str],
+    project_dir: str,
+    get_ide_target_fn: Any = None,
+    lib_dir: str | None = None,
+) -> None:
+    """Save unified config, auto-enable gates, clean up old files.
+
+    lib_dir: path to TAUSIK library root (for scripts/ import).
+    """
+    tausik_config: dict = {}
+    if os.path.exists(tausik_config_path):
+        try:
+            with open(tausik_config_path, encoding="utf-8") as f:
+                tausik_config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            tausik_config = {}
+    apply_model_profile_env_to_config(tausik_config)
+    config["_meta"] = {
+        "lib_commit": lib_commit or "unknown",
+        "generated_at": datetime.datetime.now().isoformat(),
+        "skills_included": config.get("core_skills", []) + config.get("extension_skills", []),
+    }
+    tausik_config["bootstrap"] = config
+    tausik_config.setdefault("rag", {})["mode"] = "fts5"
+    # New/bootstrap-refreshed projects use the measured compact advertisement.
+    # An explicit false is a supported opt-out; malformed config stays fail-open
+    # because the runtime treats a non-object `mcp` node as disabled.
+    mcp_config = tausik_config.setdefault("mcp", {})
+    if isinstance(mcp_config, dict):
+        mcp_config.setdefault("compact_tool_list", True)
+    _lib = lib_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    scripts_path = os.path.join(_lib, "scripts")
+    if scripts_path not in sys.path:
+        sys.path.insert(0, scripts_path)
+    try:
+        from project_config import DEFAULT_CONTEXT_TIER as _dct
+    except ImportError:
+        _dct = "minimal"
+    tausik_config.setdefault("context_tier", _dct)
+    if stacks:
+        try:
+            from project_config import auto_enable_gates_for_stacks
+
+            newly = auto_enable_gates_for_stacks(tausik_config, stacks)
+            if newly:
+                print(f"  Gates auto-enabled for {', '.join(stacks)}: {', '.join(newly)}")
+        except ImportError:
+            pass
+    os.makedirs(os.path.dirname(tausik_config_path), exist_ok=True)
+    tmp = tausik_config_path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(tausik_config, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, tausik_config_path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    if get_ide_target_fn:
+        for ide in ides:
+            old = os.path.join(get_ide_target_fn(project_dir, ide), ".tausik-bootstrap.json")
+            if os.path.exists(old):
+                os.remove(old)
+                print(f"  Migrated: removed old {old}")

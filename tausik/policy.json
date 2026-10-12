@@ -1,0 +1,18 @@
+{
+  "_comment": "COMMITTED, branch-coupled PROJECT-TIER config. Lives in the non-dotted tausik/ projection (NOT the gitignored .tausik/) so a fresh clone carries it — same reason as the sibling gates.json. Read by scripts/config_policy.py, composed UNDER .tausik/config.json and then judged by the ordinary config_trust guards: this file is the UNTRUSTED project tier, so it may only TIGHTEN enforcement, never relax it. Put a tightening that must survive cloning HERE; .tausik/config.json never leaves the working copy it was generated in. See decision #287 / task this-repos-strictness-lives-in-a-gitignored-file.",
+  "gates": {
+    "bootstrap_drift": {
+      "enabled": true,
+      "_reason": "УЖЕСТОЧЕНИЕ ОТНОСИТЕЛЬНО ПОЛЬЗОВАТЕЛЬСКОГО ТИРА, ГДЕ ГЕЙТ ВЫКЛЮЧЕН. В ~/.tausik/config.json он снят из-за misfire на layout submodule (lib_dir != project_dir, дедэнд #126), и там же дословно записано: «в самом репозитории TAUSIK (lib_dir == project_dir) гейт работает верно и там это отключение — ПОТЕРЯ». Здесь lib_dir == project_dir, значит misfire невозможен, а потеря реальна: в начале сессии #193 все пять развёрнутых копий (.claude/.cursor/.kilo/.opencode/.qwen) стояли без правок v48 с прошлой смены, и нашлись только ручной сверкой файлов. Включённый гейт назвал бы их сам. Пользовательский ключ НЕ ТРОГАЕТСЯ: он верен для проектов-потребителей. Снять это ужесточение, если lib_dir этого репозитория перестанет совпадать с project_dir."
+    }
+  },
+  "task_done": {
+    "changelog_gate": {
+      "enabled": true,
+      "files": ["CHANGELOG.md", "CHANGELOG.ru.md"],
+      "_reason": "УЖЕСТОЧЕНИЕ, ОСТАВЛЕННОЕ ПОЗАДИ ПЕРЕЕЗДОМ #287. Гейт объявлен severity=block в реестре, а включался ТОЛЬКО из .tausik/config.json — файла, который gitignored и до клона не доезжает. Замер в чистом git worktree на cdacac9: `gates status` печатает [OFF] changelog (block), тогда как в рабочей копии [ON]; из-за этого test_gate_degeneracy падал в выгрузке ДВАЖДЫ, объявляя долг DISABLED — «declared severity=block and switched OFF, it emits no row at all, which reads exactly like a gate that ran and found nothing». Заметка в том самом .tausik/config.json уже говорила, что ужесточению здесь не место, и всё же перевезли лишь auto_verify и gates.bootstrap_drift, а этот ключ остался. Дефолт фреймворка — выключено (opt-in, gate_changelog.py), и это верно для проектов, не ведущих changelog; ЗДЕСЬ дисциплина принята решением #161 и конвенцией #275, обе локали обязательны. Ужесточение относительно дефолта, а не относительно доверенного тира, поэтому ничего не ослабляет. Снять, если этот репозиторий перестанет вести changelog или откажется от конвенции #275."
+    },
+    "auto_verify": false,
+    "_auto_verify_reason": "УЖЕСТОЧЕНИЕ ОТНОСИТЕЛЬНО ПОЛЬЗОВАТЕЛЬСКОГО ТИРА, ГДЕ auto_verify=true. Безопасная позиция этого выключателя — off (config_trust.py:86), и включённым он закрывает задачу на inline-прогоне, ОБХОДЯ ПОДПИСАННУЮ КВИТАНЦИЮ (config_trust.py:148). Дефолт фреймворка — False (gate_verify_first.py:300). В пользовательском тире он включён ради vaflower (сессия #11), где классификатор security_pattern.py объявляет чувствительным весь код счёта и платежей и верификация не кэшируется никогда; там причина законная, и ключ НЕ ТРОГАЕТСЯ. Здесь она не применима, а цена высока: релиз 1.9 заявлен как релиз про доказательства, и закрывать его задачи в обход подписанной квитанции значит доказывать своим же инструментом ровно ничего. Снять это ужесточение, если верификация в ЭТОМ репозитории перестанет выдавать расписку по структурной причине, а не из-за незелёного прогона."
+  }
+}

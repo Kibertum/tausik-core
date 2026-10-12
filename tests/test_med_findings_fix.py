@@ -1,0 +1,200 @@
+"""Tests for v1.4.1 MED review findings 6, 7, 9, 11."""
+
+from __future__ import annotations
+
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+
+from project_backend import SQLiteBackend
+from project_service import ProjectService
+from tausik_utils import ServiceError
+
+
+def _make_service(db_path: str) -> ProjectService:
+    return ProjectService(SQLiteBackend(db_path))
+
+
+@pytest.fixture
+def svc(tmp_path):
+    s = _make_service(str(tmp_path / "med.db"))
+    s.epic_add("e", "Epic")
+    s.story_add("e", "s", "Story")
+    yield s
+    s.be.close()
+
+
+def _ready_task(svc, slug: str, *, budget: int | None = None) -> None:
+    svc.task_add("s", slug, "T", role="developer", goal="g", call_budget=budget)
+    svc.be.task_update(slug, acceptance_criteria="Returns 400 on invalid input.")
+
+
+# === MED-6: task_update budget wins over explicit tier ===
+
+
+class TestUpdateBudgetWins:
+    def test_budget_overrides_explicit_tier(self, svc):
+        svc.task_add("s", "t1", "Task", role="developer")
+        result = svc.task_update("t1", call_budget=200, tier="trivial")
+        task = svc.be.task_get("t1")
+        assert task["call_budget"] == 200
+        # 200 → 'deep' auto; explicit 'trivial' is dropped (MED-6)
+        assert task["tier"] == "deep"
+        assert "overridden" in result.lower()
+
+    def test_tier_only_still_works(self, svc):
+        svc.task_add("s", "t1", "Task", role="developer")
+        svc.task_update("t1", tier="moderate")
+        assert svc.be.task_get("t1")["tier"] == "moderate"
+
+    def test_budget_only_auto_derives(self, svc):
+        svc.task_add("s", "t1", "Task", role="developer")
+        svc.task_update("t1", call_budget=28)
+        task = svc.be.task_get("t1")
+        assert task["call_budget"] == 28
+        assert task["tier"] == "light"
+
+    def test_other_fields_still_apply_with_budget(self, svc):
+        svc.task_add("s", "t1", "Task", role="developer")
+        svc.task_update("t1", call_budget=28, tier="deep", notes="hello")
+        task = svc.be.task_get("t1")
+        assert task["notes"] == "hello"
+        assert task["tier"] == "light"
+
+
+# === MED-7 retired in 1.10: --force has nothing left to bypass (decision #376) ===
+
+
+class TestForceFlagIsRetired:
+    """Session capacity used to be a gate on task start and `--force` its
+    audited escape hatch (MED-7). 1.10 made capacity a SIGNAL — printed with
+    the start, never a refusal — so the flag has nothing to bypass. It is not
+    silently accepted: that would teach the old habit."""
+
+    # The "overshoot starts with an advisory" case lives once, in
+    # tests/test_session_signal_not_gate.py — the dedupe gate counts shapes.
+
+    def test_force_is_refused_with_the_reason(self, svc):
+        svc.session_start()
+        _ready_task(svc, "big", budget=300)
+        with pytest.raises(ServiceError, match="retired"):
+            svc.task_start("big", force=True)
+        assert svc.be.task_get("big")["status"] == "planning"
+
+    def test_no_capacity_force_event_is_ever_written(self, svc):
+        svc.session_start()
+        _ready_task(svc, "big", budget=300)
+        svc.task_start("big")
+        actions = [e["action"] for e in svc.be.events_list(entity_type="task", entity_id="big")]
+        assert "capacity_force_start" not in actions
+        assert "FORCED" not in (svc.be.task_get("big")["notes"] or "")
+
+    def test_a_task_within_capacity_gets_no_advisory(self, svc):
+        svc.session_start()
+        _ready_task(svc, "ok", budget=10)
+        result = svc.task_start("ok")
+        assert "Session capacity" not in result
+
+
+# === MED-9: julianday compare for event-count window ===
+
+
+class TestEventCountTimestampSafety:
+    def test_microsecond_timestamps_handled(self, svc):
+        # A budgeted task now needs an open session: an absent one is an
+        # UNMEASURED capacity, not an unlimited one (decision #223). These two
+        # tests are about the event-count window, not about capacity — they
+        # simply relied on the gate no-oping.
+        svc.session_start()
+        _ready_task(svc, "t1", budget=10)
+        svc.task_start("t1")
+        svc.be._ex(
+            "INSERT INTO events(entity_type, entity_id, action, created_at) "
+            "VALUES('task', 't1', 'note', '2099-01-01T12:00:00.123456+00:00')"
+        )
+        cnt = svc.be.task_event_count_in_window("t1")
+        assert isinstance(cnt, int)
+        assert cnt >= 1
+
+    def test_window_excludes_after_completed(self, svc):
+        svc.session_start()
+        _ready_task(svc, "t1", budget=10)
+        svc.task_start("t1")
+        svc.be.task_update("t1", completed_at="2020-01-01T00:00:00Z", status="done")
+        svc.be._ex(
+            "INSERT INTO events(entity_type, entity_id, action, created_at) "
+            "VALUES('task', 't1', 'late', '2099-01-01T00:00:00Z')"
+        )
+        cnt = svc.be.task_event_count_in_window("t1")
+        all_count = len(svc.be.events_list(entity_type="task", entity_id="t1"))
+        assert cnt < all_count
+
+
+# === MED-11: docs ===
+
+
+class TestOverflowDocs:
+    def test_claude_md_mentions_overflow_cap(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "CLAUDE.md")
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        # The 4096B static cap (claude-md-trim-reference-line task) trimmed the
+        # verbose ">N lines / deep file" prose. Contract now: the cap value
+        # and the gate name must remain mentioned in CLAUDE.md so the agent
+        # still sees the rule.
+        #
+        # The number is READ FROM THE GATE, never spelled here: this pin used to
+        # hardcode "400" and silently went stale the moment decision #190 raised
+        # the cap to 500 — CLAUDE.md was updated correctly and the test failed
+        # anyway, which is a doc-drift guard drifting from the thing it guards.
+        from gate_registry import GATE_REGISTRY
+
+        cap = GATE_REGISTRY["filesize"].default_config["max_lines"]
+        assert str(cap) in text, (
+            f"CLAUDE.md must state the current filesize cap ({cap}); "
+            "update the prose when the gate's max_lines changes"
+        )
+        assert "filesize" in text.lower()
+
+    def test_tools_py_mentions_overflow(self):
+        path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "harness",
+            "claude",
+            "mcp",
+            "project",
+            "tools.py",
+        )
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        assert ">400" in text
+        assert "deep" in text.lower()
+
+    def test_deployed_mcp_matches_the_canonical_source(self):
+        """The deployed copy must match its source.
+
+        This used to also compare harness/cursor/mcp — a byte-identical hand-maintained
+        mirror that has since been deleted (copy_mcp hands every IDE the canonical
+        harness/claude tree). What remains worth asserting is that the DEPLOYED tree has
+        not drifted from source; that a mirror never comes back is guarded separately in
+        tests/test_mcp_single_canonical_tree.py.
+        """
+        base = os.path.join(os.path.dirname(__file__), "..")
+        assert not os.path.exists(os.path.join(base, "harness", "cursor", "mcp")), (
+            "the byte-copy cursor MCP mirror is back — see test_mcp_single_canonical_tree"
+        )
+        with open(
+            os.path.join(base, "harness", "claude", "mcp", "project", "tools.py"),
+            encoding="utf-8",
+        ) as f:
+            canonical = f.read()
+        with open(
+            os.path.join(base, ".claude", "mcp", "project", "tools.py"),
+            encoding="utf-8",
+        ) as f:
+            installed = f.read()
+        assert canonical == installed

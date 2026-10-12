@@ -1,0 +1,107 @@
+"""Парсеры команд `verify` и `receipt`.
+
+Вынесено из project_parser.py: добавление одного флага (--no-tests-expected,
+задача verify-no-test-mapped-dead-end) перевело файл через лимит в 400 строк.
+Резать по границе команд честнее, чем ужимать help — справка агента и так
+единственное место, где он узнаёт о существовании флага.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def add_verify_parsers(sub: Any) -> None:
+    """Зарегистрировать `verify` и `receipt` на переданном subparsers."""
+    vp = sub.add_parser("verify", help="Run scoped quality gates")
+    vp.add_argument("--task")
+    vp.add_argument(
+        "--tasks",
+        nargs="+",
+        default=None,
+        help=(
+            "Pooled verification for an explicit task cohort (>=2 slugs): "
+            "one gate pass over the union of the members' relevant_files, "
+            "a persisted cohort identity, and reuse refused by a NAMED "
+            "invalidator when membership/fingerprints/gates drift or the "
+            "scope is security-sensitive. See "
+            "docs/en/verification-cohort-contract.md."
+        ),
+    )
+    vp.add_argument(
+        "--story",
+        default=None,
+        help="Resolve this story's non-done tasks as the cohort (review-ready "
+        "required, >=2 members, one pooled pass).",
+    )
+    vp.add_argument(
+        "--epic",
+        default=None,
+        help="Resolve this epic's non-done tasks as the cohort (same rules as --story).",
+    )
+    _scopes = ["lightweight", "standard", "high", "critical", "manual"]
+    vp.add_argument("--scope", choices=_scopes, default="manual")
+    vp.add_argument(
+        "--relevant-files",
+        nargs="*",
+        default=None,
+        help=(
+            "Declare the task's scope AND verify it in one step. Requires "
+            "--task. The paths are written to the task, so `task done` reads "
+            "the same scope and hits the verify cache. Without a declared "
+            "scope every scoped gate is SKIPPED and the receipt certifies "
+            "nothing."
+        ),
+    )
+    vp.add_argument(
+        "--prepare",
+        action="store_true",
+        help="Accepted and ignored: preparation is the default now. Kept so callers "
+        "that already pass it keep working.",
+    )
+    vp.add_argument(
+        "--no-prepare",
+        action="store_true",
+        help="Do NOT run the fixed preparation (`ruff format` over the declared scope, "
+        "then the bootstrap redeploy). The default is to run it, because both fix a gate "
+        "that goes red for a reason known in advance and each otherwise costs its own "
+        "call. Pass this to judge the tree exactly as it stands.",
+    )
+    vp.add_argument(
+        "--no-tests-expected",
+        action="store_true",
+        help=(
+            "Declare that the task's files are not expected to map to any test "
+            "(docs, config, migrations). Without it an all-skipped run blocks. "
+            "The run is recorded with no_tests_declared=1 so closures "
+            "with no executed gate stay countable."
+        ),
+    )
+
+    # --- receipt (v15-receipt-emit-on-verify) ---
+    rcpt_p = sub.add_parser("receipt", help="Signed verify receipts (ed25519)")
+    rcpt_sub = rcpt_p.add_subparsers(dest="receipt_cmd")
+    rs = rcpt_sub.add_parser(
+        "show",
+        help="Print + re-verify the latest signed receipt",
+        epilog="Example: tausik receipt show --task my-task",
+    )
+    rs.add_argument("--task", help="Latest receipt for this task slug")
+    rs.add_argument("--run", type=int, help="Receipt of a specific verification_run id")
+    rs.add_argument("--json", action="store_true", help="Print the raw signed envelope")
+    re_ = rcpt_sub.add_parser(
+        "export",
+        help="Export a portable, self-verifiable receipt artifact",
+        epilog="Example: tausik receipt export --task my-task",
+    )
+    re_.add_argument("--task", help="Latest receipt for this task slug")
+    re_.add_argument("--run", type=int, help="Receipt of a specific verification_run id")
+    re_.add_argument("--out", help="Output path (default .tausik/receipts/<task>-<sha8>.json)")
+    re_.add_argument("--stdout", action="store_true", help="Print artifact instead of writing")
+    rv = rcpt_sub.add_parser(
+        "verify",
+        help="Verify an exported receipt file offline (no DB/keystore)",
+        epilog="Example: tausik receipt verify .tausik/receipts/my-task-abc12345.json",
+    )
+    rv.add_argument("file", help="Path to a tausik-receipt-export/v1 JSON file")
+    rv.add_argument("--pub", help="Override key: 'ed25519:<64 hex>' from `tausik key show`")

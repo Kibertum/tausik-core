@@ -1,0 +1,535 @@
+"""TAUSIK argparse parser — CLI command tree."""
+
+from __future__ import annotations
+
+import argparse
+
+from knowledge_db import default_store_display_path
+from output_rollup import add_rollup_flags
+from project_parser_errors import SelfCorrectingParser, add_version_flag
+from project_parser_hierarchy import build_hierarchy_subparsers
+from project_parser_task import add_task
+from project_parser_verify import add_verify_parsers
+from project_types import (
+    VALID_EDGE_RELATIONS,
+    VALID_MEMORY_TYPES,
+    VALID_NODE_TYPES,
+)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    # v1.5 self-correcting CLI: arg errors print usage + known-good examples.
+    # Subparsers inherit the class, so the whole tree is covered.
+    p = SelfCorrectingParser(prog="tausik", description="TAUSIK")
+    add_version_flag(p)
+    sub = p.add_subparsers(dest="command")
+
+    # --- init ---
+    init_p = sub.add_parser("init", help="Initialize project")
+    init_p.add_argument("--name", default=None, help="Project slug (default: directory name)")
+    init_p.add_argument(
+        "--template",
+        default=None,
+        help="Scaffold template: 'aidd' creates idea.md/vision.md/conventions.md "
+        "with conflict prompt (default skip).",
+    )
+    init_p.add_argument(
+        "--force",
+        action="store_true",
+        help="With --template: overwrite existing files without prompting.",
+    )
+    init_p.add_argument(
+        "--here",
+        action="store_true",
+        help="Create a project in THIS directory even though an enclosing "
+        "project exists (nested projects keep separate databases).",
+    )
+
+    # --- status ---
+    st_p = sub.add_parser("status", help="Project overview")
+    st_p.add_argument(
+        "--compact",
+        action="store_true",
+        help="Single-line JSON (tasks + session id + optional session_warning)",
+    )
+
+    # --- epic + story (extracted to project_parser_hierarchy for filesize) ---
+    build_hierarchy_subparsers(sub)
+
+    # --- task --- (extracted to project_parser_task.add_task to keep filesize gate)
+    add_task(sub)
+
+    # --- team ---
+    sub.add_parser("team", help="Team status — tasks by agent")
+
+    # --- session ---
+    from project_parser_session import build_session_subparsers
+
+    build_session_subparsers(sub)
+
+    from project_parser_actz import build_actz_subparsers
+    from project_parser_adapts import build_adapt_subparsers
+    from project_parser_at import build_at_subparsers
+    from project_parser_aidd import build_aidd_subparsers
+    from project_parser_role import build_role_subparsers
+    from project_parser_specs import build_spec_subparsers
+    from project_parser_stack import build_stack_subparsers
+
+    build_stack_subparsers(sub)
+    build_role_subparsers(sub)
+    build_spec_subparsers(sub)
+    build_adapt_subparsers(sub)
+    build_actz_subparsers(sub)
+    build_at_subparsers(sub)
+    build_aidd_subparsers(sub)
+    __import__("project_cli_demo").build_demo_subparser(sub)
+    doctor_p = sub.add_parser("doctor", help="Health check: venv + DB + MCP + skills + drift")
+    doctor_p.add_argument(
+        "--fix-bytecode",
+        action="store_true",
+        help="Purge exactly the .pyc files that name a directory other than their own "
+        "(stale after a tree move; the interpreter recreates them). Reports otherwise.",
+    )
+    doctor_p.add_argument(
+        "--harness-audit",
+        action="store_true",
+        help="Scan the INSTALLED state instead of the health check: deployed profiles, "
+        "MCP configs and memory entries re-read for invisible Unicode, secrets, "
+        "hook drift and agent-directed directives. WARN verdict only, exit 0.",
+    )
+    doctor_p.add_argument(
+        "--friction",
+        action="store_true",
+        help="Detect agent friction against the framework (non-zero CLI exits, help-after-failure, "
+        "argument guessing, gate bypasses, framework dead ends) and file REDACTED draft defects "
+        "into .tausik/friction/. WARN verdict only, exit 0; nothing is sent anywhere.",
+    )
+
+    uc_p = sub.add_parser(
+        "update-check", help="Ask GitHub (at most daily) whether a newer TAUSIK release exists"
+    )
+    uc_p.add_argument("--now", action="store_true", help="Ask now, ignoring the daily cache")
+
+    drift_p = sub.add_parser(
+        "drift",
+        help="Drift detectors: RENAR (schema, provenance, standard corpus) and the SENAR corpus",
+    )
+    drift_p.add_argument(
+        "--detector",
+        choices=["schema", "provenance", "supersession", "standard", "senar", "all"],
+        default="all",
+        help="Which drift detector to run (default: all)",
+    )
+
+    renar_p = sub.add_parser("renar", help="RENAR conformance self-assessment")
+    renar_sub = renar_p.add_subparsers(dest="renar_cmd")
+    rc = renar_sub.add_parser(
+        "conformance", help="Generate RENAR-CONFORMANCE.yaml from live DB state"
+    )
+    rc.add_argument(
+        "--assessor",
+        default=None,
+        help="Assessor id (default: config renar_default_assessor -> git user.name -> unknown-assessor)",
+    )
+    rc.add_argument(
+        "--write", action="store_true", help="Write RENAR-CONFORMANCE.yaml to project root"
+    )
+    re_ = renar_sub.add_parser(
+        "export", help="Serialize specs+adapts+conformance to a derived renar/ tree"
+    )
+    re_.add_argument("--out", default=None, help="Output dir (default: <project_root>/renar/)")
+    re_.add_argument(
+        "--check",
+        action="store_true",
+        help="Exit 1 if the renar/ tree is stale vs live DB (CI gate)",
+    )
+
+    # --- state (state-git-export): git-native DB→tausik/ projection ---
+    from project_parser_state import build_state_subparsers
+
+    build_state_subparsers(sub)
+
+    # --- knowledge (shared store backup) ---
+    shared_store = default_store_display_path()
+    kn_p = sub.add_parser("knowledge", help=f"Shared knowledge store ({shared_store})")
+    kn_sub = kn_p.add_subparsers(dest="knowledge_cmd")
+    kn_export = kn_sub.add_parser(
+        "export",
+        help="Back up the shared store as one readable file per record",
+        epilog="Example: tausik knowledge export --to D:/backups/knowledge",
+    )
+    kn_export.add_argument(
+        "--to",
+        required=True,
+        help="LOCAL directory to write into. Remote destinations (s3://, https://, UNC) "
+        "are refused: the store is kept unredacted and must not leave this machine.",
+    )
+    kn_export.add_argument(
+        "--redacted",
+        action="store_true",
+        help="Pass every text field through the publication boundary: absolute paths, "
+        "e-mails, private URLs (publication.private_url_patterns) and project names "
+        "(this project's directory name plus publication.project_names) become typed "
+        "placeholders. The manifest says the backup is redacted. Use this for a backup "
+        "that will leave the machine; a plain backup stays faithful for restore.",
+    )
+    kn_restore = kn_sub.add_parser(
+        "restore", help="Rebuild the shared store from a backup (matches records by uuid)"
+    )
+    kn_restore.add_argument("--from", dest="from_dir", required=True, help="Backup directory")
+    kn_pr = kn_sub.add_parser("promote", help="Copy a project memory/decision to the store")
+    kn_pr_what = kn_pr.add_mutually_exclusive_group(required=True)
+    kn_pr_what.add_argument("--memory", type=int, default=None, help="Memory id")
+    kn_pr_what.add_argument("--decision", type=int, default=None, help="Decision id")
+    kn_pr.add_argument("--yes", action="store_true", help="Write it (without: show only)")
+    kn_import = kn_sub.add_parser(
+        "import-brain",
+        help="One-off: copy the local Notion mirror into the shared store (no network)",
+    )
+    kn_import.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would be imported without writing anything",
+    )
+
+    # --- decide ---
+    dec_p = sub.add_parser("decide", help="Record a decision")
+    dec_p.add_argument("text")
+    dec_p.add_argument("--task", default=None)
+    dec_p.add_argument("--rationale", default=None)
+    dec_p.add_argument(
+        "--rejected", action="append", default=None, help="'option :: why' (repeatable)"
+    )
+    dec_p.add_argument("--supersedes", type=int, default=None, help="Decision id this replaces")
+    dec_p.add_argument("--because", default=None, help="Why it replaces it (or --rationale)")
+    dec_p.add_argument(
+        "--global",
+        dest="to_global",
+        action="store_true",
+        help=f"Record in the SHARED knowledge store ({shared_store}) instead "
+        "of this project — no local row and no brain mirror. NOT redacted: secrets "
+        "and PII are stored verbatim, and the entry is readable from every project "
+        "on this machine. Fails loudly rather than falling back to the project DB.",
+    )
+
+    # --- decisions ---
+    decs_p = sub.add_parser("decisions", help="List decisions")
+    decs_p.add_argument("--limit", type=int, default=20)
+    decs_p.add_argument("--status", choices=["all", "active", "superseded"], default="all")
+    decs_p.add_argument("--task", default=None, help="Only decisions linked to this task")
+    decs_p.add_argument("--rejected", default=None, help="Search the rejected alternatives")
+
+    # --- memory ---
+    mem_p = sub.add_parser("memory", help="Project memory")
+    mem_sub = mem_p.add_subparsers(dest="memory_cmd")
+    ma = mem_sub.add_parser("add")
+    ma.add_argument("mem_type", choices=sorted(VALID_MEMORY_TYPES))
+    ma.add_argument("title")
+    ma.add_argument("content")
+    ma.add_argument("--tags", nargs="*", default=None)
+    ma.add_argument("--task", default=None)
+    ma.add_argument(
+        "--provenance",
+        choices=["observed", "inferred", "told"],
+        default="inferred",
+        help="observed: backed by a test, a verify run or a task journal (checked); "
+        "inferred (default): reasoned, not measured; told: a person said so",
+    )
+    ma.add_argument(
+        "--global",
+        dest="to_global",
+        action="store_true",
+        help=f"Write to the SHARED knowledge store ({shared_store}) instead "
+        "of this project. NOT redacted — secrets and PII are stored verbatim, and "
+        "the entry is readable from every project on this machine. "
+        "Fails loudly rather than falling back to the project DB.",
+    )
+    ml = mem_sub.add_parser("list")
+    ml.add_argument("--type", default=None, dest="mem_type")
+    ml.add_argument("--limit", type=int, default=50)
+    ml.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="Include soft-archived rows (archived_at IS NOT NULL).",
+    )
+    ms = mem_sub.add_parser("search")
+    ms.add_argument("query")
+    ms.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="Include soft-archived rows in search results.",
+    )
+    mshow = mem_sub.add_parser("show")
+    mshow.add_argument("id", type=int)
+    mdel = mem_sub.add_parser("delete")
+    mdel.add_argument("id", type=int)
+    medit = mem_sub.add_parser("edit", help="Rewrite a memory, keeping its id, slug and date")
+    medit.add_argument("id", type=int)
+    medit.add_argument("--title", default=None, help="New title; omit to keep it")
+    medit.add_argument("--content", default=None, help="New body; omit to keep it")
+    march = mem_sub.add_parser(
+        "archive",
+        help="Soft-archive memory rows older than --before. Dry-run unless --confirm.",
+    )
+    march.add_argument(
+        "--before",
+        required=True,
+        help="Duration: 90d / 12w / 2m / 1y (units d/w/m/y).",
+    )
+    march.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Apply: stamp archived_at on candidates (idempotent). Without it: dry-run preview.",
+    )
+    mhyg = mem_sub.add_parser(
+        "hygiene",
+        help="Plan memory layers (core/hot/warm/cold/frozen) from hit counts. "
+        "Dry-run by default; nothing is ever deleted.",
+    )
+    mhyg.add_argument(
+        "--yes",
+        action="store_true",
+        help="Apply the plan: write layers, snapshot previous values for --revert.",
+    )
+    mhyg.add_argument(
+        "--revert",
+        action="store_true",
+        help="Restore the layers the last --yes wrote. One command, exactly undone.",
+    )
+    mpin = mem_sub.add_parser(
+        "pin", help="Pin a record: never auto-demoted, always first in the by-relevance tail."
+    )
+    mpin.add_argument("id", type=int)
+    munpin = mem_sub.add_parser("unpin", help="Release a pinned record back to accumulation.")
+    munpin.add_argument("id", type=int)
+    mdedupe = mem_sub.add_parser(
+        "dedupe",
+        help="Suggest memory pairs with similarity >= threshold. Read-only.",
+    )
+    mdedupe.add_argument(
+        "--threshold",
+        type=float,
+        default=0.85,
+        help="Similarity threshold in (0, 1]. Default 0.85.",
+    )
+    mdedupe.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="Max recent rows scanned for pairs. Default 200.",
+    )
+    mlint = mem_sub.add_parser(
+        "lint",
+        help="Find contradictions / superseded / stale-file memories. Dry-run unless --apply.",
+    )
+    mlint.add_argument(
+        "--apply",
+        action="store_true",
+        help="Archive superseded entries (idempotent). Without it: dry-run report.",
+    )
+    # graph subcommands
+    mlink = mem_sub.add_parser("link", help="Create edge between nodes")
+    mlink.add_argument("source_type", choices=sorted(VALID_NODE_TYPES))
+    mlink.add_argument("source_id", type=int)
+    mlink.add_argument("target_type", choices=sorted(VALID_NODE_TYPES))
+    mlink.add_argument("target_id", type=int)
+    mlink.add_argument("relation", choices=sorted(VALID_EDGE_RELATIONS))
+    mlink.add_argument("--confidence", type=float, default=1.0)
+    mlink.add_argument("--created-by", default=None)
+    munlink = mem_sub.add_parser("unlink", help="Soft-invalidate an edge (never deletes)")
+    munlink.add_argument("edge_id", type=int)
+    munlink.add_argument("--replacement", type=int, default=None, help="Replacement edge ID")
+    mrelated = mem_sub.add_parser("related", help="Find related nodes via graph")
+    mrelated.add_argument("node_type", choices=sorted(VALID_NODE_TYPES))
+    mrelated.add_argument("node_id", type=int)
+    mrelated.add_argument("--hops", type=int, default=2)
+    mrelated.add_argument("--include-invalid", action="store_true")
+    mgraph = mem_sub.add_parser("graph", help="List graph edges")
+    mgraph.add_argument("--type", default=None, dest="node_type", choices=sorted(VALID_NODE_TYPES))
+    mgraph.add_argument("--id", type=int, default=None, dest="node_id")
+    mgraph.add_argument(
+        "--relation",
+        default=None,
+        choices=sorted(VALID_EDGE_RELATIONS),
+    )
+    mgraph.add_argument("--include-invalid", action="store_true")
+    mgraph.add_argument("--limit", type=int, default=50)
+    mgraph.add_argument("--format", choices=["table", "mermaid"], default="table")
+    mblock = mem_sub.add_parser(
+        "block",
+        help="Print compact memory block (decisions + conventions + dead ends) for re-injection",
+    )
+    mblock.add_argument("--max-decisions", type=int, default=5)
+    mblock.add_argument("--max-conventions", type=int, default=10)
+    mblock.add_argument("--max-deadends", type=int, default=5)
+    mblock.add_argument("--max-lines", type=int, default=50)
+    mcompact = mem_sub.add_parser(
+        "compact",
+        help="Aggregate recent task_logs into pattern summary (phases, top words, top files)",
+    )
+    mcompact.add_argument("--last", type=int, default=50, dest="last_n")
+
+    # --- gates ---
+    gates_p = sub.add_parser("gates", help="Quality gates status")
+    gates_sub = gates_p.add_subparsers(dest="gates_cmd")
+    gates_sub.add_parser("status", help="Show active gates and their config")
+    gates_sub.add_parser("list", help="List all gates with enabled/disabled state")
+    gates_sub.add_parser(
+        "ratchets",
+        help="Run only the tests that read the ratchet baseline (seconds, not the "
+        "full lane) — the fast answer to whether this change moved one",
+    )
+    ge = gates_sub.add_parser("enable")
+    ge.add_argument("name", help="Gate name to enable")
+    gd = gates_sub.add_parser("disable")
+    gd.add_argument("name", help="Gate name to disable")
+
+    # --- key (v15-crypto-keymgmt) ---
+    key_p = sub.add_parser("key", help="Project signing key (ed25519)")
+    key_sub = key_p.add_subparsers(dest="key_cmd")
+    ki = key_sub.add_parser(
+        "init",
+        help="Generate project keypair in .tausik/keys/",
+        epilog="Example: tausik key init",
+    )
+    ki.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing key (old signatures stop verifying)",
+    )
+    key_sub.add_parser("show", help="Print public key + fingerprint (never the seed)")
+
+    # verify + receipt живут в project_parser_verify (filesize gate).
+    add_verify_parsers(sub)
+
+    # --- serve (v15-nosdk-verify-endpoint) ---
+    srv = sub.add_parser(
+        "serve",
+        help="Stateless HTTP verify endpoint (no MCP/SDK needed)",
+        epilog="Example: tausik serve --port 8765",
+    )
+    srv.add_argument("--host", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
+    srv.add_argument("--port", type=int, default=8765)
+    srv.add_argument(
+        "--yes-expose",
+        action="store_true",
+        dest="yes_expose",
+        help="Confirm a non-localhost bind (endpoint has no auth layer)",
+    )
+
+    rm_p = sub.add_parser("roadmap", help="Project roadmap")
+    rm_p.add_argument("--include-done", action="store_true")
+
+    # --- update-claudemd ---
+    uc_p = sub.add_parser("update-claudemd", help="Update CLAUDE.md dynamic section")
+    uc_p.add_argument(
+        "--claudemd", default=None, help="Path to CLAUDE.md (auto-detected if omitted)"
+    )
+    uc_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Show diff between current CLAUDE.md and what `update-claudemd` would write; do not modify the file. Exit code 0 if identical, 1 if drift detected.",
+    )
+
+    # --- metrics / hud / suggest-model (delegated below) ---
+
+    # --- search ---
+    sr_p = sub.add_parser("search", help="Full-text search")
+    sr_p.add_argument("query")
+    sr_p.add_argument("--scope", default="all", choices=["all", "tasks", "memory", "decisions"])
+    sr_p.add_argument("--limit", type=int, default=20, help="Max results per scope")
+
+    # --- fts ---
+    fts_p = sub.add_parser("fts", help="FTS5 index maintenance")
+    fts_sub = fts_p.add_subparsers(dest="fts_cmd")
+    fts_sub.add_parser("optimize", help="Optimize all FTS5 indexes")
+
+    # --- snippet (v15-snippet-ast-detect) ---
+    snip_p = sub.add_parser("snippet", help="Code snippet / clone detection")
+    snip_sub = snip_p.add_subparsers(dest="snippet_cmd")
+    snip_detect = snip_sub.add_parser(
+        "detect",
+        help="Detect AST clone clusters and store them in the snippets table",
+        epilog="Example: tausik snippet detect --path scripts --threshold 12",
+    )
+    snip_detect.add_argument(
+        "--path", default=None, help="File or directory to scan (default: current dir)"
+    )
+    snip_detect.add_argument(
+        "--threshold",
+        type=int,
+        default=10,
+        help="Minimum source-line span for a clone candidate (default: 10)",
+    )
+    snip_extract = snip_sub.add_parser(
+        "extract", help="Send a snippet to the Brain (Notion) or to the SHARED local store"
+    )
+    snip_extract.add_argument("id", type=int, help="Snippet id (from `snippet detect`)")
+    snip_extract.add_argument(
+        "--scope",
+        choices=("global",),
+        default="global",
+        help=f"Destination: 'global' copies into the local SHARED store ({shared_store})",
+    )
+
+    # --- events ---
+    ev_p = sub.add_parser("events", help="Audit event log")
+    ev_p.add_argument("--entity", default=None, help="Filter by entity type (task, epic, story)")
+    ev_p.add_argument("--id", default=None, dest="entity_id", help="Filter by entity ID/slug")
+    ev_p.add_argument("--limit", type=int, default=50)
+    add_rollup_flags(ev_p)
+    ev_sub = ev_p.add_subparsers(dest="events_cmd")
+    ev_sub.add_parser("seal", help="Seal pending events into the hash-chain")
+    ev_sub.add_parser("verify", help="Verify the audit hash-chain (+ ed25519 anchor)")
+    ev_sub.add_parser("anchor", help="Sign the current chain head with the project key")
+    # Cross-harness supervision telemetry (l26-bypass-telemetry-opencode-parity):
+    # a non-Python harness (the OpenCode JS plugin) cannot call the in-process
+    # emit_supervision_* helper, so it shells out here. The row is written by the
+    # SAME Python emitter the Claude hooks use — one producer, one contract.
+    ev_emit = ev_sub.add_parser(
+        "emit-supervision",
+        help="Record a supervision bypass/degradation event (cross-harness parity)",
+    )
+    ev_emit.add_argument(
+        "--kind",
+        choices=["bypass", "degradation"],
+        default="bypass",
+        help="bypass_ (intentional) or fail_open_ (silent degradation)",
+    )
+    ev_emit.add_argument("--vector", required=True, help="e.g. skip_hooks, cli_unreachable")
+    ev_emit.add_argument(
+        "--source",
+        required=True,
+        dest="sup_source",
+        help="the hook/gate that was bypassed, e.g. opencode_qg0",
+    )
+    ev_emit.add_argument("--details", default=None, help="free-text error/context")
+    # SENAR 1.4 §8.6(j) / Gate Bypass 3.13: a direct edit of a task artifact is
+    # a regulated exception, and the record carries WHY, what risk was accepted,
+    # how it gets undone and who agreed. Structured flags rather than more prose
+    # in --details: four fields buried in free text can be neither required nor
+    # counted, which is the state this replaces.
+    ev_emit.add_argument(
+        "--task",
+        dest="bypass_task",
+        default=None,
+        help="task whose artifact was edited (required for --vector direct_edit)",
+    )
+    ev_emit.add_argument("--rationale", default=None, help="why the gate was bypassed")
+    ev_emit.add_argument(
+        "--risk-accepted", dest="risk_accepted", default=None, help="what could go wrong"
+    )
+    ev_emit.add_argument("--remediation", default=None, help="how it gets undone")
+    ev_emit.add_argument("--approved-by", dest="approved_by", default=None, help="who agreed to it")
+
+    # --- db (extracted to project_parser_db to keep the filesize gate) ---
+    # --- SENAR ops subparsers (delegated; the list lives beside its parsers) ---
+    from project_parser_db import add_db
+    from project_parser_ops import add_ops
+
+    add_db(sub)
+
+    add_ops(sub)
+
+    return p

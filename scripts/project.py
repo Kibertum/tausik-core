@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""TAUSIK CLI entry point -- parse args, dispatch to handlers."""
+
+from __future__ import annotations
+
+import os
+import sys
+
+# Add scripts dir to path for imports
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+
+
+def main() -> None:
+    from tausik_utils import fix_stdio_encoding, install_file_logging
+
+    fix_stdio_encoding()
+
+    # Before anything reads an argument: refuse a command line that cmd.exe
+    # ate part of. Runs after fix_stdio_encoding so the diagnostic can carry
+    # non-ASCII, and before install_file_logging so a mangled line is not
+    # recorded as a real invocation.
+    from cmdline_fidelity import enforce as _enforce_cmdline_fidelity
+
+    _enforce_cmdline_fidelity()
+
+    install_file_logging()
+
+    from project_cli import (
+        cmd_aidd,
+        cmd_decide,
+        cmd_decisions,
+        cmd_epic,
+        cmd_init,
+        cmd_roadmap,
+        cmd_session,
+        cmd_status,
+        cmd_story,
+        cmd_task,
+        cmd_team,
+    )
+    from project_cli_gates import cmd_gates
+    from project_cli_knowledge import cmd_knowledge, cmd_memory
+    from project_cli_search import cmd_fts, cmd_search
+    from project_cli_skill import cmd_skill
+    from project_cli_stack import cmd_stack
+    from project_cli_config import cmd_config
+    from project_cli_doctor import cmd_doctor
+    from project_cli_demo import cmd_demo
+    from update_check import cmd_update_check
+    from project_cli_coherence import cmd_coherence
+    from project_cli_graph import cmd_graph
+    from project_cli_symbol import cmd_symbol
+    from project_cli_hygiene import cmd_hygiene
+    from project_cli_redact import cmd_redact
+    from project_cli_role import cmd_role
+    from project_cli_verify import cmd_verify
+    from project_cli_audit import cmd_audit
+    from project_cli_metrics import cmd_metrics
+    from project_cli_doc import cmd_doc, cmd_update_claudemd
+    from project_cli_explore import cmd_explore
+    from project_cli_knowledge import cmd_dead_end
+    from project_cli_run import cmd_run
+    from project_cli_session import cmd_hud, cmd_suggest_model
+    from project_cli_events import cmd_events
+    from project_cli_publish import cmd_publish
+    from project_cli_specs import cmd_spec
+    from project_cli_state import cmd_state, cmd_sync
+    from project_cli_actz import cmd_actz
+    from project_cli_adapts import cmd_adapt
+    from project_cli_at import cmd_at
+    from project_cli_drift import cmd_drift
+    from project_cli_renar import cmd_renar
+    from cli_push_ok import cmd_push_ok
+    from project_cli_key import cmd_key
+    from project_cli_receipt import cmd_receipt
+    from project_cli_serve import cmd_serve
+    from project_cli_snippet import cmd_snippet
+    from cmd_db import cmd_db
+    from project_cli_review import cmd_review
+    from service_factory import get_service
+    from project_parser import build_parser
+    from tausik_utils import ServiceError
+
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    dispatch = {
+        "init": cmd_init,
+        "aidd": cmd_aidd,
+        "status": cmd_status,
+        "epic": cmd_epic,
+        "story": cmd_story,
+        "task": cmd_task,
+        "session": cmd_session,
+        "decide": cmd_decide,
+        "decisions": cmd_decisions,
+        "memory": cmd_memory,
+        "knowledge": cmd_knowledge,
+        "gates": cmd_gates,
+        "verify": cmd_verify,
+        "roadmap": cmd_roadmap,
+        "search": cmd_search,
+        "metrics": cmd_metrics,
+        "hud": cmd_hud,
+        "suggest-model": cmd_suggest_model,
+        "team": cmd_team,
+        "update-claudemd": cmd_update_claudemd,
+        "events": cmd_events,
+        "spec": cmd_spec,
+        "state": cmd_state,
+        "sync": cmd_sync,
+        "adapt": cmd_adapt,
+        "actz": cmd_actz,
+        "at": cmd_at,
+        "drift": cmd_drift,
+        "renar": cmd_renar,
+        "fts": cmd_fts,
+        "skill": cmd_skill,
+        "stack": cmd_stack,
+        "role": cmd_role,
+        "doctor": cmd_doctor,
+        "demo": cmd_demo,
+        "dead-end": cmd_dead_end,
+        "explore": cmd_explore,
+        "audit": cmd_audit,
+        "doc": cmd_doc,
+        "run": cmd_run,
+        "review": cmd_review,
+        "coherence": cmd_coherence,
+        "update-check": cmd_update_check,
+        "graph": cmd_graph,
+        "symbol": cmd_symbol,
+        "hygiene": cmd_hygiene,
+        "redact": cmd_redact,
+        "config": cmd_config,
+        "db": cmd_db,
+        "push-ok": cmd_push_ok,
+        "publish": cmd_publish,
+        "key": cmd_key,
+        "receipt": cmd_receipt,
+        "serve": cmd_serve,
+        "snippet": cmd_snippet,
+    }
+
+    if args.command == "doctor":
+        from project_cli_doctor import _capture_db_state
+
+        _capture_db_state()
+    fn = dispatch.get(args.command)
+    if not fn:
+        # Suggest similar commands
+        from difflib import get_close_matches
+
+        matches = get_close_matches(args.command, dispatch.keys(), n=3, cutoff=0.5)
+        if matches:
+            print(
+                f"Unknown command '{args.command}'. Did you mean: {', '.join(matches)}?",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"Unknown command '{args.command}'. Available: {', '.join(sorted(dispatch.keys()))}",
+                file=sys.stderr,
+            )
+        sys.exit(1)
+
+    from skill_manager import SkillManagerError
+
+    # Раньше get_service() ниже создавал каталог и схему самим фактом
+    # подключения, поэтому любая команда, набранная вне проекта, заводила его на
+    # месте и рапортовала об успехе. Спрашиваем ДО подключения.
+    from project_config import assert_project_exists
+
+    try:
+        assert_project_exists(args.command)
+    except ServiceError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    svc = get_service()
+    try:
+        fn(svc, args)
+    except (ServiceError, SkillManagerError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"Validation error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        sys.exit(130)
+    finally:
+        svc.be.close()
+
+
+if __name__ == "__main__":
+    _exit_code = 0
+    _raise_exit: SystemExit | None = None
+    try:
+        main()
+    except SystemExit as _e:  # friction telemetry needs the code the process exits with
+        _exit_code = int(_e.code or 0) if isinstance(_e.code, int) else 1
+        _raise_exit = _e
+    try:
+        # Agent-friction telemetry (best-effort, never breaks the CLI): every
+        # invocation — successes too, because the friction signals are SEQUENCES.
+        from friction_detect import record_invocation_exit
+
+        record_invocation_exit(_exit_code)
+    except Exception:  # noqa: BLE001,S110 — measurement must not break the measured
+        pass
+    if _raise_exit is not None:
+        raise _raise_exit
+    sys.exit(_exit_code)

@@ -1,0 +1,6 @@
+{
+  "name": "next",
+  "version": "1",
+  "detect": [{ "file": "package.json", "type": "exact", "keyword": "\"next\"" }],
+  "extensions": [".tsx", ".jsx", ".ts", ".js"]
+}

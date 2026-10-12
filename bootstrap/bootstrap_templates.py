@@ -1,0 +1,497 @@
+"""Shared rules templates; host files differ only in header and IDE pointers."""
+
+from __future__ import annotations
+
+import os
+import sys
+
+from bootstrap_governance import memory_only_body
+from bootstrap_governance import write_generated_rules as write_generated_rules
+
+# Re-export tier bodies so existing imports remain stable.
+from bootstrap_templates_tiers import (
+    FULL_TIER_NOTE,
+    COMPACTION_CONTRACT,
+    MINIMAL_COMMANDS,
+    MINIMAL_COMPACTION,
+    MINIMAL_MEMORY,
+    MINIMAL_TIER_FOOTER,
+    MINIMAL_WORKFLOW,
+)
+import bootstrap_rules_upgrade as rules_upgrade
+
+
+# Whether the constraints below are CHECKED on this host is derived from what
+# bootstrap deployed, not asserted here. The probe lives in scripts/ because that
+# is the tree bootstrap deploys into every host profile; bootstrap/ is not
+# deployed, so the dependency only runs in this direction.
+_here = os.path.dirname(os.path.abspath(__file__))
+_scripts = os.path.join(os.path.dirname(_here), "scripts")
+if os.path.isdir(_scripts) and _scripts not in sys.path:
+    sys.path.insert(0, _scripts)
+
+from enforcement_coverage import build_enforcement_notice, profile_dir_for  # noqa: E402
+from rule_coverage import render_rule_notice  # noqa: E402
+
+
+HARD_CONSTRAINTS = """## Hard Constraints
+
+- **No code without a task.** Run `task start <slug>` before any Write/Edit. No exceptions. (SENAR Rule 9.1)
+- **QG-0 Context Gate.** `task start` requires goal + acceptance_criteria; work that changes behaviour names at least one negative scenario, work that changes only prose does not. Set both before starting.
+- **QG-2 Implementation Gate (Verify-First v1.4).** Heavy gates (pytest, tsc, cargo, phpstan, …) live on a separate `verify` step. Sequence: run `tausik verify --task <slug>` once everything is in place — it caches a green; then `task done --ac-verified` looks the cache up and closes the task in milliseconds. If the cache is missing or stale → `task done` blocks with the explicit remediation command. Opt-out for CI: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` (legacy inline behavior).
+- **No commit without gates, and verification is PROPORTIONATE to the change.** Gates run automatically — fix blocking failures before committing. Run the scoped `verify` for what you touched; the full suite belongs in CI and at the release gate, not after every local step. A test asserts behaviour — never a number in a document, never that a generated file is fresh (whatever moves its source regenerates it). One test that goes red on the defect beats a suite that goes red on bookkeeping.
+- **No direct DB access.** MCP tools and the CLI keep the projections and the audit trail in step; raw SQLite writes go past both.
+- **Don't guess CLI arguments.** Run `.tausik/tausik <cmd> --help` or read the CLI reference.
+- **MCP-first.** Prefer MCP tools (`tausik_*`) over CLI when equivalent.
+- **Git: ask before commit/push.**
+- **Max 500 lines per file.** Filesize gate warns. Exceptions: tests, generated code.
+- **Continuous logging.** Run `task log <slug> "message"` after every meaningful step. (SENAR Rule 9.4)
+- **Document dead ends.** Run `.tausik/tausik dead-end "approach" "reason"` on failed approaches. (SENAR Rule 9.4)
+- **Checkpoint when the signal says so.** The count of calls since the last handoff is derived from the ledger and advised in tool responses. (SENAR Rule 9.3)
+- **Context pressure is a signal, not a gate.** Session time and call capacity advise a `/checkpoint` or a handoff; they never refuse a task start (decision #376; basis: `docs/en/session-active-time.md`, SENAR 1.5 §9.4(c)).
+"""
+
+# Two rules about the SHAPE of the code an agent writes. They sit in their own
+# section rather than under Hard Constraints, because neither refuses anything:
+# the first is a `doctor` row, the second a line printed at closure. Filing them
+# with the non-negotiables would be a small lie of the kind this project spends
+# its tests preventing.
+#
+# Both are written as descriptions with their reason, not as commands. Neither
+# asks the model to write less or to save tokens: an agent told to conserve grows
+# reluctant to take on ambitious work, which costs far more than the prose saves.
+CODE_STYLE = """## Code Style
+
+- **Code is written in English — identifiers AND prose.** Traces, `grep`, pytest node ids and coverage reports read the name, and a non-ASCII one breaks quietly: console encoding, a regex over `\\w`, a backslash in `sh`. Comments, docstrings and test descriptions are English too, so the next reader of a file is not decided by which language they happen to have. `doctor` reports the identifier half as `Identifier style`, counted from your own code. Answers to the user stay in the user's language: this rule is about the file, not the reply.
+- **What happened goes to `memory add`; why the code is that way stays in the docstring.** A session id, decision id or date in a comment is paid for on every read of that file and found only by whoever already opened it. Closing a task names the ones it added and prints the command that files them; the invariant in your docstrings is not the target.
+"""
+
+
+WORKFLOW = """## Workflow
+
+`start → plan → task → [review | test] → commit → end`
+
+**Cost-aware model selection:** `tausik suggest-model <complexity>` recommends a model; `task start` prints the same recommendation for the task at hand. Persist a default with `tausik config set model_profile <slug>`.
+"""
+
+MEMORY = """## Memory (choose the destination by what the fact is about, not by where you are)
+
+| Destination | Where | What goes there |
+|---|---|---|
+| **Project memory** (`memory add`) | `.tausik/tausik.db` | "Here it is done this way": patterns, dead ends, conventions, environment facts of THIS project. Types: `pattern`, `gotcha`, `convention`, `context`, `dead_end` |
+| **Shared knowledge** (`memory add --global`) | `~/.tausik-knowledge/knowledge.db`, read back in every project as *Shared knowledge — from other projects* | "The tool is built this way": a gotcha of a library, a platform habit, a fact true outside this repository. Not redacted — never a secret or a client name |
+| **Agent auto-memory** | host-specific (e.g. `~/.claude/...`) | "This is how I like to work": the user's own preferences and cross-project habits — never a fact about a project |
+
+**Memory-first recall (hard rule).** Before asking the user for — or guessing — an established
+project fact (hosts, environments, where credentials live, paths, service URLs, prior decisions),
+the recorded answer is in `memory_search` / `decisions_list`; asking for something already recorded is a
+process violation. Record durable environment facts as `context` so future sessions inherit them.
+
+**Routing litmus (hard).** *Would another agent, in another tool, need this to work on THIS
+project?* → `memory add`. *Is it true beyond this project — of the tool, the platform, the library?*
+→ `memory add --global`. Not your host's own memory (`~/.claude/**/memory/`, `.cursor/rules/`,
+`.windsurf/rules/`, `.github/copilot-instructions.md`, `.github/instructions/`, `.clinerules`, `.roo/rules/`,
+`.continue/rules/`, `.aider*` — blocked by the `memory_route` gate); a cloud-side memory writes no
+file for any gate to see, so there this line is the only enforcement. Skills that need persistent
+data respect `CLAUDE_PLUGIN_DATA` when set, else `.tausik/plugin_data/`.
+"""
+
+SENAR_RULES = """## SENAR Rules Compliance
+
+TAUSIK enforces these rules. Violating them triggers warnings or hard blocks.
+
+| Rule | Purpose | Enforcement |
+|---|---|---|
+| QG-0 Context Gate | Goal + AC + negative scenario before starting | Hard (CLI/MCP — blocks `task_start`) |
+| QG-2 Implementation Gate | Evidence + AC verified + fresh `tausik verify` green before done (Verify-First v1.4) | Hard (CLI/MCP — blocks `task_done`) |
+| Rule 1 Task before code | No Write/Edit without active task | Hard where a real-time mechanism is deployed — the notice at the top of this file says whether that is the case here |
+| Rule 2 Scope Boundaries | Declare scope + scope_exclude per task | Warning |
+| Rule 3 Verify Against Criteria | Per-criterion evidence | Warning |
+| Rule 7 Root Cause | Defect tasks require root cause | Warning |
+| Rule 9.2 Session limit | advisory threshold on active time, org-set with a documented basis | Signal (never blocks) |
+| Rule 9.3 Checkpoint | calls since the last handoff, derived from the ledger | Signal (never blocks) |
+| Rule 9.4 Dead Ends + Logging | Document failed approaches, log progress | Instruction |
+
+> **Where "Hard" is hard.** Rule 1 is a process gate only on a host where TAUSIK deployed a real-time mechanism; the notice at the top of this file states which case this host is in, derived from what bootstrap actually wrote. Where it is not deployed, Rule 1 is enforced by the agent reading this line — because TAUSIK generates no payload for that host, NOT because the host cannot accept one; only the first claim is ours to make. The rest hold everywhere: QG-0 and QG-2 live in the `tausik-project` MCP server and the CLI; the session limit lives there too, as a signal that never blocks. For a process-level Rule 1 without a mechanism, route writes through `tausik_task_start` / `tausik_task_done_v2` and treat raw file edits as non-conformant in review.
+
+Full rule set: [SENAR v1.5](https://senar.tech).
+"""
+
+
+def build_commands_section() -> str:
+    """The command list, with its own COUNT rather than a hand-picked subset.
+
+    The subset named nine of {total} commands, and the eighteen it omitted were
+    ones an agent had no way to learn about — measured in session #233, where
+    they simply went unused. Listing all of them is not the fix either: this text
+    is re-sent to the agent on every turn and is held to a line budget for that
+    reason.
+
+    So the count is stated, `--help` is named, and the nine that carry the
+    workflow stay. The count is DERIVED from the parser: a hand-typed number
+    would be wrong the first time a command is added, and wrong silently.
+    """
+    from route_map import cli_commands
+
+    total = len(cli_commands())
+    # Absence, not a guess: if the parser could not be read, say so rather than
+    # printing a number nobody measured.
+    how_many = f"{total} commands" if total else "the full set"
+    # Seven, not nine, and the two dropped (`task list`, `search`) are named in
+    # the workflow section above — so the line spent introducing `--help` is paid
+    # for rather than added. This text is re-sent every turn and the generated
+    # file is held to 80-180 lines; growing it to advertise discoverability
+    # would have been self-defeating.
+    #
+    # `graph` was added at exactly 180 lines, so it was PAID FOR, not appended:
+    # `verify` and `task done` now share one line. They were always one act —
+    # QG-2 is "gates, then close" — and the chained form is also the shape the
+    # tool-choice nudge names as a legitimate reason to stay in the shell.
+    return f"""## Commands Quick Reference
+
+Seven carry the workflow; {how_many} exist — `.tausik/tausik --help` lists them.
+
+```bash
+.tausik/tausik status                          # project overview + warnings
+.tausik/tausik task start <slug>               # activate (QG-0 enforced)
+.tausik/tausik verify --task <slug> && .tausik/tausik task done <slug> --ac-verified  # QG-2
+.tausik/tausik task log <slug> "message"       # log progress
+.tausik/tausik dead-end "approach" "reason"    # document failure (used 0 times in 5,966 calls)
+.tausik/tausik symbol <name>                   # a definition, its file:line and callers
+.tausik/tausik graph show <path>               # what this file changes with, and on what evidence
+```
+"""
+
+
+COMMANDS = build_commands_section()
+
+QUALITY_GATES = """## Quality Gates
+
+- **`task-done`** — cheap-only (filesize, tdd_order). Closes a task in milliseconds.
+- **`verify`** — heavy (pytest, tsc, cargo, phpstan, javac, js-test, terraform-validate, helm-lint, kubeval, hadolint, ansible-lint). Run via `.tausik/tausik verify --task <slug>`. Result cached for 10 min; `task done` reads the cache.
+- **`commit`** — local lint (ruff, eslint, phpcs, golangci-lint).
+
+Stack-specific gates auto-enable by detected stack; the filesize gate warns on files >500 lines. Check status: `.tausik/tausik gates status`. Fix blocking failures before committing. Verify-First Contract opt-out: `.tausik/config.json` → `{ "task_done": { "auto_verify": true } }` runs the heavy gates inside `task done` instead of as a separate step.
+"""
+
+TOOL_ROUTING = """## Tool Routing — when to use which
+
+TAUSIK ships retrieval MCP servers: RAG for code and project knowledge for decisions, memory and the roadmap. On hosts with hooks, every Grep also returns the RAG index's top chunks. Run `mcp__codebase-rag__rag_status` once per session to confirm the index is fresh; if `chunks=0`, run `mcp__codebase-rag__reindex` before any `search_code` call.
+
+| Need | Primary | Fallback |
+|---|---|---|
+| Find a function/symbol/usage in code | `mcp__codebase-rag__search_code` | `Grep` with a `path`/`glob` (RAG hits are added to it) |
+| Recall a past project decision | `tausik_decisions_list` / `tausik_memory_search` (`type=convention/pattern`) | — |
+| Cross-project pattern or gotcha | `tausik_memory_search` (the shared store is folded into the results) | — |
+| Web lookup (docs, API, errors) | `WebFetch` | — |
+| Understand the project structure | `tausik_status` + `tausik_roadmap` | `Glob` for raw file listing |
+"""
+
+CURSOR_MCP_SETUP = """## Local MCP in Cursor (this workspace)
+
+Bootstrap (`python bootstrap/bootstrap.py --ide cursor` or `--ide all`) generates:
+
+- **`.cursor/mcp.json`** — TAUSIK MCP servers for Cursor (absolute paths to `.tausik/venv`, server entrypoints under **`.cursor/mcp/`**).
+- **`.mcp.json` at repo root** — always points at **`.claude/mcp/`** (VS Code Claude Extension / shared); **Cursor reads `.cursor/mcp.json`** for project-scoped tools.
+
+If tools do not appear: open **Cursor Settings → MCP**, ensure project MCP is enabled, then **Developer: Reload Window**.
+
+Servers: `tausik-project`, optional `codebase-rag`.
+
+"""
+
+MULTIMODEL_NOTE = """## Are you a non-Claude agent? (GPT-5.5, Composer, Codex, OpenCode, Gemini …)
+
+TAUSIK is model-agnostic, but the surface you actually use differs from Claude Code:
+
+- **MCP tools first.** Every quality gate (QG-0, QG-2, dead-end tracking) and the session signals is enforced inside the `tausik-project` MCP server. Calling MCP tools gives you the same hard guarantees Claude Code gets. Bash CLI is a fallback only when MCP is unreachable.
+- **Slash commands may not exist.** If your host doesn't expand `/start`, `/plan`, `/ship`, `/end`, open the matching `harness/skills/<name>/SKILL.md` and execute its numbered steps. Skills are written as procedures, not host-specific magic.
+- **PreToolUse hooks may not be deployed here.** The notice at the top of this file says whether they are, counted from this host's profile. Where they are not, `task_gate.py` does not protect Rule 1 ("no code without a task") and you self-enforce: always call `tausik_task_start` (or `tausik_task_quick`) before any Edit/Write. The reason is that TAUSIK generates no hooks payload for some hosts — what a given host is capable of accepting is a separate question, and not one this file answers.
+- **Don't write to `~/.claude/`.** It is a Claude-specific profile. Use the project DB (`.tausik/tausik.db`) via `tausik_memory_*` MCP tools, or the path under `CLAUDE_PLUGIN_DATA` if your host sets it.
+- **Verify-First Contract is universal.** Run `tausik_verify` before `tausik_task_done_v2`, regardless of model. The 60s per-MCP-tool timeout that VS Code Claude Extension applies is the strictest case; if you keep heavy work inside `verify`, every other host stays in budget too.
+- **`task_done_v2` over `task_done`.** When the MCP server publishes both, prefer `tausik_task_done_v2` — its structured JSON response (`stage`, `gate_results`, `blocking_failures`) is much friendlier to non-Claude tool-use loops that expect typed payloads.
+"""
+
+RESPONSE_LANGUAGE = ""  # traded into ANSWER_SHAPE: the sentence survives, the section does not
+
+# THE SHAPE OF THE ANSWER, shipped unconditionally. It used to live inside the caveman
+# directive, which defaults to OFF, and in a vendored skill that had to be invoked. Measured on this project's own transcripts after both existed: the median final
+# answer was 522 words against a budget of 200 — worse than the 396 measured before them.
+# A rule an agent must remember to switch on is a rule that is off.
+#
+# It does NOT ask for less work or fewer tokens. An agent told to conserve grows reluctant
+# to take on ambitious work, which costs far more than the prose saves. It asks that the
+# answer be ORDERED and that the record stay whole.
+#
+# OURS, NOT VENDORED. The four-part shape and the rules below started as a reading of
+# ayghri/i-have-adhd, recorded in a decision. Carrying that project's SKILL.md in the tree
+# gave us a dependency to keep in sync AND no discipline at all, because a skill is
+# invoked and nobody invoked it. The ideas are restated here in our own words, in the
+# block that ships every session whether or not anyone asks for it.
+ANSWER_SHAPE = """## Answer shape
+
+- Use user's language.
+- SHAPE, omit empty: done → verified by → left → your call.
+- PROSE (no ASD-STE100 claim): name actor/action; active voice if natural; one action/sentence; one term/concept; short paragraphs.
+- BYTE-EXACT: code, shell commands, tool output, file paths, error messages; FULL: acceptance-criteria evidence, decisions, SPEC/ADAPT, task logs, handoffs.
+- EXCEPTIONS: explanation asked; destructive action; 3 failed debug turns → assumption + question; ambiguity → one question; rule deletes answer itself.
+- Steps: numbered, one action each, last ≤2 min; ≤5/group unless more needed; tangent last; estimate if useful.
+- PRE-SEND: delete announcements, recaps, side branches, empty hedges; first line = next action; last = current state.
+"""
+
+#: Ceiling on the always-injected shape. Same argument as the caveman cap below: this block
+#: is paid for every call, so a fat one defeats what it asks for. Measured at the value the
+#: block holds today, never rounded up to leave room for growth.
+#:
+#: The four #407 rules were first added as +455 chars (1223). That spent the generated
+#: file's own budgets (180 lines, body chars) instead of paying for them, so the block was
+#: rewritten to carry the same terms in 776. Any future growth states its own number here
+#: and pays for itself inside the file's budget, or does not happen.
+ANSWER_SHAPE_MAX_CHARS = 773
+
+ANSWER_SHAPE_MARKER = "## Answer shape"
+
+# Output-economy directive, appended only when `output_mode: caveman`. Inspired by the
+# caveman skill (github.com/JuliusBrussee/caveman); we ship the idea as our own rule
+# rather than installing its hooks (which would collide with TAUSIK's SessionStart hook
+# and settings.json ownership).
+#
+# What remains here is ONLY the prose compression. The shape, the boundary, the exceptions
+# and the pre-send check moved to ANSWER_SHAPE, which ships whether or not this mode is on:
+# they are not an economy measure, they are how an answer is ordered.
+#
+# This block is INJECTED EVERY SESSION, so its own length is a token line-item: a long
+# directive would cost more input than the terse output saves. CAVEMAN_DIRECTIVE_MAX_CHARS
+# caps it, enforced by tests. caveman's own "~65% output reduction" is THEIR figure and is
+# not reproduced here.
+CAVEMAN_DIRECTIVE = """## Output economy (caveman mode)
+
+Answer in terse, telegraphic prose — drop articles/filler, keep the meaning. \
+Inspired by the caveman skill (github.com/JuliusBrussee/caveman).
+- KEEP BYTE-EXACT (never compress): code, shell commands, tool output, file paths, error messages.
+- The answer shape above still applies; this mode compresses the prose inside it.
+"""
+
+# Hard ceiling on the injected directive. If a future edit bloats it, the guard fails —
+# the whole point of the mode is fewer tokens, and a fat directive defeats it. 700 held
+# brevity alone; the response contract (shape, named exceptions, pre-send check) measures
+# 888 and the ceiling moves to that measured value, not to a round number.
+CAVEMAN_DIRECTIVE_MAX_CHARS = 358
+
+# The heading that marks the directive inside a generated rules file.
+CAVEMAN_DIRECTIVE_MARKER = "## Output economy (caveman mode)"
+
+
+def warn_output_mode_not_applied(path: str, output_mode: str) -> bool:
+    """Reconcile the universal answer shape, then warn about an unapplied opt-in mode.
+
+    Existing rules files are user-owned, so their bytes are never rewritten or removed.
+    The unconditional TAUSIK answer contract is the one managed exception: append it once
+    when an older project predates the block. This makes upgrades match fresh projects
+    without asking the user to discover or invoke a skill. Repeated bootstrap is a no-op.
+
+    Caveman mode remains opt-in and is not injected into an existing file; for that mode we
+    still warn. Returns True when that warning fired.
+    """
+    answer_change = rules_upgrade.reconcile_answer_shape(path, ANSWER_SHAPE_MARKER, ANSWER_SHAPE)
+    if answer_change:
+        print(f"  Existing {os.path.basename(path)}: {answer_change} canonical answer shape")
+    has_test_rule = rules_upgrade.markdown_contains_any(
+        path,
+        (
+            rules_upgrade.TEST_DISCIPLINE_MARKER,
+            "## Testing discipline",
+            "A test asserts behaviour",
+            "\u0422\u0435\u0441\u0442 \u2014 \u043d\u0430 \u043f\u043e\u0432\u0435\u0434\u0435\u043d\u0438\u0435",
+        ),
+    )
+    if not has_test_rule and rules_upgrade.reconcile_markdown_block(
+        path, rules_upgrade.TEST_DISCIPLINE_MARKER, rules_upgrade.TEST_DISCIPLINE
+    ):
+        print(f"  Existing {os.path.basename(path)}: added canonical test discipline")
+
+    if (output_mode or "off").strip().lower() != "caveman":
+        return False
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            existing = f.read()
+    except OSError:
+        return False
+    if CAVEMAN_DIRECTIVE_MARKER in existing:
+        return False
+    print(
+        f"  WARNING: output_mode=caveman is set, but {os.path.basename(path)} already exists "
+        f"and has no '{CAVEMAN_DIRECTIVE_MARKER}' section — bootstrap preserves existing rules "
+        f"files, so the mode was NOT applied. Delete {path} and re-run, or paste the directive "
+        "in by hand."
+    )
+    return True
+
+
+DYNAMIC_BLOCK = """<!-- DYNAMIC:START -->
+<!-- DYNAMIC:END -->
+"""
+
+
+def build_header(project_name: str, stacks: list[str], agent_name: str) -> str:
+    """Header + project metadata. agent_name goes into the opening sentence."""
+    stack_str = ", ".join(stacks) if stacks else "not detected"
+    return (
+        f"You are {agent_name} working on this project.\n\n"
+        f"## Project: {project_name}\n\n"
+        f"Stack: {stack_str}\n"
+        f"Framework: [TAUSIK](https://github.com/Kibertum/tausik-core) — AI agent governance implementing [SENAR v1.5](https://senar.tech)\n"
+    )
+
+
+def build_skills_section(ide_subdir: str) -> str:
+    return (
+        f"## Skills\n\n"
+        f"After bootstrap, **13 core skills** ship from `harness/skills/` and are always available: "
+        f"`/start`, `/end`, `/checkpoint`, `/plan`, `/task`, `/ship`, `/commit`, "
+        f"`/review`, `/test`, `/debug`, `/explore`, `/interview`, `/reason`.\n\n"
+        f"The official store contains only `docs`, `excel`, and `pdf`; integrations belong in MCP servers. "
+        f"Install only the capability you need with `tausik skill install <name>` so unused instructions add no prompt cost. "
+        f"See `{ide_subdir}/references/skill-catalog.md`.\n\n"
+        f"**Security — external skill repos are arbitrary code + instructions.** "
+        f"Adding a repo clones remote content; installing may run pip/scripts. "
+        f"Only use `tausik skill repo add <url>` for trusted sources; third-party URLs "
+        f"require `--force` after review. See `docs/en/vendor-skills.md` and "
+        f"`docs/en/skill-ecosystem.md`.\n\n"
+        f"When a user request matches a trigger keyword for a not-installed skill, proactively suggest installing it.\n"
+    )
+
+
+def build_roles_section(ide_subdir: str) -> str:
+    return (
+        f"## Roles\n\n"
+        f"Role field is free text. Common: `developer`, `architect`, `qa`, `tech-writer`, `ui-ux`.\n"
+        f"Role profiles live in `{ide_subdir}/roles/<role>.md`.\n"
+    )
+
+
+def _load_ide_override(ide: str | None) -> str:
+    """Load IDE-specific override block from harness/overrides/{ide}/rules.md.
+
+    Returns "" if `ide` is None/unknown or the override file is missing.
+    Wrapped so a missing file never breaks bootstrap.
+    """
+    if not ide:
+        return ""
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidate = os.path.normpath(os.path.join(here, "..", "harness", "overrides", ide, "rules.md"))
+    if not os.path.isfile(candidate):
+        return ""
+    try:
+        with open(candidate, encoding="utf-8") as f:
+            body = f.read().strip()
+        if not body:
+            return ""
+        # No leading newline: the parts are joined with a newline already, and
+        # the extra one rendered as the generated file's only double blank line.
+        return f"\n## IDE-specific overrides ({ide})\n\n{body}\n"
+    except OSError:
+        return ""
+
+
+def build_full_body(
+    project_name: str,
+    stacks: list[str],
+    agent_name: str,
+    ide_subdir: str,
+    ide: str | None = None,
+    context_tier: str = "minimal",
+    output_mode: str = "off",
+    project_dir: str | None = None,
+    governance_profile: str = "full",
+) -> str:
+    """Compose the shared body used by all IDE-specific generators.
+
+    Caller prepends its own file-level header (e.g. '# CLAUDE.md'). When
+    `ide` is supplied, the matching `harness/overrides/<ide>/rules.md`
+    block (if present) is appended right before the dynamic state block —
+    closing the audit gap r14-overrides-integration where these files
+    existed but were never wired into the generated CLAUDE.md/.cursorrules
+    /QWEN.md.
+
+    ``context_tier`` (from ``.tausik/config.json``) selects how verbose the
+    generated rules are: ``minimal`` (default and short), ``standard``, or
+    ``full`` (standard + extra pointers for framework work).
+
+    ``output_mode`` is ORTHOGONAL to ``context_tier``: the tier sizes the INPUT
+    rules, ``output_mode: caveman`` compresses the agent's OUTPUT. When ``caveman``,
+    the CAVEMAN_DIRECTIVE is appended in every tier (it applies regardless of how
+    verbose the rules themselves are). Any non-``caveman`` value is a no-op.
+    """
+    if governance_profile == "memory-only":
+        return memory_only_body(
+            build_header(project_name, stacks, agent_name), RESPONSE_LANGUAGE, ANSWER_SHAPE
+        )
+    if governance_profile != "full":
+        raise ValueError(f"unknown governance profile: {governance_profile!r}")
+
+    tier = (context_tier or "minimal").strip().lower()
+    if tier not in ("minimal", "standard", "full"):
+        tier = "standard"
+
+    caveman = (output_mode or "off").strip().lower() == "caveman"
+
+    header = build_header(project_name, stacks, agent_name)
+    _profile = profile_dir_for(project_dir, ide)
+    enforcement = build_enforcement_notice(_profile)
+    # The per-host sentence answers 'checks or instructions'. This answers
+    # WHICH — on a host without a real-time mechanism the answer differs by
+    # rule, and one sentence cannot carry two answers. Empty where every rule
+    # is intercepted, so it never becomes a paragraph readers learn to skip.
+    rule_notice = render_rule_notice(_profile)
+    # The rule paragraph subsumes the host sentence when it carries the
+    # mechanism fact itself — one paragraph, not two, on every turn.
+    if rule_notice.startswith("**NO REAL-TIME MECHANISM"):
+        enforcement = ""
+    if tier == "minimal":
+        parts = [
+            header,
+            enforcement,
+            rule_notice,
+            HARD_CONSTRAINTS,
+            MINIMAL_WORKFLOW,
+            MINIMAL_MEMORY,
+            MINIMAL_COMPACTION,
+            MINIMAL_COMMANDS,
+            RESPONSE_LANGUAGE,
+            ANSWER_SHAPE,
+            CAVEMAN_DIRECTIVE if caveman else "",
+            MINIMAL_TIER_FOOTER,
+            DYNAMIC_BLOCK,
+        ]
+        return "\n".join(p for p in parts if p)
+
+    parts = [
+        header,
+        enforcement,
+        rule_notice,
+        HARD_CONSTRAINTS,
+        ANSWER_SHAPE,
+        CODE_STYLE,
+        WORKFLOW,
+        TOOL_ROUTING,
+        MEMORY,
+        COMPACTION_CONTRACT,
+        SENAR_RULES,
+        COMMANDS,
+        QUALITY_GATES,
+        build_skills_section(ide_subdir),
+        build_roles_section(ide_subdir),
+        MULTIMODEL_NOTE,
+        RESPONSE_LANGUAGE,
+        _load_ide_override(ide),
+    ]
+    if ide == "cursor":
+        idx = parts.index(MULTIMODEL_NOTE)
+        parts.insert(idx, CURSOR_MCP_SETUP)
+    if tier == "full":
+        parts.append(FULL_TIER_NOTE)
+    if caveman:
+        parts.append(CAVEMAN_DIRECTIVE)
+    parts.append(DYNAMIC_BLOCK)
+    return "\n".join(p for p in parts if p)

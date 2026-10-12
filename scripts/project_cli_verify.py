@@ -1,0 +1,208 @@
+"""SENAR Rule 5 verify CLI handler.
+
+Named after its command. It used to say it lived apart so a residue module could
+stay under the filesize gate; that module is gone, and a home needs no such
+excuse. The dispatch in project.py imports `cmd_verify` from here.
+
+cli-verify-bypasses-cache-guards: this module used to run its own gate cycle
+— `run_gates` + `record_run` called directly — and so carried none of
+`run_gates_with_cache`'s guards (`has_real_pass`, the `no-test-mapped` block,
+the refusal to cache an empty declared scope). A run in which every gate was
+SKIPPED was therefore written as a fully cacheable green, and `task done`
+would close on it. It is now a presentation layer over
+`GatesMixin.run_verify_for_task`: it decides nothing about what gets recorded.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def _declared_on_task(svc, slug):
+    """The scope already on the task, for a prepare run that declared none in this call."""
+    from task_close_inline_verify import declared_scope
+
+    return declared_scope(svc, slug) if slug else []
+
+
+def cmd_verify(svc: Any, args: Any) -> None:
+    """Scoped per-task verification, recorded in DB.
+
+    With --task: gates are scoped to the task's relevant_files. Without:
+    file scope is empty (full suite for pytest) and nothing is cached.
+
+    All gate-running, cache and recording decisions belong to
+    `run_verify_for_task` -> `run_gates_with_cache`. What is left here is what
+    belongs to the CLI and nowhere else: argparse, the scope declaration, and
+    the exit code. The REPORT is built by `render_verify`, which the MCP handler
+    also calls — it used to be built twice, and the two copies had drifted in
+    both directions.
+    """
+    from project_service import ServiceError
+    from render_verify import verify_lines
+
+    task_slug = getattr(args, "task", None)
+    scope = getattr(args, "scope", "manual")
+
+    cohort_slugs = getattr(args, "tasks", None)
+    hierarchy = None
+    for kind in ("story", "epic"):
+        if getattr(args, kind, None):
+            hierarchy = (kind, getattr(args, kind))
+    if hierarchy or cohort_slugs:
+        if task_slug:
+            # Two verification intents named, one silently chosen — the exact
+            # shape `task done` refuses for --verify/--verify-handle. The
+            # pooled lane and --task are different lanes; say so instead of
+            # letting --task vanish.
+            print(
+                "verify: --task cannot be combined with --tasks/--story/--epic — "
+                "the pooled lane verifies every member's scope in one pass; "
+                "drop --task or drop the pooled flag."
+            )
+            raise SystemExit(2)
+        # Preparation is paid INSIDE run_cohort_verify/run_hierarchy_verify —
+        # one place, so the CLI and the MCP handlers cannot disagree about
+        # whether it ran (live runs #3587/#3588 went red on exactly that
+        # divergence). --no-prepare is honored for the pooled lane like the
+        # single-task one.
+        pooled_prepare = not getattr(args, "no_prepare", False)
+
+    if hierarchy:
+        kind, parent = hierarchy
+        from verify_hierarchy import hierarchy_summary, run_hierarchy_verify
+
+        try:
+            out = run_hierarchy_verify(svc, parent, kind, scope=scope, prepare=pooled_prepare)
+        except Exception as exc:
+            print(f"Hierarchy verify error: {exc}")
+            raise SystemExit(2) from exc
+        print(hierarchy_summary(out))
+        if out.get("refused"):
+            raise SystemExit(2)
+        raise SystemExit(0 if out["passed"] else 1)
+    if cohort_slugs:
+        # The pooled lane: identity, one union-scope pass, named invalidators.
+        # Everything single-task below stays untouched — the two lanes share
+        # run_verify_for_task and its guards, nothing else.
+        from verify_cohort import cohort_summary, run_cohort_verify
+
+        try:
+            out = run_cohort_verify(svc, cohort_slugs, scope=scope, prepare=pooled_prepare)
+        except Exception as exc:
+            print(f"Cohort verify error: {exc}")
+            raise SystemExit(2) from exc
+        print(cohort_summary(out))
+        if out.get("refused"):
+            raise SystemExit(2)
+        raise SystemExit(0 if out["passed"] else 1)
+
+    # verify-warn-names-a-flag-verify-does-not-have: declaring the scope IS part
+    # of verifying it — a verify over an undeclared scope skips every gate and
+    # still signs a receipt. The declaration is persisted rather than used
+    # ad-hoc so `task done` reads the same list and hits the cache; one source
+    # of truth, the task row.
+    declared = getattr(args, "relevant_files", None)
+    if declared is not None:
+        if not task_slug:
+            print(
+                "verify --relevant-files needs --task: the scope is a property "
+                "of a task, and there is nowhere to record it otherwise."
+            )
+            raise SystemExit(2)
+        if declared:
+            import json as _json
+
+            svc.task_update(task_slug, relevant_files=_json.dumps(list(declared)))
+            print(f"Scope declared for '{task_slug}': {len(declared)} file(s).")
+        else:
+            # An empty list is almost always a shell glob that matched nothing.
+            # Silently wiping a declared scope would turn it into an unnoticed
+            # unscoped run — the exact state this flag exists to leave.
+            print(
+                "verify --relevant-files was given no paths — keeping the "
+                "scope already declared on the task. Pass paths to change it."
+            )
+
+    # DEFAULT, not a flag. The first version shipped preparation behind `--prepare`, and
+    # nothing — no skill, no CLAUDE.md line, no hint — ever named it. This project has
+    # already measured what a rule that is only asked for is worth: it gets switched off
+    # the same week. A flag is weaker still, because nobody even asks. Opting out is
+    # explicit and says so; `bootstrap_drift` alone was 56 red runs in one month.
+    prepared: list[str] = []
+    if getattr(args, "no_prepare", False):
+        print(
+            "PREPARATION SKIPPED by --no-prepare. `ruff_format` and `bootstrap_drift` are "
+            "judged on the tree exactly as it stands."
+        )
+    elif not task_slug:
+        # Without a task there is no declared scope, so formatting would go tree-wide —
+        # which is how the first version rewrote 90 files. Saying it beats skipping in
+        # silence, which reads as though preparation had run.
+        print(
+            "PREPARATION SKIPPED: no --task, so there is no declared scope to format and "
+            "a tree-wide run would edit files nobody declared."
+        )
+    else:
+        from project_root import root_from_service
+        from verify_prepare import PreparationFailed, run as run_preparation
+
+        # NEVER `or "."`. Preparation WRITES — it formats files and redeploys the profile —
+        # so it must act on the project this service speaks for and on no other. The
+        # fallback to the process's current directory made a verify held by a temporary
+        # service reformat and redeploy the LIVE tree, which the suite's own guard caught
+        # by the config file changing under it. No root, no preparation, and say so.
+        root = root_from_service(svc)
+        if not root:
+            print(
+                "PREPARATION SKIPPED: this service names no project root, and preparation "
+                "writes — formatting and redeploying somewhere else would be worse than "
+                "not preparing at all."
+            )
+            prepared = []
+        try:
+            if root:
+                prepared = run_preparation(root, declared or _declared_on_task(svc, task_slug))
+        except PreparationFailed as exc:
+            # Not a gate failure: nothing was judged. Saying so is the difference
+            # between "the tree is red" and "the tree was never looked at".
+            print(str(exc))
+            raise SystemExit(2) from exc
+        for line in prepared:
+            print(line)
+
+    try:
+        report = svc.run_verify_for_task(
+            task_slug,
+            scope=scope,
+            trigger="verify",
+            no_tests_expected=bool(getattr(args, "no_tests_expected", False)),
+        )
+    except ServiceError as exc:
+        print(str(exc))
+        raise SystemExit(2) from exc
+
+    print("\n".join(verify_lines(svc, report, task_slug, scope)))
+
+    # The post-scope gates run only at `task done`, so without this the agent meets them
+    # after the closing ceremony has already been paid for. Advisory, never a refusal.
+    if task_slug:
+        from task_close_inline_verify import post_close_advisory
+
+        for line in post_close_advisory(svc, task_slug):
+            print(line)
+
+    if report.get("cache_hit") is not None:
+        # A hit with no task means the cache layer changed shape under this
+        # caller; the report says so, and the exit code has to agree with it.
+        if not task_slug:
+            raise SystemExit(2)
+        return
+    if not report["passed"]:
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
+    from cli_entrypoint import refuse_direct_run
+
+    refuse_direct_run(__file__)

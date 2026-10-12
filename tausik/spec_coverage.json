@@ -1,0 +1,14 @@
+{
+  "_comment": "SPEC COVERAGE REGISTRY (RENAR §8.4.1, ADR-023 §5). Per SPEC: the ENUMERABLE SET that constitutes its subject, and the enumerator that produces that set from the LIVE code. scripts/spec_completeness.py asks whether the body names every member. This is by SUBJECT, never by vocabulary: ADR-023 §4 rejects a blacklist of adjectives because the same words are legitimate when they name a property OF the subject and illegitimate when they narrow what must be described. An adjective removes no member, so a body may call one element 'the critical one' and stay green; a body describing four of seven guarded keys is red however neutrally it is phrased. A SPEC with no entry here is reported UNCHECKED by name, not passed. Adding a SPEC means adding a line here. See task nothing-checks-completeness-of-a-spec-body.",
+  "_reach": "This control can cover 9 of the standard's 11 SPEC types. SPEC-TEST and SPEC-DOC do not exist in our closed list (service_specs.SPEC_TYPES), so reporting 'all types covered' would be the exact narrowing §8.4.1 forbids. Widening it is the task spec-closed-list-is-nine-while-the-standard-has-eleven, linked as a dependency in the DB.",
+  "sec-config-trust-tiers": {
+    "subject": "the guarded configuration keys — every key on which the project tier may only tighten",
+    "enumerator": "config_trust_guarded_keys",
+    "body": "docs/ru/config-trust-tiers.md"
+  },
+  "team-state-in-git-format": {
+    "subject": "the entity kinds the git-native projection writes",
+    "enumerator": "state_projection_kinds",
+    "body": "docs/ru/team-state-in-git.md"
+  }
+}

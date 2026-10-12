@@ -1,0 +1,218 @@
+"""IDE abstraction layer -- detect IDE, resolve paths, provide config factory.
+
+Centralizes all IDE-specific logic so the core framework stays IDE-agnostic.
+Adding a new IDE = registering it in IDE_REGISTRY below.
+"""
+
+from __future__ import annotations
+
+import os
+
+# --- IDE Registry ---
+# Each IDE entry: config_dir (relative to project root), rules_file, skills_subdir
+IDE_REGISTRY: dict[str, dict[str, str]] = {
+    "claude": {
+        "config_dir": ".claude",
+        "rules_file": "CLAUDE.md",
+        "skills_subdir": "skills",
+    },
+    "cursor": {
+        "config_dir": ".cursor",
+        "rules_file": ".cursorrules",
+        "skills_subdir": "skills",
+    },
+    "windsurf": {
+        "config_dir": ".windsurf",
+        "rules_file": ".windsurfrules",
+        "skills_subdir": "skills",
+    },
+    "codex": {
+        "config_dir": ".codex",
+        "rules_file": "AGENTS.md",
+        "skills_subdir": "skills",
+    },
+    "qwen": {
+        "config_dir": ".qwen",
+        "rules_file": "QWEN.md",
+        "skills_subdir": "skills",
+    },
+    "kilo": {
+        # Kilo Code (VSCode addon + CLI). MCP config lands in .kilo/ (and the
+        # Cline-lineage .kilocode/); instructions are read from AGENTS.md, which
+        # bootstrap generates for every IDE.
+        "config_dir": ".kilo",
+        "rules_file": "AGENTS.md",
+        "skills_subdir": "skills",
+    },
+    "opencode": {
+        # OpenCode (SST, npm `opencode-ai`). Config is `opencode.json` at the project
+        # root; MCP + the `instructions` key live there.
+        #
+        # rules_file is NOT AGENTS.md, unlike every other host here. OpenCode resolves
+        # AGENTS.md first-matching-file-wins, so a user's own file would shadow ours
+        # forever. Rules ship as a dedicated file referenced from `instructions`, which
+        # OpenCode *merges* with whatever AGENTS.md it finds.
+        "config_dir": ".opencode",
+        "rules_file": os.path.join(".opencode", "tausik-rules.md"),
+        "skills_subdir": "skills",
+    },
+}
+
+DEFAULT_IDE = "claude"
+SUPPORTED_IDES = frozenset(IDE_REGISTRY.keys())
+
+
+def detect_ide(project_dir: str | None = None) -> str:
+    """Auto-detect the running IDE from environment or project structure.
+
+    Detection order:
+    1. TAUSIK_IDE environment variable (explicit override)
+    2. CURSOR_* / WINDSURF_* / OPENCODE_* / CODEX_* env vars -> that IDE
+    3. Project-structure: first matching .{ide}/ dir among
+       cursor, windsurf, codex, kilo, qwen, opencode
+    4. Default -> claude
+
+    Note: kilo/qwen have no env-var branch yet — their launch-time env
+    signature is unverified pending a live build (v156 P3/P5). They are
+    still detected via TAUSIK_IDE and their .kilo/.qwen project dirs, which
+    is reliable for a bootstrapped install.
+    """
+    # Explicit override
+    explicit = os.environ.get("TAUSIK_IDE", "").lower().strip()
+    if explicit:
+        if explicit not in SUPPORTED_IDES:
+            raise ValueError(
+                f"Invalid TAUSIK_IDE='{explicit}', must be one of {sorted(SUPPORTED_IDES)}"
+            )
+        return explicit
+
+    # Env-based detection
+    if os.environ.get("CURSOR_DIR") or os.environ.get("CURSOR_TRACE_DIR"):
+        return "cursor"
+    if os.environ.get("WINDSURF_DIR") or os.environ.get("WINDSURF_SESSION"):
+        return "windsurf"
+    # OPENCODE_DIR used to resolve to "codex" — two different hosts with different configs
+    # sharing one branch. An OpenCode session was therefore told it was Codex, and its
+    # skill/rules paths resolved to .codex/, which OpenCode never reads.
+    #
+    # HONESTY NOTE: these two names are NOT verified against a live OpenCode build (same
+    # caveat as kilo/qwen below). They cost nothing if OpenCode never sets them — detection
+    # then falls through to the .opencode/ directory check, which bootstrap does create and
+    # which is reliable. What is verified is the negative: mapping OPENCODE_DIR to "codex"
+    # was wrong either way.
+    if os.environ.get("OPENCODE_DIR") or os.environ.get("OPENCODE_BIN_PATH"):
+        return "opencode"
+    if os.environ.get("CODEX_SANDBOX_DIR"):
+        return "codex"
+
+    # Project-structure detection. kilo/qwen included so a Kilo-/Qwen-only
+    # install resolves skill/rules paths to .kilo/.qwen instead of falling
+    # back to .claude (v156 P5). opencode joins them for the same reason.
+    if project_dir:
+        for ide_name in ("cursor", "windsurf", "codex", "kilo", "qwen", "opencode"):
+            config_dir = IDE_REGISTRY[ide_name]["config_dir"]
+            if os.path.isdir(os.path.join(project_dir, config_dir)):
+                return ide_name
+
+    return DEFAULT_IDE
+
+
+def get_ide_config(ide: str | None = None) -> dict[str, str]:
+    """Get IDE configuration dict from registry.
+
+    Raises ValueError for unknown IDE.
+    """
+    if ide is None:
+        ide = DEFAULT_IDE
+    if ide not in IDE_REGISTRY:
+        raise ValueError(f"Unknown IDE '{ide}', must be one of {sorted(SUPPORTED_IDES)}")
+    return dict(IDE_REGISTRY[ide])
+
+
+def get_ide_dir(project_dir: str, ide: str | None = None) -> str:
+    """Get IDE-specific config directory path (e.g., .claude, .cursor)."""
+    config = get_ide_config(ide)
+    return os.path.join(project_dir, config["config_dir"])
+
+
+def get_skills_dir(project_dir: str, ide: str | None = None) -> str:
+    """Get IDE skills directory path."""
+    ide_dir = get_ide_dir(project_dir, ide)
+    config = get_ide_config(ide)
+    return os.path.join(ide_dir, config["skills_subdir"])
+
+
+def resolve_profile(project_dir: str) -> tuple[str, str]:
+    """Return (ide, config_dir) for *project_dir* — e.g. ("cursor", ".cursor").
+
+    The pair diagnostics need: the IDE name to say WHICH profile was judged,
+    and its directory to look in. Callers that hardcoded `.claude` reported
+    healthy Cursor/Qwen/Kilo installs as broken and exited non-zero, because
+    bootstrap deploys `.cursor/`, `.qwen/`, `.kilo/` — the abstraction to
+    prevent that already existed here and simply was not used.
+    """
+    ide = detect_ide(project_dir)
+    return ide, get_ide_config(ide)["config_dir"]
+
+
+def other_deployed_profile(project_dir: str, ide: str) -> str | None:
+    """Name of a DIFFERENT supported profile deployed in *project_dir*, if any."""
+    for name, config in IDE_REGISTRY.items():
+        if name == ide:
+            continue
+        if os.path.isdir(os.path.join(project_dir, config["config_dir"])):
+            return name
+    return None
+
+
+def all_profile_dirs() -> frozenset[str]:
+    """Every IDE profile directory name (`.claude`, `.cursor`, …).
+
+    For scanners that must skip deployed profiles: those directories hold a
+    copy of the engine, not project source. Listing `.claude` by hand — as the
+    file-walkers did — skipped it on Claude installs and walked ~300 generated
+    files on every other IDE, which is both slow and wrong.
+    """
+    return frozenset(config["config_dir"] for config in IDE_REGISTRY.values())
+
+
+def missing_profile_hint(project_dir: str, ide: str) -> str:
+    """Remediation for "this profile isn't deployed", naming what IS deployed.
+
+    "missing — re-run bootstrap" is useless advice when bootstrap already ran
+    and simply targeted another IDE: the same command produces the same
+    result. When a different profile is present, say which, and give both
+    ways out — deploy the detected one, or point TAUSIK_IDE at the real one.
+    """
+    other = other_deployed_profile(project_dir, ide)
+    if other is None:
+        return "missing — re-run bootstrap"
+    return (
+        f"missing for the detected IDE '{ide}', but a '{other}' profile is deployed "
+        f"— run bootstrap for '{ide}', or set TAUSIK_IDE={other}"
+    )
+
+
+def get_rules_file(project_dir: str, ide: str | None = None) -> str:
+    """Get IDE rules file path (CLAUDE.md, .cursorrules, etc.)."""
+    config = get_ide_config(ide)
+    return os.path.join(project_dir, config["rules_file"])
+
+
+def get_agents_skills_dir(lib_dir: str, ide: str | None = None) -> str:
+    """Get source skills directory in harness/, with fallback chain.
+
+    Order: harness/skills/ (shared) -> harness/{ide}/skills/ -> harness/claude/skills/
+    """
+    if ide is None:
+        ide = DEFAULT_IDE
+    # Shared skills (preferred)
+    shared = os.path.join(lib_dir, "harness", "skills")
+    if os.path.isdir(shared):
+        return shared
+    # IDE-specific
+    primary = os.path.join(lib_dir, "harness", ide, "skills")
+    if os.path.isdir(primary):
+        return primary
+    # Fallback to claude (canonical source)
+    return os.path.join(lib_dir, "harness", "claude", "skills")

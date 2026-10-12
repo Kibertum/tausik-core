@@ -1,0 +1,758 @@
+"""Generated docs constants (version + MCP counts) stay aligned with code."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
+_SCRIPTS = REPO / "scripts"
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+
+from gen_doc_constants import (  # noqa: E402
+    CROSS_FILE_SCAN_TARGETS,
+    build_constants_doc,
+    output_json_path,
+    run_main,
+    scan_code_counts,
+    scan_mcp_tool_counts,
+    scan_py_version_constants,
+    scan_test_counts,
+    scan_version_refs,
+)
+from mcp_tool_counts import count_mcp_tool_totals, mcp_descriptions_digest  # noqa: E402
+
+
+def test_build_constants_matches_tool_totals():
+    d = build_constants_doc(REPO)
+    n_p, n_r = count_mcp_tool_totals(REPO)
+    assert isinstance(d["tausik_version"], str) and d["tausik_version"]
+    assert d["mcp_project_tools"] == n_p
+    assert "mcp_brain_tools" not in d, "the brain server left with the Notion transport"
+    assert d["mcp_rag_tools"] == n_r
+    assert d["mcp_main_tools"] == n_p
+    assert d["mcp_tools_with_optional_rag"] == n_p + n_r
+
+
+def test_constants_count_the_public_test_surface(monkeypatch: pytest.MonkeyPatch):
+    import gen_doc_constants as subject
+
+    captured = []
+    monkeypatch.setattr(
+        subject,
+        "count_tests",
+        lambda _root, ignored_paths=(): captured.extend(ignored_paths) or 1,
+    )
+    assert subject.build_constants_doc(REPO)["test_count"] == 1
+    assert captured == ["tests/test_ci_lane_dev.py"]
+
+
+def test_constants_json_file_matches_live():
+    """Committed ``constants.json`` must match generator (regression guard).
+
+    ``test_count`` is excluded: it is measured by ``pytest --collect-only`` and so varies
+    with the environment (optional-dependency modules import-skip out of collection on a
+    minimal runner), which made this a flaky gate across the CI matrix. The deterministic
+    constants — version, MCP tool counts, hook/code counts — are still compared exactly.
+    """
+    path = output_json_path(REPO)
+    if not path.is_file():
+        pytest.skip(f"missing {path} — run python scripts/gen_doc_constants.py")
+    import json
+
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    live = build_constants_doc(REPO)
+    on_disk_cmp = {k: v for k, v in on_disk.items() if k != "test_count"}
+    live_cmp = {k: v for k, v in live.items() if k != "test_count"}
+    assert on_disk_cmp == live_cmp
+
+
+def test_run_main_check_fails_on_payload_drift(monkeypatch: pytest.MonkeyPatch):
+    import gen_doc_constants as g
+
+    path = output_json_path(REPO)
+    if not path.is_file():
+        pytest.skip("constants.json not generated yet")
+
+    def _fake(_root: Path) -> dict[str, object]:
+        return {"schema_version": 99999, "tausik_version": "0.0.0"}
+
+    monkeypatch.setattr(g, "build_constants_doc", _fake)
+    assert run_main(REPO, check=True) == 1
+
+
+# Cross-file version-ref scanner ------------------------------------------
+
+
+def _seed_cross_file_repo(tmp_path: Path) -> Path:
+    """Build a fake repo with the standard scan-target files plus pyproject."""
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "x"\nversion = "1.4.0"\n', encoding="utf-8"
+    )
+    for rel in CROSS_FILE_SCAN_TARGETS:
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+    return tmp_path
+
+
+def test_scan_version_refs_clean_when_all_match(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("# Project\n\nv1.4 ships features X and Y.\n", encoding="utf-8")
+    (repo / "AGENTS.md").write_text("v1.4.0 release notes.\n", encoding="utf-8")
+    assert scan_version_refs(repo, "1.4.0") == []
+
+
+def test_scan_version_refs_ignores_claudemd_dynamic_block(tmp_path: Path):
+    # The auto-generated memory-tail (inside DYNAMIC markers) cites memory titles
+    # that may name historical versions — those must NOT trip the drift check,
+    # but an authored ref in the static body still must.
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "CLAUDE.md").write_text(
+        "# CLAUDE.md\n\nStatic body, current line.\n\n"
+        "<!-- DYNAMIC:START -->\n## Current State\n"
+        "- #86 v1.4 roadmap: parity for v1.4 features\n"
+        "<!-- DYNAMIC:END -->\n",
+        encoding="utf-8",
+    )
+    assert scan_version_refs(repo, "1.5.1") == []  # v1.4 in dynamic block ignored
+
+
+def test_scan_version_refs_flags_static_body_drift_in_claudemd(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "CLAUDE.md").write_text(
+        "# CLAUDE.md\n\nThis is the v1.4 contract.\n\n"
+        "<!-- DYNAMIC:START -->\nfresh\n<!-- DYNAMIC:END -->\n",
+        encoding="utf-8",
+    )
+    drifts = scan_version_refs(repo, "1.5.1")
+    assert any("CLAUDE.md" in d and "v1.4" in d for d in drifts)  # static body still checked
+
+
+def test_scan_version_refs_flags_minor_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("# Project\n\nv1.3 features.\n", encoding="utf-8")
+    drifts = scan_version_refs(repo, "1.4.0")
+    assert any("README.md:3" in d and "v1.3" in d for d in drifts)
+
+
+def test_scan_version_refs_flags_patch_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("\n\nv1.4.5 doc note.\n", encoding="utf-8")
+    drifts = scan_version_refs(repo, "1.4.0")
+    assert any("v1.4.5" in d for d in drifts)
+
+
+def test_scan_py_version_clean_when_match(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "scripts").mkdir(parents=True, exist_ok=True)
+    (repo / "scripts" / "tausik_version.py").write_text('__version__ = "1.4.0"\n', encoding="utf-8")
+    assert scan_py_version_constants(repo, "1.4.0") == []
+
+
+def test_scan_py_version_flags_drift(tmp_path: Path):
+    """Regression for the historical drift: tausik_version.py stuck at 1.4.0
+    while pyproject moved to 1.5.0 — previously invisible to --check."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "scripts").mkdir(parents=True, exist_ok=True)
+    (repo / "scripts" / "tausik_version.py").write_text(
+        '"""TAUSIK framework version."""\n__version__ = "1.4.0"\n', encoding="utf-8"
+    )
+    drifts = scan_py_version_constants(repo, "1.5.0")
+    assert any("tausik_version.py:2" in d and "1.4.0" in d for d in drifts)
+
+
+def test_scan_py_version_skips_missing_target(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    assert scan_py_version_constants(repo, "1.5.0") == []
+
+
+def test_scan_version_refs_skips_foreign_versions(tmp_path: Path):
+    """SENAR / Python / OWASP versions are independent — must NOT be flagged."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "# Project\n\nImplements SENAR v1.3 spec.\n"
+        "Requires Python v3.11.0 or newer.\n"
+        "Follows OWASP v2.0 guidelines.\n",
+        encoding="utf-8",
+    )
+    assert scan_version_refs(repo, "1.4.0") == []
+
+
+def test_scan_version_refs_skips_renar_foreign(tmp_path: Path):
+    """RENAR/renar refs are a sibling spec on its own timeline — not TAUSIK drift.
+
+    Regression: the auto-generated CLAUDE.md memory-tail cites
+    'renar.tech v1.0-draft', which previously tripped the version-ref scanner
+    and blocked all commits. Both the lowercase 'renar.tech' form and the
+    uppercase prose 'RENAR v1.0' form must be skipped.
+    """
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "CLAUDE.md").write_text(
+        "# CLAUDE\n\n- #103 implement ADAPT per renar.tech v1.0-draft §7.4-7.6\n"
+        "- conformance against RENAR v1.0 mandatory clauses\n",
+        encoding="utf-8",
+    )
+    assert scan_version_refs(repo, "1.5.0") == []
+
+
+def test_scan_version_refs_still_flags_native_drift_near_renar(tmp_path: Path):
+    """NEGATIVE guard: a real TAUSIK vX.Y drift is STILL flagged.
+
+    The foreign-prefix skip must not become a blanket escape hatch — a bare
+    'v1.0' with no foreign prefix in its 24-char lookbehind must still drift.
+    """
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "# Project\n\nThis release is v1.0 of the tool.\n", encoding="utf-8"
+    )
+    drifts = scan_version_refs(repo, "1.5.0")
+    assert any("v1.0" in d for d in drifts)
+
+
+def test_scan_version_refs_skips_fenced_code_blocks(tmp_path: Path):
+    """Refs inside ``` ... ``` are documentation examples, not real version refs."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "# Project\n\n```\nThis README mentions v1.3 in code\n```\n",
+        encoding="utf-8",
+    )
+    assert scan_version_refs(repo, "1.4.0") == []
+
+
+def test_run_main_check_fails_on_cross_file_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run_main(check=True) returns 1 when constants OK but doc refs drift."""
+    import gen_doc_constants as g
+
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("v1.3 features\n", encoding="utf-8")
+    monkeypatch.setattr(
+        g, "build_constants_doc", lambda _root: {"schema_version": 1, "tausik_version": "1.4.0"}
+    )
+    # Generate constants.json so the first stage of --check passes
+    assert run_main(repo, check=False) == 0
+    # Now --check should fail because of cross-file scan
+    assert run_main(repo, check=True) == 1
+
+
+def test_run_main_check_passes_with_skip_cross_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--skip-cross-files preserves the legacy behaviour (constants.json only)."""
+    import gen_doc_constants as g
+
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("v1.3 features\n", encoding="utf-8")
+    monkeypatch.setattr(
+        g, "build_constants_doc", lambda _root: {"schema_version": 1, "tausik_version": "1.4.0"}
+    )
+    assert run_main(repo, check=False) == 0
+    assert run_main(repo, check=True, skip_cross_files=True) == 0
+
+
+# Cross-file MCP tool-count scanner ---------------------------------------
+
+
+_FAKE_MCP_PAYLOAD: dict[str, object] = {
+    "schema_version": 1,
+    "tausik_version": "1.4.0",
+    "mcp_project_tools": 93,
+    "mcp_main_tools": 100,
+    "mcp_rag_tools": 7,
+    "mcp_tools_with_optional_rag": 107,
+}
+
+
+def test_scan_mcp_counts_clean_when_all_match(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "**100 MCP tools** (93 project + 7 brain) — programmatic access.\n",
+        encoding="utf-8",
+    )
+    (repo / "AGENTS.md").write_text(
+        "Total: 93 project tools + 7 brain tools = 100.\n",
+        encoding="utf-8",
+    )
+    (repo / "docs/en/mcp.md").write_text(
+        "## Shared Brain (`tausik-brain`, 7 tools)\n",
+        encoding="utf-8",
+    )
+    assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
+
+
+@pytest.mark.parametrize(
+    ("line", "label"),
+    [
+        # docs/ru/architecture.md sat at "117 + 7 = 124" with `--check` green:
+        # no "(" before the pair, and the bold spans the whole phrase.
+        ("**93 project + 7 brain = 124 инструментов**", "main count (after =)"),
+        # The compliance-matrix headline carries no bold at all.
+        ("| MCP coverage 124 tools | ok |", "MCP coverage headline"),
+        ("| MCP coverage (124 инструмента) | ok |", "MCP coverage headline"),
+        # mcp.md's server list carries the count AFTER the noun (record #24).
+        ("- `tausik-project` — project-scoped tools (117): tasks", "project-scoped count"),
+        ("- `tausik-project` — project-scoped инструменты (117): tasks", "project-scoped count"),
+        # README prose beside the IDE table.
+        ("hosts get the same 124 tools and skills", "README prose count"),
+        # Session #224: the optional server had TWO computed constants and no
+        # document was checked against either, so "+7 tools → **107** total"
+        # outlived the total reaching 159. Both forms are anchored on the
+        # server's own name so they cannot rewrite an unrelated total.
+        (
+            "**Optional `codebase-rag` server:** +9 tools → **107** total",
+            "codebase-rag increment",
+        ),
+        (
+            "**Optional `codebase-rag` server:** +7 tools → **124** total",
+            "grand total with the optional server",
+        ),
+        # The sentence that EXCLUDES the optional server from the main total
+        # names the count without the word "tools", at the foot of both mcp.md
+        # files: line 7 read 152 and line 370 read 128, and neither was checked.
+        (
+            "These are not part of the main 124 count - the `codebase-rag` server owns them",
+            "main count (excluding the optional server)",
+        ),
+        (
+            "Эти не входят в основной счёт 124 — принадлежат `codebase-rag` серверу",
+            "main count (excluding the optional server, ru)",
+        ),
+        # The SAME two rag claims in the wording docs/{en,ru}/mcp.md really uses.
+        # The AGENTS.md-shaped patterns above matched none of it, so the canonical
+        # MCP document was "covered" by patterns named after it and reaching none
+        # of its sentences — proven by giving the constants wrong values and
+        # watching mcp.md stay silent.
+        (
+            "> **Optional `codebase-rag` server** adds 9 tools (search_code, ...).",
+            "codebase-rag increment (mcp.md wording)",
+        ),
+        (
+            "> **Опциональный сервер `codebase-rag`** добавляет 9 инструментов.",
+            "codebase-rag increment (mcp.md wording)",
+        ),
+        (
+            "`codebase-rag` is separate; total with it is 124 tools.",
+            "grand total (mcp.md wording)",
+        ),
+        (
+            "`codebase-rag` отдельный; итого с ним 124 инструмента.",
+            "grand total (mcp.md wording)",
+        ),
+        # The sum with a tool-word BETWEEN the operands and the bold closing right
+        # after the digits. docs/en/architecture.md carried this line with a stale
+        # total while the auto-fixer rewrote its first operand four times.
+        (
+            "Total MCP surface: **93 project tools + 7 brain tools = 124** (optional)",
+            "main count (after = , tool-word between operands)",
+        ),
+        # The compliance matrix puts the count one table CELL over, so a pipe sits
+        # between the headline and the number.
+        (
+            "| MCP Coverage | 124 tools (93 project + 7 brain) | Hard |",
+            "MCP coverage headline",
+        ),
+        # mcp.md's measured-cost paragraph, twenty lines below a line already
+        # guarded, stale in both languages.
+        (
+            "**Measured cost.** The full authored surface is 124 tools ~ 62 KB",
+            "authored-surface count",
+        ),
+        (
+            "**Замер стоимости.** Полная авторская поверхность — 124 тула ~ 62 КБ",
+            "authored-surface count (ru)",
+        ),
+    ],
+)
+def test_scan_mcp_counts_sees_the_forms_review_208_found_blind(tmp_path: Path, line, label):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(line + "\n", encoding="utf-8")
+    drifts = scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD)
+    assert any("README.md:1" in d and label in d for d in drifts), drifts
+
+
+def test_scan_mcp_counts_accepts_the_same_forms_when_right(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "**93 project + 7 brain = 100 инструментов**\n| MCP coverage 100 tools | ok |\n"
+        "| MCP coverage (100 инструментов) | ok |\nproject-scoped tools (93): tasks\n"
+        "hosts get the same 100 tools and skills\n"
+        "**Optional `codebase-rag` server:** +7 tools → **107** total\n"
+        "These are not part of the main 100 count - the `codebase-rag` server owns them\n"
+        "Эти не входят в основной счёт 100 — принадлежат `codebase-rag` серверу\n"
+        "> **Optional `codebase-rag` server** adds 7 tools; total with it is 107 tools.\n"
+        "> **Опциональный `codebase-rag`** добавляет 7 инструментов; итого с ним 107 инструментов.\n"
+        "Total MCP surface: **93 project tools + 7 brain tools = 100** (optional extra)\n"
+        "| MCP Coverage | 100 tools (93 project + 7 brain) | Hard |\n"
+        "The full authored surface is 100 tools ~ 40 KB of definitions\n"
+        "Полная авторская поверхность — 100 тулов ~ 40 КБ определений\n"
+        # Unrelated prose must NOT be read as a count (the fixer rewrites matches).
+        # "the main N count" without the optional server named on the same line is
+        # ordinary prose: unanchored, the auto-fixer rewrote "run the main 3 count
+        # validators" into "the main 152 count validators" in a probe.
+        "Retry policy: run the main 3 count validators before falling back.\n"
+        "The recipe = 3 tools and a rope.\n",
+        encoding="utf-8",
+    )
+    assert scan_mcp_tool_counts(repo, _FAKE_MCP_PAYLOAD) == []
+
+
+def test_run_main_check_passes_with_skip_mcp_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--skip-mcp-counts drops the MCP scan AND the column scan grouped with it.
+
+    The column scan used to guard MCP tool counts alone, so the flag's name told
+    the whole truth; it now also covers hooks and core skills, and the flag turns
+    those off with it. Stated here and in the CLI help rather than left as a
+    surprise — the version-ref and test-count checks are what stay on.
+    """
+    import gen_doc_constants as g
+
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "docs/en/mcp.md").write_text("**101 tools** across the servers\n", encoding="utf-8")
+    monkeypatch.setattr(g, "build_constants_doc", lambda _root: dict(_FAKE_MCP_PAYLOAD))
+    assert run_main(repo, check=False) == 0
+    # Without skip — fails on the main-count drift
+    assert run_main(repo, check=True) == 1
+    # With skip-mcp-counts — passes (no version drift in this fixture)
+    assert run_main(repo, check=True, skip_mcp_counts=True) == 0
+
+
+# Cross-file test-count scanner -------------------------------------------
+
+
+_FAKE_TEST_COUNT_PAYLOAD: dict[str, object] = {
+    "schema_version": 1,
+    "tausik_version": "1.4.0",
+    "test_count": 3050,
+}
+
+
+def test_scan_test_counts_clean_when_all_match(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text(
+        "Run pytest suite (3050 tests) before merging.\n",
+        encoding="utf-8",
+    )
+    (repo / "README.md").write_text(
+        "[![3050 tests](https://example.com/badge/tests-3050%20passed-green.svg)](#)\n",
+        encoding="utf-8",
+    )
+    assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
+
+
+def test_scan_test_counts_clean_when_doc_below_live_lower_bound(tmp_path: Path):
+    """decision #182: test_count is a LOWER BOUND. A doc claiming FEWER tests
+    than the live suite (2590 < 3050) is an honest 'N+' claim — NOT drift."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "[![2590 tests](https://example.com/badge/tests-2590%20passed-green.svg)](#)\n",
+        encoding="utf-8",
+    )
+    assert scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD) == []
+
+
+def test_scan_test_counts_flags_overclaim(tmp_path: Path):
+    """A doc claiming MORE tests than exist (3500 > 3050) IS flagged — the doc
+    asserts a suite size the code cannot back up."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "[![3500 tests](https://example.com/badge/tests-3500%20passed-green.svg)](#)\n",
+        encoding="utf-8",
+    )
+    drifts = scan_test_counts(repo, _FAKE_TEST_COUNT_PAYLOAD)
+    assert any("OVERCLAIM" in d and "badge URL count" in d and "found=3500" in d for d in drifts)
+    assert any("OVERCLAIM" in d and "badge label count" in d and "found=3500" in d for d in drifts)
+
+
+def test_run_main_check_passes_with_skip_test_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--skip-test-count disables only the test-count scan; other scans stay on.
+
+    Uses an OVERCLAIM (9999 > 3050) so the non-skip check fails — a doc number
+    BELOW live is a valid lower bound and would (correctly) not drift."""
+    import gen_doc_constants as g
+
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text("pytest suite (9999 tests)\n", encoding="utf-8")
+    monkeypatch.setattr(g, "build_constants_doc", lambda _root: dict(_FAKE_TEST_COUNT_PAYLOAD))
+    assert run_main(repo, check=False) == 0
+    assert run_main(repo, check=True) == 1
+    assert run_main(repo, check=True, skip_test_count=True) == 0
+
+
+def _seed_constants_for_lowerbound(tmp_path: Path, recorded: int) -> Path:
+    """Build a minimal repo whose constants.json records `recorded` test_count."""
+    import json
+
+    repo = _seed_cross_file_repo(tmp_path)
+    gen = repo / "docs" / "_generated"
+    gen.mkdir(parents=True, exist_ok=True)
+    (gen / "constants.json").write_text(
+        json.dumps(
+            {"schema_version": 1, "tausik_version": "1.4.0", "test_count": recorded},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return repo
+
+
+def test_run_main_test_count_growth_is_not_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """decision #182 / AC2: the whole point — a GROWN suite (recorded 3000 <=
+    live 3200) is NOT drift. This is what closes the every-task-reds-the-suite trap."""
+    import gen_doc_constants as g
+
+    repo = _seed_constants_for_lowerbound(tmp_path, recorded=3000)
+    monkeypatch.setattr(
+        g,
+        "build_constants_doc",
+        lambda _root: {"schema_version": 1, "tausik_version": "1.4.0", "test_count": 3200},
+    )
+    assert run_main(repo, check=True) == 0
+
+
+def test_run_main_test_count_shrink_is_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """AC3(b): a suite that SHRANK below the recorded floor (recorded 3200 >
+    live 3000) IS drift — the one meaningful failure the lower bound still catches."""
+    import gen_doc_constants as g
+
+    repo = _seed_constants_for_lowerbound(tmp_path, recorded=3200)
+    monkeypatch.setattr(
+        g,
+        "build_constants_doc",
+        lambda _root: {"schema_version": 1, "tausik_version": "1.4.0", "test_count": 3000},
+    )
+    rc = run_main(repo, check=True)
+    assert rc == 1
+    # ...but --skip-test-count still lets CI (which collects fewer) pass.
+    assert run_main(repo, check=True, skip_test_count=True) == 0
+
+
+# Module-level: G52 — drift detection across MCP-counts and test-counts scanners
+@pytest.mark.parametrize(
+    "scan_func_name,payload_name,rel_path,content,phrases",
+    [
+        pytest.param(
+            "scan_mcp_tool_counts",
+            "_FAKE_MCP_PAYLOAD",
+            "docs/en/mcp.md",
+            "**93 project tools + 7 brain tools = 124**\n",
+            ("docs/en/mcp.md:1", "brain tools = 124", "found=124"),
+            id="scan_mcp_counts_flags_a_stale_brain_sum",
+        ),
+        pytest.param(
+            "scan_mcp_tool_counts",
+            "_FAKE_MCP_PAYLOAD",
+            "AGENTS.md",
+            "We expose 96 project tools today.\n",
+            ("AGENTS.md:1", "project count", "found=96"),
+            id="scan_mcp_counts_flags_project_drift",
+        ),
+        pytest.param(
+            "scan_test_counts",
+            "_FAKE_TEST_COUNT_PAYLOAD",
+            "AGENTS.md",
+            "tests/             pytest suite (9999 tests)\n",
+            ("AGENTS.md:1", "pytest suite count", "found=9999"),
+            id="scan_test_counts_flags_pytest_suite_overclaim",
+        ),
+    ],
+)
+def test_scan_flags_drift(tmp_path: Path, scan_func_name, payload_name, rel_path, content, phrases):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / rel_path).write_text(content, encoding="utf-8")
+    scan_func = globals()[scan_func_name]
+    payload = globals()[payload_name]
+    drifts = scan_func(repo, payload)
+    assert any(all(p in d for p in phrases) for d in drifts)
+
+
+# Module-level: G53 — empty-list assertions across MCP/test scanners (fenced/illustrative)
+@pytest.mark.parametrize(
+    "scan_func_name,payload_name,rel_path,content",
+    [
+        pytest.param(
+            "scan_mcp_tool_counts",
+            "_FAKE_MCP_PAYLOAD",
+            "README.md",
+            "Counts in code\n\n```\n90 project tools (legacy example)\n```\n",
+            id="scan_mcp_counts_skips_fenced_code_blocks",
+        ),
+        pytest.param(
+            "scan_test_counts",
+            "_FAKE_TEST_COUNT_PAYLOAD",
+            "AGENTS.md",
+            "Repo layout:\n\n```\ntests/   pytest suite (2590 tests)\n```\n",
+            id="scan_test_counts_skips_fenced_code_blocks",
+        ),
+        pytest.param(
+            "scan_test_counts",
+            "_FAKE_TEST_COUNT_PAYLOAD",
+            "AGENTS.md",
+            "Never add 5 tests where one parametrized test covers the same matrix.\n",
+            id="scan_test_counts_does_not_flag_illustrative_numbers",
+        ),
+    ],
+)
+def test_scan_returns_empty(tmp_path: Path, scan_func_name, payload_name, rel_path, content):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / rel_path).write_text(content, encoding="utf-8")
+    scan_func = globals()[scan_func_name]
+    payload = globals()[payload_name]
+    assert scan_func(repo, payload) == []
+
+
+# Cross-file code-count scanner (v15p-doc-drift-gate) ----------------------
+
+
+_FAKE_CODE_PAYLOAD: dict[str, object] = {
+    "schema_version": 1,
+    "tausik_version": "1.4.0",
+    "stacks_count": 25,
+    "hooks_count": 21,
+    "review_agents_count": 6,
+}
+
+
+def test_scan_code_counts_clean_when_all_match(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "Ships 25 stacks, 21 hooks, and 6 review agents out of the box.\n",
+        encoding="utf-8",
+    )
+    (repo / "README.ru.md").write_text("21 хуков и 25 стеков.\n", encoding="utf-8")
+    assert scan_code_counts(repo, _FAKE_CODE_PAYLOAD) == []
+
+
+def test_scan_code_counts_flags_stacks_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "AGENTS.md").write_text("We bundle 99 stacks today.\n", encoding="utf-8")
+    drifts = scan_code_counts(repo, _FAKE_CODE_PAYLOAD)
+    assert any("AGENTS.md:1" in d and "stacks count" in d and "found=99" in d for d in drifts)
+
+
+def test_scan_code_counts_flags_hooks_drift(tmp_path: Path):
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("19 hooks guard the workflow.\n", encoding="utf-8")
+    drifts = scan_code_counts(repo, _FAKE_CODE_PAYLOAD)
+    assert any("hooks count" in d and "found=19" in d for d in drifts)
+
+
+def test_scan_code_counts_ignores_singular_stack_phrases(tmp_path: Path):
+    """NEGATIVE: '25 stack-aware checks' / '25 stack guides' count gates/docs,
+    not stacks — the singular 'stack' must never be flagged as a stacks drift."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text(
+        "30 stack-aware checks, 30 stack guides, 30 stack-scoped gates.\n",
+        encoding="utf-8",
+    )
+    assert scan_code_counts(repo, _FAKE_CODE_PAYLOAD) == []
+
+
+def test_scan_code_counts_ignores_skills_vendor_count(tmp_path: Path):
+    """NEGATIVE: '38 skills' (full vendor set) must not be checked against the
+    core-skill count — skills is intentionally excluded from the scanner."""
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("Full set: 38 skills.\n", encoding="utf-8")
+    assert scan_code_counts(repo, _FAKE_CODE_PAYLOAD) == []
+
+
+def test_run_main_check_passes_with_skip_code_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--skip-code-counts disables only the code-count scan."""
+    import gen_doc_constants as g
+
+    repo = _seed_cross_file_repo(tmp_path)
+    (repo / "README.md").write_text("99 hooks\n", encoding="utf-8")
+    monkeypatch.setattr(g, "build_constants_doc", lambda _root: dict(_FAKE_CODE_PAYLOAD))
+    assert run_main(repo, check=False) == 0
+    assert run_main(repo, check=True) == 1
+    assert run_main(repo, check=True, skip_code_counts=True) == 0
+
+
+# MCP descriptions cache-bust digest (techdebt #11) ------------------------
+
+
+def test_descriptions_digest_is_stable_16_hex():
+    d1 = mcp_descriptions_digest(REPO)
+    d2 = mcp_descriptions_digest(REPO)
+    assert d1 == d2
+    assert len(d1) == 16
+    assert all(c in "0123456789abcdef" for c in d1)
+
+
+def test_descriptions_hash_in_constants_payload():
+    payload = build_constants_doc(REPO)
+    assert payload["mcp_descriptions_hash"] == mcp_descriptions_digest(REPO)
+
+
+def test_description_edit_busts_check(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Editing a tool description changes the hash -> payload != on-disk -> --check fails."""
+    import gen_doc_constants as g
+
+    path = output_json_path(REPO)
+    if not path.is_file():
+        pytest.skip("constants.json not generated yet")
+    live = build_constants_doc(REPO)
+    bumped = dict(live)
+    bumped["mcp_descriptions_hash"] = "deadbeefdeadbeef"  # simulate a description edit
+    monkeypatch.setattr(g, "build_constants_doc", lambda _root: bumped)
+    assert run_main(REPO, check=True) == 1
+
+
+class TestVersionScanTargets:
+    """A version ref means 'current release' only where the doc claims to be current.
+
+    architecture.md / mcp.md annotate when a feature landed ("tausik_session_open
+    (v1.5)", "like in pre-v1.5 releases"). Scanning them against the current version
+    made every minor bump demand those markers be rewritten — i.e. it demanded that
+    true statements be made false.
+    """
+
+    def test_history_docs_are_out_of_the_version_scan(self):
+        from doc_drift_scanners import VERSION_SCAN_TARGETS
+
+        for rel in (
+            "docs/en/mcp.md",
+            "docs/ru/mcp.md",
+            "docs/en/architecture.md",
+            "docs/ru/architecture.md",
+        ):
+            assert rel not in VERSION_SCAN_TARGETS
+
+    def test_current_version_docs_are_still_scanned(self):
+        from doc_drift_scanners import VERSION_SCAN_TARGETS
+
+        for rel in ("README.md", "README.ru.md", "CLAUDE.md"):
+            assert rel in VERSION_SCAN_TARGETS
+
+    def test_history_docs_still_have_their_mcp_counts_checked(self):
+        from doc_drift_scanners import CROSS_FILE_SCAN_TARGETS
+
+        for rel in ("docs/en/mcp.md", "docs/ru/mcp.md"):
+            assert rel in CROSS_FILE_SCAN_TARGETS
+
+    def test_stale_version_in_readme_is_still_caught(self, tmp_path):
+        from doc_drift_scanners import scan_version_refs
+
+        (tmp_path / "README.md").write_text("badge v1.5 here\n", encoding="utf-8")
+        messages = scan_version_refs(tmp_path, "1.6.0")
+        assert any("README.md" in m for m in messages)
+
+    def test_historical_marker_in_mcp_doc_is_not_flagged(self, tmp_path):
+        from doc_drift_scanners import scan_version_refs
+
+        docs = tmp_path / "docs" / "en"
+        docs.mkdir(parents=True)
+        (docs / "mcp.md").write_text(
+            "`tausik_session_open` (v1.5) landed then.\n", encoding="utf-8"
+        )
+        assert scan_version_refs(tmp_path, "1.6.0") == []

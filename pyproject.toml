@@ -1,0 +1,359 @@
+[project]
+name = "tausik"
+version = "1.11.3"
+description = "Cross-IDE AI agent framework with task lifecycle, quality gates, and project memory"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [
+    { name = "Andrey Yumashev" },
+]
+keywords = ["ai", "agent", "framework", "ide", "quality-gates", "senar"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+[project.urls]
+Homepage = "https://github.com/Kibertum/tausik-core"
+Documentation = "https://github.com/Kibertum/tausik-core/tree/main/docs"
+Repository = "https://github.com/Kibertum/tausik-core"
+Changelog = "https://github.com/Kibertum/tausik-core/blob/main/CHANGELOG.md"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+# Default fast lane — slow integration / subprocess / e2e tests are skipped.
+# Run the full battery via `pytest -m ''`, or through a gate with the environment
+# variable TAUSIK_VERIFY_FULL=1. See docs/{en,ru}/cli.md for the full contract.
+#
+# These three lines used to offer `tausik verify --full`. THAT FLAG HAS NEVER
+# EXISTED: `verify --help` lists --task, --scope, --relevant-files and
+# --no-tests-expected, and nothing else. The promise was deleted rather than
+# implemented — a config comment is not the place to design a CLI, and the
+# environment variable already does the job under a name that is true.
+#
+# `-n auto` IS PART OF THE LANE, NOT A FLAG SOMEBODY REMEMBERS TO TYPE. Measured
+# on this box (20 cores), not assumed: the full lane serial took 32m24s against
+# 3m48s under `-n auto` — 8.5x, session #186, same tree, 7395/7397 tests. Every
+# earlier speed-up lived in a command line, which means it applied on the machine
+# that typed it and nowhere else; the lane is now parallel by default and serial
+# only if someone asks for `-n0`.
+#
+# The full lane costs 913 s wall / 793 s reported TODAY rather than 3m48s, and
+# that is not a regression of this flag: the 2026-08 tree runs fourteen tests the
+# #186 measurement never reached, because the hang guard was killing them at 60 s
+# (see the threshold note below). More work, more time, same parallelism.
+#
+# THE PRICE, ALSO MEASURED, BECAUSE IT IS PAID ON EVERY VERIFY: booting the
+# workers is a fixed cost, so a NARROW scoped run gets slower —
+# tests/test_gate_outcome.py (20 tests) goes 1.68 s -> 6.80 s. The trade is ~5 s
+# on each scoped gate against tens of minutes on each whole-lane run, and the
+# whole-lane run is the one that was quietly not being done.
+#
+# IT MAKES pytest-xdist A HARD DEPENDENCY OF EVERY RUN IN THIS REPOSITORY:
+# without the plugin pytest dies with `unrecognized arguments: -n` before it
+# collects anything. Five install paths carry it — .github/workflows/tests.yml
+# (two jobs), .github/workflows/test-coverage.yml, .gitlab-ci.yml and both
+# CONTRIBUTING.md blocks — and tests/test_ci_lanes_are_honest.py is the ratchet
+# that reddens the suite here instead of letting a forgotten one die in CI.
+# It is NOT added to requirements.txt: that file is the runtime venv of the MCP
+# server ("every requirement needs an upper bound"), not the test toolchain.
+addopts = "-m 'not slow' -n auto"
+# full-pytest-hangs-while-scoped-pytest-is-green. The cost of the suite is FLAT:
+# the 30 slowest tests are 10% of it, the rest is ~0.09 s x 5700. Three sessions
+# read "slower than my timeout" as "hung" and killed the run at 200/420/600 s,
+# then wrote conclusions about a hang that never happened. A stall is told apart
+# from slowness mechanically instead of by guessing: any single test over the
+# threshold dumps the tracebacks of every thread and exits non-zero. Silence
+# therefore MEANS "not stuck, just long".
+#
+# THE THRESHOLD IS 300 s BY DECISION #275, AND THE NUMBER BESIDE IT IS MEASURED.
+# The previous value, 60 s, promised "11x the slowest real one, 5.3 s". Both
+# halves were wrong: 5.3 s came from the FAST lane, where this guard is not
+# needed, and the guard was armed over the FULL lane, where the slowest test is
+# 93.57 s under the load of the full run (session #190). The real headroom was
+# 0.64x — the threshold sat BELOW the maximum — and the guard killed fourteen
+# healthy tests on every full run for months while every test of it stayed green.
+#
+# That 93.57 s could not be measured until the fix was in: every earlier figure
+# came from a run in which twelve of these tests were being killed at 60 s, i.e.
+# under lighter load than the tree really carries. The defect was hiding its own
+# cost. First clean full run on Windows: 7434 passed, 24 skipped, exit 0, 793 s.
+#
+# 300 s is not a multiple, it is a GAP: this suite has no test whatsoever between
+# 93.57 s and 300 s, whereas 60 s cut through the middle of a cluster of twelve
+# spanning 52-65 s in isolation. A threshold on a slope kills part of the
+# distribution; a threshold in an empty interval does not. The errors are also
+# asymmetric — too low poisons EVERY run, too high costs minutes RARELY — so it
+# is biased high.
+#
+# The promise is no longer maintained by hand. tests/hang_guard_contract.py holds
+# the measurements and a declared 2x ALARM floor, and conftest.py compares it
+# against the slowest test the RUNNING suite actually executed, so drift reddens
+# the run instead of rotting quietly. That is what failed last time, not the number.
+# `faulthandler_exit_on_timeout` needs pytest >= 9.0; older installs warn about
+# an unknown option and tests/test_pytest_hang_guard.py says so in words.
+faulthandler_timeout = 300
+faulthandler_exit_on_timeout = true
+markers = [
+    "qg0_substance: opt the test in to QG-0 substance thresholds (default conftest shim sets them to 0 for legacy fixtures)",
+    "verify_first: opt the test in to v1.4 Verify-First Contract enforcement (default conftest fixture sets auto_verify=True for backward compat)",
+    "slow: subprocess/integration/e2e/stress tests; skipped by default in interactive verify, run via `pytest -m ''` or TAUSIK_VERIFY_FULL=1 (there is no `verify --full` flag)",
+]
+
+[tool.coverage.run]
+source = ["scripts"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ ==",
+]
+
+[tool.mypy]
+python_version = "3.11"
+# The MCP project package joins `scripts` here: it is the surface the agent
+# actually talks to (CLAUDE.md mandates MCP over CLI), so leaving it untyped
+# put the unchecked code exactly where a mistake costs most. It was invisible
+# rather than deliberate — nobody had ever run mypy over harness/.
+#
+# `harness/claude/mcp/codebase-rag/` joined in 1.10. It was kept out because its
+# entry point was also called `server.py`, and two files mapping to one
+# top-level module name make mypy abort with "Duplicate module named
+# 'server'" before checking anything; the hyphen in the directory name rules
+# out `__init__.py` and `--explicit-package-bases`. Renaming the file to
+# `rag_server.py` removed the collision (mcp-rag-server-rename-for-mypy-scope),
+# and tests/test_mypy_clean.py pins both MCP packages in this list.
+files = ["scripts", "harness/claude/mcp/project", "harness/claude/mcp/codebase-rag"]
+# scripts/hooks/*.py is reachable as both `<name>` (via pythonpath=scripts at
+# runtime) and `hooks.<name>` (via scripts/hooks/). Excluding the hooks/
+# subdir from the default check avoids the dual-module-names error;
+# hooks are exercised via tests/ rather than mypy directly.
+exclude = ["scripts/hooks/"]
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+no_implicit_optional = true
+# memory_markers is a hooks/ module imported from scripts/brain_classifier.py
+# via runtime sys.path injection; mypy can't follow it statically.
+[[tool.mypy.overrides]]
+module = "memory_markers"
+ignore_missing_imports = true
+
+# PyYAML is an OPTIONAL RENAR dependency, lazily imported inside a try/except
+# ModuleNotFoundError (project_cli_renar.py, renar_conformance.py) precisely so
+# the CLI works without it. It ships no stubs and is not py.typed, so mypy
+# reports import-untyped for it — an error about the DEPENDENCY, not about any
+# code in scripts/. The obvious fix, `pip install types-PyYAML`, is not
+# available here: the venv is deliberately lean and `tausik doctor` asserts no
+# third-party packages leaked into it, so adding a stub package to satisfy a
+# type checker would break a health check to make another one pass.
+#
+# This suppression is NOT the "per-module ignore" that tests/test_mypy_clean.py
+# warns against. That warning is about silencing a real type error in this
+# repo's own code; nothing in scripts/ is being excused here — only the absence
+# of type information in a third-party package we deliberately do not require.
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+
+# ci_lane_dev is development-line tooling, excluded from the public snapshot
+# (publication_snapshot.EXCLUDED_FROM_PUBLIC_SNAPSHOT) and imported OPTIONALLY by
+# cli_push_ok. On the development line it exists and is checked; on the public
+# tree it is absent by design, which is not a type error.
+[[tool.mypy.overrides]]
+module = "ci_lane_dev"
+ignore_missing_imports = true
+
+# MCP handler modules. Every handler takes the service as `svc: Any` and many
+# are a single `return svc.some_method(...)`, so `warn_return_any` fires across
+# the whole layer in one shape. (Widening the scope surfaced 21 `no-any-return`
+# errors in total; 20 of them are this shape and land here. The 21st was in
+# self_check.py, was a genuine typing bug, and was fixed at the type level —
+# `mcp_reaper.cached_enumerate` is now generic instead of returning Any — rather
+# than suppressed. No count is asserted anywhere, so treat these numbers as the
+# history that motivated the override, not as a live invariant.)
+# This is STRUCTURAL, not debt to pay
+# down: the handler package must not import ProjectService (that dependency is
+# what the standalone-package split exists to prevent), so the service handle is
+# untyped at this boundary on purpose. Same reasoning as the backend_queries /
+# project_service overrides above, and the contract the Any hides — every entry
+# returns str for a (svc, args) call — is pinned by
+# tests/test_mcp_dispatch_surface.py rather than by the type checker.
+# Everything ELSE in the package is now checked, which is the point.
+[[tool.mypy.overrides]]
+module = [
+    "handlers",
+    "handlers_actz",
+    "handlers_adapt",
+    "handlers_at",
+    "handlers_cq",
+    "handlers_hierarchy",
+    "handlers_knowledge",
+    "handlers_role",
+    "handlers_session",
+    "handlers_skill",
+    "handlers_spec",
+    "handlers_stack",
+    "handlers_status",
+    "handlers_task",
+    "handlers_verification",
+]
+disable_error_code = "no-any-return"
+
+[[tool.mypy.overrides]]
+module = "project_types"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "project_service"
+# Mixin classes — methods resolved at runtime
+disable_error_code = "attr-defined"
+
+[[tool.mypy.overrides]]
+module = "service_task"
+# Mixin — _require_task, _require_story resolved via ProjectService.
+# arg-type debt cleared (mypy-residual-argtype-untangle): auto_export_entity is
+# now called through cast("ProjectService", self) at the facade boundary.
+disable_error_code = "attr-defined"
+
+[[tool.mypy.overrides]]
+module = "service_knowledge"
+# Mixin facade (same as service_task). arg-type debt cleared: auto_export_by_id
+# is called through cast("ProjectService", self).
+disable_error_code = "attr-defined"
+
+[[tool.mypy.overrides]]
+module = "backend_queries"
+# Mixin — _q, _q1, epic_list, session_current resolved via SQLiteBackend
+disable_error_code = ["attr-defined", "no-any-return"]
+
+[[tool.mypy.overrides]]
+module = "backend_migrations"
+# sqlite3 used in TYPE_CHECKING string annotation
+disable_error_code = "name-defined"
+
+[[tool.mypy.overrides]]
+module = "project_config"
+warn_return_any = false
+
+# --- mypy-baseline-debt-precommit-hook-lies -------------------------------
+# hooks/ modules imported from scripts/ by runtime sys.path injection — mypy
+# cannot follow them statically (same reason as memory_markers above), so the
+# import is ignored, not the code. The real arg-type/assignment mismatches that
+# once sat here (state_import, state_export, gate_post_scope, service_gates,
+# graph_mermaid + the arg-type on service_task/service_knowledge) were fixed at
+# the type level in mypy-residual-argtype-untangle — no disable_error_code left.
+[[tool.mypy.overrides]]
+module = [
+    "bootstrap_venv",
+    "bootstrap_check",
+    "bootstrap_config",
+    # Reached from scripts/host_mechanisms.py after a runtime sys.path.insert into
+    # bootstrap/: the cross-model parity gate has to RUN the real generators to see
+    # what each host gets, and a list of what they ought to get is the defect it
+    # exists against. The import is unresolvable to mypy; the modules are checked
+    # when bootstrap/ is checked.
+    "bootstrap_generate",
+    "bootstrap_qwen",
+    "bootstrap_opencode",
+    "bootstrap_kilo",
+    "tools",
+    "hook_supervision",
+    "token_rows",
+    "session_windows",
+    "transcript_locator",
+    "_common",
+    # Reached only after a runtime sys.path.insert into the codebase-rag
+    # package, which cannot join `files` while it holds a second server.py
+    # (see the note above). The IMPORT is unresolvable to mypy; the modules
+    # themselves are type-checked when that package is checked on its own.
+    "rag_context",
+    "rag_indexer",
+    "rag_store",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# The rule set is stated in FULL, on purpose. `extend-select = ["BLE001"]` used
+# to stand here, and everything else the gate enforced came from whatever ruff
+# happened to call its default that day — E4 (imports), E7 (statement style),
+# E9 (syntax/IO errors) and F (Pyflakes). CI installs ruff unpinned, so on
+# 2026-08-04 the default moved under the gate: ruff 0.16.1 turned on EXE001,
+# I001, SIM115, PLW1510, RUF100 and more, and the release pipeline went from
+# 1 finding to 1539 without a line of this repository changing. A gate whose
+# verdict depends on the version of the tool that ran it is not measuring the
+# code, and pinning the tool would only have hidden that — the config, not the
+# vendor's taste of the month, decides what this project enforces.
+#
+# Adopting ruff's newer defaults is a DECISION, and the place to make it is a
+# task that reads the 1539 and rules on them, not a release-day pipeline.
+# E501 (line-too-long) stays out for the same reason it always was: 137 lines
+# would need reflowing, and `line-length` above is a formatter setting here.
+# BLE001 (flake8-blind-except) enforces 'no silent errors' — a blind
+# `except Exception` must be justified with `# noqa: BLE001 — <why>` or narrowed.
+#
+# Ruled in 1.10 (rule-on-ruff-016-new-defaults, decision recorded with the
+# counts): ADOPTED — the rules that catch defects rather than restyle code, each
+# with its findings fixed: PLE2515 / PLE2502 (invisible and bidi characters in
+# source, written as escapes now), PLR0124 (x != x), B017 (a test asserting a
+# blind Exception passes on the wrong error), PYI036 (__exit__ annotation).
+# Everything else ruff 0.16 turns on by default is rejected or split out there.
+# RUF100 joined after 483 stale suppressions were removed: a `noqa` that suppresses
+# nothing is a claim the reader trusts and the linter ignores, and they accumulate
+# silently. It is safe to enforce now BECAUSE the 74 suppressions naming rules this
+# project does not select were first turned into plain `# ruff-not-enabled:` comments
+# — deleting them would have pre-empted the decision this file defers above, and
+# leaving them as `noqa` would have made RUF100 permanently red.
+# S110 / S112 (try-except-pass, try-except-continue) joined in 1.10 after every site was
+# judged. MEASURED FIRST, and the premise of the task was wrong twice: 72 sites, not 79, and
+# 69 of them ALREADY carried a stated reason beside the broad catch — the judgement had been
+# made long before, just not in a form the linter could see. Three were bare: two narrowed to
+# the exceptions that can actually fire there, one left broad because a HOOK must fail open on
+# an unreadable config and the default window is a working answer.
+#
+# Why the rules are selected while 70 sites carry a suppression: the suppression is not the
+# outcome, the REASON beside it is, and RUF100 refuses a `noqa` that suppresses nothing. What
+# the selection buys is the 73rd site — a new bare `except: pass` now fails the lint instead of
+# joining a list nobody re-reads.
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "BLE001",
+    "PLE2515",
+    "PLE2502",
+    "PLR0124",
+    "B017",
+    "PYI036",
+    "RUF100",
+    "S110",
+    "S112",
+    "SIM115",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Files that need sys.path manipulation before importing project modules.
+"bootstrap/bootstrap.py" = ["E402"]
+"tests/test_bootstrap_frontmatter.py" = ["E402"]
+"tests/test_mcp_windows.py" = ["E402"]
+"tests/test_migrations.py" = ["E402"]
+"tests/test_rag.py" = ["E402"]
+"tests/test_rag_benchmark.py" = ["E402"]
+"tests/test_rag_edge.py" = ["E402"]

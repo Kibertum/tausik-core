@@ -1,0 +1,261 @@
+"""Static orphan-file audit (v14-audit-orphan-files).
+
+Reports Python source files inside ``scripts/`` that nothing inside the
+TAUSIK repo imports — candidates for review (NOT for automatic delete).
+Tests, generated assets, and known exclusions stay out of the report.
+
+Run::
+
+    python scripts/audit_orphan_files.py            # markdown report
+    python scripts/audit_orphan_files.py --json     # JSON output
+    python scripts/audit_orphan_files.py --check    # exit 1 on any orphan
+
+Spec / motivation: docs/ru/research/tausik-1.4-epics-master-plan-2026-05-01.md
+(epic ``v14-dead-code-audit``).
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import fnmatch
+import json
+import os
+from pathlib import Path
+
+# Module import (not from-import) keeps the lookup monkeypatchable in tests.
+import audit_tracked_files
+from ide_utils import all_profile_dirs
+
+
+def _profile_excludes() -> tuple[str, ...]:
+    """Deployed-profile globs for every supported IDE, from the ide registry.
+
+    A deployed profile holds a copy of the engine, not project source, so the
+    orphan scan must skip it. Listing three profile names by hand covered 3 of
+    7 IDEs: on the rest the deployed engine was either walked or reported as
+    orphan. Sourcing the names from `ide_utils.all_profile_dirs()` keeps the
+    scan correct as IDEs are added, with no directory literal to maintain here.
+    """
+    out: list[str] = []
+    for d in sorted(all_profile_dirs()):
+        out.append(f"{d}/*")
+        out.append(f"{d}/**/*")
+    return tuple(out)
+
+
+# Excluded path globs (relative to repo root, forward-slashed).
+DEFAULT_EXCLUDES: tuple[str, ...] = (
+    "tests/*",
+    "tests/**/*",
+    ".tausik/*",
+    ".tausik/**/*",
+    *_profile_excludes(),
+    "docs/_generated/*",
+    "docs/_generated/**/*",
+    "harness/skills/_*/**/*",
+    "bootstrap/*",
+    "bootstrap/**/*",
+    "scripts/project.py",
+    "scripts/hooks/*",
+    "scripts/hooks/**/*",
+    "**/__pycache__/*",
+    "**/__pycache__/**/*",
+)
+
+# Modules to look for as entry points (treated as "always referenced").
+ENTRY_POINTS: tuple[str, ...] = (
+    "project",
+    "audit_orphan_files",
+)
+
+
+def _is_excluded(rel: str, excludes: tuple[str, ...]) -> bool:
+    for pat in excludes:
+        if fnmatch.fnmatch(rel, pat):
+            return True
+    return False
+
+
+def _module_name(rel: str) -> str:
+    """`scripts/foo_bar.py` → `foo_bar`. Used to compare with imports."""
+    base = os.path.basename(rel)
+    if base.endswith(".py"):
+        base = base[:-3]
+    return base
+
+
+#: Functions that import by NAME-AS-STRING. A module reached only through one of
+#: these is invisible to an `ast.Import` walk, so the detector called it an orphan
+#: while the CLI imported it on every run. `__import__` is matched bare and
+#: `importlib.import_module` on its last attribute, because both spellings
+#: (`importlib.import_module`, `from importlib import import_module`) occur.
+_DYNAMIC_IMPORTERS = frozenset({"__import__", "import_module"})
+
+
+def _dynamic_import_name(node: ast.Call) -> str | None:
+    """The module named by a string-literal dynamic import, or None.
+
+    Only a LITERAL argument counts. A computed name (`__import__(f"mod_{kind}")`)
+    names no single module, and guessing one would make the detector claim a
+    reference it cannot see -- the opposite failure to the one this fixes.
+    """
+    func = node.func
+    name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+    if name not in _DYNAMIC_IMPORTERS or not node.args:
+        return None
+    first = node.args[0]
+    if not isinstance(first, ast.Constant) or not isinstance(first.value, str):
+        return None
+    return first.value.split(".")[0]
+
+
+def _imports_in(path: Path) -> set[str]:
+    """Top-level module names imported by the given file, static or dynamic."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return set()
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                out.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            out.add(node.module.split(".")[0])
+        elif isinstance(node, ast.Call):
+            dynamic = _dynamic_import_name(node)
+            if dynamic:
+                out.add(dynamic)
+    return out
+
+
+def collect_orphans(repo_root: Path, excludes: tuple[str, ...] = DEFAULT_EXCLUDES) -> list[str]:
+    """Return relative paths (forward-slashed) of orphan .py files in ``scripts/``."""
+    scripts_dir = repo_root / "scripts"
+    if not scripts_dir.is_dir():
+        return []
+
+    tracked = audit_tracked_files.tracked_files(repo_root)
+
+    rel_paths: list[str] = []
+    module_to_rel: dict[str, str] = {}
+    for p in scripts_dir.rglob("*.py"):
+        rel = p.relative_to(repo_root).as_posix()
+        if not audit_tracked_files.is_tracked(rel, tracked):
+            continue
+        if _is_excluded(rel, excludes):
+            continue
+        rel_paths.append(rel)
+        module_to_rel[_module_name(rel)] = rel
+
+    # Build the set of imported module names from the entire repo
+    # (scripts/, harness/**, bootstrap/**, tests/** — for completeness).
+    referenced: set[str] = set(ENTRY_POINTS)
+    for searched_dir in ("scripts", "harness", "bootstrap", "tests"):
+        d = repo_root / searched_dir
+        if not d.is_dir():
+            continue
+        for p in d.rglob("*.py"):
+            if not audit_tracked_files.is_tracked(p.relative_to(repo_root).as_posix(), tracked):
+                continue
+            referenced |= _imports_in(p)
+
+    # Also count "soft" references in human-facing docs/skills — a script that
+    # is documented as a CLI is not orphan even if no .py imports it.
+    doc_referenced = _doc_referenced_modules(repo_root, list(module_to_rel.keys()), tracked)
+
+    orphans: list[str] = []
+    for mod, rel in module_to_rel.items():
+        if mod in referenced or mod in doc_referenced:
+            continue
+        orphans.append(rel)
+    orphans.sort()
+    return orphans
+
+
+def _doc_referenced_modules(
+    repo_root: Path,
+    module_names: list[str],
+    tracked: frozenset[str] | None = None,
+) -> set[str]:
+    """Modules whose ``<name>.py`` is mentioned anywhere under ``docs/`` or
+    ``harness/skills/``. Picks up CLI scripts that nothing imports but the
+    architecture docs / skill READMEs reference by file name.
+    """
+    needles = {f"{m}.py" for m in module_names}
+    found: set[str] = set()
+    for searched_dir in ("docs", "harness/skills", "harness/roles", "harness/stacks"):
+        d = repo_root / searched_dir
+        if not d.is_dir():
+            continue
+        for p in d.rglob("*.md"):
+            if not audit_tracked_files.is_tracked(p.relative_to(repo_root).as_posix(), tracked):
+                continue
+            try:
+                text = p.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            for needle in needles:
+                if needle in text:
+                    found.add(needle[:-3])  # strip .py
+        if found >= set(module_names):
+            break
+    return found
+
+
+def render_markdown(orphans: list[str], excludes: tuple[str, ...]) -> str:
+    lines = ["# Orphan-file audit (`scripts/`)\n"]
+    if not orphans:
+        lines.append("No orphan files detected. (OK)\n")
+    else:
+        lines.append(
+            f"{len(orphans)} candidate(s) — **NOT auto-delete**, manual review required:\n"
+        )
+        for rel in orphans:
+            lines.append(f"- `{rel}`")
+        lines.append("")
+    lines.append("## Excluded glob patterns\n")
+    for pat in excludes:
+        lines.append(f"- `{pat}`")
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description="Static orphan-file audit (scripts/)")
+    p.add_argument("--json", action="store_true", help="Machine-readable JSON output")
+    p.add_argument(
+        "--check",
+        action="store_true",
+        help="Exit 1 if any orphan is found (useful for CI)",
+    )
+    p.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help="Repository root (default: directory containing pyproject.toml)",
+    )
+    args = p.parse_args(argv)
+
+    if args.repo_root:
+        root = Path(args.repo_root).resolve()
+    else:
+        here = Path.cwd().resolve()
+        root = next(
+            (q for q in [here, *here.parents] if (q / "pyproject.toml").is_file()),
+            here,
+        )
+
+    orphans = collect_orphans(root)
+    if args.json:
+        print(json.dumps({"orphans": orphans, "excludes": list(DEFAULT_EXCLUDES)}, indent=2))
+    else:
+        print(render_markdown(orphans, DEFAULT_EXCLUDES))
+
+    if args.check and orphans:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

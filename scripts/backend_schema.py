@@ -1,0 +1,555 @@
+"""TAUSIK database schema -- tables, FTS5, triggers, indexes.
+
+Migrations live in backend_migrations.py.
+"""
+
+SCHEMA_VERSION = 77
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY, value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS epics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT UNIQUE NOT NULL CHECK(length(slug) <= 64),
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active'
+        CHECK(status IN ('active', 'done', 'archived')),
+    description TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS stories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    epic_id INTEGER NOT NULL REFERENCES epics(id) ON DELETE CASCADE,
+    slug TEXT UNIQUE NOT NULL CHECK(length(slug) <= 64),
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open'
+        CHECK(status IN ('open', 'active', 'done')),
+    description TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    story_id INTEGER REFERENCES stories(id) ON DELETE CASCADE,
+    slug TEXT UNIQUE NOT NULL CHECK(length(slug) <= 64),
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'planning'
+        CHECK(status IN ('planning', 'active', 'blocked', 'review', 'done')),
+    stack TEXT,
+    complexity TEXT CHECK(complexity IS NULL OR complexity IN ('simple', 'medium', 'complex')),
+    role TEXT,
+    score INTEGER,
+    goal TEXT, plan TEXT, notes TEXT,
+    acceptance_criteria TEXT, scope TEXT, scope_exclude TEXT, rollback_plan TEXT,
+    scope_paths TEXT, scope_tools TEXT,
+    risk_score REAL, risk_json TEXT,
+    started_model_id TEXT, started_model_version TEXT,
+    done_model_id TEXT, done_model_version TEXT,
+    model_mismatch INTEGER NOT NULL DEFAULT 0,
+    relevant_files TEXT,
+    -- qg2-cannot-close-fileless-task: 1 when the task was closed via
+    -- `task done --no-file-changes` — the third scope state, a task that
+    -- legitimately touched no files (pure planning / a `tausik decide`),
+    -- proven by a clean git scope rather than declared away. Countable so such
+    -- closures can be audited:  SELECT * FROM tasks WHERE no_file_changes_declared = 1;
+    -- A dedicated column, symmetric to verification_runs.no_tests_declared —
+    -- not a `status`/`scope` value, which carry CHECK constraints.
+    no_file_changes_declared INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT, completed_at TEXT, blocked_at TEXT,
+    archived_at TEXT,
+    attempts INTEGER DEFAULT 0,
+    claimed_by TEXT,
+    defect_of TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    call_budget INTEGER,
+    call_actual INTEGER,
+    cost_budget_usd REAL,
+    cost_actual_usd REAL,
+    token_budget INTEGER,
+    tokens_actual INTEGER,
+    tier TEXT CHECK(tier IS NULL OR tier IN
+        ('trivial','light','moderate','substantial','deep')),
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    -- JSON list of external ticket references (`tracker_ref`), e.g.
+    -- ["github#7"]. NULL and [] both mean "nobody filed this" — the normal
+    -- case. Added in v61: closing a task could not remind anyone to answer a
+    -- ticket while the link did not exist as data.
+    --
+    -- LAST on purpose, after created_at/updated_at: the upgrade path adds it
+    -- with ALTER TABLE, which appends. A column placed "logically" mid-table
+    -- here would differ in ORDER from every migrated database, and
+    -- test_schema_upgrade_parity reds on exactly that.
+    tracker_refs TEXT,
+    -- v67 (a-task-cannot-be-closed-as-obsolete): NULL = delivered, 'obsolete' =
+    -- closed because time resolved the finding; left out of delivery metrics.
+    resolution TEXT CHECK(resolution IS NULL OR resolution IN ('obsolete')),
+    resolution_reason TEXT,
+    -- v68: JSON declarations consumed by the technology-neutral assurance policy.
+    assurance_profiles TEXT,
+    assurance_impact TEXT,
+    -- v70: exact framework version observed at lifecycle boundaries. Existing
+    -- rows stay NULL; assigning today's version to historical work would turn
+    -- an unknown cohort into a fabricated one.
+    started_tausik_version TEXT,
+    done_tausik_version TEXT,
+    -- v77 (blocked-is-a-status-without-a-question-to-unblock-it): a block
+    -- without a QUESTION to the owner and a checkable UNBLOCK CRITERIA is a
+    -- task abandoned with a note to self. `task block` refuses to write one
+    -- without both. unblocked_by/unblocked_at record WHO stated the criterion
+    -- met — silent unblocking is forbidden. LAST in the table on purpose:
+    -- the upgrade path adds them with ALTER TABLE, which appends.
+    blocked_question TEXT,
+    unblock_criteria TEXT,
+    unblocked_by TEXT,
+    unblocked_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at TEXT NOT NULL, ended_at TEXT,
+    summary TEXT, tasks_done TEXT DEFAULT '[]',
+    handoff TEXT,
+    model_id TEXT,
+    model_version TEXT,
+    host_session_id TEXT,
+    -- v73: which source in the chain declared model_id (env var name or
+    -- "provider:<ide>"). Stored at session open so the doctor names THE source
+    -- of the RECORDED value instead of re-deriving today's chain, which a
+    -- mid-session switch would silently re-point. LAST on purpose: the v73
+    -- migration appends the column, so fresh and migrated tables converge on
+    -- one column order and a positional INSERT means the same thing on both.
+    model_source TEXT
+);
+
+CREATE TABLE IF NOT EXISTS decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    decision TEXT NOT NULL,
+    task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    rationale TEXT, created_at TEXT NOT NULL,
+    -- Stable, machine-independent identity (state-git-stable-ids). NULLABLE at
+    -- the column level; the UNIQUE index and the backfill live in the v42
+    -- post-migration so fresh and migrated DBs converge on one schema shape.
+    slug TEXT,
+    -- v66: JSON list of "option :: why" — what the decision turned down.
+    rejected TEXT
+);
+
+CREATE TABLE IF NOT EXISTS memory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL CHECK(type IN ('pattern', 'gotcha', 'convention', 'context', 'dead_end')),
+    title TEXT NOT NULL,
+    content TEXT NOT NULL, tags TEXT,
+    task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    archived_at TEXT,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    -- Stable, machine-independent identity (state-git-stable-ids). See the
+    -- matching note on `decisions.slug`.
+    slug TEXT,
+    -- v65: where the claim came from; last, so fresh and migrated tables agree.
+    provenance TEXT NOT NULL DEFAULT 'inferred'
+        CHECK(provenance IN ('observed', 'inferred', 'told')),
+    -- v74: relevance machinery (memory-tail-by-relevance-not-recency).
+    -- Hits count explicit `memory show` only; search is exposure, not access.
+    hit_count INTEGER NOT NULL DEFAULT 0,
+    last_hit_at TEXT,
+    layer TEXT,
+    pinned INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS memory_hygiene_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL,
+    memory_id INTEGER NOT NULL REFERENCES memory(id) ON DELETE CASCADE,
+    prev_layer TEXT,
+    applied_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS explorations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    summary TEXT,
+    time_limit_min INTEGER DEFAULT 30,
+    task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    run_type TEXT NOT NULL CHECK(run_type IN ('L1','L2','L3')),
+    critical_findings INTEGER NOT NULL DEFAULT 0,
+    warnings INTEGER NOT NULL DEFAULT 0,
+    run_at TEXT NOT NULL,
+    notes TEXT,
+    high_findings INTEGER NOT NULL DEFAULT 0,
+    profiles_json TEXT,
+    reasons_json TEXT,
+    hard_floor TEXT,
+    author_model TEXT,
+    reviewer_model TEXT,
+    reviewer_context TEXT,
+    reviewer_invocations INTEGER NOT NULL DEFAULT 0,
+    usage_json TEXT,
+    route_json TEXT,
+    reviewed_state_fingerprint TEXT
+);
+
+CREATE TABLE IF NOT EXISTS brain_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+    event_type TEXT NOT NULL CHECK(event_type IN ('search','hit','write','ignored')),
+    query TEXT,
+    result_count INTEGER NOT NULL DEFAULT 0,
+    ts TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_edges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_type TEXT NOT NULL CHECK(source_type IN ('memory', 'decision')),
+    source_id INTEGER NOT NULL,
+    target_type TEXT NOT NULL CHECK(target_type IN ('memory', 'decision')),
+    target_id INTEGER NOT NULL,
+    relation TEXT NOT NULL CHECK(relation IN ('supersedes', 'caused_by', 'relates_to', 'contradicts')),
+    confidence REAL NOT NULL DEFAULT 1.0,
+    created_by TEXT,
+    valid_from TEXT NOT NULL,
+    valid_to TEXT,
+    invalidated_by INTEGER REFERENCES memory_edges(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS task_deps (
+    -- "this task comes after that one". An EDGE, because that is the shape of
+    -- every ordering statement the plan and the decision log already make.
+    -- Keyed by slug like every other child of `tasks`: `id` is a local
+    -- autoincrement that does not travel to git, and this edge does.
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    depends_on_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    -- Re-declaring an edge converges instead of accumulating, so a plan can be
+    -- replayed. A stale edge would hold its dependent out of `task next`
+    -- forever with no visible cause, hence CASCADE on both endpoints.
+    PRIMARY KEY (task_slug, depends_on_slug),
+    CHECK (task_slug <> depends_on_slug)
+);
+
+CREATE TABLE IF NOT EXISTS task_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    phase TEXT CHECK(phase IS NULL OR phase IN
+        ('planning', 'implementation', 'review', 'testing', 'done')),
+    diff_stats TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reasoning_steps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    seq INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN
+        ('intent', 'premise', 'action', 'verification')),
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    actor TEXT,
+    details TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    -- Hash-chain (v16r-audit-hashchain): NULL until sealed by `events verify`
+    -- /`events seal`. prev_hash links to the predecessor's entry_hash;
+    -- entry_hash = sha256(prev_hash || canonical_event_bytes(self)).
+    prev_hash TEXT,
+    entry_hash TEXT
+);
+
+-- ed25519 anchor over the chain head (v16r-audit-hashchain). A signed head
+-- makes pre-anchor tampering detectable even after a full chain recompute.
+CREATE TABLE IF NOT EXISTS events_anchor (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    head_id INTEGER NOT NULL,
+    head_hash TEXT NOT NULL,
+    event_count INTEGER NOT NULL,
+    envelope_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS roles (
+    slug TEXT PRIMARY KEY CHECK(length(slug) <= 64),
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS verification_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT,
+    scope TEXT NOT NULL CHECK(scope IN
+        ('lightweight', 'standard', 'high', 'critical', 'manual')),
+    command TEXT NOT NULL,
+    exit_code INTEGER NOT NULL,
+    summary TEXT,
+    files_hash TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    duration_ms INTEGER,
+    receipt_json TEXT,
+    -- l26-verify-git-diff-wire: how the declared scope related to git at run
+    -- time. 'complete' | 'under-declared' | 'unknown'; NULL on rows written
+    -- before v38 and read as 'unknown' (never as 'complete').
+    declared_scope_status TEXT,
+    -- JSON array of files git saw change but relevant_files omitted (capped).
+    undeclared_files TEXT,
+    -- verify-no-test-mapped-dead-end: 1 when the caller declared, for this run,
+    -- that its files map to no test on purpose (docs, config, migrations). Such
+    -- a run passes with NO gate executed, so it must stay countable:
+    --   SELECT * FROM verification_runs WHERE no_tests_declared = 1;
+    -- A dedicated column, not a `scope` value — `scope` is a CHECK-constrained
+    -- SENAR tier, and overloading it would have required rebuilding the table
+    -- to widen the constraint.
+    no_tests_declared INTEGER NOT NULL DEFAULT 0,
+    -- v2-verify-receipt-as-argument (v44, SEP-2567): the explicit state handle
+    -- `verify` mints and `task done --verify-handle` presents. All three are
+    -- NULLABLE because there is no true default — a run that was never handed
+    -- out as a handle has no nonce, no expiry and no spend, and NULL is how
+    -- that is spelled. Backfilling an expiry would invent one, and the
+    -- redemption predicate (`handle_redeemed_at IS NULL`) would then read those
+    -- rows as spendable.
+    handle_nonce TEXT,            -- 128-bit hex; NULL = never minted
+    handle_expires_at TEXT,       -- ISO-8601 UTC; the receipt carries a SIGNED copy
+    handle_redeemed_at TEXT,      -- ISO-8601 UTC of the single spend; NULL = unspent
+    -- v75: the pooled-verify cohort this run belongs to; NULL = a run of one
+    -- task, which is every row written before cohorts existed.
+    cohort_identity TEXT
+);
+
+CREATE TABLE IF NOT EXISTS verification_cohorts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    identity TEXT NOT NULL UNIQUE,
+    members_json TEXT NOT NULL,
+    identity_inputs_json TEXT NOT NULL,
+    union_files_hash TEXT NOT NULL,
+    gate_signature TEXT NOT NULL,
+    -- v76: 'invalidated' is the SS4 widening mark — a green cohort whose
+    -- reuse a named invalidator refused. Terminal for that row: the next
+    -- run records a NEW cohort, it never resurrects this one.
+    state TEXT NOT NULL DEFAULT 'open'
+        CHECK(state IN ('open', 'green', 'red', 'invalidated')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS verification_cohort_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cohort_pk INTEGER NOT NULL
+        REFERENCES verification_cohorts(id) ON DELETE CASCADE,
+    unit TEXT NOT NULL,
+    outcome TEXT NOT NULL CHECK(outcome IN ('passed', 'failed', 'skipped')),
+    covered_by TEXT,
+    inputs_digest TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    UNIQUE(cohort_pk, unit)
+);
+
+CREATE TABLE IF NOT EXISTS session_usage_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    tokens_input INTEGER NOT NULL DEFAULT 0,
+    tokens_output INTEGER NOT NULL DEFAULT 0,
+    tokens_total INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    tool_calls INTEGER NOT NULL DEFAULT 0,
+    model TEXT,
+    recorded_at TEXT NOT NULL,
+    UNIQUE(session_id)
+);
+
+CREATE TABLE IF NOT EXISTS usage_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+    task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    model_id TEXT,
+    -- NULL means NOT MEASURED, and it is a different statement from 0 (v58).
+    -- 99.5% of the rows written before v58 said 0 about a payload that never
+    -- carried usage at all; SUM skips NULL and returns NULL when nothing was
+    -- measured, so the honest rollup falls out of the storage.
+    tokens_input INTEGER CHECK(tokens_input IS NULL OR tokens_input >= 0),
+    tokens_output INTEGER CHECK(tokens_output IS NULL OR tokens_output >= 0),
+    tokens_total INTEGER CHECK(tokens_total IS NULL OR tokens_total >= 0),
+    cost_usd REAL CHECK(cost_usd IS NULL OR cost_usd >= 0),
+    tool_calls INTEGER NOT NULL DEFAULT 0 CHECK(tool_calls >= 0),
+    source TEXT NOT NULL CHECK(source IN ('session_record', 'manual', 'posttool')),
+    recorded_at TEXT NOT NULL,
+    tool_name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS benchmark_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_key TEXT UNIQUE NOT NULL,
+    task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    tausik_version TEXT,
+    observed_at TEXT,
+    host TEXT, host_version TEXT, provider TEXT, model TEXT,
+    reasoning_effort TEXT, speed_mode TEXT,
+    attribution_confidence TEXT NOT NULL
+        CHECK(attribution_confidence IN ('unknown','project','exact')),
+    response_rounds INTEGER CHECK(response_rounds IS NULL OR response_rounds >= 0),
+    tokens_input INTEGER CHECK(tokens_input IS NULL OR tokens_input >= 0),
+    tokens_cached_input INTEGER CHECK(tokens_cached_input IS NULL OR tokens_cached_input >= 0),
+    tokens_cache_write INTEGER CHECK(tokens_cache_write IS NULL OR tokens_cache_write >= 0),
+    tokens_output INTEGER CHECK(tokens_output IS NULL OR tokens_output >= 0),
+    tokens_reasoning_output INTEGER
+        CHECK(tokens_reasoning_output IS NULL OR tokens_reasoning_output >= 0),
+    tool_calls INTEGER CHECK(tool_calls IS NULL OR tool_calls >= 0),
+    active_duration_ms INTEGER CHECK(active_duration_ms IS NULL OR active_duration_ms >= 0),
+    source_format TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    host_basis TEXT, host_version_basis TEXT, provider_basis TEXT,
+    model_basis TEXT, reasoning_effort_basis TEXT, speed_mode_basis TEXT,
+    CHECK(tokens_cached_input IS NULL OR tokens_input IS NULL
+        OR tokens_cached_input <= tokens_input),
+    CHECK(tokens_reasoning_output IS NULL OR tokens_output IS NULL
+        OR tokens_reasoning_output <= tokens_output)
+);
+"""
+
+FTS_SQL = """
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_tasks USING fts5(
+    slug, title, goal, notes, acceptance_criteria,
+    content='tasks', content_rowid='id'
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_memory USING fts5(
+    title, content, tags,
+    content='memory', content_rowid='id'
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_decisions USING fts5(
+    decision, rationale,
+    content='decisions', content_rowid='id'
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_task_logs USING fts5(
+    message,
+    content='task_logs', content_rowid='id'
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_reasoning_steps USING fts5(
+    content,
+    content='reasoning_steps', content_rowid='id'
+);
+"""
+
+FTS_TRIGGERS_SQL = """
+CREATE TRIGGER IF NOT EXISTS tasks_ai AFTER INSERT ON tasks BEGIN
+    INSERT INTO fts_tasks(rowid, slug, title, goal, notes, acceptance_criteria)
+    VALUES (new.id, new.slug, new.title, new.goal, new.notes, new.acceptance_criteria);
+END;
+CREATE TRIGGER IF NOT EXISTS tasks_ad AFTER DELETE ON tasks BEGIN
+    INSERT INTO fts_tasks(fts_tasks, rowid, slug, title, goal, notes, acceptance_criteria)
+    VALUES ('delete', old.id, old.slug, old.title, old.goal, old.notes, old.acceptance_criteria);
+END;
+CREATE TRIGGER IF NOT EXISTS tasks_au AFTER UPDATE ON tasks BEGIN
+    INSERT INTO fts_tasks(fts_tasks, rowid, slug, title, goal, notes, acceptance_criteria)
+    VALUES ('delete', old.id, old.slug, old.title, old.goal, old.notes, old.acceptance_criteria);
+    INSERT INTO fts_tasks(rowid, slug, title, goal, notes, acceptance_criteria)
+    VALUES (new.id, new.slug, new.title, new.goal, new.notes, new.acceptance_criteria);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_ai AFTER INSERT ON memory BEGIN
+    INSERT INTO fts_memory(rowid, title, content, tags)
+    VALUES (new.id, new.title, new.content, new.tags);
+END;
+CREATE TRIGGER IF NOT EXISTS memory_ad AFTER DELETE ON memory BEGIN
+    INSERT INTO fts_memory(fts_memory, rowid, title, content, tags)
+    VALUES ('delete', old.id, old.title, old.content, old.tags);
+END;
+CREATE TRIGGER IF NOT EXISTS memory_au AFTER UPDATE ON memory BEGIN
+    INSERT INTO fts_memory(fts_memory, rowid, title, content, tags)
+    VALUES ('delete', old.id, old.title, old.content, old.tags);
+    INSERT INTO fts_memory(rowid, title, content, tags)
+    VALUES (new.id, new.title, new.content, new.tags);
+END;
+
+CREATE TRIGGER IF NOT EXISTS decisions_ai AFTER INSERT ON decisions BEGIN
+    INSERT INTO fts_decisions(rowid, decision, rationale)
+    VALUES (new.id, new.decision, new.rationale);
+END;
+CREATE TRIGGER IF NOT EXISTS decisions_ad AFTER DELETE ON decisions BEGIN
+    INSERT INTO fts_decisions(fts_decisions, rowid, decision, rationale)
+    VALUES ('delete', old.id, old.decision, old.rationale);
+END;
+CREATE TRIGGER IF NOT EXISTS decisions_au AFTER UPDATE ON decisions BEGIN
+    INSERT INTO fts_decisions(fts_decisions, rowid, decision, rationale)
+    VALUES ('delete', old.id, old.decision, old.rationale);
+    INSERT INTO fts_decisions(rowid, decision, rationale)
+    VALUES (new.id, new.decision, new.rationale);
+END;
+
+CREATE TRIGGER IF NOT EXISTS task_logs_ai AFTER INSERT ON task_logs BEGIN
+    INSERT INTO fts_task_logs(rowid, message)
+    VALUES (new.id, new.message);
+END;
+CREATE TRIGGER IF NOT EXISTS task_logs_ad AFTER DELETE ON task_logs BEGIN
+    INSERT INTO fts_task_logs(fts_task_logs, rowid, message)
+    VALUES ('delete', old.id, old.message);
+END;
+
+CREATE TRIGGER IF NOT EXISTS reasoning_steps_ai AFTER INSERT ON reasoning_steps BEGIN
+    INSERT INTO fts_reasoning_steps(rowid, content)
+    VALUES (new.id, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS reasoning_steps_ad AFTER DELETE ON reasoning_steps BEGIN
+    INSERT INTO fts_reasoning_steps(fts_reasoning_steps, rowid, content)
+    VALUES ('delete', old.id, old.content);
+END;
+
+-- Audit triggers: track task lifecycle changes (json_object for safe escaping)
+CREATE TRIGGER IF NOT EXISTS tasks_audit_insert AFTER INSERT ON tasks BEGIN
+    INSERT INTO events(entity_type, entity_id, action, details)
+    VALUES ('task', new.slug, 'created',
+            json_object('title', new.title, 'status', new.status));
+END;
+CREATE TRIGGER IF NOT EXISTS tasks_audit_status AFTER UPDATE OF status ON tasks BEGIN
+    INSERT INTO events(entity_type, entity_id, action, actor, details)
+    VALUES ('task', new.slug, 'status_changed', new.claimed_by,
+            json_object('from', old.status, 'to', new.status));
+END;
+CREATE TABLE IF NOT EXISTS redactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    field TEXT NOT NULL,
+    -- The CLASS of what was struck out, never its value: a trace quoting the
+    -- secret would put the leak back into the database it was removed from.
+    label TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    occurrences INTEGER NOT NULL,
+    redacted_at TEXT NOT NULL
+);
+
+CREATE TRIGGER IF NOT EXISTS tasks_audit_claim AFTER UPDATE OF claimed_by ON tasks
+    WHEN old.claimed_by IS NOT new.claimed_by BEGIN
+    INSERT INTO events(entity_type, entity_id, action, actor, details)
+    VALUES ('task', new.slug, 'claimed', new.claimed_by,
+            json_object('previous', COALESCE(old.claimed_by, '')));
+END;
+CREATE TRIGGER IF NOT EXISTS tasks_audit_delete AFTER DELETE ON tasks BEGIN
+    INSERT INTO events(entity_type, entity_id, action, details)
+    VALUES ('task', old.slug, 'deleted',
+            json_object('title', old.title));
+END;
+"""
+
+# INDEXES_SQL moved to backend_schema_indexes.py to keep this file under the
+# 400-line filesize gate (state-git-stable-ids). Re-exported so existing
+# `from backend_schema import INDEXES_SQL` importers keep working.
+from backend_schema_indexes import (  # noqa: E402,F401
+    INDEXES_SQL,
+    POST_MIGRATION_INDEXES_SQL,
+)

@@ -1,0 +1,282 @@
+"""The coherence lens, held against the two ways a lens like this fails.
+
+A repository-wide review has exactly two failure modes worth testing, and both
+are named in the task that asked for it:
+
+  1. IT FINDS NOTHING. On a repository where ten defects were found by hand in
+     two days, a lens reporting zero is broken, not vindicated. Silence from a
+     detector is indistinguishable from health, which is why it is asserted
+     against a small real repository with planted defects, independent of the
+     developer's database and incidental defects in the checkout.
+  2. NOBODY READS IT. An unranked, unbounded report costs attention and returns
+     the feeling of having looked. So volume is capped, findings are ordered by
+     risk, and what was NOT examined is stated in the report itself.
+
+CROSSCUTTING_SCOPE is declared below because this walks the whole tree: a change
+to any collector it aggregates should select these tests, and no basename
+heuristic could ever map `audit_stale_docs.py` to a file called `coherence`.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import subprocess
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+
+CROSSCUTTING_SCOPE = [
+    "scripts/repo_coherence.py",
+    "scripts/audit_orphan_files.py",
+    "scripts/audit_pytest_dedupe.py",
+    "scripts/audit_stale_docs.py",
+    "scripts/audit_unused_python.py",
+    "scripts/audit_translation_drift.py",
+    "scripts/audit_closure_evidence.py",
+    "scripts/doc_drift_scanners.py",
+]
+
+import repo_coherence  # noqa: E402
+
+
+def _calibration_root(root):
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "calibration"\nversion = "1.0.0"\n', encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "--quiet", str(root)], check=True, capture_output=True)
+    tools_dir = root / "harness/claude/mcp/project"
+    tools_dir.mkdir(parents=True, exist_ok=True)
+    (tools_dir / "tools.py").write_text("TOOLS = []\n", encoding="utf-8")
+    return root
+
+
+@pytest.fixture(scope="module")
+def live(tmp_path_factory):
+    """Real collectors over known defects, independent of the working checkout."""
+    from project_backend import SQLiteBackend
+    from project_service import ProjectService
+
+    root = _calibration_root(tmp_path_factory.mktemp("coherence"))
+    (root / "tests").mkdir()
+    (root / "tests/test_duplicate.py").write_text(
+        "def test_one():\n    x = 1\n    assert x == 1\n"
+        "def test_two():\n    y = 2\n    assert y == 2\n",
+        encoding="utf-8",
+    )
+    db = str(root / "tausik.db")
+    svc = ProjectService(SQLiteBackend(db))
+    try:
+        with pytest.MonkeyPatch.context() as mp:
+            mp.delitem(sys.modules, "tools", raising=False)
+            yield repo_coherence.collect(str(root), tasks=[], service=svc)
+    finally:
+        svc.be.close()
+
+
+class TestALensThatFindsNothingIsBroken:
+    """AC-5. Ten defects were found here by hand; zero is not a clean bill."""
+
+    def test_the_live_repository_yields_findings(self, live):
+        assert live["findings"], (
+            "the lens reported nothing on a repository with known defects — "
+            "a detector's silence is indistinguishable from health, so this is "
+            "read as broken rather than as clean"
+        )
+
+    def test_every_collector_actually_ran(self, live):
+        """A skipped collector is a NAMED gap, and there should be none here.
+
+        This is the same assertion in the other direction: findings could look
+        healthy while half the collectors silently failed.
+        """
+        assert live["collectors_skipped"] == []
+        assert live["collectors_run"] >= 8
+
+    def test_it_sees_the_known_duplicate_test_class(self, live):
+        """One of the calibration defects named in the task, by name."""
+        kinds = {f["kind"] for f in live["findings"]}
+        assert "duplicate_tests" in kinds
+
+    def test_it_sees_a_citation_to_a_file_that_never_existed(self, tmp_path):
+        """Detectability is PROVEN BY PLANTING, not by the repository staying dirty.
+
+        This used to assert that the live tree still carries the class, and it held only for
+        as long as nobody had answered the citations. The moment the register was driven to
+        zero — the outcome the project wants — the test went red for the RIGHT repository
+        state, and its message would have read as a dead collector. A calibration test must
+        not depend on a defect surviving; the class below already knew that and plants its own.
+        """
+        planted = "tests/test_gmcp_tenant_pool.py::test_pool_reuses_the_service"
+        found = repo_coherence.collect(
+            str(_calibration_root(tmp_path)),
+            tasks=[{"slug": "planted", "notes": f"AC-1: {planted}"}],
+            service=None,
+        )
+        kinds = {f["kind"] for f in found["findings"]}
+        assert "invented_closure_evidence" in kinds or "rotted_closure_evidence" in kinds, (
+            "a citation to a file git never had must be a finding; if it is not, the "
+            "collector is dead and the live tree's silence would mean nothing"
+        )
+
+    def test_a_name_that_reads_as_an_example_is_not_a_finding(self, tmp_path):
+        """THE OTHER HALF, and the reason the first draft of the test above failed: a
+        citation shaped like an illustration — `test_this_file_never_existed_anywhere` — is
+        prose quoting a shape, not a claim of coverage. A collector that counted those would
+        report the documentation as a defect and teach the reader to skim it.
+        """
+        example = "tests/test_this_file_never_existed_anywhere.py::test_x"
+        found = repo_coherence.collect(
+            str(_calibration_root(tmp_path)),
+            tasks=[{"slug": "planted", "notes": f"AC-1: {example}"}],
+            service=None,
+        )
+        kinds = {f["kind"] for f in found["findings"]}
+        assert "invented_closure_evidence" not in kinds
+        assert "rotted_closure_evidence" not in kinds
+
+
+class TestTheThirdCalibrationClassIsDetectable:
+    """`doc_number_drift` finds nothing today because the numbers are correct.
+
+    That is the right answer and a bad test, so detectability is proven by
+    PLANTING the defect rather than by waiting for one: the collector must turn
+    a wrong self-described number into a finding. Without this, "no finding" would
+    mean either "no drift" or "collector dead" and nobody could tell which.
+    """
+
+    def test_a_wrong_number_in_the_prose_becomes_a_finding(self, monkeypatch, tmp_path):
+        import repo_coherence as rc
+
+        def fake_drift(_root):
+            return [
+                rc.Finding(
+                    "doc_number_drift",
+                    "high",
+                    "2 number(s) the documentation states about itself are wrong",
+                    source="doc_drift_scanners",
+                    count=2,
+                    detail="mcp tool counts: doc says 11, tree has 9",
+                )
+            ]
+
+        monkeypatch.setattr(rc, "_doc_number_drift", fake_drift)
+        material = rc.collect(str(tmp_path))
+
+        kinds = {f["kind"] for f in material["findings"]}
+        assert "doc_number_drift" in kinds, (
+            "the collector is wired into collect(); if this fails the class is "
+            "unreachable no matter what the scanners find"
+        )
+
+    def test_every_scanner_the_collector_names_is_actually_called(self, tmp_path):
+        """A scanner missing from the loop is a class this lens cannot see.
+
+        `scan_table_count_columns` was absent from the list for its whole first
+        release: the lens reported "no number drift" while a scanner it does not
+        run held the answer. Asserting the returned LABELS rather than reading
+        the source, so a scanner that is imported and never invoked still fails.
+        """
+        called: list[str] = []
+
+        class _Recorder:
+            def __getattr__(self, name):
+                def _scan(*_args, **_kwargs):
+                    called.append(name)
+                    return []
+
+                return _scan
+
+        import sys
+
+        original = sys.modules.get("doc_drift_scanners")
+        sys.modules["doc_drift_scanners"] = _Recorder()
+        try:
+            with pytest.MonkeyPatch.context() as mp:
+                mp.delitem(sys.modules, "tools", raising=False)
+                repo_coherence._doc_number_drift(_calibration_root(tmp_path))
+        finally:
+            if original is not None:
+                sys.modules["doc_drift_scanners"] = original
+            else:  # pragma: no cover - the module is always importable here
+                del sys.modules["doc_drift_scanners"]
+
+        assert "scan_table_count_columns" in called, called
+        assert {
+            "scan_version_refs",
+            "scan_mcp_tool_counts",
+            "scan_closed_list_enums",
+            "scan_test_counts",
+            "scan_code_counts",
+        } <= set(called), called
+
+
+class TestAReportNobodyReadsIsWorseThanNone:
+    """AC-6: bounded, ranked, and honest about its own blind spots."""
+
+    def test_findings_are_ordered_most_severe_first(self, live):
+        order = [repo_coherence.SEVERITY_ORDER.index(f["severity"]) for f in live["findings"]]
+        assert order == sorted(order)
+
+    def test_volume_is_capped_and_the_remainder_is_counted_not_dropped(self, monkeypatch, tmp_path):
+        """Truncation must be VISIBLE — a silently shortened list is a lie about
+        how much was found.
+
+        Run against an EMPTY tree, so the only findings are the synthetic ones
+        and the arithmetic is exact. Pointed at the live repository this counted
+        the real findings too and the expected remainder became a moving number
+        — a test whose expectation drifts with the tree tests nothing.
+        """
+        import repo_coherence as rc
+
+        many = [
+            rc.Finding(f"k{i}", "low", f"finding {i}", source="synthetic")
+            for i in range(rc.MAX_FINDINGS + 7)
+        ]
+        monkeypatch.setattr(rc, "_orphans", lambda _root: many)
+        material = rc.collect(str(tmp_path))
+
+        assert len(material["findings"]) == rc.MAX_FINDINGS
+        assert material["truncated"] == 7
+
+    def test_the_report_states_what_it_did_not_examine(self, live):
+        rendered = repo_coherence.render_markdown(live)
+        assert "NOT examined by this lens" in rendered
+        assert "runtime behaviour" in rendered
+
+    def test_the_report_offers_candidates_not_filed_tasks(self, live):
+        """AC-4. The lens proposes; filing stays a person's decision."""
+        rendered = repo_coherence.render_markdown(live)
+        assert "CANDIDATES" in rendered
+
+    def test_an_empty_result_is_rendered_as_suspicious_not_as_success(self):
+        """The failure mode from AC-5, in the output itself: a reader who gets
+        an empty report must not read it as a clean bill of health."""
+        rendered = repo_coherence.render_markdown(
+            {
+                "findings": [],
+                "truncated": 0,
+                "collectors_run": 8,
+                "collectors_skipped": [],
+                "not_examined": list(repo_coherence.NOT_EXAMINED),
+            }
+        )
+        assert "SUSPICION" in rendered.upper()
+
+
+class TestACollectorFailureIsNamedNeverSwallowed:
+    def test_a_raising_collector_becomes_a_reported_gap(self, monkeypatch, tmp_path):
+        import repo_coherence as rc
+
+        def boom(_root):
+            raise RuntimeError("collector exploded")
+
+        monkeypatch.setattr(rc, "_orphans", boom)
+        material = rc.collect(str(tmp_path))
+
+        assert any("orphan_files" in s for s in material["collectors_skipped"]), (
+            "a collector that died must appear as a named gap; dropping it "
+            "silently would report a cleaner repository than was measured"
+        )
+        assert "collector exploded" in " ".join(material["collectors_skipped"])

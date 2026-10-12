@@ -1,0 +1,510 @@
+"""TAUSIK argparse — `task` subcommand parser (extracted from project_parser).
+
+Hosts every `tausik task <subcmd>` flag definition. Imported once from
+``project_parser.build_parser`` to keep that orchestrator under the 400-line
+filesize gate.
+"""
+
+from __future__ import annotations
+
+import argparse
+
+from project_types import VALID_COMPLEXITIES, VALID_TIERS
+
+
+def _add_scope_acl_flags(parser: argparse.ArgumentParser) -> None:
+    """Attach --scope-paths / --scope-tools (SENAR Rule 2 declared ACL)."""
+    parser.add_argument(
+        "--scope-paths",
+        nargs="*",
+        default=None,
+        dest="scope_paths",
+        help="Allowed write paths/globs for this task (JSON list stored; "
+        "basis for scope enforcement). Empty = explicit 'nothing allowed'.",
+    )
+    parser.add_argument(
+        "--scope-tools",
+        nargs="*",
+        default=None,
+        dest="scope_tools",
+        help="Allowed tool names for this task (optional ACL complement).",
+    )
+
+
+def _add_unit_flags(parser: argparse.ArgumentParser) -> None:
+    """Attach --call-budget / --tier / --cost-budget / --token-budget flags."""
+    parser.add_argument("--call-budget", type=int, default=None, dest="call_budget")
+    parser.add_argument("--tier", default=None, choices=sorted(VALID_TIERS))
+    parser.add_argument(
+        "--cost-budget",
+        type=float,
+        default=None,
+        dest="cost_budget_usd",
+        help="Planned USD cost budget for this task. Warn 1.5×, BLOCKER 2× (advisory).",
+    )
+    parser.add_argument(
+        "--token-budget",
+        type=int,
+        default=None,
+        dest="token_budget",
+        help="Planned token-total budget for this task.",
+    )
+
+
+def add_task(sub: argparse._SubParsersAction) -> None:
+    """Wire up `tausik task <subcmd>` parsers."""
+    task_p = sub.add_parser("task", help="Task management")
+    task_sub = task_p.add_subparsers(dest="task_cmd")
+
+    ta = task_sub.add_parser(
+        "add",
+        epilog='Example: tausik task add "Task title" --story my-story --slug my-task --complexity medium',
+    )
+    ta.add_argument("title", help="Task title (in quotes)")
+    ta.add_argument(
+        "--story",
+        "--group",
+        default=None,
+        dest="story_slug",
+        help="Parent story slug (optional). --group is deprecated alias.",
+    )
+    ta.add_argument("--slug", default=None, help="Task slug (auto-generated from title if omitted)")
+    ta.add_argument("--stack", default=None)
+    ta.add_argument("--complexity", default=None, choices=sorted(VALID_COMPLEXITIES))
+    ta.add_argument("--goal", default=None)
+    ta.add_argument("--role", default=None)
+    ta.add_argument("--defect-of", default=None, help="Parent task slug (defect fix)")
+    ta.add_argument(
+        "--rollback-plan",
+        default=None,
+        dest="rollback_plan",
+        help="SENAR Rule 6: how to undo this change (git revert / migration "
+        "down / feature flag off).",
+    )
+    # QG-0 refuses a start without acceptance criteria, and until now the command that
+    # CREATES a task could not set them — every `task add` was followed by a `task update`
+    # to supply the one field the next step requires. Measured over this project's own
+    # shift: nine tasks, nine extra calls, at roughly 482,000 tokens of re-sent prefix each.
+    ta.add_argument(
+        "--acceptance-criteria",
+        default=None,
+        dest="acceptance_criteria",
+        help="QG-0: what must be true for this task to close. Settable here so a task is "
+        "startable after one command.",
+    )
+    ta.add_argument(
+        "--ticket",
+        nargs="*",
+        default=None,
+        dest="add_tickets",
+        help="External ticket(s) this task answers, SPACE-separated: "
+        "--ticket github#7 gitlab#12 (or a full ticket URL). The tracker name is required — this repo has two trackers whose numbers collide.",
+    )
+    _add_scope_acl_flags(ta)
+    _add_unit_flags(ta)
+
+    tl = task_sub.add_parser("list")
+    tl.add_argument("--status", default=None)
+    tl.add_argument("--story", default=None)
+    tl.add_argument("--epic", default=None)
+    tl.add_argument("--role", default=None)
+    tl.add_argument("--stack", default=None)
+    tl.add_argument("--limit", type=int, default=None, help="Max tasks to return")
+    tl.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="Include soft-archived tasks (archived_at IS NOT NULL). Off by default.",
+    )
+    from output_rollup import add_rollup_flags
+
+    add_rollup_flags(tl)
+
+    ts = task_sub.add_parser("show")
+    ts.add_argument("slug")
+    show_mode = ts.add_mutually_exclusive_group()
+    show_mode.add_argument("--package", action="store_true", help="Emit bounded JSON agent context")
+    show_mode.add_argument(
+        "--work-packet",
+        action="store_true",
+        dest="work_packet",
+        help="Compose task context, search, memory and scoped source reads as bounded JSON",
+    )
+    ts.add_argument("--query", default=None, help="Retrieval query for --work-packet")
+    ts.add_argument(
+        "--source",
+        action="append",
+        default=None,
+        dest="sources",
+        help="Project-relative source address for --work-packet (repeatable)",
+    )
+    ts.add_argument(
+        "--max-bytes",
+        type=int,
+        default=None,
+        help="Serialized UTF-8 ceiling (package: 8192; work packet: 16384)",
+    )
+
+    tdelegate = task_sub.add_parser(
+        "delegate", help="Mark a complexity<=medium task delegated to a worker sub-agent"
+    )
+    tdelegate.add_argument("slug")
+    tdelegate.add_argument(
+        "--startup-work",
+        type=int,
+        default=None,
+        help="Optional worker startup estimate; requires --remaining-work in the same unit",
+    )
+    tdelegate.add_argument(
+        "--remaining-work",
+        type=int,
+        default=None,
+        help="Optional bounded work remaining; requires --startup-work in the same unit",
+    )
+    tundelegate = task_sub.add_parser("undelegate", help="Clear a task's delegation")
+    tundelegate.add_argument("slug")
+    thandoff = task_sub.add_parser(
+        "handoff", help="Print the worker handoff contract (JSON) for a delegated task"
+    )
+    thandoff.add_argument("slug")
+    tsumback = task_sub.add_parser(
+        "summary-back", help="Worker → orchestrator: record a structured completion summary"
+    )
+    tsumback.add_argument("slug")
+    tsumback.add_argument("summary")
+    tsumback.add_argument("--changed", default=None, help="Changed files/areas")
+    tsumback.add_argument("--gates", default=None, help="Gate status (e.g. green)")
+    tsumback.add_argument("--ac-evidence", dest="ac_evidence", default=None)
+    tsumback.add_argument("--follow-ups", dest="follow_ups", default=None)
+
+    tstart = task_sub.add_parser("start")
+    tstart.add_argument("slug")
+    tstart.add_argument(
+        "--package",
+        action="store_true",
+        help="Start and return the bounded task context in one result",
+    )
+    tstart.add_argument("--max-bytes", type=int, default=8192)
+    tstart.add_argument(
+        "--force",
+        action="store_true",
+        help="Retired in 1.10: session capacity is a signal, not a gate; passing this flag is refused with the reason (decision #376)",
+    )
+
+    tobs = task_sub.add_parser(
+        "obsolete",
+        help="Close a task whose premise time resolved: kept on record, no QG-2, left out of delivery metrics (a reason is required)",
+    )
+    tobs.add_argument("slug")
+    tobs.add_argument(
+        "--reason",
+        required=True,
+        help="What made the task unnecessary and where that is recorded (>=10 chars)",
+    )
+
+    tdone = task_sub.add_parser("done")
+    tdone.add_argument("slug")
+    tdone.add_argument(
+        "--message",
+        default=None,
+        help="With --step, log final progress and advance that step before closure",
+    )
+    tdone.add_argument(
+        "--step",
+        type=int,
+        default=None,
+        dest="compound_step",
+        help="With --message, include the final plan step in this closure call",
+    )
+    tdone.add_argument(
+        "--ac-verified",
+        action="store_true",
+        help="Confirm all acceptance criteria verified",
+    )
+    tdone.add_argument(
+        "--no-knowledge",
+        action="store_true",
+        dest="no_knowledge",
+        help="Confirm no knowledge to capture",
+    )
+    tdone.add_argument("--relevant-files", nargs="*", default=None)
+    tdone.add_argument(
+        "--verify",
+        action="store_true",
+        help="Run the scoped check in THIS call and close with its handle — the whole "
+        "ceremony in one call instead of four. The run is the same one `tausik verify "
+        "--task <slug>` performs and records the same receipt; a red run refuses the "
+        "close and leaves the task open. Refuses alongside --verify-handle, and refuses "
+        "a task that declares no relevant_files unless --no-file-changes says so.",
+    )
+    tdone.add_argument(
+        "--verify-handle",
+        default=None,
+        dest="verify_handle",
+        help="Present the handle `tausik verify --task <slug>` printed "
+        "(<run_id>.<nonce>) instead of relying on the freshness lookup. The "
+        "handle names ONE verify run; it is single-use, carries its own expiry, "
+        "and is validated against live files and the live gate set. Omitting it "
+        "keeps the previous behaviour (a green verify run younger than the cache "
+        "TTL is searched for).",
+    )
+    tdone.add_argument(
+        "--gates-not-applicable",
+        action="store_true",
+        dest="zero_gate_ack",
+        help="Knowingly close on a verify run in which NO gate executed. "
+        "Required because SENAR 1.4 §8.6(e) makes 'nothing was checked' a "
+        "non-verdict: `verify --no-tests-expected` records the declaration, "
+        "and this flag is the separate, recorded act of accepting it. Use it "
+        "for work that honestly maps to no test — documentation, config, an "
+        "investigation. It cannot rescue a run in which a gate APPLIED and "
+        "still did not execute; that one is fixed, not acknowledged.",
+    )
+    tdone.add_argument(
+        "--no-file-changes",
+        action="store_true",
+        dest="no_file_changes",
+        help="Close a task that touched NO files (pure planning / a decision). "
+        "Allowed only when git proves the declared scope (--relevant-files as a "
+        "pathspec, else the whole tree) has no uncommitted changes.",
+    )
+    tdone.add_argument(
+        "--no-changelog",
+        action="store_true",
+        dest="no_changelog",
+        help="Close a task that warrants NO changelog entry (docs / cleanup / "
+        "measurement). Skips the continuous-changelog gate and logs an explicit "
+        "bypass reason. Only meaningful when config.task_done.changelog_gate is "
+        "enabled.",
+    )
+    evidence_group = tdone.add_mutually_exclusive_group()
+    evidence_group.add_argument(
+        "--evidence",
+        default=None,
+        help='Inline AC verification log — e.g. "AC verified: 1. ✓ 2. ✓ ...". '
+        "Saves a separate task_log call.",
+    )
+    evidence_group.add_argument(
+        "--evidence-json",
+        default=None,
+        dest="evidence_json",
+        help='Structured AC evidence as JSON: \'{"ac_evidence":[{"n":1,'
+        '"status":"pass","evidence":"tests/foo.py::test_bar"}, ...]}\'. '
+        "Converted to canonical prose before logging. "
+        "Mutually exclusive with --evidence.",
+    )
+
+    tblock = task_sub.add_parser("block")
+    tblock.add_argument("slug")
+    tblock.add_argument(
+        "--reason",
+        default=None,
+        help="Prose context for the journal (optional — the question and the "
+        "criterion are the required part, not this)",
+    )
+    tblock.add_argument(
+        "--question",
+        default=None,
+        help="REQUIRED: the concrete question to the owner. Must not restate "
+        "the title; a block without a question is a task abandoned with a "
+        "note to self.",
+    )
+    tblock.add_argument(
+        "--unblock-when",
+        default=None,
+        dest="unblock_when",
+        help="REQUIRED: what must become TRUE for the task to proceed — a "
+        "checkable statement, not a date.",
+    )
+
+    tunblock = task_sub.add_parser("unblock")
+    tunblock.add_argument("slug")
+    tunblock.add_argument(
+        "--criterion-met",
+        default=None,
+        dest="criterion_met",
+        help="REQUIRED: which unblock criterion is met and why — silent unblocking is forbidden.",
+    )
+    tunblock.add_argument(
+        "--by",
+        default=None,
+        help="Who states the criterion met (recorded; defaults to OS user@host)",
+    )
+
+    treview = task_sub.add_parser("review")
+    treview.add_argument("slug")
+
+    tupdate = task_sub.add_parser("update")
+    tupdate.add_argument("slug")
+    tupdate.add_argument(
+        "--add-scope-paths",
+        nargs="*",
+        default=None,
+        dest="add_scope_paths",
+        help="ADD paths to the declared write scope, keeping what is already there. "
+        "The scope is declared before the work reveals which files it touches, so "
+        "widening is the normal case; --scope-paths replaces and made every widening "
+        "restate the whole list.",
+    )
+    tupdate.add_argument("--title", default=None)
+    tupdate.add_argument("--goal", default=None)
+    tupdate.add_argument("--notes", default=None)
+    tupdate.add_argument(
+        "--notes-overwrite",
+        action="store_true",
+        dest="notes_overwrite",
+        help="Allow --notes to REPLACE the append-only journal (default: refuse; "
+        "use `task log` to append instead).",
+    )
+    tupdate.add_argument("--acceptance-criteria", default=None, dest="ac")
+    # --stack is validated in the service layer so config-defined custom
+    # stacks (cfg.custom_stacks) work alongside the built-in DEFAULT_STACKS.
+    tupdate.add_argument("--stack", default=None)
+    tupdate.add_argument("--complexity", default=None, choices=sorted(VALID_COMPLEXITIES))
+    tupdate.add_argument("--role", default=None)
+    tupdate.add_argument(
+        "--assurance-profiles",
+        default=None,
+        dest="assurance_profiles",
+        help='JSON list of composable profiles, e.g. ["declarative"]',
+    )
+    tupdate.add_argument(
+        "--assurance-impact",
+        default=None,
+        dest="assurance_impact",
+        help="JSON impact object; task values override stack defaults",
+    )
+    tupdate.add_argument("--scope", default=None)
+    tupdate.add_argument("--scope-exclude", default=None, dest="scope_exclude")
+    tupdate.add_argument(
+        "--rollback-plan",
+        default=None,
+        dest="rollback_plan",
+        help="SENAR Rule 6: how to undo this change (git revert / migration "
+        "down / feature flag off). Required by QG-0 for medium/complex.",
+    )
+    tupdate.add_argument(
+        "--relevant-files",
+        nargs="*",
+        default=None,
+        dest="update_relevant_files",
+        help=(
+            "Scope for scoped verify / pytest gate, SPACE-separated paths "
+            "(--relevant-files a.py b.py); stored as a JSON list; overwrites prior. "
+            "A comma-joined value is refused (GitLab #13)."
+        ),
+    )
+    tupdate.add_argument(
+        "--ticket",
+        nargs="*",
+        default=None,
+        dest="update_tickets",
+        help="External ticket(s) this task answers, SPACE-separated: "
+        "--ticket github#7 gitlab#12 (or a full ticket URL). The tracker name is required — this repo has two trackers whose numbers collide.",
+    )
+    _add_scope_acl_flags(tupdate)
+    _add_unit_flags(tupdate)
+
+    tdel = task_sub.add_parser("delete")
+    tdel.add_argument("slug")
+
+    tplan = task_sub.add_parser("plan")
+    tplan.add_argument("slug")
+    tplan.add_argument("steps", nargs="+")
+
+    tstep = task_sub.add_parser("step")
+    tstep.add_argument("slug")
+    tstep.add_argument("step_num", type=int)
+    tstep.add_argument(
+        "--message",
+        default=None,
+        help="Log progress and mark the step in one deterministic call",
+    )
+
+    tquick = task_sub.add_parser("quick", help="Quick-create task (auto-slug)")
+    tquick.add_argument("title", help="Task title")
+    tquick.add_argument("--goal", default=None)
+    tquick.add_argument("--role", default=None)
+    tquick.add_argument("--stack", default=None)
+    tquick.add_argument(
+        "--ac",
+        "--acceptance",
+        dest="acceptance",
+        default=None,
+        help="Acceptance criteria — sets the task's AC so it is QG-0-ready in one step",
+    )
+
+    tnext = task_sub.add_parser("next", help="Pick next available task")
+    tnext.add_argument("--agent", default=None, help="Agent ID to auto-claim")
+
+    tdep = task_sub.add_parser(
+        "depends",
+        help="Declare that a task comes AFTER another (plan order)",
+        epilog="Example: tausik task depends four-copies --after honest-gates",
+    )
+    tdep.add_argument("slug", help="Task that comes second")
+    tdep.add_argument("--after", required=True, help="Task that must be done first")
+
+    tundep = task_sub.add_parser("undepends", help="Withdraw an ordering edge")
+    tundep.add_argument("slug", help="Task that came second")
+    tundep.add_argument("--after", required=True, help="Predecessor to detach")
+
+    tlog = task_sub.add_parser(
+        "log",
+        epilog='Example: tausik task log my-task "Implemented auth middleware"',
+    )
+    tlog.add_argument("slug", help="Task slug")
+    tlog.add_argument("message", help="Log message (appended to notes with timestamp)")
+
+    tlogs = task_sub.add_parser(
+        "logs",
+        epilog="Example: tausik task logs my-task --phase review",
+    )
+    tlogs.add_argument("slug", help="Task slug")
+    tlogs.add_argument(
+        "--phase",
+        help="Filter by phase (planning, implementation, review, testing, done)",
+    )
+
+    tbudget = task_sub.add_parser(
+        "budget-check",
+        help="Exit non-zero when an ARMED autonomous run is past the call-budget ceiling",
+        epilog="Example: TAUSIK_AUTONOMOUS_BUDGET_BLOCK=1 tausik task budget-check my-task",
+    )
+    tbudget.add_argument("slug", help="Task slug")
+
+    treason = task_sub.add_parser(
+        "reason-step",
+        help="Record a RENAR reasoning step (intent|premise|action|verification)",
+        epilog='Example: tausik task reason-step my-task premise "FTS5 keeps trace searchable"',
+    )
+    treason.add_argument("slug", help="Task slug")
+    treason.add_argument(
+        "kind",
+        choices=["intent", "premise", "action", "verification"],
+        help="Reasoning step kind (closed list)",
+    )
+    treason.add_argument("content", help="Reasoning step content")
+
+    treplay = task_sub.add_parser(
+        "replay",
+        help="Reconstruct a task's chronological timeline (logs + reasoning + events + verification)",
+        epilog="Example: tausik task replay my-task --output replay.md",
+    )
+    treplay.add_argument("slug", help="Task slug")
+    treplay.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        help="Write the markdown timeline to a file instead of stdout",
+    )
+
+    tmove = task_sub.add_parser("move")
+    tmove.add_argument("slug")
+    tmove.add_argument("new_story_slug")
+
+    tclaim = task_sub.add_parser("claim")
+    tclaim.add_argument("slug")
+    tclaim.add_argument("agent_id")
+
+    tunclaim = task_sub.add_parser("unclaim")
+    tunclaim.add_argument("slug")

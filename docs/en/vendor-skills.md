@@ -1,0 +1,189 @@
+**English** | [Русский](../ru/vendor-skills.md)
+
+# Custom Skills
+
+<!-- doc-map: reader=user; zone=ide-and-skills -->
+
+**Start here for the full install map (diagram + CLI list):** [Skill ecosystem (one page)](skill-ecosystem.md).
+
+TAUSIK supports external skill packages from GitHub repos. Skills are cloned once, cached in `.tausik/vendor/`, and installed on demand with automatic dependency management.
+
+## Quick Start
+
+```bash
+# 1. Add a skill repository
+.tausik/tausik skill repo add https://github.com/Kibertum/tausik-skills
+
+# 2. Install a skill (copies files + installs pip deps)
+.tausik/tausik skill install pdf
+
+# 3. Restart IDE to load the new skill
+```
+
+That's it — one repo, one install, one restart.
+
+## Skill Repo Management
+
+### Adding repos
+
+```bash
+# TAUSIK-compatible repos (have tausik-skills.json)
+.tausik/tausik skill repo add https://github.com/Kibertum/tausik-skills
+
+# See what's available
+.tausik/tausik skill repo list
+```
+
+### Removing repos
+
+```bash
+.tausik/tausik skill repo remove tausik-skills
+```
+
+### Default repos
+
+TAUSIK ships with `Kibertum/tausik-skills` as a pre-configured default repo. Run `skill repo list` to see it.
+
+## Installing and Uninstalling Skills
+
+```bash
+# Install: clone repo (if needed) → copy skill → install pip deps
+.tausik/tausik skill install pdf
+
+# Uninstall: remove files and config entry
+.tausik/tausik skill uninstall pdf
+
+# List everything: active, vendored, and available from repos
+.tausik/tausik skill list
+```
+
+### MCP tools (for AI agents)
+
+```
+tausik_skill_repo_add     — add a repo
+tausik_skill_repo_remove  — remove a repo
+tausik_skill_repo_list    — list repos and their skills
+tausik_skill_install      — install a skill
+tausik_skill_uninstall    — uninstall a skill
+tausik_skill_list         — list all skills (active + vendored + available)
+tausik_skill_activate     — activate a vendored skill
+tausik_skill_deactivate   — deactivate (unload from context)
+```
+
+## Three-Tier Skill System
+
+Skills live at three levels — from "ready to use" to "not yet cloned":
+
+| Tier | Location | In Agent Context? | How to Use |
+|------|----------|-------------------|------------|
+| **Active** | `.{ide}/skills/` | Yes — loaded every conversation | Used automatically |
+| **Installed** | `.tausik/vendor/` | No — cached on disk, zero context cost | `skill activate <name>` |
+| **Available** | In repo, not yet cloned | No — not downloaded | `skill repo add` + `skill install` |
+
+**Why three tiers?** Active skills consume agent context. If you activate 50 skills, the agent has less room for your code. Keep only daily-use skills active; installed skills are one command away.
+
+## Repo trust (`--force`)
+
+URLs **other than** the official `https://github.com/Kibertum/tausik-skills` require **`skill repo add <url> --force`** (CLI) or **`force: true`** on MCP `tausik_skill_repo_add`. Without it, TAUSIK refuses to clone — adding a repo executes `git clone` on potentially untrusted content; `skill install` may run pip/scripts declared by the skill.
+
+## How It Works
+
+```
+skill repo add <url>   # use --force if not Kibertum/tausik-skills
+      ↓
+git clone --depth 1 → .tausik/vendor/{repo}/
+      ↓
+skill install <name>
+      ↓
+copy to .{ide}/skills/{name}/ + pip install deps
+      ↓
+Active (loaded into agent context)
+```
+
+### Activate / Deactivate (without reinstalling)
+
+```bash
+# Remove from context (keeps files in vendor)
+.tausik/tausik skill deactivate pdf
+
+# Reload into context
+.tausik/tausik skill activate pdf
+```
+
+## tausik-skills.json Format
+
+TAUSIK-compatible repos must have `tausik-skills.json` in the root:
+
+```json
+{
+  "format": "tausik-skills",
+  "version": 1,
+  "skills": {
+    "pdf": {
+      "path": "pdf/",
+      "description": "Read and create PDF documents",
+      "triggers": ["pdf", "document"],
+      "requires": []
+    }
+  }
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `format` | Yes | Must be `"tausik-skills"` |
+| `version` | Yes | Manifest version (`1`) |
+| `skills.{name}.path` | Yes | Relative path to skill directory |
+| `skills.{name}.description` | Yes | One-line description |
+| `skills.{name}.triggers` | No | Keywords for agent auto-suggestions |
+| `skills.{name}.requires` | No | pip packages (auto-installed into `.tausik/venv/`) |
+
+For repos that don't follow this format, see the [Skill Adaptation Guide](skill-adaptation.md).
+
+## Dependencies
+
+pip dependencies listed in `requires` are automatically installed into `.tausik/venv/` during `skill install`. Your system Python is never modified.
+
+```bash
+# Example: installing a skill with deps
+.tausik/tausik skill install jira
+# → Copies jira/ to .claude/skills/jira/
+# → pip install jira-python>=3.0 into .tausik/venv/
+```
+
+## Security
+
+- Repos cloned via HTTPS with URL scheme validation
+- Path traversal protection on skill copy
+- pip dependency warning: packages from external manifests flagged for review
+- No hooks auto-installed from external repos (prevents conflicts)
+- Vendor scripts namespaced to prevent core overwrites
+
+## Legacy: skills.json + bootstrap
+
+The older mechanism using `skills.json` + `bootstrap --update-deps` still works for backward compatibility. See `skills.example.json` for the format; the example is inert until you explicitly copy it to `skills.json`. A clean bootstrap performs no external skill downloads. The new `skill repo add` + `skill install` is recommended for new projects.
+
+Do not confuse the two manifests: `tausik-skills.json` (above) lives in a *skill repo* and is read by `skill install`; `skills.json` lives in *this* repo and is read by `bootstrap --update-deps`, which downloads GitHub tarballs and unpacks each repo's `scripts/` into `scripts/vendor_<name>/`. That is third-party Python placed beside your own, so what a spec points at matters.
+
+### Pinning an external dependency
+
+Each entry under `external_skills` accepts an optional `sha256` — the expected digest of the downloaded tarball:
+
+```json
+"external_skills": {
+  "seo": {
+    "repo": "owner/repo",
+    "ref": "v1.5.0",
+    "sha256": "ab12…64 hex chars",
+    "skill_dirs": ["seo"]
+  }
+}
+```
+
+- **Declared and matching** — the tarball is unpacked as usual.
+- **Declared and not matching** — that dependency fails with `integrity check FAILED` and **nothing is written to disk**. The rest of the bootstrap continues; one bad dependency does not abort the run.
+- **Not declared, and `ref` is a branch or tag** — a warning names the repo and the moving ref. Whatever that ref points to at download time gets executed from your `scripts/` tree. Only a full 40-character commit SHA counts as self-pinning.
+
+Adding a `sha256` to a dependency that is already vendored takes effect immediately: the declared digest is checked against the one recorded in `.lock` even on the "up-to-date" fast path, so a new pin is never a silent no-op waiting for `--force`. Comparison is case-insensitive.
+
+`.lock` also stops being write-only: a forced re-sync that brings different bytes than the previous run reports `sha_changed` with the old and new digests, so a branch that moved under you is visible rather than silent.

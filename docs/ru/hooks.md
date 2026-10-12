@@ -1,0 +1,181 @@
+[English](../en/hooks.md) | **Русский**
+
+# Хуки
+
+<!-- doc-map: reader=user; zone=core-surface -->
+
+TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **23 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 24 шлюза (v1.4 добавил `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`; 1.8 добавил `scope_write_gate.py` и `bash_write_gate.py`; 1.9 добавил `read_ledger_gate.py`, выключенный по умолчанию).
+
+## Что такое хуки
+
+Хуки — скрипты, запускающиеся автоматически на каждое действие агента. Они решают, можно ли действие выполнять (PreToolUse), что делать после (PostToolUse) или что записать на границах сессии/агента (SessionStart, Stop, UserPromptSubmit). Общие хелперы живут в `scripts/hooks/_common.py` (сам по себе не хук); regex-набор `scripts/hooks/memory_markers.py` — библиотека, импортируемая `memory_posttool_audit.py` и pipeline'ом скраббинга brain.
+
+Дефолтный `governance_profile: "full"` разворачивает таблицу ниже. Явный проектный профиль `"memory-only"` оставляет на хостах с hooks только `memory_pretool_block.py` и `memory_posttool_audit.py`, удаляет OpenCode QG-0 plugin и сохраняет MCP/RAG/данные TAUSIK. Это профиль для репозиториев, где нужна память проекта, но не task/verify-ритуал TAUSIK. По инфраструктурному стеку он никогда не включается автоматически. Потерянные гарантии перечислены в [конфигурации](configuration.md#объём-governance).
+
+## PreToolUse — шлюзы перед действием
+
+| Хук | Когда | Что делает |
+|------|-------|-----------|
+| `task_gate.py` | Перед каждым пишущим инструментом — Write/Edit/MultiEdit/NotebookEdit и MCP-редакторами из `hooks/write_tools.py` (serena, windows-mcp; PR #5) | Блокирует изменения файлов, если нет активной задачи (SENAR Rule 9.1) |
+| `scope_write_gate.py` | Перед каждым пишущим инструментом — Write/Edit/MultiEdit/NotebookEdit и MCP-редакторами из `hooks/write_tools.py` (serena, windows-mcp; PR #5) | Scope-ACL (SENAR Rule 2, Walko-паттерн): блокирует запись вне объединения объявленных `scope_paths` активных задач. Именно этот вердикт переиспользует `bash_write_gate` для оболочечных записей. Консервативно: хоть одна активная задача без `scope_paths` → доступ открыт (legacy, необъявленное = без ограничений); цель вне корня проекта → открыт; pre-v30 БД или любая ошибка БД → ОТКАЗ, кроме `TAUSIK_HOOK_FAIL_OPEN=1` (умолчание перевёрнуто в 1.9). |
+| `memory_pretool_block.py` | Перед каждым пишущим инструментом — Write/Edit/MultiEdit/NotebookEdit и MCP-редакторами из `hooks/write_tools.py` (serena, windows-mcp; PR #5) **и каждым shell-инструментом (Bash, PowerShell, `mcp__windows-mcp__PowerShell`)** | Слой 2 memory-route: блокирует запись в любой чужой memory-сток из `scripts/memory_sinks.py` (`~/.claude/**/memory/`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.aider*`, …) и перенаправляет на `memory add`. Оболочки в matcher, потому что heredoc и `Set-Content` пишут ровно то, что запрещает Write. Обход: `confirm: cross-project` в промпте или `gates.memory_route.allow` в конфиге. |
+| `secret_scan.py` (v1.4) | Перед каждым пишущим инструментом — Write/Edit/MultiEdit/NotebookEdit и MCP-редакторами из `hooks/write_tools.py` (serena, windows-mcp; PR #5) **и каждым shell-инструментом (Bash, PowerShell, `mcp__windows-mcp__PowerShell`)** | Сканирует `tool_input` на типичные секреты (AWS/GitHub/Slack/Stripe/OpenAI/Anthropic токены, JWT, блоки приватного ключа, generic `password`/`api_key`). По умолчанию warning; `TAUSIK_SECRET_SCAN_STRICT=1` — блокировка. (SENAR Rule 10.12). **Оболочечные каналы не покрывает** — ни Bash, ни PowerShell; см. матрицу покрытия в [`enforcement-coverage.md`](enforcement-coverage.md). |
+| `bash_firewall.py` | Перед Bash **и PowerShell** | Блокирует опасные команды (`rm -rf /`, `Remove-Item -Recurse C:\`, DROP TABLE, `Format-Volume`, force push, …). Диалект выбирается по `tool_name`: POSIX-лексер не умеет читать PowerShell, где `\` — обычный символ пути, а не экранирование. |
+| `bash_write_gate.py` | Перед Bash **и PowerShell** | Применяет к записи через оболочку те же QG-0 (Rule 1) и scope-ACL (Rule 2), что и Write — переиспользуя решения `scope_write_gate`, а не копируя их. Разбирает редиректы, `tee`/`dd`/`sed -i`/`cp`/`mv` и `Set-Content`/`Add-Content`/`Out-File`/`New-Item`/`Tee-Object`. |
+| `git_push_gate.py` | Перед Bash **и PowerShell** | Блокирует push без свежего, одноразового тикета `.tausik/.push_ticket.json`, привязанного к SHA HEAD. `/ship` и `/commit` запускают `tausik push-ok && git push` после вашего "y" — `push-ok` пишет 60-секундный тикет, хук съедает его на следующем push. Сужающей клаузы `if` больше нет: она была второй копией решения, которое хук принимает сам, и называла только одну оболочку. |
+
+## PostToolUse — реакции после действия
+
+| Хук | Когда | Что делает |
+|------|-------|-----------|
+| `auto_format.py` | После каждого пишущего инструмента (MultiEdit не был на этом хуке до PR #5) | Авто-форматирование через ruff/prettier/gofmt + лог "Modified: X" в задачу |
+| `memory_posttool_audit.py` | После каждого пишущего инструмента в auto-memory | Аудитит cross-project leakage (использует regex-библиотеку `memory_markers.py`) и предупреждает |
+| `task_done_verify.py` | После `mcp__tausik-project__tausik_task_done` или `tausik task done`, запущенного в оболочке | Аудитит AC evidence через 5 правило-base проверок (Ralph-mode-lite). |
+| `task_call_counter.py` | После любого tool call | Инкрементирует per-task `call_actual` счётчик; warning'ит на 1.5×budget |
+| `posttool_usage.py` (v1.4) | После любого tool call | Записывает token-usage события в `usage_events` для per-task cost rollup |
+| `activity_event.py` | После любого tool call | Записывает activity-таймстемпы для **gap-based active-time** метрики (SENAR Rule 9.2) |
+| `tool_output_truncation_nudge.py` (v1.4) | После Read/Grep/Glob и каждым shell-инструментом (Bash, PowerShell, `mcp__windows-mcp__PowerShell`) | Подсказывает агенту сузить scope, когда вывод превышает порог по строкам (warn-only) |
+| `rag_grep_context.py` (1.10) | После Grep | Ищет идентификаторы шаблона Grep в RAG-индексе и добавляет 3 лучших куска (путь:строки) в контекст. Только чтение; ничего, если индекса нет или совпадений нет. |
+| `task_cost_budget_check.py` (v1.4) | После любого tool call | Сравнивает `cost_actual` / `tokens_actual` активной задачи с бюджетом; WARN на 1.5×, BLOCKER на 2× (с throttle) |
+
+## SessionStart
+
+| Хук | Когда | Что делает |
+|------|-------|-----------|
+| `session_start.py` | На старте сессии | Авто-инжектит status + Memory Block + ребилдит skill-профили — без ручного `/start` |
+
+## UserPromptSubmit
+
+| Хук | Когда | Что делает |
+|------|-------|-----------|
+| `user_prompt_submit.py` | На пользовательском промпте | Распознаёт coding-intent (EN+RU) → подталкивает, если нет активной задачи; меряет только что прочитанный ответ и сверх `answer_budget_words` или без вердикта первой строкой добавляет одну строку с числами. Подсказка к `search_code` на поисковый интент убрана в 1.10 (решение #390: в парном прогоне с ней 0 вызовов search_code). Игнорирует тела слэш-команд и текст, порождённый хуками |
+
+## Stop
+
+| Хук | Когда | Что делает |
+|------|-------|-----------|
+| `keyword_detector.py` | На остановке агента | Ловит "I'll implement"/"сейчас напишу" drift-фразы → блокирует stop |
+| `session_cleanup_check.py` | На остановке агента | Предупреждает об открытом exploration / review-задачах / session timeout |
+
+## SessionEnd
+
+| Хук | Когда | Что делает |
+|------|-------|-----------|
+| `session_metrics.py` | На завершении сессии | Записывает session metrics (active vs wall, throughput) в БД |
+
+## Сессия на каждом хосте (1.10)
+
+Сессия TAUSIK — это сессия хоста: её открывает и закрывает сам
+хост, а не ритуал агента. Замеры — по бинарю хоста, а не по документации
+(конвенция #686), смена #266.
+
+<!-- host-session-table -->
+| Хост | Открытие | Закрытие | Чем обеспечено | Замер |
+|---|---|---|---|---|
+| claude | hook | hook | SessionStart / SessionEnd из общего объявления хуков | протокол хуков Claude Code |
+| qwen | hook | hook | SessionStart / SessionEnd из общего объявления хуков | профиль bootstrap |
+| codex | hook | hook | SessionStart / SessionEnd из общего объявления хуков | codex 0.153.4: перечень событий содержит SessionStart и SessionEnd |
+| opencode | plugin | plugin | `session.created` / `session.deleted` в плагине `tausik-qg0.js` | opencode 1.1.42: события плагина в бинаре |
+| kilo | cli | cli | `tausik session start` / `session end` руками | событий сессии у профиля нет |
+| cursor | cli | cli | `tausik session start` / `session end` руками | профиль без хуков |
+<!-- /host-session-table -->
+
+Где стоит `cli`, теряется то, что делает закрытие хуком: запись метрик
+транскрипта и порождённый handoff в момент выхода. `session end` руками делает
+и то и другое.
+
+## Git pre-commit
+
+| Хук | Когда | Что делает |
+|------|-------|-----------|
+| `pre-commit` (shell) | Перед `git commit` | Запускает `python -m mypy` против `scripts/` (конфиг из `pyproject.toml`). На exit ≠ 0 — **блокирует commit**. Опционально гонит инкрементальный `codebase-rag` reindex (warn-only, лимит 5с); никогда не блокирует commit из-за RAG. |
+
+Это **не** «scoped quality gates» — те запускаются через `tausik verify` (тяжёлый стек: pytest/tsc/cargo/phpstan/…) и развязаны с `git commit` начиная с v1.4 Verify-First Contract.
+
+### Установка (один раз)
+
+Путь зависит от того, ГДЕ вы находитесь. В репозитории самого TAUSIK `scripts/`
+принадлежит харнессу и хук лежит там. В проекте, который ПОДКЛЮЧИЛ TAUSIK,
+`scripts/` принадлежит проекту и никакого `pre-commit` в нём нет — команды ниже
+указали бы git на каталог без хука, а git считает отсутствующий хук не ошибкой,
+а отсутствием: установка молча не сработала бы.
+
+```bash
+# --- в репозитории TAUSIK ---
+# Вариант A: скопировать файл
+cp scripts/hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+
+# Вариант B (рекомендуется): указать git на in-repo hooks-папку, чтобы обновления подхватывались автоматически
+git config core.hooksPath scripts/hooks
+
+# --- в проекте, подключившем TAUSIK сабмодулем ---
+git config core.hooksPath .tausik-lib/scripts/hooks
+
+# Если сабмодуль не инициализирован (обычный клон без --recurse-submodules),
+# каталог пуст. Сперва:
+git submodule update --init --recursive
+```
+
+Сам хук ищет файлы движка шире, чем каталог, из которого запущен: развёрнутый
+профиль IDE, затем `.tausik-lib`, затем дерево проекта. Поэтому гейт
+`memory_route` находится и в потребительской раскладке, а если не находится —
+говорит об этом в stderr, а не молчит.
+
+> **Windows caveat.** `pre-commit` — bash-скрипт с `timeout(1)` и POSIX-ом `[ -f … ]`. Чистый `cmd.exe` его не запустит. Используй Git Bash, WSL или терминал, в котором есть Bash + `timeout` в `PATH`. Если команда работает только под Windows — замени скрипт на `pre-commit.cmd`-обёртку, которая зовёт `python -m mypy` напрямую и держит тот же контракт по exit code.
+
+### Отключение / bypass
+
+- Разово: `git commit --no-verify` (полностью пропускает `core.hooksPath`).
+- Временно: `git config --unset core.hooksPath`.
+- На CI без mypy: на CI-раннере не выставляй `core.hooksPath`; тяжёлая верификация всё равно идёт через `tausik verify`.
+
+## Как это работает
+
+```
+Вы: "добавь кнопку на главную"
+
+Агент хочет редактировать index.html
+  → task_gate.py проверяет: есть ли активная задача? Нет → ЗАБЛОКИРОВАНО
+  → Агент создаёт задачу через /plan, стартует
+  → task_gate.py проверяет снова: задача есть → РАЗРЕШЕНО
+
+Агент редактирует index.html
+  → auto_format.py: форматирует prettier'ом
+  → auto_format.py: пишет "Modified: index.html" в задачу
+  → task_call_counter.py: бампит call_actual; warning на 1.5×budget
+  → activity_event.py: штампует activity-таймстемп (active-time)
+
+Агент: tausik task done my-button --ac-verified
+  → task_done_verify.py: 5-проверочный AC-аудит
+```
+
+## Коды возврата
+
+| Код | Значение | Поведение |
+|------|---------|----------|
+| 0 | Успех | Действие разрешено |
+| 1 | Warning | Действие разрешено; warning записан |
+| 2 | Block | Действие **отменено**; агент получает причину |
+
+## Что блокирует `bash_firewall`
+
+- `rm -rf /` и `rm -rf .` — удаление файловой системы
+- `DROP TABLE`, `DROP DATABASE`, `TRUNCATE TABLE` — удаление данных
+- `git reset --hard` — потеря локальных изменений
+- `git push --force` — перезапись remote-истории
+- `git clean -fd` — удаление untracked-файлов
+- `dd if=/dev/zero`, `mkfs.` — форматирование диска
+- Fork bombs
+
+## Отключение хуков
+
+Для тестирования или дебага: установите `TAUSIK_SKIP_HOOKS=1`.
+
+Bootstrap генерирует hooks автоматически. Не поддерживай вручную урезанный список: следующий bootstrap его заменит. Если должны остаться только маршрутизация и аудит памяти, задай проектный `governance_profile: "memory-only"` и перезапусти bootstrap. `"full"` возвращает полный набор.
+
+## См. также
+
+- **[Workflow](workflow.md)** — как хуки вписываются в рабочий цикл
+- **[Session Active Time](session-active-time.md)** — что питает `activity_event.py`
+- **[CLI команды](cli.md)** — управление задачами из терминала

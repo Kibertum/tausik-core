@@ -1,0 +1,531 @@
+"""MCP integration tests — real JSON-RPC over stdin/stdout."""
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+
+import pytest
+
+# v14b-pytest-fast-lane: spawns the MCP server and drives JSON-RPC over pipes.
+pytestmark = pytest.mark.slow
+
+SERVER = os.path.join(
+    os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project", "server.py"
+)
+PYTHON = sys.executable
+
+
+def _jsonrpc(method: str, params: dict | None = None, req_id: int = 1) -> str:
+    """Build a JSON-RPC 2.0 message."""
+    msg = {"jsonrpc": "2.0", "id": req_id, "method": method}
+    if params is not None:
+        msg["params"] = params
+    return json.dumps(msg)
+
+
+def _send_and_receive(
+    proc: subprocess.Popen, messages: list[str], timeout: float = 5.0
+) -> list[dict]:
+    """Send JSON-RPC messages to MCP server and collect responses."""
+    for msg in messages:
+        line = msg + "\n"
+        proc.stdin.write(line)
+    proc.stdin.flush()
+    proc.stdin.close()
+
+    results = []
+    deadline = time.time() + timeout
+    output = ""
+    while time.time() < deadline:
+        try:
+            proc.wait(timeout=0.1)
+            # Process exited, read remaining output
+            output += proc.stdout.read()
+            break
+        except subprocess.TimeoutExpired:
+            pass
+
+    # Parse JSON-RPC responses from output
+    for line in output.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            results.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+
+    return results
+
+
+@pytest.fixture
+def project_dir(tmp_path):
+    """Create a temporary project with DB."""
+    tausik_dir = tmp_path / ".tausik"
+    tausik_dir.mkdir()
+
+    # Init DB via script
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts")
+    sys.path.insert(0, scripts_dir)
+    from project_backend import SQLiteBackend
+    from project_service import ProjectService
+
+    db_path = str(tausik_dir / "tausik.db")
+    be = SQLiteBackend(db_path)
+    svc = ProjectService(be)
+    # Seed some data
+    svc.epic_add("test-epic", "Test Epic")
+    svc.story_add("test-epic", "test-story", "Test Story")
+    svc.task_add("test-story", "test-task", "Test Task", role="developer")
+    be.close()
+    return str(tmp_path)
+
+
+def _check_mcp_available():
+    """Check if mcp package is installed."""
+    try:
+        import mcp  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+mcp_available = _check_mcp_available()
+skip_no_mcp = pytest.mark.skipif(not mcp_available, reason="mcp package not installed")
+
+
+def _protocol_version() -> str:
+    """The SDK's own latest revision, not a pinned 2024-11-05: a pinned date
+    silently turned the main startup test into a legacy-path test
+    (mcp-tools-list-caching-conflicts-with-scope-hiding)."""
+    from mcp.types import LATEST_PROTOCOL_VERSION
+
+    return LATEST_PROTOCOL_VERSION
+
+
+@skip_no_mcp
+class TestMCPServerStartup:
+    def test_server_starts_and_accepts_initialize(self, project_dir):
+        """Server should start and respond to initialize."""
+        proc = subprocess.Popen(
+            [PYTHON, SERVER, "--project", project_dir],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=os.path.dirname(SERVER),
+        )
+        try:
+            # Send initialize request
+            init_msg = _jsonrpc(
+                "initialize",
+                {
+                    "protocolVersion": _protocol_version(),
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1.0"},
+                },
+            )
+            # One communicate() carries the message and closes stdin itself. A
+            # manual write/flush/close followed by communicate() raised ValueError
+            # on Linux - CPython's _communicate flushes stdin first and it was
+            # already closed; Windows takes the thread path and never flushed,
+            # which is why this was green here and red in CI (#7719).
+            stdout, stderr = proc.communicate(init_msg + "\n", timeout=5)
+            # Server should have produced some output (even if error, it ran)
+            assert proc.returncode is not None or stdout or stderr
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            # Timeout is acceptable — server might be waiting for more input
+            pass
+
+    def test_server_without_project_still_answers_the_host(self, request):
+        """Without --project the project is resolved per request (a4219bdf), so a launch
+        outside any project must still list tools and answer a call with the way out —
+        a host that cannot list tools reads the server as dead. The old contract, a
+        refusal at startup, was withdrawn; a bad --project is still refused
+        (tests/test_mcp_project_server.py::test_project_server_rejects_missing_dir)."""
+        messages = [
+            _jsonrpc(
+                "initialize",
+                {
+                    "protocolVersion": _protocol_version(),
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1.0"},
+                },
+                req_id=1,
+            ),
+            json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+            _jsonrpc("tools/list", {}, req_id=2),
+            _jsonrpc("tools/call", {"name": "tausik_status", "arguments": {}}, req_id=3),
+        ]
+        env = os.environ.copy()
+        env.pop("TAUSIK_DIR", None)
+        outside_pytest_tree = tempfile.TemporaryDirectory(prefix="tausik-mcp-no-project-")
+        request.addfinalizer(outside_pytest_tree.cleanup)
+        proc = subprocess.Popen(
+            [PYTHON, SERVER],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=outside_pytest_tree.name,
+            env=env,
+        )
+        # stdin stays OPEN until the tools/call reply is in: at EOF the server shuts down,
+        # and on Linux it did so before the threaded call answered.
+        import threading
+
+        lines: list[str] = []
+        done = threading.Event()
+
+        def _read() -> None:
+            for line in proc.stdout:
+                lines.append(line)
+                if '"id":3' in line.replace(" ", ""):
+                    done.set()
+                    return
+
+        err_lines: list[str] = []
+        err_reader = threading.Thread(target=lambda: err_lines.extend(proc.stderr), daemon=True)
+        err_reader.start()  # an unread stderr pipe fills up and stalls the server
+        reader = threading.Thread(target=_read, daemon=True)
+        reader.start()
+        proc.stdin.write("\n".join(messages) + "\n")
+        proc.stdin.flush()
+        done.wait(timeout=20)
+        # Not communicate(): after a manual stdin.close() it flushes the closed stdin and
+        # raises ValueError on Linux (see the startup test above).
+        proc.stdin.close()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        reader.join(timeout=5)
+        err_reader.join(timeout=5)
+        stderr = "".join(err_lines)
+        stdout = "".join(lines)
+        replies = {r.get("id"): r for r in map(json.loads, filter(None, stdout.splitlines()))}
+
+        assert "result" in replies.get(2, {}), f"no tools/list reply: {stdout!r} {stderr!r}"
+        assert len(replies[2]["result"]["tools"]) >= 26
+        call = replies.get(3, {}).get("result", {})
+        text = " ".join(c.get("text", "") for c in call.get("content", []))
+        assert text, f"no tools/call reply: {stdout!r} {stderr!r}"
+        assert "Traceback" not in text and "Traceback" not in stderr
+        assert "--project" in text
+
+
+class TestMCPToolsListing:
+    def test_tools_list_has_all_tools(self, project_dir):
+        """Verify tools list matches expected count via direct import."""
+        mcp_dir = os.path.join(
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
+        )
+        sys.path.insert(0, mcp_dir)
+        from tools import TOOLS
+
+        # Should have 26+ tools
+        assert len(TOOLS) >= 26
+        # All tools must have name, description, inputSchema
+        for tool in TOOLS:
+            assert "name" in tool
+            assert "description" in tool
+            assert "inputSchema" in tool
+            assert tool["name"].startswith("tausik_")
+
+    def test_all_tools_have_unique_names(self):
+        """No duplicate tool names."""
+        mcp_dir = os.path.join(
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
+        )
+        sys.path.insert(0, mcp_dir)
+        from tools import TOOLS
+
+        names = [t["name"] for t in TOOLS]
+        assert len(names) == len(set(names)), (
+            f"Duplicate tools: {[n for n in names if names.count(n) > 1]}"
+        )
+
+
+class TestMCPHandlerDispatch:
+    """Test handler dispatch via direct import (fast, no subprocess)."""
+
+    def test_unknown_tool_returns_error(self, project_dir):
+        mcp_dir = os.path.join(
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
+        )
+        scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts")
+        sys.path.insert(0, mcp_dir)
+        sys.path.insert(0, scripts_dir)
+        from handlers import handle_tool
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+
+        db = str(os.path.join(project_dir, ".tausik", "tausik.db"))
+        be = SQLiteBackend(db)
+        svc = ProjectService(be)
+        result = handle_tool(svc, "nonexistent_tool", {})
+        assert "Unknown tool" in result
+        be.close()
+
+    def test_every_tool_name_has_handler(self, project_dir):
+        """Every tool in TOOLS list should be handled (not return 'Unknown tool')."""
+        mcp_dir = os.path.join(
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
+        )
+        scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts")
+        sys.path.insert(0, mcp_dir)
+        sys.path.insert(0, scripts_dir)
+        from handlers import handle_tool
+        from tools import TOOLS
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+
+        db = str(os.path.join(project_dir, ".tausik", "tausik.db"))
+        be = SQLiteBackend(db)
+        svc = ProjectService(be)
+
+        # No hand-maintained skip-list of tools-that-need-args: it rots the moment someone
+        # adds a tool and forgets it — which is exactly how `tausik_reason_step` and
+        # `tausik_task_replay` slipped through, leaving this test (slow lane, deselected by
+        # default) red in main unnoticed. Instead, a missing-argument error is treated as
+        # PROOF that a handler exists and ran; only "Unknown tool" — the thing actually under
+        # test — is a failure. Every future tool is covered with no list to maintain.
+        unhandled = []
+        for tool in TOOLS:
+            try:
+                result = handle_tool(svc, tool["name"], {})
+            except (KeyError, TypeError):
+                continue  # handler exists; it just wants arguments we deliberately withheld
+            except Exception:  # noqa: BLE001,S112 — any other error still proves dispatch happened
+                continue
+            if "Unknown tool" in result:
+                unhandled.append(tool["name"])
+        assert not unhandled, f"tools with no handler: {unhandled}"
+        be.close()
+
+
+class TestMCPNewToolHandlers:
+    """Handler-level tests for the 16 new MCP tools added in v2.5."""
+
+    @pytest.fixture
+    def svc(self, tmp_path):
+        mcp_dir = os.path.join(
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
+        )
+        scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts")
+        if mcp_dir not in sys.path:
+            sys.path.insert(0, mcp_dir)
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+
+        db = str(tmp_path / "test.db")
+        be = SQLiteBackend(db)
+        svc = ProjectService(be)
+        yield svc
+        be.close()
+
+    def test_dead_end_handler(self, svc):
+        """A dead end names the task it came from, and the handler passes that through.
+
+        `task_slug: None` used to stand here and the assertion still passed, because
+        nothing had to name a task yet. 1.10 made the slug mandatory -- half of the
+        dead ends recorded before it said nowhere where they came from -- and this
+        test then failed for a whole release without anyone seeing it: the file sits
+        behind `pytestmark = pytest.mark.slow`, and the default `-m 'not slow'`
+        deselects it. So the slug is supplied here AND the refusal is covered below,
+        because a handler that accepted None would be the actual regression.
+        """
+        from handlers import handle_tool
+
+        svc.epic_add("e", "Epic")
+        svc.story_add("e", "s", "Story")
+        svc.task_add("s", "crypto-choice", "Pick a hash")
+        result = handle_tool(
+            svc,
+            "tausik_dead_end",
+            {
+                "approach": "Tried bcrypt",
+                "reason": "Not compatible with Python 3.14",
+                "tags": ["crypto"],
+                "task_slug": "crypto-choice",
+            },
+        )
+        assert "dead_end" in result.lower() or "memory" in result.lower() or "#" in result
+
+    def test_dead_end_handler_refuses_without_a_task(self, svc):
+        """NEGATIVE: the rule the test above was silently violating.
+
+        Without this, supplying the slug above would only make the red go away. The
+        refusal is the behaviour worth pinning: a dead end with no task is a note
+        nobody can trace back.
+        """
+        from handlers import handle_tool
+
+        with pytest.raises((ValueError, Exception), match="must name its task"):
+            handle_tool(
+                svc,
+                "tausik_dead_end",
+                {"approach": "Tried bcrypt", "reason": "No", "tags": [], "task_slug": None},
+            )
+
+    def test_gates_status_handler(self, svc):
+        from handlers import handle_tool
+
+        result = handle_tool(svc, "tausik_gates_status", {})
+        assert "pytest" in result or "No gates" in result
+
+    def test_explore_lifecycle(self, svc):
+        from handlers import handle_tool
+
+        result = handle_tool(
+            svc, "tausik_explore_start", {"title": "Test exploration", "time_limit": 30}
+        )
+        assert "started" in result.lower() or "exploration" in result.lower()
+        result = handle_tool(svc, "tausik_explore_current", {})
+        assert "Test exploration" in result
+        result = handle_tool(svc, "tausik_explore_end", {"summary": "Found nothing"})
+        assert "ended" in result.lower() or "exploration" in result.lower()
+
+    def test_audit_check_handler(self, svc):
+        from handlers import handle_tool
+
+        result = handle_tool(svc, "tausik_audit_check", {})
+        assert "audit" in result.lower() or "up to date" in result.lower() or "Error" not in result
+
+    def test_skill_list_handler(self, svc):
+        from handlers import handle_tool
+
+        result = handle_tool(svc, "tausik_skill_list", {})
+        # May return "(none)" or list of skills
+        assert isinstance(result, str)
+
+    def test_fts_optimize_handler(self, svc):
+        from handlers import handle_tool
+
+        result = handle_tool(svc, "tausik_fts_optimize", {})
+        assert "fts_tasks" in result or "optimiz" in result.lower()
+
+    def test_gates_enable_validates_name(self, svc):
+        from handlers import handle_tool
+
+        result = handle_tool(svc, "tausik_gates_enable", {"name": "../../evil"})
+        assert "Invalid" in result
+
+    def test_gates_enable_valid(self, svc):
+        from handlers import handle_tool
+
+        result = handle_tool(svc, "tausik_gates_enable", {"name": "mypy"})
+        assert "enabled" in result.lower()
+
+    def test_gate_toggle_writes_into_the_service_project(self, svc, tmp_path):
+        """The toggle must land in the project `svc` speaks for, not the cwd.
+
+        Asserting the return string alone is what let this pass for months: the
+        old handler answered "Gate 'mypy' enabled." while writing the developer's
+        own `.tausik/config.json`. The claim and the effect were checked in two
+        different places, so only the claim was ever checked.
+        """
+        import json
+
+        from handlers import handle_tool
+
+        cfg_path = tmp_path / "config.json"
+        assert not cfg_path.exists()
+
+        handle_tool(svc, "tausik_gates_enable", {"name": "mypy"})
+        assert cfg_path.exists(), "toggle wrote outside the service's own project"
+        assert json.loads(cfg_path.read_text(encoding="utf-8"))["gates"]["mypy"]["enabled"] is True
+
+        handle_tool(svc, "tausik_gates_disable", {"name": "mypy"})
+        assert json.loads(cfg_path.read_text(encoding="utf-8"))["gates"]["mypy"]["enabled"] is False
+
+    def test_gate_toggle_persists_project_tier_only(self, svc, tmp_path, monkeypatch):
+        """A trusted tier's settings must not be copied into the project file.
+
+        The old handler read the EFFECTIVE config (project < user < managed) and
+        saved it back whole, so one MCP toggle silently baked the developer's
+        personal `~/.tausik/config.json` into a file that travels with the repo.
+        """
+        import json
+
+        from handlers import handle_tool
+
+        user_tier = tmp_path / "user.json"
+        user_tier.write_text(json.dumps({"session_max_minutes": 42}), encoding="utf-8")
+        monkeypatch.setenv("TAUSIK_USER_CONFIG", str(user_tier))
+
+        handle_tool(svc, "tausik_gates_enable", {"name": "ruff"})
+
+        written = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
+        assert written == {"gates": {"ruff": {"enabled": True}}}
+
+    def test_task_list_csv_status(self, svc):
+        from handlers import handle_tool
+
+        svc.epic_add("e1", "Epic 1")
+        svc.story_add("e1", "s1", "Story 1")
+        svc.task_add("s1", "t-active", "Active task", role="developer")
+        svc.task_add("s1", "t-blocked", "Blocked task", role="developer")
+        svc.task_add("s1", "t-done", "Done task", role="developer")
+        svc.task_add("s1", "t-planning", "Planning task", role="developer")
+        svc.be.task_update("t-active", status="active")
+        svc.be.task_update("t-blocked", status="blocked")
+        svc.be.task_update("t-done", status="done")
+
+        result = handle_tool(svc, "tausik_task_list", {"status": "active,blocked"})
+        assert "t-active" in result
+        assert "t-blocked" in result
+        assert "t-done" not in result
+        assert "t-planning" not in result
+
+        result = handle_tool(svc, "tausik_task_list", {"status": "active"})
+        assert "t-active" in result
+        assert "t-blocked" not in result
+
+    def test_task_list_csv_status_schema_pattern(self):
+        # Every sibling inserts the MCP dir itself; this one relied on a
+        # sibling having run first on the same xdist worker (order-dependent —
+        # red in a two-file scoped run, green in the full lane by luck).
+        mcp_dir = os.path.join(
+            os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project"
+        )
+        sys.path.insert(0, mcp_dir)
+        from tools import TOOLS
+
+        tool = next(t for t in TOOLS if t["name"] == "tausik_task_list")
+        status_schema = tool["inputSchema"]["properties"]["status"]
+        assert "enum" not in status_schema, "status enum blocks CSV input"
+        assert "pattern" in status_schema, "status needs regex pattern for CSV validation"
+        import re
+
+        rx = re.compile(status_schema["pattern"])
+        assert rx.match("active")
+        assert rx.match("active,blocked")
+        assert rx.match("active,blocked,planning")
+        assert not rx.match("bogus")
+        assert not rx.match("active,bogus")
+        assert not rx.match("active,")
+
+
+# TestMCPCrossIDEParity (claude/cursor MCP servers must be byte-identical) was deleted
+# in v1.7.0 along with the mirror it guarded. Its premise is now inverted: harness/claude/mcp
+# is the single canonical tree, and tests/test_mcp_single_canonical_tree.py asserts the
+# STRONGER property — that no IDE may ship a byte-copy of it at all.
+#
+# Worth remembering how this test was found: it lived behind `pytestmark = pytest.mark.slow`,
+# and pyproject.toml's `addopts = "-m 'not slow'"` deselects that lane by default. The mirror
+# deletion therefore looked green across 4530 tests while the one test that would have caught
+# it sat unrun. Before tagging a release, run BOTH lanes (`pytest` and `pytest -m ''`).

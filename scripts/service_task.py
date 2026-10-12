@@ -1,0 +1,599 @@
+"""TAUSIK TaskMixin — task lifecycle with strict workflow enforcement."""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import TYPE_CHECKING, Any, cast
+
+from tausik_utils import (
+    ServiceError,
+    utcnow_iso,
+    validate_content,
+    validate_length,
+)
+from task_baseline import on_activation
+from project_types import COMPLEXITY_SP, VALID_TASK_STATUSES
+from service_cascade import CascadeMixin
+from service_gates import GatesMixin
+from model_pinning import model_start_updates
+from service_reasoning import ReasoningMixin
+from service_replay import ReplayMixin
+from service_recording import FORCE_RETIRED as _FORCE_RETIRED, start_advisories
+from service_task_done import TaskDoneReportMixin, _format_task_done_failures
+
+if TYPE_CHECKING:
+    from project_backend import SQLiteBackend
+    from project_service import ProjectService
+
+_LIFECYCLE_STATUSES = frozenset({"done", "active", "blocked", "review"})
+
+
+_MISSING = object()
+
+# The debt marker from migration v77: rows blocked before questions existed.
+# Rendering treats it as DEBT, never as an acceptable answer.
+BLOCK_QUESTION_UNSET = "не задан"
+
+
+def _normalize_for_title_compare(text: str) -> str:
+    """Lowercase, keep word characters only — punctuation and case are noise."""
+    return " ".join("".join(c if c.isalnum() else " " for c in text.lower()).split())
+
+
+def _reject_question_that_restates_title(slug: str, title: str | None, question: str) -> None:
+    """AC-6: a question that merely restates the title is a ritual, not a question.
+
+    Token-level, not substring: a one-word title ('T') is a substring of almost
+    any sentence, and a substring guard would reject every honest question on
+    such tasks. Restatement = the question carries EVERY word of the title and
+    adds at most three of its own — pure rewording. A real question names what
+    the OWNER must decide, and that act adds the missing words.
+    """
+    if not title:
+        return
+    title_tokens = set(_normalize_for_title_compare(title).split())
+    q_tokens = set(_normalize_for_title_compare(question).split())
+    if not q_tokens or not title_tokens:
+        return
+    added = q_tokens - title_tokens
+    if title_tokens <= q_tokens and len(added) <= 3:
+        raise ServiceError(
+            f"task block: the question restates the task title ('{title}'). "
+            "Ask what the OWNER must decide — a question the title does not "
+            "already answer."
+        )
+
+
+def _default_actor() -> str:
+    """WHO unblocked, when the caller did not say: OS user@host, never blank."""
+    import getpass
+    import socket
+
+    try:
+        user = getpass.getuser()
+    except Exception:  # noqa: BLE001 — identity is best-effort, never fatal
+        user = "unknown"
+    return f"{user}@{socket.gethostname()}"
+
+
+from service_validation import load_stacks as _load_stacks  # noqa: E402,F401
+from service_validation import update_enums as _update_enums  # noqa: E402
+
+
+class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, ReplayMixin):
+    """Task lifecycle with strict workflow enforcement."""
+
+    be: SQLiteBackend
+
+    def _project_task(self, slug: str) -> None:
+        """Re-serialize one task to ``tausik/``; the helper is fail-open."""
+        from state_triggers import auto_export_entity
+
+        auto_export_entity(cast("ProjectService", self), "tasks", slug)
+
+    def task_add(
+        self,
+        story_slug: str | None,
+        slug: str,
+        title: str,
+        stack: str | None = None,
+        complexity: str | None = None,
+        goal: str | None = None,
+        role: str | None = None,
+        defect_of: str | None = None,
+        call_budget: int | None = None,
+        tier: str | None = None,
+        *,
+        cost_budget_usd: float | None = None,
+        token_budget: int | None = None,
+    ) -> str:
+        from tausik_utils import safe_single_line
+
+        if story_slug:
+            self._require_story(story_slug)
+        self._new_slug("task", slug)
+        validate_length("title", title)
+        title = safe_single_line(title) or title
+        from service_validation import validate_task_add_inputs
+
+        validate_task_add_inputs(
+            stack,
+            complexity,
+            call_budget,
+            tier,
+            cost_budget_usd=cost_budget_usd,
+            token_budget=token_budget,
+        )
+        if defect_of:
+            self._require_task(defect_of)
+        validate_content("goal", goal)
+        score = COMPLEXITY_SP.get(complexity, 1) if complexity else 1
+        self.be.task_add(story_slug, slug, title, stack, complexity, score, goal, role, defect_of)
+        notice = ""
+        if call_budget is not None:
+            self.be.task_set_call_budget(slug, call_budget)
+            if tier is not None:
+                notice = f"\nNote: --tier '{tier}' overridden by --call-budget."
+        elif tier is not None:
+            self.be.task_update(slug, tier=tier)
+        if cost_budget_usd is not None:
+            self.be.task_set_cost_budget(slug, float(cost_budget_usd))
+        if token_budget is not None:
+            self.be.task_set_token_budget(slug, int(token_budget))
+        self._project_task(slug)
+        msg = f"Task '{slug}' created."
+        if not goal or not goal.strip():
+            msg += "\n⚠ QG-0 warning: missing goal."
+        return msg + notice
+
+    def task_list(
+        self,
+        status: str | None = None,
+        story: str | None = None,
+        epic: str | None = None,
+        role: str | None = None,
+        stack: str | None = None,
+        limit: int | None = None,
+        include_archived: bool = False,
+    ) -> list[dict[str, Any]]:
+        if status:
+            for s in status.split(","):
+                if s not in VALID_TASK_STATUSES:
+                    raise ServiceError(
+                        f"Invalid status '{s}'. Valid: {', '.join(sorted(VALID_TASK_STATUSES))}"
+                    )
+        return self.be.task_list(
+            status, story, epic, role, stack, limit=limit, include_archived=include_archived
+        )
+
+    def task_show(self, slug: str) -> dict[str, Any]:
+        task = self.be.task_get_full(slug)
+        if not task:
+            raise ServiceError(f"Task '{slug}' not found")
+        task["decisions"] = self.be.decisions_for_task(slug)
+        task["reasoning_steps"] = self.be.reasoning_step_list(slug)
+        task["specs"] = self.be.specs_for_task(slug)
+        task["adapts"] = self.be.adapts_for_target("task", slug)
+        from memory_relevance import lines_for_task
+
+        task["relevant_memory"] = lines_for_task(self.be, slug, task)
+        return task
+
+    def task_start(
+        self,
+        slug: str,
+        _internal_force: bool = False,
+        force: bool = False,
+        *,
+        include_memory: bool = True,
+    ) -> str:
+        task = self._require_task(slug)
+        if task["status"] == "done":
+            raise ServiceError(f"Task '{slug}' is already done")
+        if task["status"] == "active":
+            from memory_relevance import lines_for_task
+            from service_delegate import resume_recognition_message
+
+            messages = [f"Task '{slug}' is already active (resumed)."]
+            notice = resume_recognition_message(self.be, slug, task.get("complexity"))
+            if notice:
+                messages.append(notice)
+            if include_memory:
+                messages.extend(lines_for_task(self.be, slug))
+            return "\n".join(messages)
+        if force:
+            raise ServiceError(_FORCE_RETIRED)
+        qg0_warnings: list[str] = []
+        advisories: list[str] = []
+        if not _internal_force:
+            qg0_warnings = self._check_qg0_start(slug, task)
+            # Signals, not gates: printed with the start, never refusals.
+            advisories = start_advisories(self, slug, task)
+        updates: dict[str, Any] = {
+            "status": "active",
+            "attempts": task.get("attempts", 0) + 1,
+        }
+        if not task.get("started_at"):
+            updates["started_at"] = utcnow_iso()
+            updates.update(model_start_updates(self.be))  # pin model at first activation
+        with self.be.transaction():
+            self.be.task_update(slug, **updates)
+            self._cascade_start(slug)
+        self._project_task(slug)
+        msgs = [f"Task '{slug}' started (attempt #{updates['attempts']})."]
+        rebased = on_activation(self.be, self.tausik_dir(), slug, first=not task.get("started_at"))
+        msgs.extend([rebased] if rebased else [])  # scope measured from a git anchor
+        msgs.extend(qg0_warnings)
+        msgs.extend(advisories)
+        # v15-ow-hook-recognize: worker notice for a delegated task, else the banner.
+        from service_delegate import start_recognition_message
+
+        rec_msg = start_recognition_message(self.be, slug, task.get("complexity"))
+        if rec_msg:
+            msgs.append(rec_msg)
+        from memory_relevance import lines_for_task
+
+        if include_memory:
+            msgs.extend(lines_for_task(self.be, slug))
+        from service_delegate import record_task_recommendation
+
+        record_task_recommendation(self.be, slug, task.get("complexity"))
+        return "\n".join(msgs) if len(msgs) > 1 else msgs[0]
+
+    def task_done(
+        self,
+        slug: str,
+        relevant_files: list[str] | None = None,
+        ac_verified: bool = False,
+        no_knowledge: bool = False,
+        evidence: str | None = None,
+        progress_fn: Any | None = None,
+        evidence_json: str | None = None,
+        no_file_changes: bool = False,
+        no_changelog: bool = False,
+        verify_handle: str | None = None,
+        zero_gate_ack: bool = False,
+    ) -> str:
+        report = self._task_done_report(
+            slug,
+            relevant_files=relevant_files,
+            ac_verified=ac_verified,
+            no_knowledge=no_knowledge,
+            evidence=evidence,
+            evidence_json=evidence_json,
+            progress_fn=progress_fn,
+            no_file_changes=no_file_changes,
+            no_changelog=no_changelog,
+            verify_handle=verify_handle,
+            zero_gate_ack=zero_gate_ack,
+        )
+        if not report.get("ok"):
+            raise ServiceError(_format_task_done_failures(report))
+        try:
+            from model_routing_adherence import finalize_close
+            from state_triggers import auto_export_entity
+
+            finalize_close(self.tausik_dir(), slug)  # routing telemetry (best-effort)
+            # cast: mixin is a composed ProjectService at runtime (see service_knowledge)
+            auto_export_entity(cast("ProjectService", self), "tasks", slug)
+        except Exception:  # noqa: BLE001,S110 — best-effort: non-fatal, keeps the surrounding flow alive
+            pass
+        message = report.get("message")
+        if isinstance(message, str) and message.strip():
+            return message
+        return f"Task '{slug}' completed."
+
+    # _task_done_report -> moved to service_task_done.TaskDoneReportMixin
+    # (filesize-debt-paydown-2). Mixed in via inheritance; same call signature.
+
+    def task_block(
+        self,
+        slug: str,
+        reason: str | None = None,
+        question: str | None = None,
+        unblock_criteria: str | None = None,
+    ) -> str:
+        """Block WITH a question to the owner and a checkable criterion.
+
+        A block without a question is a task abandoned with a note to self
+        (v77): `question` and `unblock_criteria` are REQUIRED from every
+        caller — CLI flags, MCP args alike. Re-blocking an already blocked
+        task UPDATES the fields instead of refusing: the live corpus carries
+        blocks whose question lived only in journal prose, and this is the
+        migration path for them.
+        """
+        task = self._require_task(slug)
+        if task["status"] == "done":
+            raise ServiceError(f"Cannot block a done task '{slug}'")
+        q = (question or "").strip()
+        uc = (unblock_criteria or "").strip()
+        missing = [f"--{f}" for f, v in (("question", q), ("unblock-when", uc)) if not v]
+        if missing:
+            raise ServiceError(
+                f"task block requires BOTH a question to the owner and an "
+                f"unblock criterion ({', '.join(missing)} missing). A block "
+                "without a question is a task abandoned with a note to self."
+            )
+        _reject_question_that_restates_title(slug, task.get("title"), q)
+
+        was_blocked = task["status"] == "blocked"
+        updates: dict[str, Any] = {
+            "status": "blocked",
+            "blocked_question": q,
+            "unblock_criteria": uc,
+        }
+        # The original ask keeps its timestamp; a field refresh on an already
+        # blocked task does not reset when the question was first posed.
+        if not was_blocked:
+            updates["blocked_at"] = utcnow_iso()
+        self.be.task_update(slug, **updates)
+        note = f"BLOCKED: {reason}" if reason else "BLOCKED"
+        note += f"\n  Question to owner: {q}\n  Unblock when: {uc}"
+        self.be.task_append_notes(slug, note)
+        self._project_task(slug)
+        return f"Task '{slug}' blocked."
+
+    def task_unblock(
+        self,
+        slug: str,
+        criterion_met: str | None = None,
+        by: str | None = None,
+    ) -> str:
+        task = self._require_task(slug)
+        if task["status"] != "blocked":
+            raise ServiceError(f"Task '{slug}' is not blocked (status: {task['status']})")
+        # A re-activation gets the same capacity SIGNAL a start gets (decision #376).
+        statement = (criterion_met or "").strip()
+        if not statement:
+            raise ServiceError(
+                "Silent unblocking is forbidden: state WHICH unblock criterion "
+                "is met and why (--criterion-met). The criterion recorded on "
+                f"the task: {task.get('unblock_criteria') or 'не задан'}"
+            )
+        who = (by or "").strip() or _default_actor()
+        advice = start_advisories(self, slug, task)
+        # An unblock is a re-activation, an attempt like `task start` (1239 closes
+        # showed `attempts: 1` while it was not; attempts-counter-never-increments).
+        attempts = task.get("attempts", 0) + 1
+        self.be.task_update(
+            slug,
+            status="active",
+            blocked_at=None,
+            attempts=attempts,
+            unblocked_by=who,
+            unblocked_at=utcnow_iso(),
+        )
+        self.be.task_append_notes(
+            slug,
+            f"UNBLOCKED by {who}: criterion met — {statement}",
+        )
+        self._project_task(slug)
+        msg = f"Task '{slug}' unblocked by {who} (attempt #{attempts})."
+        note = on_activation(self.be, self.tausik_dir(), slug, first=False)  # re-anchor
+        msg += f"\n{note}" if note else ""
+        return "\n".join([msg, *advice])
+
+    def task_review(self, slug: str) -> str:
+        task = self._require_task(slug)
+        if task["status"] == "done":
+            raise ServiceError(f"Cannot move '{slug}' to review — task is already done")
+        self.be.task_update(slug, status="review")
+        self._project_task(slug)
+        return f"Task '{slug}' moved to review."
+
+    def task_update(self, slug: str, **fields: Any) -> str:
+        task = self._require_task(slug)
+        # Refuse to clobber the append-only journal (qa-task-update-notes-guard);
+        # pops notes_overwrite, raises if a non-empty journal would be replaced.
+        from task_notes_guard import guard_notes_overwrite
+
+        guard_notes_overwrite(slug, task.get("notes"), fields)
+        if fields.get("status") in _LIFECYCLE_STATUSES:
+            raise ServiceError(
+                f"status='{fields['status']}' must use lifecycle method "
+                f"(task_done/start/block/review) — would bypass QG-2."
+            )
+        # Validate every field before the enum checks or any write.
+        from service_validation import reject_blank_updates
+        from task_assurance_fields import normalize
+
+        reject_blank_updates(fields)
+        normalize(fields)
+        for name, valid in _update_enums():
+            v = fields.get(name)
+            if v and v not in valid:
+                raise ServiceError(f"Invalid {name} '{v}'. Valid: {sorted(valid)}")
+        # EVERY budget is validated before ANY of them is written. The three used
+        # to be interleaved — validate call_budget, write it, then validate
+        # cost_budget_usd and maybe raise — so a rejected call left the first
+        # value in the DB and exited by exception, past the projection. The row
+        # changed, the file did not, and nothing said so until the next
+        # `state export --check`. `task_add` already validates up front
+        # (validate_task_add_inputs); this is the same shape, applied late.
+        cb = fields.pop("call_budget", _MISSING)
+        cost_b = fields.pop("cost_budget_usd", _MISSING)
+        tok_b = fields.pop("token_budget", _MISSING)
+        notice = ""
+        budget_writes: list[tuple[Any, Any]] = []
+        if cb is not _MISSING and cb is not None:
+            if cb < 0:
+                raise ServiceError(f"Invalid call_budget '{cb}'; must be >=0")
+            budget_writes.append((self.be.task_set_call_budget, cb))
+            tier = fields.pop("tier", None)
+            if tier is not None:
+                notice = f"\nNote: tier '{tier}' overridden by call_budget."
+        if cost_b is not _MISSING and cost_b is not None:
+            try:
+                cost_val = float(cost_b)
+            except (TypeError, ValueError):
+                raise ServiceError(
+                    f"Invalid cost_budget_usd '{cost_b}'; must be a non-negative number"
+                ) from None
+            if cost_val < 0:
+                raise ServiceError(f"Invalid cost_budget_usd '{cost_b}'; must be >=0")
+            budget_writes.append((self.be.task_set_cost_budget, cost_val))
+        if tok_b is not _MISSING and tok_b is not None:
+            try:
+                tok_val = int(tok_b)
+            except (TypeError, ValueError):
+                raise ServiceError(
+                    f"Invalid token_budget '{tok_b}'; must be a non-negative integer"
+                ) from None
+            if tok_val < 0:
+                raise ServiceError(f"Invalid token_budget '{tok_b}'; must be >=0")
+            budget_writes.append((self.be.task_set_token_budget, tok_val))
+        # ...and so is EVERYTHING ELSE that can refuse. Batching the three
+        # budgets against each other narrowed the defect without closing it: the
+        # very next block — ACL normalization — still raised AFTER the budget
+        # writes had committed, so `--call-budget 40 --scope-paths '{not-json'`
+        # left call_budget AND a derived tier in the row, reported failure, and
+        # exited past the projection. The same shape, one validator further down.
+        from scope_acl import ACL_FIELDS, normalize_acl_json
+
+        for f in ACL_FIELDS:
+            if fields.get(f) is not None:
+                try:
+                    fields[f] = normalize_acl_json(fields[f], f)
+                except ValueError as e:
+                    raise ServiceError(str(e)) from None
+        from tausik_utils import safe_single_line
+
+        for f in ("title", "goal"):
+            if fields.get(f) is not None:
+                fields[f] = safe_single_line(fields[f]) or fields[f]
+        # GitLab #13: a comma-joined list stored as one path corrupted the QG-2
+        # scope silently; judged before the write by the shared validator.
+        if fields.get("relevant_files") is not None:
+            from relevant_files_input import notice_for_json_list
+
+            notice += notice_for_json_list(
+                fields["relevant_files"], os.path.dirname(self.tausik_dir())
+            )
+        self._write_update_atomically(slug, budget_writes, fields)
+        return self._task_updated(slug, notice)
+
+    def _write_update_atomically(
+        self, slug: str, budget_writes: list[tuple[Any, Any]], fields: dict[str, Any]
+    ) -> None:
+        """Apply the budget setters and the field write, or apply neither.
+
+        Validating up front is the primary fix and would be enough for the
+        failures anyone has hit. This transaction covers the ones nobody has:
+        `_update` rejects an unknown column, SQLite rejects a bad `story_id`,
+        the disk fills — all of them raise between the budget writes (which go
+        through raw `_ex` and auto-commit) and the field write. Twice now this
+        method has been fixed by removing the failure someone found rather than
+        the shape that produced it, so the shape is closed here.
+
+        `_pending_projection` is already rollback-aware, so a discarded write
+        discards its queued projection with it. Ownership is `transaction()`'s
+        to account for: committing a transaction we did not open would end the
+        caller's early, and this method used to carry its own `owns_tx` copy of
+        that rule -- one of three hand-written copies across nine call sites.
+        """
+        with self.be.transaction():
+            for setter, value in budget_writes:
+                setter(slug, value)
+            # Preserved exactly: a budget-only call does not touch the field
+            # write (which would bump updated_at for no declared change).
+            if not (budget_writes and not fields):
+                self.be.task_update(slug, **fields)
+
+    def task_delete(self, slug: str) -> str:
+        self._require_task(slug)
+        self.be.task_delete(slug)
+        from service_delegate import clear_delegation_state
+
+        clear_delegation_state(self.be, slug)  # drop stale OW meta on slug reuse
+        self._project_task(slug)  # export_one -> None -> drops the file
+        return f"Task '{slug}' deleted."
+
+    def task_plan(self, slug: str, steps: list[str]) -> str:
+        if not steps:
+            raise ServiceError("Plan must have at least one step")
+        for i, s in enumerate(steps, 1):
+            if not s or not s.strip():
+                raise ServiceError(f"Plan step {i} is empty")
+        self._require_task(slug)
+        plan_data = [{"step": s, "done": False} for s in steps]
+        self.be.task_update(slug, plan=json.dumps(plan_data))
+        self._project_task(slug)
+        return f"Plan set for '{slug}' ({len(steps)} steps)."
+
+    def task_step(self, slug: str, step_num: int) -> str:
+        task = self._require_task(slug)
+        if not task.get("plan"):
+            raise ServiceError(f"Task '{slug}' has no plan")
+        try:
+            steps = json.loads(task["plan"])
+        except (json.JSONDecodeError, TypeError) as e:
+            raise ServiceError(f"Corrupted plan data for task '{slug}': {e}")
+        if step_num < 1 or step_num > len(steps):
+            raise ServiceError(f"Step {step_num} out of range (1-{len(steps)})")
+        steps[step_num - 1]["done"] = True
+        self.be.task_update(slug, plan=json.dumps(steps))
+        self._project_task(slug)
+        done_count = sum(1 for s in steps if s.get("done"))
+        return f"Step {step_num} done ({done_count}/{len(steps)})."
+
+    # task_quick + task_next + task_claim + task_unclaim live in
+    # service_task_team.TaskTeamMixin for filesize compliance — they're
+    # picked up via the multi-mixin composition in project_service.
+
+    def task_log(
+        self,
+        slug: str,
+        message: str,
+        phase: str | None = None,
+        diff_stats: str | None = None,
+    ) -> str:
+        """Append a timestamped log entry to task notes + task_logs table."""
+        task = self._require_task(slug)
+        validate_content("log message", message)
+        # Dual write: notes (backward compat) + task_logs table (structured)
+        self.be.task_append_notes(slug, message)
+        # Auto-detect phase from task status if not provided
+        if phase is None:
+            status_to_phase = {
+                "planning": "planning",
+                "active": "implementation",
+                "review": "review",
+                "done": "done",
+            }
+            phase = status_to_phase.get(task["status"])
+        self.be.task_log_add(slug, message, phase=phase, diff_stats=diff_stats)
+        self._project_task(slug)  # the journal is part of the task doc
+        return f"Logged to '{slug}'." + str(__import__("journal_budget").log_suffix(message))
+
+    def task_logs(self, slug: str, phase: str | None = None) -> list[dict]:
+        """Return structured logs for a task."""
+        return self.be.task_log_list(slug, phase=phase)
+
+    def team_status(self) -> list[dict[str, Any]]:
+        """Return non-done tasks grouped by agent (claimed_by)."""
+        tasks = self.be.task_list(status="planning,active,blocked,review")
+        agents: dict[str, list[dict[str, Any]]] = {}
+        for t in tasks:
+            agent = t.get("claimed_by") or "(unclaimed)"
+            agents.setdefault(agent, []).append(t)
+        return [{"agent": a, "tasks": ts} for a, ts in agents.items()]
+
+    def task_move(self, slug: str, new_story_slug: str) -> str:
+        self._require_task(slug)
+        story = self._require_story(new_story_slug)
+        self.be.task_update(slug, story_id=story["id"])
+        self._project_task(slug)
+        return f"Task '{slug}' moved to story '{new_story_slug}'."
+
+    # _cascade_start, _cascade_done -> inherited from CascadeMixin (service_cascade.py)
+
+    def _task_updated(self, slug: str, notice: str) -> str:
+        """Single exit for `task_update`: project, then report.
+
+        The method has four return points (call_budget-only, cost-budget-only,
+        token-budget-only, and the general field write). Routing them through one
+        helper is why a fifth cannot silently skip the projection.
+        """
+        self._project_task(slug)
+        return f"Task '{slug}' updated.{notice}"

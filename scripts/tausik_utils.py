@@ -1,0 +1,302 @@
+"""TAUSIK shared utilities -- slug validation, timestamps, errors."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+from typing import Any
+
+
+def library_source(project_dir: str, subdir: str) -> str | None:
+    """Дерево, ИЗ КОТОРОГО bootstrap разворачивает `subdir`. Один ответ на всех.
+
+    Развёрнутые копии сравнивают с источником минимум два места — проверка
+    дрейфа в doctor и одноимённый гейт, — и каждое вычисляло источник само.
+    Это и есть «вторая копия правила», которую конвенция #266 запрещает: копии
+    разошлись, причём тихо.
+
+    БИБЛИОТЕКА ПОБЕЖДАЕТ, и порядок здесь несущий. В этом репозитории
+    `.tausik-lib` нет, поэтому источником становится сам проект — верно. В
+    потребительском проекте существуют ОБА каталога, и `<project>/scripts` —
+    это скрипты ПРОЕКТА, а не харнесса. Прежний порядок «проект первым» давал
+    там вечное ложное срабатывание (doctor обвинял `deploy.sh`, которого в
+    харнессе нет и не было) и одновременно СЛЕПОТУ к настоящему дрейфу: те
+    ~300 файлов, что bootstrap реально разворачивает из `.tausik-lib`, не
+    сравнивались вовсе.
+
+    Возвращает None, когда источника нет ни там ни там: сравнивать не с чем, и
+    это не дрейф, а отсутствие предмета сравнения.
+    """
+    lib = os.path.join(project_dir, ".tausik-lib", subdir)
+    if os.path.isdir(lib):
+        return lib
+    own = os.path.join(project_dir, subdir)
+    return own if os.path.isdir(own) else None
+
+
+def cli_invocation(environ: dict[str, str] | None = None, os_name: str | None = None) -> str:
+    """How to spell the TAUSIK CLI so the reader's shell will accept it.
+
+    Every remediation line in the framework hardcoded `.tausik/tausik`, and on
+    Windows that is not universally runnable. Measured, not assumed:
+
+        shell        .tausik/tausik      .tausik\\tausik
+        cmd.exe      NOT recognized      works
+        PowerShell   works               works
+        Git Bash     works               NOT (backslash is an escape)
+
+    So the extension is irrelevant — PATHEXT resolves `tausik.cmd` on its own —
+    and the separator is what decides. No single string works everywhere, which
+    means the choice is per-SHELL, not per-OS: a Windows developer inside Git
+    Bash needs the opposite of one inside cmd.
+
+    MSYSTEM / MSYS / a POSIX-looking SHELL are set by Git Bash and MSYS2 and by
+    neither cmd nor PowerShell, so they identify the one Windows case that
+    needs forward slashes. When in doubt on Windows the backslash form wins: it
+    is the one the two native shells both accept.
+    """
+    env = os.environ if environ is None else environ
+    name = os.name if os_name is None else os_name
+    if name != "nt":
+        return ".tausik/tausik"
+    posix_shell = bool(env.get("MSYSTEM") or env.get("MSYS")) or "/" in env.get("SHELL", "")
+    return ".tausik/tausik" if posix_shell else ".tausik\\tausik"
+
+
+def tausik_config_path(project_dir: str) -> str:
+    """Return the canonical path to the project's `.tausik/config.json`.
+
+    Single source of truth used by bootstrap, MCP skill handlers, the CLI
+    extras subparser, and the session-cleanup hook. Pure stdlib — safe to
+    call before venv activation.
+    """
+    return os.path.join(project_dir, ".tausik", "config.json")
+
+
+def load_effective_config(project_dir: str) -> dict:
+    """Effective `.tausik/config.json` for *project_dir*, merged through the trust
+    tiers (project < user < managed) — the value a consumer should actually act on.
+
+    Import-light home for consumers — chiefly the hooks — that MUST honour the
+    user (`~/.tausik`) and managed (`$TAUSIK_MANAGED_CONFIG`) tiers but run as a
+    fresh subprocess on every invocation and cannot afford `project_config`'s gate
+    machinery. `config_trust` is stdlib-only and imported lazily here, so a bare
+    `import tausik_utils` stays cheap and there is no import cycle (config_trust
+    itself only imports tausik_utils lazily). Reading raw `json.load` on the
+    project file alone — the bug this closes (`hooks-bypass-config-trust-tiers`) —
+    silently ignored a user/managed operator setting; routing through
+    `config_trust.resolve` makes the tier a tier for these consumers too.
+
+    Any read problem degrades the PROJECT tier to `{}` (never a crash); the trusted
+    tiers are still applied. Rejections (a project trying to weaken a guarded key)
+    are logged, not returned — a hook wants the value, not the audit trail.
+    """
+    import logging
+
+    from config_trust import resolve  # lazy: keep this module import-light, avoid a cycle
+
+    cfg_path = tausik_config_path(project_dir)
+    project: dict = {}
+    if os.path.isfile(cfg_path):
+        try:
+            with open(cfg_path, encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                project = data
+        except (OSError, json.JSONDecodeError, ValueError):
+            project = {}
+    merged, rejections = resolve(project, project_dir=project_dir)
+    for r in rejections:
+        logging.getLogger("tausik.config").warning("Config trust tier: %s", r.describe())
+    return merged
+
+
+def fix_stdio_encoding() -> None:
+    """Ensure stdout/stderr use UTF-8 on Windows (cp1251/cp1252 can't encode Unicode symbols).
+
+    Call this at the top of every entry point (CLI, bootstrap, MCP server).
+    On Linux/macOS this is a no-op since UTF-8 is the default.
+    """
+    if sys.platform == "win32":
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+
+
+_LOG_INSTALLED = False
+
+
+def install_file_logging(project_dir: str | None = None) -> None:
+    """Install rotating file handler at .tausik/tausik.log (5MB × 3)."""
+    global _LOG_INSTALLED
+    if _LOG_INSTALLED:
+        return
+    import logging
+    import os
+    from logging.handlers import RotatingFileHandler
+
+    base = project_dir or os.getcwd()
+    log_dir = os.path.join(base, ".tausik")
+    if not os.path.isdir(log_dir):
+        return
+    try:
+        handler = RotatingFileHandler(
+            os.path.join(log_dir, "tausik.log"),
+            maxBytes=5 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+        )
+        handler.setLevel(logging.WARNING)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s"))
+        logging.getLogger("tausik").addHandler(handler)
+        _LOG_INSTALLED = True
+    except OSError:
+        pass
+
+
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+MAX_SLUG = 64
+
+
+def safe_single_line(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return value.replace("\n", " ").replace("\r", " ").strip()
+
+
+class ServiceError(Exception):
+    """Business logic error -- shown to user."""
+
+
+MAX_TITLE = 512
+# A decision headline legitimately runs longer than a task title (it states a
+# choice AND its shape). validate_length counts CHARACTERS, not bytes, so this
+# is a symbol limit — Cyrillic is not penalised 2x (dead-end #324 disproved the
+# byte-penalty theory: len(str) has been code-point based since v1.0.0).
+MAX_DECISION = 1024
+MAX_CONTENT = 100_000
+
+
+def utcnow_iso() -> str:
+    """Return current UTC time as ISO-8601 string (Z suffix for consistency with SQLite triggers)."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def sanitize_slug(slug: str) -> str:
+    """Make a best-effort valid slug from arbitrary input.
+
+    Lowercase, replace runs of non-slug chars with a hyphen, strip leading/trailing
+    hyphens, trim to MAX_SLUG, ensure first char is alphanumeric.
+    Used only to SUGGEST a fix in error messages — never auto-applied.
+    """
+    import re as _re
+
+    cleaned = _re.sub(r"[^a-z0-9]+", "-", (slug or "").lower()).strip("-")
+    if not cleaned:
+        return ""
+    if not cleaned[0].isalnum():
+        cleaned = cleaned.lstrip("-")
+    return cleaned[:MAX_SLUG]
+
+
+def validate_slug(slug: str) -> None:
+    """Raise ValueError if slug is invalid. Error message suggests a sanitized alternative."""
+    if not slug or not SLUG_RE.match(slug):
+        suggestion = sanitize_slug(slug)
+        hint = f" Did you mean '{suggestion}'?" if suggestion and suggestion != slug else ""
+        raise ValueError(f"Invalid slug '{slug}': must match [a-z0-9][a-z0-9-]*.{hint}")
+    if len(slug) > MAX_SLUG:
+        raise ValueError(f"Slug '{slug[:20]}...' is {len(slug)} chars, max {MAX_SLUG}")
+
+
+def validate_length(field: str, value: str, limit: int = MAX_TITLE) -> None:
+    """Raise ValueError if value exceeds limit."""
+    if len(value) > limit:
+        raise ValueError(f"Field '{field}' is {len(value)} chars, max {limit}")
+
+
+def validate_content(field: str, value: str | None) -> None:
+    """Raise ValueError if content exceeds MAX_CONTENT."""
+    if value and len(value) > MAX_CONTENT:
+        raise ValueError(f"Field '{field}' is {len(value)} chars, max {MAX_CONTENT}")
+
+
+def slugify(title: str, max_len: int = 50) -> str:
+    """A slug from a title, Cyrillic transliterated; "" when nothing usable is left.
+
+    It used to strip every non-ASCII letter, so a Russian title kept only the one
+    or two English words it happened to contain ('gates-json', 'heredoc', session
+    #238), and an all-Cyrillic title became the literal "task".
+    """
+    from slug_util import transliterate
+
+    slug = re.sub(r"[^a-z0-9]+", "-", transliterate(title)).strip("-")
+    if len(slug) > max_len:
+        cut = slug[:max_len]
+        slug = (cut.rsplit("-", 1)[0] if "-" in cut else cut).strip("-")
+    return slug
+
+
+#: Shorter than this, an auto-slug is not a usable address for a task.
+MIN_AUTO_SLUG = 3
+
+
+def task_slug_from_title(title: str) -> str:
+    """The auto-slug for a new task, or a refusal asking for --slug. Never a stub."""
+    slug = slugify(title)
+    if len(slug) < MIN_AUTO_SLUG:
+        raise ServiceError(
+            f"No usable slug can be made from the title {title!r}; name it with --slug"
+        )
+    return slug
+
+
+def format_status_compact_json(data: dict[str, Any], duration_warning: str | None) -> str:
+    """Dense JSON line for MCP/CLI ``--compact`` — default human status unchanged.
+
+    v14b-session-active-time: also embeds session active/wall minutes and the
+    configured limit so agents can read SENAR Rule 9.2 progress directly off
+    the compact response without a follow-up tausik_status call.
+    """
+
+    counts = data["task_counts"]
+    total = sum(counts.values())
+    done = counts.get("done", 0)
+    sess = data.get("session")
+    payload: dict[str, Any] = {
+        "tasks_done": done,
+        "tasks_total": total,
+        "tasks_planning": counts.get("planning", 0),
+        "tasks_active": counts.get("active", 0),
+        "tasks_blocked": counts.get("blocked", 0),
+        "tasks_review": counts.get("review", 0),
+        "tasks_obsolete": counts.get("obsolete", 0),
+        "session_id": int(sess["id"]) if sess else None,
+        "epics": len(data.get("epics") or []),
+    }
+    if sess and "active_minutes" in data:
+        payload["session_active_minutes"] = int(data["active_minutes"])
+    if sess and "active_seconds" in data:
+        payload["session_active_seconds"] = int(data["active_seconds"])
+    if sess and "wall_minutes" in data:
+        payload["session_wall_minutes"] = int(data["wall_minutes"])
+    if "session_max_minutes" in data:
+        payload["session_max_minutes"] = int(data["session_max_minutes"])
+    if duration_warning:
+        payload["session_warning"] = duration_warning
+    exp = data.get("exploration")
+    if exp:
+        payload["exploration_open"] = True
+        try:
+            payload["exploration_id"] = int(exp["id"])
+        except (KeyError, TypeError, ValueError):
+            pass
+        if exp.get("over_limit"):
+            payload["exploration_over_limit"] = True
+    overdue = data.get("audit_overdue_closures")
+    if overdue:
+        payload["audit_overdue_closures"] = int(overdue)
+    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False)

@@ -1,0 +1,249 @@
+"""Under-evidenced closures require an L3 adversarial review (v15-l3-risk-trigger).
+
+WHAT THIS GATE DOES AND DOES NOT CLAIM (decision #212). It REFUSES the close and
+returns; it does not merely annotate one. A refusal has to be justified, and the
+justification here is NOT that the score predicts anything — the backtest in
+docs/ru/research/risk-model-backtest-2026-07.md measured AUC 0.4820 over 374
+closures, i.e. the composite does not separate closures a defect escaped from
+those it did not, and its heaviest factor (`gate_coverage`, weight 0.25) is
+significantly INVERTED at AUC 0.409, p = 0.0098.
+
+What `measured_score >= LEVEL_HIGH` over a real coverage share does say is a
+DESCRIPTION, true by construction and independent of any AUC: most of the
+evidence factors we were able to measure are at or near their worst value —
+gates unverified, tests untouched under churn, acceptance criteria with no
+evidence markers, security surface touched. "We have almost no evidence this
+close was verified" is a legitimate reason to ask for a second pair of eyes on
+its own terms. It is not a forecast, and the wording below no longer implies one.
+
+The honest gap, stated rather than papered over: the SELECTOR is still the
+a-priori weighting nobody validated, so which closures land above the line is
+not evidence-based. Fixing that needs a held-out sample the project does not yet
+have (the backtest refused to re-weight on the same 374 rows for exactly this
+reason). Until then this gate is a policy on evidence, not a risk model.
+
+Walko HITL-for-1% pattern: instead of one review policy for everything,
+escalate only the thinnest-evidenced closures — the ~1% where an adversarial
+pass pays for itself. Two deliberate softeners:
+
+  - Renormalized measured score: factors the collector could not measure
+    are excluded (they already push the STORED score up conservatively).
+    Escalating on absence-of-measurement would block every close on
+    keyless / no-verify-gate projects — punishment for adoption, not risk.
+  - Minimum measurement coverage: escalation needs MIN_MEASURED_WEIGHT
+    of the model by weight actually measured (0.75 = at least four of
+    the five factors). Thinner subsets — {ac_evidence, code_churn} at
+    0.35, or {test_delta, ac_evidence, security} at 0.60 — read high on
+    every casual close (source-only files, no evidence markers yet),
+    which is routine work, not "the critical 1%". The 0.60 case was a
+    live boundary flake at exactly 0.6667 in the full test suite.
+  - Opt-out: config risk.l3_block_on_high=false downgrades to a warning.
+
+A recorded L3 review for the task (tausik review record --type L3)
+satisfies the gate.
+
+Lowercase run_type CANNOT reach the DB: argparse pins --type to
+choices=['L1','L2','L3'] and the reviews schema carries
+CHECK(run_type IN ('L1','L2','L3')). The UPPER() in has_l3_review is
+belt-and-braces for hand-written rows, not a supported input form —
+the previous wording promised a `--run-type l3` flag that does not
+exist, and its test only passed because the fixture declared reviews
+by hand WITHOUT the CHECK (test-ddl-drift-verification-runs).
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+from typing import Any
+
+from risk_model import LEVEL_HIGH, WEIGHTS
+
+# Escalate only when measured factors cover at least this share of the
+# model's total weight — see module docstring.
+MIN_MEASURED_WEIGHT = 0.75
+
+
+def measured_score(risk: dict[str, Any]) -> float | None:
+    """Risk over measured factors only, renormalized to weight-sum 1.
+
+    None when nothing was measured — no evidence either way.
+    """
+    defaulted = set(risk.get("defaulted") or [])
+    measured = {n: v for n, v in (risk.get("factors") or {}).items() if n not in defaulted}
+    if not measured:
+        return None
+    wsum = sum(WEIGHTS[n] for n in measured)
+    if wsum <= 0:
+        return None
+    return round(sum(WEIGHTS[n] * float(v) for n, v in measured.items()) / wsum, 4)
+
+
+def measured_weight(risk: dict[str, Any]) -> float:
+    """Share of the model's weight that was actually measured (0..1)."""
+    defaulted = set(risk.get("defaulted") or [])
+    return round(
+        sum(
+            w for n, w in WEIGHTS.items() if n in (risk.get("factors") or {}) and n not in defaulted
+        ),
+        4,
+    )
+
+
+def _author_model() -> str | None:
+    """Best-effort author/active model from the live transcript. Never raises."""
+    try:
+        from model_routing import _auto_find_transcript, read_active_model_from_transcript
+
+        return read_active_model_from_transcript(_auto_find_transcript())
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+        return None
+
+
+def _delegation_hint() -> str:
+    """SENAR Rule 4 delegation line for the L3 remediation. Never raises."""
+    try:
+        from external_reviewer import reviewer_hint
+
+        return " " + reviewer_hint(_author_model())
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+        return ""
+
+
+def has_l3_review(
+    conn: sqlite3.Connection,
+    slug: str,
+    project_root: str | Path | None = None,
+) -> bool:
+    """Return whether the current task state has a valid external L3 review."""
+    from review_routing import build_review_route, review_record_blockers
+
+    route = build_review_route(
+        {
+            "depth": "L3",
+            "profiles": [],
+            "reasons": ["measured-high closure escalation requires L3 before close"],
+            "hard_floor": None,
+            "required_evidence": [],
+            "observed_evidence": [],
+            "residual_gaps": [],
+            "impact": {},
+        }
+    )
+    return not review_record_blockers(conn, slug, route, project_root)
+
+
+def _target_tausik_dir(
+    conn: sqlite3.Connection | None, project_root: str | Path | None
+) -> str | None:
+    if project_root is not None:
+        return str(Path(project_root).resolve() / ".tausik")
+    if conn is None:
+        return None
+    row = conn.execute("PRAGMA database_list").fetchone()
+    db_path = str(row[2] or "") if row else ""
+    if not db_path:
+        return None
+    return str(Path(db_path).resolve().parent)
+
+
+def _block_enabled(
+    conn: sqlite3.Connection | None = None, project_root: str | Path | None = None
+) -> bool:
+    try:
+        from project_config import load_config
+
+        tausik_dir = _target_tausik_dir(conn, project_root)
+        if tausik_dir is None:
+            return True
+        risk_cfg = load_config(tausik_dir).get("risk", {})
+        if isinstance(risk_cfg, dict):
+            return bool(risk_cfg.get("l3_block_on_high", True))
+    except Exception:  # noqa: BLE001,S110 — best-effort: telemetry/degradation, non-fatal to the main flow
+        pass
+    return True
+
+
+def check_l3_required(
+    conn: sqlite3.Connection,
+    slug: str,
+    risk: dict[str, Any] | None,
+    project_root: str | Path | None = None,
+) -> tuple[bool, str]:
+    """(blocking, note) for a computed closure risk. Never raises.
+
+    blocking=True -> the caller must refuse the close with the note as
+    remediation. blocking=False with a non-empty note -> append as info.
+    """
+    try:
+        if not risk:
+            return False, ""
+        if measured_weight(risk) < MIN_MEASURED_WEIGHT:
+            return False, ""
+        ms = measured_score(risk)
+        if ms is None or ms < LEVEL_HIGH:
+            return False, ""
+        if has_l3_review(conn, slug, project_root):
+            return False, (
+                f"L3 escalation satisfied: measured risk {ms} >= {LEVEL_HIGH}, "
+                f"recorded L3 review found"
+            )
+        message = (
+            f"Under-evidenced closure: measured evidence score {ms} >= {LEVEL_HIGH} "
+            f"— most of what could be measured is at its worst value. This is a "
+            f"description of the evidence, NOT a prediction (the composite's AUC "
+            f"is 0.4820; see docs/ru/research/risk-model-backtest-2026-07.md). "
+            f"(SENAR Rule 10.15 selective escalation, Rule 4 external validation)."
+            f"{_delegation_hint()} Then record the verdict — "
+            f"`tausik review record --task {slug} --type L3 "
+            f"--critical <n> --high <n> --warnings <n> [--reason ...]` — and re-run task done. "
+            f"Opt out: config risk.l3_block_on_high=false."
+        )
+        if not _block_enabled(conn, project_root):
+            # l26-bypass-telemetry: an under-evidenced closure is being let through by
+            # config instead of blocked — record it so the downgrade is
+            # countable. Written on a SEPARATE short-lived connection (commit +
+            # close), NOT the caller's `conn`: the caller (service_task_done)
+            # issues BEGIN IMMEDIATE right after this, and a bare INSERT on
+            # `conn` would leave an implicit deferred transaction open that
+            # collides with that BEGIN ("cannot start a transaction within a
+            # transaction"), crashing the very close this downgrade exists to
+            # allow. Own try/except so the outer handler cannot swallow a
+            # telemetry error AND suppress this WARNING. Best-effort, never
+            # raises.
+            _emit_l3_downgrade(conn, slug, ms)
+            return False, f"WARNING (l3_block_on_high=false): {message}"
+        return True, message
+    except Exception:  # noqa: BLE001 — best-effort: telemetry/degradation, non-fatal to the main flow
+        return True, "Under-evidenced closure: L3 review validation failed"
+
+
+def _emit_l3_downgrade(conn: sqlite3.Connection, slug: str, ms: float) -> None:
+    """Record an l3_block_on_high=false downgrade on a fresh connection.
+
+    Derives the DB path from ``conn`` but does NOT write through it — see the
+    call site for why borrowing the caller's connection would crash task_done.
+    """
+    import sqlite3 as _sqlite3
+
+    try:
+        row = conn.execute("PRAGMA database_list").fetchone()
+        db_path = row[2] if row else None
+        if not db_path:
+            return  # e.g. :memory: — nothing durable to write to
+        aux = _sqlite3.connect(db_path, timeout=2)
+        try:
+            aux.execute(
+                "INSERT INTO events(entity_type, entity_id, action, details) "
+                "VALUES ('supervision', ?, 'bypass_l3_block_downgrade', ?)",
+                (
+                    slug,
+                    f"l3_block_on_high=false — under-evidenced closure (measured {ms}) "
+                    f"downgraded from block to warning",
+                ),
+            )
+            aux.commit()
+        finally:
+            aux.close()
+    except Exception:  # noqa: BLE001,S110 — best-effort telemetry, never blocks
+        pass
