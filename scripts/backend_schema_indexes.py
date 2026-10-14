@@ -103,4 +103,8 @@ CREATE INDEX IF NOT EXISTS idx_benchmark_task ON benchmark_observations(task_slu
 CREATE INDEX IF NOT EXISTS idx_benchmark_cohort
     ON benchmark_observations(tausik_version, host, provider, model, reasoning_effort, speed_mode);
 CREATE INDEX IF NOT EXISTS idx_benchmark_observed ON benchmark_observations(observed_at);
+CREATE INDEX IF NOT EXISTS idx_review_cohort_results_task
+    ON review_cohort_results(task_slug, id DESC);
+CREATE INDEX IF NOT EXISTS idx_review_cohort_family
+    ON review_cohorts(family_key, generation DESC);
 """

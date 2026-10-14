@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 78
+SCHEMA_VERSION = 80
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -367,6 +367,88 @@ CREATE TABLE IF NOT EXISTS verification_cohort_results (
     ran_at TEXT NOT NULL,
     UNIQUE(cohort_pk, unit)
 );
+
+CREATE TABLE IF NOT EXISTS review_cohorts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cohort_key TEXT NOT NULL UNIQUE,
+    selector_kind TEXT NOT NULL CHECK(selector_kind IN ('tasks', 'story', 'epic')),
+    selector_value TEXT NOT NULL,
+    members_json TEXT NOT NULL,
+    routes_json TEXT NOT NULL,
+    policy_signature TEXT NOT NULL,
+    opening_lineage TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'open'
+        CHECK(state IN ('open', 'round1_red', 'green', 'owner_decision',
+                        'accepted_risk', 'awaiting_manual_review', 'repair_open',
+                        'invalidated')),
+    current_round INTEGER NOT NULL DEFAULT 0 CHECK(current_round BETWEEN 0 AND 2),
+    owner_identity TEXT,
+    owner_reason TEXT,
+    finding_refs_json TEXT,
+    policy_result TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    family_key TEXT,
+    generation INTEGER NOT NULL DEFAULT 1,
+    parent_cohort_pk INTEGER REFERENCES review_cohorts(id)
+);
+
+CREATE TABLE IF NOT EXISTS review_cohort_rounds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cohort_pk INTEGER NOT NULL REFERENCES review_cohorts(id) ON DELETE CASCADE,
+    round_number INTEGER NOT NULL CHECK(round_number IN (1, 2)),
+    packet_json TEXT NOT NULL,
+    author_model TEXT NOT NULL,
+    reviewer_model TEXT NOT NULL,
+    reviewer_context TEXT NOT NULL CHECK(reviewer_context='different-model'),
+    reviewer_invocations INTEGER NOT NULL CHECK(reviewer_invocations=1),
+    usage_json TEXT,
+    recorded_at TEXT NOT NULL,
+    UNIQUE(cohort_pk, round_number)
+);
+
+CREATE TABLE IF NOT EXISTS review_cohort_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cohort_pk INTEGER NOT NULL REFERENCES review_cohorts(id) ON DELETE CASCADE,
+    round_number INTEGER NOT NULL CHECK(round_number IN (1, 2)),
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    verdict TEXT NOT NULL CHECK(verdict IN ('green', 'advisory', 'red', 'accepted_risk')),
+    critical_findings INTEGER NOT NULL DEFAULT 0 CHECK(critical_findings >= 0),
+    high_findings INTEGER NOT NULL DEFAULT 0 CHECK(high_findings >= 0),
+    warnings INTEGER NOT NULL DEFAULT 0 CHECK(warnings >= 0),
+    reviewed_state_fingerprint TEXT NOT NULL,
+    route_json TEXT NOT NULL,
+    carried_forward INTEGER NOT NULL DEFAULT 0 CHECK(carried_forward IN (0, 1)),
+    supersedes_result_id INTEGER REFERENCES review_cohort_results(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    author_model TEXT,
+    dependency_map_complete INTEGER NOT NULL DEFAULT 0
+        CHECK(dependency_map_complete IN (0, 1)),
+    critical_reason TEXT,
+    finding_refs_json TEXT,
+    UNIQUE(cohort_pk, task_slug, round_number)
+);
+
+CREATE TABLE IF NOT EXISTS review_cohort_packets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cohort_pk INTEGER NOT NULL REFERENCES review_cohorts(id) ON DELETE CASCADE,
+    round_number INTEGER NOT NULL CHECK(round_number IN (1, 2)),
+    packet_json TEXT NOT NULL,
+    packet_digest TEXT NOT NULL,
+    issued_at TEXT NOT NULL,
+    UNIQUE(cohort_pk, round_number)
+);
+
+CREATE TRIGGER IF NOT EXISTS review_cohort_results_counts_insert
+BEFORE INSERT ON review_cohort_results
+WHEN NEW.critical_findings < 0 OR NEW.high_findings < 0 OR NEW.warnings < 0
+BEGIN SELECT RAISE(ABORT, 'review finding counts must be non-negative'); END;
+
+CREATE TRIGGER IF NOT EXISTS review_cohort_results_counts_update
+BEFORE UPDATE OF critical_findings, high_findings, warnings ON review_cohort_results
+WHEN NEW.critical_findings < 0 OR NEW.high_findings < 0 OR NEW.warnings < 0
+BEGIN SELECT RAISE(ABORT, 'review finding counts must be non-negative'); END;
 
 CREATE TABLE IF NOT EXISTS session_usage_metrics (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

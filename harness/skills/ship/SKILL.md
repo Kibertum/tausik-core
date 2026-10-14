@@ -49,18 +49,52 @@ Follow the route verbatim. Keep deterministic gates in every lane.
 - **L2**: launch exactly one focused reviewer in a fresh context. It checks the
   residual gaps, AC wiring, changed behavior, and selected profile checklists.
   Record L2 with `reviewer_context=fresh`.
-- **L3**: launch exactly one external reviewer on a different model family via
-  `tausik-external-reviewer`. Separate context on the author's model is still
-  L2. If a different model is unavailable, stop; never downgrade.
+- **L3**: open one bounded cohort and send its complete round-1 packet to exactly
+  one external reviewer on a different model family via
+  `tausik-external-reviewer`. For a task ship, use `tausik review cohort-open
+  --tasks {slug...} --json`; for a story or epic ship, preserve that hierarchy
+  selector with `--story {slug}` or `--epic {slug}`. Capture `cohort_id` from
+  the response. Separate context on the author's model is still L2. If a
+  different model is unavailable, stop; never downgrade.
+  Delegate with the reviewer's mechanically enforced Read+Grep-only capability
+  set. If the host cannot enforce that set, stop; prompt instructions alone do
+  not make a write-capable shell read-only.
 - **L3-deep**: launch the multi-agent `/review` flow only when the dispatcher
   returns `deep=true`. That occurs only for an explicit deep audit or a
   configured extreme hard floor.
 
-For every lane, persist the actual depth, author/reviewer models, selected
-profiles, route reasons, hard floor, reviewer invocation count, and available
-task usage through `tausik review record`. HIGH or CRITICAL findings stop
-shipping. After a substantive repair, re-run deterministic verification and
-re-review the repaired files before recording a passing run.
+For L1/L2, persist the actual route and usage through `tausik review record`.
+For normal L3, persist task-indexed findings through
+`tausik review cohort-record`. The packet must include the task plan and
+numbered AC evidence; if either is absent, run the missing verification step
+before review.
+
+The normal L3 order is exact:
+
+1. Open the cohort and retain the complete round-1 packet and `packet_digest`.
+2. Send that packet to the one different-model reviewer.
+3. Record round 1 immediately with `cohort-record ... --round 1
+   --packet-digest {digest}` before changing any reviewed state.
+4. If round 1 is red, repair only red or affected tasks and run deterministic
+   verification.
+5. Request `cohort-status {cohort_id} --json`; this issues the immutable
+   round-2 packet after repair. Send the complete packet, its own
+   `packet_digest`, and `cohort_id` to the same reviewer. Its `tasks` array
+   already excludes carried-green task contexts.
+6. Record round 2 with its own digest. Unchanged green tasks carry their
+   round-1 verdict.
+7. If round 2 is red, stop automation and request the owner disposition below.
+
+Persist each result array with `tausik review cohort-record {cohort_id} --round
+{1|2} --results-json @results.json --packet-digest {packet_digest}
+--author-model {author} --reviewer-model {reviewer}`.
+
+There is no automatic round 3. After a red round 2, run `tausik review
+cohort-decide {cohort_id} --action {accept-risk|manual-review|repair-open}
+--owner {id} --reason "{reason}" [--finding-ref {ref}]`. CRITICAL findings and
+configured hard floors remain non-waivable. MEDIUM/LOW findings are advisory.
+Use `/review --deep` only when the user explicitly requests an audit outside
+the automatic closure budget or the dispatcher returns `deep=true`.
 
 Do not treat lint or schema validation as evidence of behavior, idempotence,
 rollback, or postconditions. Only capabilities in the signed receipt count.

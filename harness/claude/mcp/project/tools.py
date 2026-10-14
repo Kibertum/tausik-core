@@ -34,6 +34,129 @@ _STACKS_ENUM = [
 ]
 # === END STACKS_ENUM ===
 
+_COHORT_RESULT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "task": {"type": "string", "minLength": 1},
+        "critical": {"type": "integer", "minimum": 0, "maximum": 1_000_000},
+        "high": {"type": "integer", "minimum": 0, "maximum": 1_000_000},
+        "warnings": {"type": "integer", "minimum": 0, "maximum": 1_000_000},
+        "notes": {"type": ["string", "null"]},
+        "dependency_map_complete": {"type": "boolean"},
+        "critical_reason": {"type": "string", "minLength": 1},
+        "finding_refs": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1,
+        },
+    },
+    "required": ["task", "critical", "high", "warnings", "dependency_map_complete"],
+}
+
+
+def _forbid_cohort_fields(*names: str) -> dict:
+    return {"not": {"anyOf": [{"required": [name]} for name in names]}}
+
+
+_COHORT_REQUEST_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "action": {"enum": ["open", "status", "record", "decide"]},
+        "tasks": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1,
+        },
+        "story": {"type": "string", "minLength": 1},
+        "epic": {"type": "string", "minLength": 1},
+        "cohort_id": {"type": "integer", "minimum": 1},
+        "round": {"type": "integer", "enum": [1, 2]},
+        "results": {"type": "array", "items": _COHORT_RESULT_SCHEMA, "minItems": 1},
+        "packet_digest": {"type": "string", "minLength": 1},
+        "author_model": {"type": "string", "minLength": 1},
+        "reviewer_model": {"type": "string", "minLength": 1},
+        "usage": {"type": "object"},
+        "decision": {"enum": ["accept-risk", "manual-review", "repair-open"]},
+        "owner": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "finding_refs": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+        },
+        "json": {"type": "boolean"},
+    },
+    "required": ["action"],
+    "oneOf": [
+        {
+            "properties": {"action": {"const": "open"}},
+            "oneOf": [{"required": ["tasks"]}, {"required": ["story"]}, {"required": ["epic"]}],
+            **_forbid_cohort_fields(
+                "cohort_id",
+                "round",
+                "results",
+                "packet_digest",
+                "author_model",
+                "reviewer_model",
+                "usage",
+                "decision",
+                "owner",
+                "reason",
+                "finding_refs",
+            ),
+        },
+        {
+            "properties": {"action": {"const": "status"}},
+            "required": ["cohort_id"],
+            **_forbid_cohort_fields(
+                "tasks",
+                "story",
+                "epic",
+                "round",
+                "results",
+                "packet_digest",
+                "author_model",
+                "reviewer_model",
+                "usage",
+                "decision",
+                "owner",
+                "reason",
+                "finding_refs",
+            ),
+        },
+        {
+            "properties": {"action": {"const": "record"}},
+            "required": [
+                "cohort_id",
+                "round",
+                "results",
+                "packet_digest",
+                "author_model",
+                "reviewer_model",
+            ],
+            **_forbid_cohort_fields(
+                "tasks", "story", "epic", "decision", "owner", "reason", "finding_refs"
+            ),
+        },
+        {
+            "properties": {"action": {"const": "decide"}},
+            "required": ["cohort_id", "decision", "owner", "reason"],
+            **_forbid_cohort_fields(
+                "tasks",
+                "story",
+                "epic",
+                "round",
+                "results",
+                "packet_digest",
+                "author_model",
+                "reviewer_model",
+                "usage",
+            ),
+        },
+    ],
+}
+
 TOOLS = [
     # === Health ===
     {
@@ -113,7 +236,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_add",
-        "description": "Create a new task. Specify slug (kebab-case ID) and title. Set goal for QG-0 compliance. Optionally assign to a story. Estimate effort via call_budget (in TOOL CALLS, not hours): trivial≤10, light≤25, moderate≤60, substantial≤150, deep≤400.",
+        "description": "Create a task with slug, title, QG-0 goal, optional story, and TOOL CALLS budget.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -242,12 +365,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_block",
-        "description": (
-            "Block a task WITH a concrete question to the owner and a checkable "
-            "unblock criterion (both required — a block without a question is a "
-            "task abandoned with a note to self). Question must not restate the "
-            "title. Re-blocking updates the fields."
-        ),
+        "description": "Block a task with a concrete owner question and checkable unblock criterion.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -398,11 +516,15 @@ TOOLS = [
     },
     {
         "name": "tausik_task_review",
-        "description": "Move task to review status. Use before task_done to signal code review is needed",
+        "description": "Move a task to review; `cohort` runs CLI-equivalent bounded L3 actions.",
         "inputSchema": {
             "type": "object",
-            "properties": {"slug": {"type": "string"}},
-            "required": ["slug"],
+            "properties": {
+                "slug": {"type": "string"},
+                "cohort": _COHORT_REQUEST_SCHEMA,
+            },
+            "oneOf": [{"required": ["slug"]}, {"required": ["cohort"]}],
+            "additionalProperties": False,
         },
     },
     {
@@ -487,7 +609,7 @@ TOOLS = [
     },
     {
         "name": "tausik_task_replay",
-        "description": "Reconstruct a task's chronological timeline (task_logs + reasoning_steps + events + verification_runs with receipt) as markdown. Works on historical tasks without reasoning steps. With output, writes to a file instead of returning the markdown.",
+        "description": "Return a task timeline as markdown, or write it to output.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1034,7 +1156,7 @@ TOOLS = [
     },
     {
         "name": "tausik_snippet_search",
-        "description": "Semantic FTS5 search over reusable code snippets (clone clusters detected by `tausik snippet detect`). Ranks by occurrences (how many call-sites share it), line count, then recency. Returns code, source 'file:lines', language, occurrences — call BEFORE writing new code to reuse an existing pattern instead of re-implementing it.",
+        "description": "Search reusable snippets by meaning before writing duplicate code.",
         "inputSchema": {
             "type": "object",
             "properties": {

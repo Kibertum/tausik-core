@@ -270,9 +270,24 @@ review record --task <slug> --type {L1|L2|L3} \
               # --author-model defaults to the model of the running session.
 review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
 review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
+
+# Bounded normal-L3 workflow (exactly one full round and at most one delta round)
+review cohort-open (--tasks <slug>... | --story <slug> | --epic <slug>) [--json]
+review cohort-status <cohort_id> [--json]
+review cohort-record <cohort_id> --round {1|2} --results-json @results.json \
+  --packet-digest <digest> --author-model <model> \
+  --reviewer-model <different-family-model> [--usage-json @usage.json]
+review cohort-decide <cohort_id> --action {accept-risk|manual-review|repair-open} \
+  --owner <id> --reason "..." [--finding-ref <ref>]
 ```
 
 The `/review` skill records L3 only when at least one adversarial reviewer runs on a different model family from the author; fresh same-family contexts qualify as L2. `tausik metrics` includes an `Adversarial Review` block once any valid L3 reviews exist.
+
+Round 1 reviews the full eligible packet. Round 2 contains only prior-red or
+affected tasks; unchanged green tasks carry forward. TAUSIK schedules no round
+3. Record round 1 before repair; request status only after repair and verify so
+it issues the immutable round-2 packet. A terminal red cohort requires the
+explicit owner decision above.
 
 ## A bypassed gate leaves a record (SENAR 1.5 §8.6(j))
 

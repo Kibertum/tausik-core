@@ -187,6 +187,25 @@ def hierarchy_done_with_handle(
             "(membership, a member's plan/AC, or gates); re-run verify"
         )
 
+    # A deterministic pooled verify receipt and an expert review receipt answer
+    # different questions. Hierarchy closure used to write tasks done directly,
+    # bypassing the task-level residual-assurance gate. Demand current L3
+    # evidence member by member; a composite cohort can satisfy all of them.
+    from project_cli_review import _route_for_task
+    from review_routing import review_record_blockers
+
+    review_failures: list[str] = []
+    project_root = root_from_service(svc)
+    for slug in members:
+        route = _route_for_task(svc, slug, deep=False)
+        if route.get("depth") != "L3":
+            continue
+        blockers = review_record_blockers(be._conn, slug, route, project_root)
+        if blockers:
+            review_failures.append(f"{slug}: {'; '.join(blockers)}")
+    if review_failures:
+        return "REFUSED: L3 review receipt is not current — " + "; ".join(review_failures)
+
     now = datetime.now(timezone.utc).isoformat()
     try:
         # `be.transaction()` keeps the task writes, the story/epic writes, the

@@ -104,6 +104,18 @@ CLASSES_AT_DECLARATION = frozenset(
         # assertion, polarity or environment of their own.
         "verification_cohorts",
         "verification_cohort_results",
+        # r1115-l3-cohort-receipts (v79): expert-review workflow bookkeeping.
+        # NOT TC artifact classes — the envelope, reviewer rounds and
+        # task-indexed verdicts govern code review; none is an executable test
+        # case or carries normative assertion polarity/environment fields.
+        "review_cohorts",
+        "review_cohort_rounds",
+        "review_cohort_results",
+        # r1115-l3-evidence-integrity (v80): immutable input snapshots for an
+        # expert-review round. NOT TC artifacts — a packet preserves task and
+        # repository context shown to a reviewer; it is neither executable nor
+        # a case for a normative assertion and has no test polarity/environment.
+        "review_cohort_packets",
         # at-acceptance-tests-derived-by-an-isolated-agent (RENAR §8A): the AT
         # (Acceptance Test) header record. NOT a TC (test case) artifact class
         # — it records the RESULT of an isolated-generation procedure, not a

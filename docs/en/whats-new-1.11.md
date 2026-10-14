@@ -91,3 +91,24 @@ friction tasks close the other framework-review findings.
 - [Exact 1.11.4 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.4/CHANGELOG.md)
 - [English notes](https://github.com/Kibertum/tausik-core/blob/v1.11.4/docs/en/whats-new-1.11.md)
 - [Russian notes](https://github.com/Kibertum/tausik-core/blob/v1.11.4/docs/ru/whats-new-1.11.md)
+
+## 1.11.5 — bounded L3 review
+
+Automatic normal-L3 review now has a hard work budget: one full cohort round
+and at most one delta round for red or affected tasks. Unchanged green tasks
+carry forward. If round 2 remains red, TAUSIK stops and asks for one explicit
+owner decision; it does not schedule round 3. CRITICAL findings and configured
+hard floors remain non-waivable, while a human can still request
+`/review --deep` outside the automatic budget.
+
+The 1/2/5-task acceptance scenario reduces reviewer calls from 2/4/10 to
+2/2/2 and avoids 0/1/4 green re-reviews. These are protocol counts, not claimed
+historical token savings; reviewer latency and tokens were unavailable.
+
+Each verdict now names the exact immutable packet it reviewed. The packet
+contains numbered AC evidence and trusted author/dependency provenance; CLI and
+MCP reject malformed payloads identically. Accepted risk stays visible as its
+own status and never appears as an ordinary green result.
+
+- [Bounded L3 contract](review-cohort-contract.md)
+- [Exact 1.11.5 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.5/CHANGELOG.md)

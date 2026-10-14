@@ -68,3 +68,36 @@ def add_review(sub: argparse._SubParsersAction) -> None:
     ls.add_argument("--json", action="store_true", help="Output as JSON")
 
     rev_sub.add_parser("metrics", help="Show ADR metric")
+
+    cohort_open = rev_sub.add_parser("cohort-open", help="Open one bounded L3 review cohort")
+    selector = cohort_open.add_mutually_exclusive_group(required=True)
+    selector.add_argument("--tasks", nargs="+", help="Explicit task slugs")
+    selector.add_argument("--story", help="Story whose non-done tasks form the pool")
+    selector.add_argument("--epic", help="Epic whose non-done tasks form the pool")
+    cohort_open.add_argument("--json", action="store_true")
+
+    cohort_status = rev_sub.add_parser("cohort-status", help="Show the next bounded L3 action")
+    cohort_status.add_argument("cohort_id", type=int)
+    cohort_status.add_argument("--json", action="store_true")
+
+    cohort_record = rev_sub.add_parser("cohort-record", help="Record one task-indexed L3 round")
+    cohort_record.add_argument("cohort_id", type=int)
+    cohort_record.add_argument(
+        "--round", dest="round_number", type=int, choices=[1, 2], required=True
+    )
+    cohort_record.add_argument("--results-json", required=True, help="JSON list, or @path to JSON")
+    cohort_record.add_argument("--packet-digest", required=True)
+    cohort_record.add_argument("--author-model", required=True)
+    cohort_record.add_argument("--reviewer-model", required=True)
+    cohort_record.add_argument("--usage-json", default=None, help="Optional JSON object, or @path")
+    cohort_record.add_argument("--json", action="store_true")
+
+    cohort_decide = rev_sub.add_parser("cohort-decide", help="Resolve a terminal red L3 cohort")
+    cohort_decide.add_argument("cohort_id", type=int)
+    cohort_decide.add_argument(
+        "--action", choices=["accept-risk", "manual-review", "repair-open"], required=True
+    )
+    cohort_decide.add_argument("--owner", required=True)
+    cohort_decide.add_argument("--reason", required=True)
+    cohort_decide.add_argument("--finding-ref", action="append", default=[])
+    cohort_decide.add_argument("--json", action="store_true")

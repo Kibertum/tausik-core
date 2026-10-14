@@ -50,6 +50,8 @@ from backend_migrations_v75 import MIGRATION_V75
 from backend_migrations_v76 import MIGRATION_V76
 from backend_migrations_v77 import MIGRATION_V77
 from backend_migrations_v78 import MIGRATION_V78
+from backend_migrations_v79 import MIGRATION_V79
+from backend_migrations_v80 import MIGRATION_V80
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -465,6 +467,10 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v78: verification identity/replay/presentation policy is structured;
     # legacy command-only rows remain NULL and confer no rights.
     78: MIGRATION_V78,
+    # v79: bounded two-round L3 cohorts with task-indexed composite receipts.
+    79: MIGRATION_V79,
+    # v80: issued review packets, per-task author provenance and cohort generations.
+    80: MIGRATION_V80,
 }
 
 # Merged: legacy + current

@@ -106,7 +106,7 @@ TOOLS_ADAPT = [
     },
     {
         "name": "tausik_adapt_sign",
-        "description": "Record the architect's signature (§7.5): role=architect signs the canonical ADAPT body with the project ed25519 key ⇒ status 'approved' (§13.3.3 p.77 — the status and the signature are separate facts). role=client is REFUSED: ADR-011 withdrew the client signature under ADAPT, and what the client approves belongs in an ACTZ.",
+        "description": "Sign the canonical ADAPT as architect. Client signatures are refused; client approval belongs in ACTZ.",
         "inputSchema": {
             "type": "object",
             "properties": {

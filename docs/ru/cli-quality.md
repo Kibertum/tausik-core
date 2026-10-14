@@ -267,7 +267,22 @@ review record --task <slug> --type {L1|L2|L3} \
               # --author-model по умолчанию — модель текущей сессии.
 review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
 review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
+
+# Ограниченный normal-L3: один полный и не более одного выборочного раунда
+review cohort-open (--tasks <slug>... | --story <slug> | --epic <slug>) [--json]
+review cohort-status <cohort_id> [--json]
+review cohort-record <cohort_id> --round {1|2} --results-json @results.json \
+  --packet-digest <digest> --author-model <model> \
+  --reviewer-model <different-family-model> [--usage-json @usage.json]
+review cohort-decide <cohort_id> --action {accept-risk|manual-review|repair-open} \
+  --owner <id> --reason "..." [--finding-ref <ref>]
 ```
+
+Round 1 проверяет весь eligible-пакет. В round 2 входят только прежние красные
+или затронутые задачи; неизменённые зелёные результаты переносятся. Round 3 не
+планируется. Для финальной красной когорты требуется решение владельца.
+Round 1 записывается до repair; status вызывается только после repair и verify,
+чтобы выдать неизменяемый пакет round 2.
 
 Скилл `/review` записывает L3, только когда хотя бы один adversarial-ревьюер работает на другом семействе моделей, чем автор; свежий контекст того же семейства считается L2. В `tausik metrics` появляется блок `Adversarial Review`, как только есть хотя бы один корректный L3-прогон.
 

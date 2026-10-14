@@ -7,6 +7,30 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
+## [1.11.5] — 2026-10-13
+
+### Changed — automatic L3 review is bounded
+
+- Normal L3 reviews now run as one cohort: a full round followed by at most one
+  delta round for prior-red or affected tasks. Unchanged green results carry
+  forward, so a repair cannot trigger repeated full regression.
+- A red second round stops automation at an explicit owner decision. CRITICAL
+  findings and configured hard floors remain non-waivable; manual
+  `/review --deep` remains available outside the automatic budget.
+- Schema v80 adds immutable issued packets, generation lineage, trusted
+  per-task author/dependency provenance, bounded finding counts and durable
+  CRITICAL references. Recording requires the exact packet digest and refuses
+  state drift, provenance spoofing and unsafe owner-evidence precedence.
+- CLI adds `review cohort-open`, `cohort-status`, `cohort-record` and
+  `cohort-decide`. MCP reuses `tausik_task_review` with a `cohort` request, so
+  the tool surface does not grow.
+- The 1/2/5-task acceptance is explicitly a worked protocol model, not measured
+  savings. Missing reviewer latency and token telemetry remain unavailable and
+  are never estimated.
+- CLI and MCP share strict request decoding; status separates green, advisory,
+  accepted-risk and red. Review metrics include executed cohort results and
+  exclude carried rows. The external reviewer is mechanically Read/Grep-only.
+
 ## [1.11.4] — 2026-10-12
 
 ### Fixed — repeated framework friction becomes one local task

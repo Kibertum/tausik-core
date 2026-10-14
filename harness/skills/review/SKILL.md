@@ -235,6 +235,10 @@ If `tausik-reviewer` sub-agent is missing (`.claude/agents/tausik-reviewer.md` a
 
 ## Iterative Mode
 
+Iterative mode is an explicit human-requested deep audit. `/ship` and automatic
+task closure must not invoke it after bounded cohort round 2; they record the
+required owner decision instead.
+
 When `$ARGUMENTS` contains "iterate", run a review→fix→verify loop instead of a single pass.
 
 ### Algorithm

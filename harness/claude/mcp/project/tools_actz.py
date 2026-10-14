@@ -46,7 +46,7 @@ TOOLS_ACTZ = [
     },
     {
         "name": "tausik_actz_point",
-        "description": "Add a numbered point to a draft ACTZ. Points may only be added while status='draft' (frozen once any signature is recorded). tz_ref names which clause of the original ТЗ (or a prior ACTZ point) this point clarifies — final_tz drives off it.",
+        "description": "Add a numbered point with tz_ref to a draft ACTZ; signatures freeze points.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -60,7 +60,7 @@ TOOLS_ACTZ = [
     },
     {
         "name": "tausik_actz_sign",
-        "description": "Record a signature (Sec5.5.3). role=architect signs the canonical body with the project ed25519 key. role=client records signed_by+signed_at only (no cryptographic signature — this project has one key, not one per party). First signature ⇒ status='sent'; both roles ⇒ status='signed'.",
+        "description": "Sign ACTZ as architect, or record client attribution. One signature sends; both sign.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -193,7 +193,7 @@ TOOLS_ACTZ = [
     },
     {
         "name": "tausik_actz_final_tz",
-        "description": "The derived acceptance reference (Sec5A.4): per ТЗ clause, the latest both-role-signed ACTZ point, naming what it overrode. Read-only projection — nothing new is stored, ADAPT never enters it. as_of (ISO-8601) shows it at a past moment.",
+        "description": "Read the latest both-role-signed ACTZ point per ТЗ clause, optionally as_of.",
         "inputSchema": {
             "type": "object",
             "properties": {

@@ -8,13 +8,8 @@ TOOLS_EXTRA = [
     {
         "name": "tausik_verify_cohort",
         "description": (
-            "Pooled verification for an explicit task cohort (>=2 slugs): one "
-            "gate pass over the union of the members' relevant_files, a "
-            "persisted cohort identity, and reuse refused by a NAMED "
-            "invalidator (membership drift, task edits, member status drift, "
-            "gate-signature drift, security-sensitive scope, missing "
-            "evidence, uncertain dependency mapping). Mirrors CLI "
-            "`tausik verify --tasks`."
+            "Verify >=2 explicit tasks in one union-scope pass. Reuse fails on member, state, "
+            "gate, security, evidence, or dependency drift. CLI: `verify --tasks`."
         ),
         "inputSchema": {
             "type": "object",
@@ -36,11 +31,8 @@ TOOLS_EXTRA = [
     {
         "name": "tausik_verify_hierarchy",
         "description": (
-            "Resolve a story's or epic's non-done tasks as one cohort and run "
-            "a single pooled gate pass. Refuses empty or single-task pools "
-            "(those are ordinary verify --task) and any member that is not "
-            "review-ready (plan complete, AC evidence logged). Mirrors CLI "
-            "`tausik verify --story/--epic`."
+            "Verify a story or epic's review-ready non-done tasks in one pass; refuses empty "
+            "or one-task pools. CLI: `verify --story/--epic`."
         ),
         "inputSchema": {
             "type": "object",
@@ -293,15 +285,7 @@ TOOLS_EXTRA = [
     },
     {
         "name": "tausik_graph",
-        "description": (
-            "Artifact graph: what changes with what, and on what evidence. "
-            "command=build fills it from git history and this project's own "
-            "declarations; command=show <path> answers for one file WITH the "
-            "artifacts it can no longer vouch for; command=status reports how "
-            "much is stored and which source roots were indexed. Roots come "
-            "from the PROJECT (config, else git), never from the framework's "
-            "own directory names."
-        ),
+        "description": "Build, inspect, or summarize the project's evidence-backed artifact graph.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -329,18 +313,9 @@ TOOLS_EXTRA = [
     {
         "name": "tausik_verify",
         "description": (
-            "v1.4 Verify-First Contract: run heavy gates (pytest, tsc, cargo, "
-            "phpstan, …) ad-hoc and record a green so `tausik_task_done` can "
-            "close in milliseconds. With task_slug: scoped to the task's "
-            "relevant_files. Without: full-suite, no DB row. Returns "
-            "passed/status/scope/results AND, when the run is presentable, a "
-            "verify_handle of the form <run_id>.<nonce>. PASS THAT HANDLE to "
-            "tausik_task_done as verify_handle — it is the proof this task was "
-            "verified. DURABILITY: a handle is valid for 1 hour from the run, "
-            "is SINGLE-USE, and is invalidated early if the files it covers "
-            "change or the gate set changes. A run with no declared files, "
-            "with all gates skipped, or covering security-sensitive paths earns "
-            "no handle and says so."
+            "Run verification gates. With task_slug, scope to its relevant files; without it, "
+            "run the full suite. Pass the returned verify_handle (valid for 1 hour, SINGLE-USE) to "
+            "tausik_task_done. File or gate changes invalidate the handle."
         ),
         "inputSchema": {
             "type": "object",
@@ -396,14 +371,8 @@ TOOLS_EXTRA = [
     {
         "name": "tausik_self_check",
         "description": (
-            "Diagnose this MCP server's freshness. Returns startup time, "
-            "watched-module mtime snapshot vs current on-disk mtimes, "
-            "drift_detected flag, list of stale modules with delta_seconds, "
-            "and sibling MCP project server count for this project. "
-            "Call from /start (Phase 1) so the agent surfaces an MCP Health "
-            "warning when the running server holds stale code — root cause "
-            "of silent hangs in tausik_verify / tausik_task_done (gotchas "
-            "#77, #79, #80). Remediation: restart IDE; meanwhile use CLI."
+            "Detect stale MCP modules and sibling project servers. Call from /start; "
+            "restart the IDE on drift and use the CLI meanwhile."
         ),
         "inputSchema": {"type": "object", "properties": {}},
     },
@@ -411,24 +380,16 @@ TOOLS_EXTRA = [
     {
         "name": "tausik_session_open",
         "description": (
-            "Compound RPC for /start Phase 1 — single JSON envelope "
-            "replacing 5 calls (session_start + status compact + "
-            "last_handoff + task_list active+blocked + self_check). "
-            "Returns {session, host_context, status, handoff, tasks{active,blocked}, "
-            "self_check}; each section best-effort with inline error "
-            "key on failure so the dashboard renders degraded rather "
-            "than aborts. /start SKILL.md Phase 1 calls this once."
+            "Open /start in one call: session, context, status, handoff, active/blocked tasks, "
+            "and self-check. Sections fail independently with inline errors."
         ),
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "tausik_tool_schema",
         "description": (
-            "Full input schema of a TAUSIK MCP tool by name, or the matching names "
-            "for a substring. The tool list carries full schemas for the core set "
-            "only; every other tool appears as its name and a 60-character summary "
-            "with no schema — call this before invoking one of those to get its "
-            "arguments. No arguments returns the complete name list."
+            "Return a tool's full input schema, search tool names, or list all names. "
+            "Use before calling a deferred-schema tool."
         ),
         "inputSchema": {
             "type": "object",

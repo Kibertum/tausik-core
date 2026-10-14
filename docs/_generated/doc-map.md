@@ -55,6 +55,7 @@ generated from those declarations.
 | `no-sdk-verify.md` | maintainer | en, ru |
 | `reasoning-trace.md` | agent | en, ru |
 | `receipts.md` | user | en, ru |
+| `review-cohort-contract.md` | agent | en, ru |
 | `testing-principles.md` | user | en, ru |
 | `verification-cohort-contract.md` | agent | en, ru |
 | `verify-glossary.md` | user | en, ru |
@@ -155,4 +156,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-79 page(s), 78 carried by both languages.
+80 page(s), 79 carried by both languages.

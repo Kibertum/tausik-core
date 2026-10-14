@@ -74,24 +74,26 @@ class TestBootstrapSkillsCoverage:
 
     def test_codex_skills_match_claude_apply_overlay_and_preserve_agents(self, tmp_path):
         """Codex receives the same skills, then its session rebuild applies its delta."""
-        claude_project = tmp_path / "claude"
-        codex_project = tmp_path / "codex"
-        assert _run_bootstrap(str(claude_project)).returncode == 0
-        assert _run_bootstrap(str(codex_project), ide="codex").returncode == 0
+        project = tmp_path / "all-hosts"
 
-        claude_skills = claude_project / ".claude" / "skills"
-        codex_skills = codex_project / ".codex" / "skills"
+        # Seed both negative and preservation fixtures before Codex's first
+        # deployment. The production `--ide all` path creates the Claude and
+        # Codex trees in one process, so parity does not need two full runs.
+        stale_skill = project / ".codex" / "skills" / "stale"
+        stale_skill.mkdir(parents=True)
+        agent_dir = project / ".codex" / "agents"
+        agent_dir.mkdir(exist_ok=True)
+        user_agent = agent_dir / "user-agent.toml"
+        user_agent.write_text('name = "user-agent"\n', encoding="utf-8")
+
+        assert _run_bootstrap(str(project), ide="all").returncode == 0
+
+        claude_skills = project / ".claude" / "skills"
+        codex_skills = project / ".codex" / "skills"
         assert {path.name for path in claude_skills.iterdir()} == {
             path.name for path in codex_skills.iterdir()
         }
         assert all((path / "SKILL.md").is_file() for path in codex_skills.iterdir())
-        stale_skill = codex_skills / "stale"
-        stale_skill.mkdir()
-        agent_dir = codex_project / ".codex" / "agents"
-        agent_dir.mkdir(exist_ok=True)
-        user_agent = agent_dir / "user-agent.toml"
-        user_agent.write_text('name = "user-agent"\n', encoding="utf-8")
-        assert _run_bootstrap(str(codex_project), ide="codex").returncode == 0
         assert not stale_skill.exists()
         assert user_agent.is_file()
 

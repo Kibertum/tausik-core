@@ -160,7 +160,7 @@ class BackendCrudMixin:
     def review_list(
         self, task_slug: str | None = None, run_type: str | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:
-        sql = "SELECT * FROM reviews WHERE 1=1"
+        sql = "SELECT *, 'legacy' AS source FROM reviews WHERE 1=1"
         params: list[Any] = []
         if task_slug:
             sql += " AND task_slug=?"
@@ -170,14 +170,38 @@ class BackendCrudMixin:
             params.append(run_type)
         sql += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
-        return self._q(sql, tuple(params))
+        rows = self._q(sql, tuple(params))
+        if run_type in (None, "L3"):
+            cohort_sql = (
+                "SELECT r.id, 'cohort' AS source, 'L3' AS run_type, r.task_slug, "
+                "r.critical_findings, r.high_findings, r.warnings, r.created_at AS run_at, "
+                "r.notes, r.author_model, rr.reviewer_model, rr.reviewer_context, "
+                "rr.reviewer_invocations, rr.usage_json, r.route_json, "
+                "r.reviewed_state_fingerprint, r.verdict "
+                "FROM review_cohort_results r JOIN review_cohort_rounds rr "
+                "ON rr.cohort_pk=r.cohort_pk AND rr.round_number=r.round_number "
+                "WHERE r.carried_forward=0"
+            )
+            cohort_params: list[Any] = []
+            if task_slug:
+                cohort_sql += " AND r.task_slug=?"
+                cohort_params.append(task_slug)
+            cohort_sql += " ORDER BY r.id DESC LIMIT ?"
+            cohort_params.append(limit)
+            rows.extend(self._q(cohort_sql, tuple(cohort_params)))
+        rows.sort(key=lambda item: (str(item.get("run_at") or ""), int(item["id"])), reverse=True)
+        return rows[:limit]
 
     def review_metrics(self) -> dict[str, Any]:
         """ADR (Adversarial Defect Rate) = critical_findings / L3_reviewed_tasks * 100."""
         row = self._q1(
+            "WITH evidence AS ("
+            "SELECT task_slug,critical_findings FROM reviews WHERE run_type='L3' "
+            "UNION ALL "
+            "SELECT task_slug,critical_findings FROM review_cohort_results "
+            "WHERE carried_forward=0) "
             "SELECT COUNT(DISTINCT task_slug) AS l3_tasks, "
-            "COALESCE(SUM(critical_findings),0) AS l3_critical "
-            "FROM reviews WHERE run_type='L3'"
+            "COALESCE(SUM(critical_findings),0) AS l3_critical FROM evidence"
         )
         l3_tasks = (row or {}).get("l3_tasks") or 0
         l3_critical = (row or {}).get("l3_critical") or 0

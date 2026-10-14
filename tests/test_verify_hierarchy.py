@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 
@@ -31,6 +32,14 @@ def svc(tmp_path):
     # identity hashes is then the repo this test controls.
     tausik_dir = tmp_path / ".tausik"
     tausik_dir.mkdir(exist_ok=True)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.invalid"], cwd=tmp_path, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
+    (tmp_path / ".gitignore").write_text(".tausik/\n", encoding="utf-8")
+    subprocess.run(["git", "add", ".gitignore"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=tmp_path, check=True)
     be = SQLiteBackend(str(tausik_dir / "tausik.db"))
     s = ProjectService(be)
     s.epic_add("e", "E")
@@ -47,6 +56,7 @@ def svc(tmp_path):
             "INSERT INTO task_logs(task_slug, message, created_at) VALUES(?,?,?)",
             (slug, "AC-1: OK tested via tests/x.py::t", "2026-10-06T00:00:00Z"),
         )
+        be._conn.execute("UPDATE tasks SET started_model_id='gpt-5.6-sol' WHERE slug=?", (slug,))
     be._conn.commit()
     yield s
     be.close()
@@ -200,6 +210,44 @@ class TestAtomicClose:
             "done" in svc.story_done("st").lower()
             or svc.be._q1("SELECT status FROM stories WHERE slug='st'")["status"] == "done"
         )
+
+    def test_l3_hierarchy_close_needs_and_accepts_one_composite_review_receipt(self, svc):
+        from review_cohort import open_review_cohort, record_review_round
+
+        impact = {
+            "level": "high",
+            "blast_radius": "local",
+            "reversibility": "reversible",
+            "governance_boundary": True,
+        }
+        for slug in ("h-a", "h-b", "h-c"):
+            svc.task_update(slug, assurance_profiles=["executable"], assurance_impact=impact)
+            _raw_status(svc, slug, "active")
+        handle, _ = _green_receipt(svc, ["h-a", "h-b", "h-c"])
+        refused = vh.hierarchy_done_with_handle(svc, "st", "story", handle)
+        assert "L3 review receipt is not current" in refused
+
+        opened = open_review_cohort(svc, story="st")
+        record_review_round(
+            svc,
+            opened["cohort_id"],
+            1,
+            [
+                {
+                    "task": slug,
+                    "critical": 0,
+                    "high": 0,
+                    "warnings": 0,
+                    "dependency_map_complete": True,
+                }
+                for slug in ("h-a", "h-b", "h-c")
+            ],
+            packet_digest=opened["packet"]["packet_digest"],
+            author_model="gpt-5.6-sol",
+            reviewer_model="gpt-6-astra",
+        )
+        closed = vh.hierarchy_done_with_handle(svc, "st", "story", handle)
+        assert "Closed atomically: 3 task(s) + story 'st'" in closed
 
 
 class TestProductionCloseParity:

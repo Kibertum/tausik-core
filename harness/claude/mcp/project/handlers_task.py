@@ -219,6 +219,28 @@ def _handle_task_show(svc: Any, args: dict) -> str:
     return "\n".join(lines)
 
 
+def _do_task_review(svc: Any, args: dict) -> str:
+    if not isinstance(args, dict):
+        return "Error: request must be an object"
+    unknown = sorted(set(args) - {"slug", "cohort"})
+    if unknown:
+        return f"Error: unknown request fields: {', '.join(unknown)}"
+    selectors = [name for name in ("slug", "cohort") if name in args]
+    if len(selectors) != 1:
+        return "Error: supply exactly one of slug or cohort"
+    if selectors[0] == "cohort":
+        cohort = args["cohort"]
+        if not isinstance(cohort, dict):
+            return "Error: cohort must be an object"
+        from handlers_review import _handle_review_cohort
+
+        return _handle_review_cohort(svc, cohort)
+    slug = args["slug"]
+    if not isinstance(slug, str) or not slug.strip():
+        return "Error: slug must be a non-empty string"
+    return svc.task_review(slug)
+
+
 TASK_HANDLERS = {
     "tausik_task_list": lambda svc, args: _handle_task_list(svc, args),
     "tausik_task_show": lambda svc, args: _handle_task_show(svc, args),
@@ -243,7 +265,7 @@ TASK_HANDLERS = {
     "tausik_task_plan": lambda svc, args: svc.task_plan(args["slug"], args["steps"]),
     "tausik_task_step": _do_task_step,
     "tausik_task_delete": lambda svc, args: svc.task_delete(args["slug"]),
-    "tausik_task_review": lambda svc, args: svc.task_review(args["slug"]),
+    "tausik_task_review": _do_task_review,
     "tausik_task_move": lambda svc, args: svc.task_move(args["slug"], args["new_story_slug"]),
     "tausik_task_log": lambda svc, args: svc.task_log(args["slug"], args["message"]),
     "tausik_task_logs": lambda svc, args: _handle_task_logs(svc, args),

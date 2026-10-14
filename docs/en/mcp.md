@@ -60,12 +60,28 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | `tausik_task_replay` | Chronological task timeline (logs + reasoning + events + verification) | `slug` |
 | `tausik_task_block` | Block WITH a concrete question to the owner + a checkable unblock criterion (both required; question must not restate the title; re-block updates the fields) | `slug` |
 | `tausik_task_unblock` | Unblock stating WHICH criterion is met and why (silent unblocking forbidden; WHO unblocked is recorded) | `slug` |
-| `tausik_task_review` | Move to review | `slug` |
+| `tausik_task_review` | Move one task to review, or execute a bounded L3 cohort action | `slug`, or `cohort` object |
 | `tausik_task_delete` | Delete task | `slug` |
 | `tausik_task_move` | Move to another story | `slug`, `new_story_slug` |
 | `tausik_task_next` | Pick next task by score | — |
 | `tausik_task_claim` | Claim task (multi-agent) | `slug`, `agent_id` |
 | `tausik_task_unclaim` | Release task | `slug` |
+
+For bounded L3, omit `slug` and pass one of these `cohort` objects. `open`
+requires exactly one selector. Values returned by `open`/`status` supply the
+`cohort_id`, round and task packet for the next call.
+
+```json
+{"cohort":{"action":"open","tasks":["task-a","task-b"],"json":true}}
+{"cohort":{"action":"status","cohort_id":42,"json":true}}
+{"cohort":{"action":"record","cohort_id":42,"round":1,"packet_digest":"<digest-from-packet>","results":[{"task":"task-a","critical":0,"high":0,"warnings":0,"dependency_map_complete":true}],"author_model":"gpt-5","reviewer_model":"claude-opus-4"}}
+{"cohort":{"action":"decide","cohort_id":42,"decision":"manual-review","owner":"release-owner","reason":"round 2 remains red","finding_refs":["finding-1"]}}
+```
+
+The other `open` selectors are `story` and `epic`. `record` accepts optional
+`usage`; `decide` accepts `accept-risk`, `manual-review`, or `repair-open`.
+Missing or mixed selector fields, malformed arrays, strings in place of
+objects, and an absent packet digest fail closed without transport coercion.
 
 ### `tausik_task_done` parameters
 

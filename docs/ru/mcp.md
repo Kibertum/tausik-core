@@ -60,12 +60,28 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | `tausik_task_replay` | Хронологический таймлайн задачи (logs + reasoning + events + verification) | `slug` |
 | `tausik_task_block` | Блокировка С конкретным вопросом владельцу + проверяемым критерием разблокировки (оба обязательны; вопрос не пересказывает заголовок; повторная блокировка обновляет поля) | `slug` |
 | `tausik_task_unblock` | Разблокировка с указанием, КАКОЙ критерий выполнен и почему (молчаливая запрещена; КТО разблокировал — записывается) | `slug` |
-| `tausik_task_review` | Перевести в review | `slug` |
+| `tausik_task_review` | Перевести задачу в review или выполнить действие ограниченной L3-когорты | `slug` или объект `cohort` |
 | `tausik_task_delete` | Удалить | `slug` |
 | `tausik_task_move` | Переместить в другую стори | `slug`, `new_story_slug` |
 | `tausik_task_next` | Выбрать следующую задачу по score | — |
 | `tausik_task_claim` | Занять задачу (мульти-агент) | `slug`, `agent_id` |
 | `tausik_task_unclaim` | Освободить | `slug` |
+
+Для ограниченного L3 поле `slug` опускается и передаётся один из следующих
+объектов `cohort`. Действие `open` требует ровно один selector. Ответы
+`open`/`status` дают `cohort_id`, round и пакет задач для следующего вызова.
+
+```json
+{"cohort":{"action":"open","tasks":["task-a","task-b"],"json":true}}
+{"cohort":{"action":"status","cohort_id":42,"json":true}}
+{"cohort":{"action":"record","cohort_id":42,"round":1,"packet_digest":"<digest-from-packet>","results":[{"task":"task-a","critical":0,"high":0,"warnings":0,"dependency_map_complete":true}],"author_model":"gpt-5","reviewer_model":"claude-opus-4"}}
+{"cohort":{"action":"decide","cohort_id":42,"decision":"manual-review","owner":"release-owner","reason":"round 2 remains red","finding_refs":["finding-1"]}}
+```
+
+Другие selectors для `open`: `story` и `epic`. `record` принимает необязательный
+`usage`; `decide` — `accept-risk`, `manual-review` или `repair-open`. Отсутствующий
+или смешанный selector, malformed arrays, строка вместо объекта и отсутствие
+packet digest приводят к отказу без transport coercion.
 
 ### `tausik_task_done` параметры
 

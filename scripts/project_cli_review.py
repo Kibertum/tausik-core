@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json as _json
 import sys
+from pathlib import Path
 from typing import Any
 
 from project_service import ProjectService
@@ -65,6 +66,59 @@ def _route_for_task(svc: Any, slug: str, *, deep: bool, fallback_depth: str = "L
 def cmd_review(svc: ProjectService, args: Any) -> None:
     """tausik review — track L1/L2/L3 review runs (SENAR Rule 10.15)."""
     sub = getattr(args, "review_cmd", None)
+    if sub and sub.startswith("cohort-"):
+        from review_cohort import cohort_summary
+        from review_cohort_request import execute_cohort_request
+
+        def load_json(raw: str | None) -> Any:
+            if raw is None:
+                return None
+            text = Path(raw[1:]).read_text(encoding="utf-8") if raw.startswith("@") else raw
+            return _json.loads(text)
+
+        try:
+            if sub == "cohort-open":
+                request = {
+                    "action": "open",
+                    "tasks": args.tasks,
+                    "story": args.story,
+                    "epic": args.epic,
+                    "json": args.json,
+                }
+            elif sub == "cohort-status":
+                request = {"action": "status", "cohort_id": args.cohort_id, "json": args.json}
+            elif sub == "cohort-record":
+                results = load_json(args.results_json)
+                usage = load_json(args.usage_json)
+                request = {
+                    "action": "record",
+                    "cohort_id": args.cohort_id,
+                    "round": args.round_number,
+                    "results": results,
+                    "packet_digest": args.packet_digest,
+                    "author_model": args.author_model,
+                    "reviewer_model": args.reviewer_model,
+                    "usage": usage,
+                    "json": args.json,
+                }
+            else:
+                request = {
+                    "action": "decide",
+                    "cohort_id": args.cohort_id,
+                    "decision": args.action,
+                    "owner": args.owner,
+                    "reason": args.reason,
+                    "finding_refs": args.finding_ref,
+                    "json": args.json,
+                }
+            out, json_output = execute_cohort_request(svc, request)
+        except (OSError, ValueError, _json.JSONDecodeError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        print(
+            _json.dumps(out, ensure_ascii=False, indent=2) if json_output else cohort_summary(out)
+        )
+        return
     if sub == "route":
         route = _route_for_task(svc, args.task, deep=bool(args.deep))
         if args.json:
@@ -163,11 +217,14 @@ def cmd_review(svc: ProjectService, args: Any) -> None:
         if not rows:
             print("No reviews recorded.")
             return
-        print(f"{'#':>4} {'type':>4} {'task':<32} {'crit':>4} {'high':>4} {'warn':>4}  run_at")
+        print(
+            f"{'#':>4} {'source':>7} {'type':>4} {'task':<32} "
+            f"{'crit':>4} {'high':>4} {'warn':>4}  run_at"
+        )
         for r in rows:
             slug = (r.get("task_slug") or "")[:32]
             print(
-                f"{r['id']:>4} {r['run_type']:>4} {slug:<32} "
+                f"{r['id']:>4} {r.get('source', 'legacy'):>7} {r['run_type']:>4} {slug:<32} "
                 f"{r['critical_findings']:>4} {r.get('high_findings', 0):>4} "
                 f"{r['warnings']:>4}  {r['run_at']}"
             )

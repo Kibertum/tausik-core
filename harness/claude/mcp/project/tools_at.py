@@ -94,7 +94,7 @@ TOOLS_AT = [
     },
     {
         "name": "tausik_at_diagnose",
-        "description": "Route an AT's LATEST recorded outcome against a caller-supplied tc_outcome (Sec8A.4/Sec10.4.3's four-cell matrix). TC has no first-class artifact in TAUSIK yet — this tool never reads pytest/verification_runs itself; tc_outcome must be supplied explicitly. Refuses an AT with no recorded trial.",
+        "description": "Route the latest AT outcome against an explicit tc_outcome; refuse an AT without a trial.",
         "inputSchema": {
             "type": "object",
             "properties": {

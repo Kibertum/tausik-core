@@ -414,10 +414,14 @@ prefixes, the behaviour on an unparseable command, the **channel coverage matrix
 Closing a task with **measured-high** risk requires an independent adversarial review by a
 DIFFERENT model — a model cannot validate its own code. The implementation:
 
-- **The subagent** `tausik-external-reviewer` (`harness/claude/subagents/`) — read-only tools
-  (`Read, Grep, Bash`, no `Write`/`Edit`: SENAR "Reviewer SHALL NOT have write access"),
-  `model: opus`. It returns a structured verdict
-  (`approved | changes_requested | blocked`) and the exact `tausik review record` command.
+- **The subagent** `tausik-external-reviewer` (`harness/claude/subagents/`) — mechanically read-only tools
+  (`Read, Grep` only: SENAR "Reviewer SHALL NOT have write access"),
+  `model: opus`. It reviews one cohort packet per invocation, returns task-indexed
+  severity counts (`critical`, `high`, `warnings`) plus dependency attestation,
+  and emits the exact
+  `tausik review cohort-record` command with the issued packet digest.
+  Cohort status derives `green | advisory | red`; `accepted_risk` is a separate
+  owner disposition, while `blocked` is only a reviewer refusal before recording.
 - **Different model.** `scripts/external_reviewer.py::recommend_reviewer_model(author)` picks a
   family different from the author's (order: opus → fable → sonnet → haiku);
   `is_separate_duty()` rejects a family match and an unknown reviewer. If the author is already
@@ -429,8 +433,12 @@ DIFFERENT model — a model cannot validate its own code. The implementation:
   `tausik review record --type L3 --author-model … --reviewer-model …` clears the block; a
   record with models from one family, or with none, is refused (github#157). Opt-out:
   `config risk.l3_block_on_high=false` (→ warning).
-- **Evidence.** The reviewer's verdict is stored in the `reviews` table (run_type=L3) and
-  reaches the ADR metrics (`tausik review metrics`).
+- **Bounded execution.** Round 1 covers the full eligible cohort. Round 2 covers
+  only prior-red or affected tasks and carries unchanged green results. There is
+  no automatic round 3; a second red result requires an owner decision. CRITICAL
+  and configured hard-floor findings remain non-waivable.
+- **Evidence.** Task-indexed results are stored in the review-cohort receipt and
+  remain eligible for task and hierarchy closure while their binding is current.
 
 ---
 

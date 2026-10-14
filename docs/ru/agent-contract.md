@@ -417,10 +417,14 @@ arXiv 2602.11988 (ETH Zurich, 438 задач, 4 агента): контекст�
 Закрытие задачи с **measured-high** риском требует независимого adversarial-ревью
 ДРУГОЙ моделью — модель не может валидировать собственный код. Реализация:
 
-- **Субагент** `tausik-external-reviewer` (`harness/claude/subagents/`) — read-only
-  tools (`Read, Grep, Bash`, без `Write`/`Edit`: SENAR «Reviewer SHALL NOT have
-  write access»), `model: opus`. Возвращает structured-вердикт
-  (`approved | changes_requested | blocked`) и точную команду `tausik review record`.
+- **Субагент** `tausik-external-reviewer` (`harness/claude/subagents/`) — механически read-only
+  tools (`Read, Grep` only: SENAR «Reviewer SHALL NOT have
+  write access»), `model: opus`. За один вызов проверяет один пакет когорты,
+  возвращает по задачам счётчики `critical`, `high`, `warnings` и аттестацию
+  зависимостей, а также
+  точную команду `tausik review cohort-record` с digest выданного пакета.
+  Статус когорты выводит `green | advisory | red`; `accepted_risk` — отдельное
+  решение владельца, а `blocked` означает отказ reviewer до записи результата.
 - **Different model.** `scripts/external_reviewer.py::recommend_reviewer_model(author)`
   выбирает семейство, отличное от автора (порядок opus → fable → sonnet → haiku);
   `is_separate_duty()` отвергает совпадение семейств и неизвестного ревьюера.
@@ -430,8 +434,13 @@ arXiv 2602.11988 (ETH Zurich, 438 задач, 4 агента): контекст�
   с рекомендованной моделью и точным id модели автора. Записанный
   `tausik review record --type L3 --author-model … --reviewer-model …` снимает
   блок; запись с моделями одного семейства или без них отказывается (github#157). Opt-out: `config risk.l3_block_on_high=false` (→ warning).
-- **Evidence.** Вердикт ревьюера фиксируется в таблице `reviews` (run_type=L3) и
-  попадает в метрики ADR (`tausik review metrics`).
+- **Ограниченное выполнение.** Round 1 покрывает всю eligible-когорту. Round 2
+  покрывает только прежние красные или затронутые задачи и переносит
+  неизменённые зелёные результаты. Автоматического round 3 нет; второй красный
+  результат требует решения владельца. CRITICAL и настроенные hard-floor
+  findings остаются непреодолимыми.
+- **Evidence.** Результаты по задачам хранятся в составной receipt когорты и
+  допускают закрытие задачи или иерархии, пока их binding актуален.
 
 ---
 

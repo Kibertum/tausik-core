@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -246,6 +247,46 @@ def review_record_blockers(
     row = conn.execute(
         "SELECT * FROM reviews WHERE task_slug=? ORDER BY id DESC LIMIT 1", (slug,)
     ).fetchone()
+    cohort_row = conn.execute(
+        "SELECT r.created_at, c.state, c.updated_at AS cohort_updated_at "
+        "FROM review_cohort_results r "
+        "JOIN review_cohorts c ON c.id=r.cohort_pk "
+        "WHERE r.task_slug=? ORDER BY r.id DESC LIMIT 1",
+        (slug,),
+    ).fetchone()
+
+    def instant(raw: Any) -> datetime | None:
+        try:
+            return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+
+    cohort_state = cohort_row["state"] if cohort_row is not None else None
+    cohort_time = instant(cohort_row["created_at"]) if cohort_row is not None else None
+    disposition_time = instant(cohort_row["cohort_updated_at"]) if cohort_row is not None else None
+    legacy_time = instant(row["run_at"]) if row is not None else None
+    fresh_manual_receipt = (
+        cohort_state == "awaiting_manual_review"
+        and disposition_time is not None
+        and legacy_time is not None
+        and legacy_time > disposition_time
+    )
+    cohort_authoritative = cohort_state in ("owner_decision", "repair_open") or (
+        cohort_state == "awaiting_manual_review" and not fresh_manual_receipt
+    )
+    cohort_is_newer = (
+        not fresh_manual_receipt
+        and cohort_row is not None
+        and (
+            row is None or cohort_time is None or legacy_time is None or cohort_time >= legacy_time
+        )
+    )
+    if cohort_row is not None and (cohort_authoritative or cohort_is_newer):
+        from review_cohort import cohort_review_blockers
+
+        cohort_blockers = cohort_review_blockers(conn, slug, project_root, route)
+        if cohort_blockers is not None:
+            return cohort_blockers
     if row is None:
         return [f"{route.get('depth', 'L2')} review record is required"]
     record = dict(row)
