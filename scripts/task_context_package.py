@@ -224,6 +224,7 @@ def build_task_context_package(
         return package
 
     memory = list(task.get("relevant_memory") or [])
+    admitted = 0
     for index, line in enumerate(memory):
         candidate = dict(package)
         candidate["relevant_memory"] = [*package["relevant_memory"], str(line)]
@@ -233,7 +234,19 @@ def build_task_context_package(
             package["omitted"] = [f"relevant_memory[{index}:]"]
             break
         package["relevant_memory"].append(str(line))
+        admitted = index + 1
     _set_exact_size(package)
+    # The omission marker itself costs bytes the admission check could not see:
+    # a boundary package could land OVER the budget (measured on the
+    # work-packet fixture: six lines admitted at 2045 against a 2048 budget,
+    # final size with the marker 2065, and the caller refused the close). Keep
+    # the whole-unit rule — drop admitted lines until the package fits with
+    # the marker included.
+    while package["bytes"] > max_bytes and package["relevant_memory"]:
+        package["relevant_memory"].pop()
+        admitted -= 1
+        package["omitted"] = [f"relevant_memory[{admitted}:]"]
+        _set_exact_size(package)
     return package
 
 

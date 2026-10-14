@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
-from review_separation import review_model_family
+from review_separation import review_model_family, vendor_family
 
 
 _DEPTH = {"L1": 1, "L2": 2, "L3": 3}
@@ -63,28 +63,28 @@ def build_review_route(
             "mode": "checklist-and-gates",
             "reviewer_invocations": 0,
             "reviewer_context": "author",
-            "different_model_required": False,
+            "same_family_required": False,
         }
     elif depth == "L2":
         execution = {
             "mode": "focused-review",
             "reviewer_invocations": 1,
             "reviewer_context": "fresh",
-            "different_model_required": False,
+            "same_family_required": False,
         }
     elif deep:
         execution = {
             "mode": "multi-agent-deep-audit",
             "reviewer_invocations": 7,
             "reviewer_context": "fresh",
-            "different_model_required": True,
+            "same_family_required": True,
         }
     else:
         execution = {
             "mode": "external-review",
             "reviewer_invocations": 1,
-            "reviewer_context": "different-model",
-            "different_model_required": True,
+            "reviewer_context": "external",
+            "same_family_required": True,
         }
 
     return {
@@ -111,7 +111,7 @@ def force_deep_route(route: Mapping[str, Any]) -> dict[str, Any]:
         "mode": "multi-agent-deep-audit",
         "reviewer_invocations": 7,
         "reviewer_context": "fresh",
-        "different_model_required": True,
+        "same_family_required": True,
     }
     return forced
 
@@ -158,12 +158,22 @@ def validate_review_record(
     if run_type == "L3":
         if not reviewer_available:
             errors.append("L3 reviewer is unavailable; the route cannot be downgraded")
-        if reviewer_context != "different-model":
-            errors.append("L3 requires a different-model reviewer, not separate context alone")
+        # 'different-model' is the pre-1.11.6 token: a stored record carrying it
+        # was valid under the old cross-family rule and stays readable — new
+        # records arrive as 'external' (isolated context, same family).
+        legacy_record = reviewer_context == "different-model"
+        if reviewer_context not in ("external", "different-model"):
+            errors.append(
+                "L3 requires an external reviewer in an isolated context, "
+                "not the author's own context"
+            )
         if review_model_family(author_model) is None or review_model_family(reviewer_model) is None:
             errors.append("L3 requires recognized author and reviewer model identities")
-        elif review_model_family(author_model) == review_model_family(reviewer_model):
-            errors.append("same-family review cannot be recorded as L3")
+        elif not legacy_record and vendor_family(author_model) != vendor_family(reviewer_model):
+            errors.append(
+                "L3 reviewer is from another model family than the author: one family "
+                "per environment — re-run the review on the author's own family (1.11.6)"
+            )
     if critical_findings or high_findings:
         errors.append("reviewer HIGH/CRITICAL findings must be repaired before close")
     if not verification_passed:

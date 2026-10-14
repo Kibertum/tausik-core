@@ -172,6 +172,23 @@ def test_optional_memory_overflow_names_omission(svc, monkeypatch):
     assert len(package["relevant_memory"]) < 2
 
 
+@pytest.mark.parametrize("budget", range(1_900, 3_000, 13))
+def test_the_omission_marker_itself_fits_the_budget(svc, monkeypatch, budget):
+    """The marker `relevant_memory[N:]` costs bytes the admission check cannot
+    see: before the fix, a boundary package returned bytes > max_bytes and the
+    work-packet ceiling refused the whole close. Whole-unit omission must
+    swallow the marker too — every budget that can hold the required intent
+    gets a package that fits it."""
+    task = svc.task_show("work")
+    task["relevant_memory"] = [
+        f"- #{index} [context] bounded line {index} <- matched" for index in range(8)
+    ]
+    monkeypatch.setattr(svc, "task_show", lambda slug: task)
+    package = build_task_context_package(svc, "work", max_bytes=budget)
+    if package.get("overflow_reason") is None:
+        assert package["bytes"] <= budget, package["omitted"]
+
+
 @pytest.mark.parametrize("value", [0, 511, 65_537, "8192", True])
 def test_invalid_budget_is_refused(svc, value):
     with pytest.raises(ValueError, match="max_bytes"):

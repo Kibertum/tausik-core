@@ -235,7 +235,8 @@ gates, rules, metrics, every row naming the code. It is no longer duplicated her
 of one table drift, and this copy assigned Standard rules 9.x to "Core", where SENAR Core has
 none. What matters to an agent out of it: QG-0 and QG-2 are hard (CLI plus MCP); Rule 1 and
 Rule 2 are held by PreToolUse hooks; session time and call capacity are signals, not gates
-(decision #376, 1.10); Rule 4 is an external review on a different model when the evidence is
+(decision #376, 1.10); Rule 4 is an external review in an isolated read-only context on the
+same model family as the author — one family per environment (1.11.6) — when the evidence is
 thin.
 
 ## How rules reach the agent (measured in session #230)
@@ -411,27 +412,31 @@ prefixes, the behaviour on an unparseable command, the **channel coverage matrix
 
 ## Rule 4 — External Validation (separation of duties)
 
-Closing a task with **measured-high** risk requires an independent adversarial review by a
-DIFFERENT model — a model cannot validate its own code. The implementation:
+Closing a task with **measured-high** risk requires an independent adversarial review by an
+external reviewer in an isolated read-only context on the SAME model family as the author —
+one model family per environment (1.11.6): pulling another family for review is prohibited,
+and the separation of duties is the context, not the model. The implementation:
 
 - **The subagent** `tausik-external-reviewer` (`harness/claude/subagents/`) — mechanically read-only tools
-  (`Read, Grep` only: SENAR "Reviewer SHALL NOT have write access"),
-  `model: opus`. It reviews one cohort packet per invocation, returns task-indexed
+  (`Read, Grep` only: SENAR "Reviewer SHALL NOT have write access"), running on the
+  host's own model. It reviews one cohort packet per invocation, returns task-indexed
   severity counts (`critical`, `high`, `warnings`) plus dependency attestation,
   and emits the exact
   `tausik review cohort-record` command with the issued packet digest.
   Cohort status derives `green | advisory | red`; `accepted_risk` is a separate
   owner disposition, while `blocked` is only a reviewer refusal before recording.
-- **Different model.** `scripts/external_reviewer.py::recommend_reviewer_model(author)` picks a
-  family different from the author's (order: opus → fable → sonnet → haiku);
-  `is_separate_duty()` rejects a family match and an unknown reviewer. If the author is already
-  on opus, the reviewer falls back to fable.
+- **Same family.** `scripts/external_reviewer.py::recommend_reviewer_model(author)` names the
+  author's own family — the model this host already runs;
+  `is_separate_duty()` requires the reviewer's family to match the author's and
+  rejects an unknown reviewer. An L3 record with a reviewer from ANOTHER family
+  is refused.
 - **The trigger.** `risk_l3_trigger.check_l3_required` blocks `task done` on a measured-high
   closure (the selection describes how thin the evidence is, it does not predict an escape —
   decision #212) and names `@tausik-external-reviewer` in the remediation together with the
-  recommended model and the author's exact model id. A recorded
+  author's exact model id. A recorded
   `tausik review record --type L3 --author-model … --reviewer-model …` clears the block; a
-  record with models from one family, or with none, is refused (github#157). Opt-out:
+  record with a cross-family reviewer, or with no models, is refused (github#157; one family
+  per environment, 1.11.6). Opt-out:
   `config risk.l3_block_on_high=false` (→ warning).
 - **Bounded execution.** Round 1 covers the full eligible cohort. Round 2 covers
   only prior-red or affected tasks and carries unchanged green results. There is

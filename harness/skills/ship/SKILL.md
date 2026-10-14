@@ -40,9 +40,10 @@ the ship workflow.
 Follow the route verbatim. Keep deterministic gates in every lane.
 
 > **Subagent route (phase=code-review):** use the exact reviewer depth, context,
-> model-family separation, and invocation count returned by `required.review_route`.
-> Use Terra on Codex for the focused balanced reviewer; the equivalent Claude
-> Agent call declares `model: "sonnet"`.
+> and invocation count returned by `required.review_route`. The reviewer runs
+> on the SAME model family as the author — the model this host already runs.
+> One model family per environment (1.11.6): never pull another family for
+> review; the separation of duties is the isolated read-only context.
 
 - **L1**: run every selected profile checklist and the deterministic gates.
   Launch zero reviewer subagents. Record L1 with zero invocations.
@@ -50,12 +51,14 @@ Follow the route verbatim. Keep deterministic gates in every lane.
   residual gaps, AC wiring, changed behavior, and selected profile checklists.
   Record L2 with `reviewer_context=fresh`.
 - **L3**: open one bounded cohort and send its complete round-1 packet to exactly
-  one external reviewer on a different model family via
+  one external reviewer on the SAME model family (the host's own model) via
   `tausik-external-reviewer`. For a task ship, use `tausik review cohort-open
   --tasks {slug...} --json`; for a story or epic ship, preserve that hierarchy
   selector with `--story {slug}` or `--epic {slug}`. Capture `cohort_id` from
-  the response. Separate context on the author's model is still L2. If a
-  different model is unavailable, stop; never downgrade.
+  the response. Separation of duties is the isolated read-only context, not
+  the model: a single focused reviewer without the cohort protocol is L2.
+  Never pull another model family to satisfy L3 (1.11.6) — a cross-family
+  record is refused, and the route is never downgraded to dodge that.
   Delegate with the reviewer's mechanically enforced Read+Grep-only capability
   set. If the host cannot enforce that set, stop; prompt instructions alone do
   not make a write-capable shell read-only.
@@ -72,7 +75,7 @@ before review.
 The normal L3 order is exact:
 
 1. Open the cohort and retain the complete round-1 packet and `packet_digest`.
-2. Send that packet to the one different-model reviewer.
+2. Send that packet to the one external same-family reviewer.
 3. Record round 1 immediately with `cohort-record ... --round 1
    --packet-digest {digest}` before changing any reviewed state.
 4. If round 1 is red, repair only red or affected tasks and run deterministic

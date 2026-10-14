@@ -91,7 +91,7 @@ def test_mcp_docs_publish_all_cohort_actions_and_required_record_fields():
 
 
 def test_release_body_links_are_bound_to_the_release_tag():
-    body = _text("release-body-1.11.5.md")
+    body = _text("release-body-1.11.6.md")
     links = [part.split(")", 1)[0] for part in body.split("](")[1:]]
     assert links
-    assert all("/blob/v1.11.5/" in link for link in links)
+    assert all("/blob/v1.11.6/" in link for link in links)

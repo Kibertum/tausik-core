@@ -72,10 +72,13 @@ class TestCheckL3Required:
 
     def test_high_risk_note_delegates_to_external_reviewer(self, conn):
         # AC3: the remediation names the Rule 4 external reviewer subagent and
-        # recommends running it on a different model.
-        _, note = t.check_l3_required(conn, "t1", _risk_all_measured(0.9))
-        assert "@tausik-external-reviewer" in note
-        assert "separation of" in note
+        # keeps the review on the host's own model family (one family per
+        # environment, 1.11.6) instead of pulling another family.
+        note = t.check_l3_required(conn, "t1", _risk_all_measured(0.9))[1]
+        hint = t._delegation_hint()
+        for fragment in ("@tausik-external-reviewer", "SAME model family", "separation of duties"):
+            assert fragment in hint, f"delegation hint lost: {fragment}"
+            assert fragment in note
 
     def test_recorded_l3_satisfies(self, conn):
         _record_bound_l3(conn)

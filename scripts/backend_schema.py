@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 80
+SCHEMA_VERSION = 81
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -400,7 +400,8 @@ CREATE TABLE IF NOT EXISTS review_cohort_rounds (
     packet_json TEXT NOT NULL,
     author_model TEXT NOT NULL,
     reviewer_model TEXT NOT NULL,
-    reviewer_context TEXT NOT NULL CHECK(reviewer_context='different-model'),
+    reviewer_context TEXT NOT NULL
+        CHECK(reviewer_context IN ('external', 'different-model')),
     reviewer_invocations INTEGER NOT NULL CHECK(reviewer_invocations=1),
     usage_json TEXT,
     recorded_at TEXT NOT NULL,

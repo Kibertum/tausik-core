@@ -1,73 +1,78 @@
-"""SENAR Rule 4 External Validation — pick a reviewer distinct from the author.
+"""SENAR Rule 4 External Validation — one model family per environment (1.11.6).
 
-Rule 4 (Separation of Duties) demands that an under-evidenced closure be reviewed by
-a model *different* from the one that wrote the code, and that the reviewer
-SHALL NOT have write access. The two halves are enforced in different places:
+Rule 4 (Separation of Duties) demands that an under-evidenced closure be
+reviewed by an EXTERNAL reviewer: a fresh, isolated context with no write
+access. Since 1.11.6 the reviewer runs on the SAME model family as the author
+— the host's own model. Pulling another family for the adversarial pass
+(Codex from a GLM host, Claude from Codex) is prohibited; the separation is
+the isolated read-only context, not the model. The two halves are enforced in
+different places:
 
   - **No write access** — the named `tausik-external-reviewer` subagent ships
-    with a read-only tool allowlist (Read/Grep/Bash; no Write/Edit). The
+    with a read-only tool allowlist (Read/Grep; no Write/Edit). The
     harness, not this module, enforces it.
-  - **Different model** — this module. Given the author's model it recommends
-    a reviewer *family* that is not the author's, so the adversarial pass is a
-    genuine second opinion rather than the same model grading its own work.
+  - **Same family** — this module. Given the author's model it names the
+    reviewer the host already runs, so the delegation hint can never direct
+    the caller to another family.
 
 Wired into risk_l3_trigger: when a measured-high closure escalates to L3, the
-remediation names the subagent and the recommended reviewer model.
+remediation names the subagent and the author's exact model id.
 """
 
 from __future__ import annotations
 
 from model_routing import _model_family
 
-# Reviewer preference when we must pick a family different from the author.
-# Opus first: the adversarial pass wants the strongest reasoning available;
-# fable is reserved as the only fallback when the author is already on opus.
-_REVIEWER_PREFERENCE = ("opus", "fable", "sonnet", "haiku")
+import model_profiles
+from review_separation import vendor_family
 
 _DISPLAY = {"haiku": "Haiku", "sonnet": "Sonnet", "opus": "Opus", "fable": "Fable"}
 
 
 def recommend_reviewer_model(author_model: str | None) -> str:
-    """Return a reviewer model *family* guaranteed distinct from the author's.
+    """The reviewer for an L3 pass: the author's own family — never another.
 
-    Separation of duties: the result is never the author's own family. When
-    the author family is unknown we still return the strongest reviewer
-    (opus) — "unknown" cannot collide with a named family, so independence
-    holds.
+    One family per environment (1.11.6): the recommendation is the model this
+    host already runs. A Claude tier maps to itself; a released GPT/GLM id maps
+    to its normalized id. An unrecognized author yields a named placeholder —
+    the hint then tells the caller to pass --author-model rather than guess a
+    family that may not be the host's.
     """
-    author = _model_family(author_model)
-    for family in _REVIEWER_PREFERENCE:
-        if family != author:
-            return family
-    return _REVIEWER_PREFERENCE[0]
+    tier = _model_family(author_model)
+    if tier is not None:
+        return tier
+    if vendor_family(author_model) is not None:
+        return model_profiles.normalize_model_id(author_model)
+    return "the model this host already runs"
 
 
 def is_separate_duty(author_model: str | None, reviewer_model: str | None) -> bool:
-    """True only when the reviewer is a recognised family unlike the author's.
+    """True only when the reviewer is a recognised model of the author's family.
 
-    An unrecognised reviewer family returns False — we cannot prove the
-    reviewer is independent, so the caller should warn rather than trust it.
+    1.11.6: separation is the isolated context; the reviewer's family must be
+    the SAME as the author's — pulling another family is prohibited. An
+    unrecognised reviewer still returns False: a record that cannot name a
+    real reviewer cannot claim the external pass happened, so the caller
+    should warn rather than trust it.
     """
-    reviewer = _model_family(reviewer_model)
-    if reviewer is None:
+    reviewer_vendor = vendor_family(reviewer_model)
+    if reviewer_vendor is None:
         return False
-    return reviewer != _model_family(author_model)
+    return reviewer_vendor == vendor_family(author_model)
 
 
 def reviewer_hint(author_model: str | None) -> str:
-    """One-line separation-of-duties hint naming the subagent and model."""
-    family = recommend_reviewer_model(author_model)
-    display = _DISPLAY.get(family, family)
-    author_family = _model_family(author_model)
-    author_disp = (
-        _DISPLAY.get(author_family, "the author model") if author_family else "the author model"
-    )
+    """One-line one-family delegation hint naming the subagent and models."""
+    reviewer = recommend_reviewer_model(author_model)
+    display = _DISPLAY.get(reviewer, reviewer)
     # github#157: the invitation carries the author's exact id, so the reviewer
-    # compares instead of reconstructing it from commit trailers.
+    # records it instead of reconstructing it from commit trailers.
     author_id = author_model or "unknown — pass --author-model"
     return (
-        f"Delegate to the @tausik-external-reviewer subagent on {display} "
-        f"(a different model than {author_disp} — SENAR Rule 4 separation of "
-        f"duties; the reviewer is read-only). Author model: {author_id}. Record with "
-        f"--author-model and --reviewer-model: a same-family L3 is refused."
+        f"Delegate to the @tausik-external-reviewer subagent on {display} — the "
+        f"SAME model family as the author (one family per environment, 1.11.6); "
+        f"SENAR Rule 4 separation of duties holds by the isolated read-only "
+        f"context, and pulling another model family is prohibited. "
+        f"Author model: {author_id}. Record with "
+        f"--author-model and --reviewer-model: a cross-family L3 is refused."
     )

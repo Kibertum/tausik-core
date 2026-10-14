@@ -200,6 +200,7 @@ What TAUSIK does not do by design, rather than by omission:
   bypass the projection, the triggers and the receipts — everything reproducibility rests
   on.
 * **It does not replace code review.** Gates check discipline and boundaries, not intent.
-  An L3 separation of duties requires a different model from the author's.
+  An L3 separation of duties requires an isolated read-only reviewer on the same model
+  family — pulling another family for review is prohibited (1.11.6).
 * **It does not serve several projects from one daemon.** The MCP server is bound to a
   project at spawn; a systemwide mode is a separate body of work, not a gap.

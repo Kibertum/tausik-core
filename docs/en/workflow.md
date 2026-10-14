@@ -123,8 +123,11 @@ bounded cohort: round 1 reviews the full task packet once and round 2 reviews
 only prior-red or affected tasks. Unchanged green tasks carry forward. There is
 no automatic round 3; a second red result requires an owner decision. Security,
 governance, privileged,
-destructive, and irreversible changes retain a hard L3 floor. An unavailable
-different-model reviewer blocks L3 rather than downgrading it.
+destructive, and irreversible changes retain a hard L3 floor. The external
+reviewer runs on the SAME model family as the author — one model family per
+environment (1.11.6): pulling another family for review is prohibited, a
+cross-family record is refused, and the route is never downgraded to dodge
+that rule.
 
 The issued packet is immutable and digest-bound. Record round 1 before repair;
 after repair and fresh deterministic verification, `cohort-status` issues the

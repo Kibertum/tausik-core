@@ -10,7 +10,7 @@ TAUSIK sits on top of the AI coding agent you already use — Claude Code, Curso
 
 **Where it sits.** The field calls this discipline *harness engineering*: a harness is the agent loop, the tool interface, context management and control mechanisms. TAUSIK is not a harness — the loop and the tools belong to Claude Code, Cursor, Codex and the rest. It is the verification and control layer on top of them: what makes it different is that nothing counts as done without evidence.
 
-[![v1.11.5](https://img.shields.io/badge/version-v1.11.5-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.11.6](https://img.shields.io/badge/version-v1.11.6-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
 [![13444 tests](https://img.shields.io/badge/tests-13444-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)

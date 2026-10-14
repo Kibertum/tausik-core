@@ -52,6 +52,7 @@ from backend_migrations_v77 import MIGRATION_V77
 from backend_migrations_v78 import MIGRATION_V78
 from backend_migrations_v79 import MIGRATION_V79
 from backend_migrations_v80 import MIGRATION_V80
+from backend_migrations_v81 import MIGRATION_V81
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -471,6 +472,9 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     79: MIGRATION_V79,
     # v80: issued review packets, per-task author provenance and cohort generations.
     80: MIGRATION_V80,
+    # v81: review_cohort_rounds.reviewer_context admits 'external' (one-family
+    # rule, 1.11.6); guarded rebuild runs from run_post_migrations.
+    81: MIGRATION_V81,
 }
 
 # Merged: legacy + current

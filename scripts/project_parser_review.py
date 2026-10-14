@@ -35,7 +35,10 @@ def add_review(sub: argparse._SubParsersAction) -> None:
     rec.add_argument(
         "--reviewer-model",
         default=None,
-        help="L3: the model that ran the review; required, refused when it is the author's family",
+        help=(
+            "L3: the model that ran the review; required, refused when it is from "
+            "ANOTHER family than the author's (one model family per environment)"
+        ),
     )
     rec.add_argument(
         "--author-model",
@@ -44,9 +47,9 @@ def add_review(sub: argparse._SubParsersAction) -> None:
     )
     rec.add_argument(
         "--reviewer-context",
-        choices=["author", "fresh", "different-model"],
+        choices=["author", "fresh", "external"],
         default=None,
-        help="Actual context used; L3 requires different-model",
+        help="Actual context used; L3 requires an external isolated reviewer",
     )
     rec.add_argument(
         "--reviewer-invocations",

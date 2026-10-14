@@ -19,6 +19,7 @@ from backend_migrations_v49 import maybe_widen_spec_types_v49
 from backend_migrations_v64 import maybe_widen_spec_types_v64
 from backend_migrations_v76 import maybe_widen_cohort_state_v76
 from backend_migrations_v77 import backfill_blocked_questions_v77
+from backend_migrations_v81 import maybe_widen_round_context_v81
 from backend_migrations_v50 import maybe_widen_adapt_statuses_v50
 from backend_migrations_v53 import ensure_actz_points_tz_ref_index
 
@@ -83,3 +84,7 @@ def run_post_migrations(conn: sqlite3.Connection, current_version: int) -> None:
         maybe_widen_cohort_state_v76(conn)
     if current_version >= 77:  # blocked tasks: debt marker where no question was recorded
         backfill_blocked_questions_v77(conn)
+    if (
+        current_version >= 81
+    ):  # widen review_cohort_rounds.reviewer_context: 'external' (guarded rebuild)
+        maybe_widen_round_context_v81(conn)

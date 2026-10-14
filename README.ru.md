@@ -10,7 +10,7 @@ TAUSIK встаёт поверх ИИ-агента, которым вы уже �
 
 **Где это стоит.** Поле называет эту дисциплину *harness engineering*: харнесс — это цикл агента, интерфейс инструментов, управление контекстом и механизмы контроля. TAUSIK — не харнесс: цикл и инструменты принадлежат Claude Code, Cursor, Codex и другим. Это слой проверки и контроля поверх них, и его отличие в том, что без доказательства ничто не считается сделанным.
 
-[![v1.11.5](https://img.shields.io/badge/version-v1.11.5-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.11.6](https://img.shields.io/badge/version-v1.11.6-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
 [![13444 tests](https://img.shields.io/badge/tests-13444-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#доказательство-tausik-построен-на-tausik)

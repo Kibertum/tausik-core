@@ -262,8 +262,9 @@ review record --task <slug> --type {L1|L2|L3} \
               # --critical > 0 без --reason отказывается: CRITICAL записывается
               # с причиной (SENAR 1.5 §10.15(f); шкала: severity-scale.md)
               [--reviewer-model M] [--author-model M]
-              # только L3: обе модели пишутся в notes; пара одного семейства,
-              # отсутствие ревьюера или неизвестный автор — отказ (SENAR Rule 4).
+              # только L3: обе модели пишутся в notes; ревьюер ДРУГОГО семейства,
+              # чем автор, отсутствие ревьюера или неизвестный автор — отказ:
+              # одно семейство моделей на окружение (SENAR Rule 4, 1.11.6).
               # --author-model по умолчанию — модель текущей сессии.
 review list   [--task <slug>] [--type {L1|L2|L3}] [--limit N] [--json]
 review metrics                  # ADR = critical_findings / L3_reviewed_tasks * 100
@@ -273,7 +274,7 @@ review cohort-open (--tasks <slug>... | --story <slug> | --epic <slug>) [--json]
 review cohort-status <cohort_id> [--json]
 review cohort-record <cohort_id> --round {1|2} --results-json @results.json \
   --packet-digest <digest> --author-model <model> \
-  --reviewer-model <different-family-model> [--usage-json @usage.json]
+  --reviewer-model <same-family-model> [--usage-json @usage.json]
 review cohort-decide <cohort_id> --action {accept-risk|manual-review|repair-open} \
   --owner <id> --reason "..." [--finding-ref <ref>]
 ```

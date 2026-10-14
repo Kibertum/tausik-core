@@ -427,8 +427,8 @@ GitHub Actions snippet.
 
 A receipt is signed with the **project** key and answers which gates passed on
 which state of the code. Until v4 it did not answer WHO ran them — while the
-whole quality story rests on separation of duties: an external reviewer on a
-different model, and with P8 also "the test author is not the implementer". All
+whole quality story rests on separation of duties: an external reviewer in an
+isolated context, and with P8 also "the test author is not the implementer". All
 of it asserted, none of it attestable.
 
 The measurement behind the field: 1,686 receipts, not one carrying an actor;

@@ -1,8 +1,9 @@
-"""An L3 review record proves separation of duties or is refused (github#157).
+"""An L3 review record proves the one-family rule or is refused (github#157).
 
-l3-dispatch-does-not-carry-the-author-model (1.10). Before, `review record
---type L3` stored free notes only; a reviewer on the author's own model closed
-the review gate as well as any other.
+l3-dispatch-does-not-carry-the-author-model (1.10) made the record name both
+models. 1.11.6 inverted the boundary: one model family per environment —
+same-family review is the recordable form, and a reviewer from ANOTHER family
+(a pulled Codex from a GLM host, Claude from Codex) is refused.
 """
 
 from __future__ import annotations
@@ -51,18 +52,21 @@ def _no_live_transcript(monkeypatch):
 @pytest.mark.parametrize(
     "extra, says",
     [
-        (["--author-model", "claude-opus-5-5", "--reviewer-model", "opus"], "same family"),
         (["--author-model", "claude-opus-5-5"], "--reviewer-model"),
         (["--reviewer-model", "claude-fable-5-1"], "--author-model"),
         (["--author-model", "claude-opus-5-5", "--reviewer-model", "gpt-x"], "not a recognised"),
         (
-            ["--author-model", "glm-5.2", "--reviewer-model", "glm-5.2"],
-            "same family",
+            ["--author-model", "glm-5.2", "--reviewer-model", "claude-opus-5-5"],
+            "another model family",
+        ),
+        (
+            ["--author-model", "claude-opus-5-5", "--reviewer-model", "glm-5.2"],
+            "one model family per environment",
         ),
     ],
-    ids=["same-family", "no-reviewer", "unknown-author", "unknown-reviewer", "glm-same-model"],
+    ids=["no-reviewer", "unknown-author", "unknown-reviewer", "glm-claude", "claude-glm"],
 )
-def test_an_l3_without_shown_separation_is_refused_and_not_written(extra, says, capsys):
+def test_an_l3_that_pulls_another_family_or_hides_a_model_is_refused(extra, says, capsys):
     svc = _Svc()
     with pytest.raises(SystemExit) as exc:
         _record(svc, "--type", "L3", *extra)
@@ -87,13 +91,38 @@ def test_a_released_glm_generation_is_recognized_in_every_host_spelling(model_id
     assert rs.review_model_family(model_id) == family
 
 
-def test_a_glm_reviewer_on_an_openai_author_is_recorded_as_separated():
+@pytest.mark.parametrize(
+    "author, reviewer, vendor",
+    [
+        ("claude-sonnet-4-6", "claude-opus-4-8", "claude"),
+        ("claude-opus-5-5", "claude-opus-5-5", "claude"),
+        ("glm-4.5-air", "glm-5.2", "glm"),
+        ("gpt-5.6-sol", "gpt-6-astra", "openai"),
+        ("zai-coding-plan/glm-5.2", "glm-5.2 [200k]", "glm"),
+    ],
+    ids=["claude-tiers", "same-id", "glm-generations", "openai-tiers", "host-spellings"],
+)
+def test_one_environment_family_covers_tiers_and_generations(author, reviewer, vendor):
+    assert rs.vendor_family(author) == rs.vendor_family(reviewer) == vendor
+
+
+@pytest.mark.parametrize(
+    "author, reviewer",
+    [
+        ("glm-5.2", "glm-5.2"),
+        ("gpt-5.6-sol", "gpt-6-astra"),
+    ],
+    ids=["glm-same-model", "openai-tiers"],
+)
+def test_a_same_family_l3_is_the_recordable_form(author, reviewer):
     svc = _Svc()
-    _record(svc, "--type", "L3", "--author-model", "gpt-6-astra", "--reviewer-model", "glm-5.2")
-    assert svc.be.rows[0]["reviewer_model"] == "glm-5.2"
+    _record(svc, "--type", "L3", "--author-model", author, "--reviewer-model", reviewer)
+    assert svc.be.rows[0]["author_model"] == author
+    assert svc.be.rows[0]["reviewer_model"] == reviewer
+    assert svc.be.rows[0]["reviewer_context"] == "external"
 
 
-def test_an_l3_on_a_different_family_is_recorded_with_both_models():
+def test_an_l3_within_one_vendor_family_is_recorded_with_both_models():
     svc = _Svc()
     _record(
         svc, "--type", "L3", "--author-model", "claude-opus-5-5",
@@ -104,21 +133,6 @@ def test_an_l3_on_a_different_family_is_recorded_with_both_models():
     )
 
 
-def test_codex_models_use_the_same_separation_contract():
-    svc = _Svc()
-    _record(
-        svc,
-        "--type",
-        "L3",
-        "--author-model",
-        "gpt-5.6-sol",
-        "--reviewer-model",
-        "gpt-6-astra",
-    )
-    assert svc.be.rows[0]["author_model"] == "gpt-5.6-sol"
-    assert svc.be.rows[0]["reviewer_model"] == "gpt-6-astra"
-
-
 @pytest.mark.parametrize("level", ["L1", "L2"])
 def test_l1_and_l2_need_no_models(level):
     svc = _Svc()
@@ -126,7 +140,9 @@ def test_l1_and_l2_need_no_models(level):
     assert svc.be.rows[0]["notes"] is None
 
 
-def test_the_invitation_carries_the_author_id_and_the_record_flags():
+def test_the_invitation_carries_the_author_id_and_the_one_family_rule():
     hint = er.reviewer_hint("claude-opus-5-5")
     assert "Author model: claude-opus-5-5" in hint
     assert "--author-model" in hint and "--reviewer-model" in hint
+    assert "SAME model family" in hint
+    assert "prohibited" in hint

@@ -29,7 +29,7 @@ def _notes_with_reason(critical: int, reason: str | None, notes: str | None) -> 
 
 
 def _l3_notes_or_exit(args: Any, notes: str | None) -> str:
-    """SENAR Rule 4 on the record: both models named, different families."""
+    """SENAR Rule 4 on the record: both models named, same family (1.11.6)."""
     from review_separation import l3_refusal, models_note, resolve_author_model
 
     author = resolve_author_model(getattr(args, "author_model", None))
@@ -156,7 +156,7 @@ def cmd_review(svc: ProjectService, args: Any) -> None:
             or {
                 "L1": "author",
                 "L2": "fresh",
-                "L3": "different-model",
+                "L3": "external",
             }[args.run_type]
         )
         reviewer_invocations = getattr(args, "reviewer_invocations", None)

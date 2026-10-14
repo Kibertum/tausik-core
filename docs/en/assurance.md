@@ -59,11 +59,14 @@ residual gaps, depth, deterministic reasons, and any hard floor.
 The task package includes `review_route` and its missing inputs. L1 runs the
 selected profile checklists and deterministic gates with zero reviewer calls.
 L2 runs one focused reviewer in a fresh context. Normal L3 runs one external
-different-family reviewer over a bounded cohort. Round 1 reviews every member;
+same-family reviewer (the host's own model — one family per environment,
+1.11.6) over a bounded cohort. Round 1 reviews every member;
 round 2 reviews only prior-red or affected members and carries unchanged green
 results. Automation never schedules round 3. A second red result requires an
 owner decision, while CRITICAL and configured hard floors remain non-waivable.
-Separate context on the author's model is L2, never L3. Multi-agent L3-deep is
+The separation of duties is the isolated read-only context; a single focused
+reviewer without the cohort protocol is L2, never L3, and pulling another
+model family for review is prohibited. Multi-agent L3-deep is
 reserved for an explicit `/review` or a configured extreme hard floor.
 Each normal-L3 result must return the exact immutable issued-packet digest and
 trusted per-task author provenance. The reviewer capability is Read/Grep-only.

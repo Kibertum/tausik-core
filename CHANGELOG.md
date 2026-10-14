@@ -7,6 +7,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
+## [1.11.6] — 2026-10-14
+
+### Changed — one model family per environment for review
+
+- SENAR Rule 4 no longer requires the L3 reviewer to run on a different model
+  family. Separation of duties now holds by the isolated read-only reviewer
+  context; the reviewer runs on the SAME family as the author — the model the
+  host already runs (Claude host → Claude only, Codex → GPT only, z.ai → GLM
+  only).
+- Pulling another model family for review is prohibited and enforced: an L3
+  record with a cross-family reviewer is refused, while same-family records
+  (including the author's own model) are the recordable form. Both model
+  identities remain mandatory on every L3 record.
+- `reviewer_context` gains the `external` token; the pre-1.11.6
+  `different-model` token stays readable so historical records remain valid.
+  Schema v81 widens the `review_cohort_rounds` CHECK by a guarded table
+  rebuild.
+- The `tausik-external-reviewer` subagent drops its hardcoded `model: opus`
+  and no longer blocks when the author model matches its own; it now blocks a
+  delegation that asks for another family. Ship/review skills and the EN/RU
+  docs state the one-family rule; "stop; never downgrade" is gone, and a
+  uniformity guard test keeps the dead wording out.
+
 ## [1.11.5] — 2026-10-13
 
 ### Changed — automatic L3 review is bounded

@@ -1,20 +1,28 @@
-"""The L3 selector describes evidence. No shipped text may call it a risk verdict.
+"""Uniformity guards: shipped text may not make a claim the project retired.
 
-Decision #212 measured the composite and found it does not discriminate (AUC
-0.4820), so the escalation was reframed: the number says how THIN the evidence
-for a closure is, not how likely a defect is to escape. The reframing reached
-the gate message, the compliance matrix and part of `agent-contract`, and stopped
-there — eight other places went on calling the same closure "high-risk", which is
-precisely the claim the measurement refuted.
+The project keeps two retired claims out by TEST, not by one-off sweeps. A
+sweep fixes the instances; a guard fixes the form, because the next file
+quoting an old doc or skill would otherwise reintroduce the dead rule by
+drift.
 
-That is why this is a TEST and not a one-off sweep. Decision #206 was itself
-about a number presented as a verdict being read as a verdict; fixing the wording
-by hand leaves the ninth occurrence to be written next week by someone reading
-the eighth. A sweep fixes the instances, a guard fixes the form.
+Guard 1 — the L3 selector describes evidence (decision #212). No shipped text
+may call it a risk verdict: the backtest in
+docs/ru/research/risk-model-backtest-2026-07.md measured AUC 0.4820 over 374
+closures, i.e. the composite does not separate closures a defect escaped from
+those it did not. The reframing reached the gate message, the compliance
+matrix and part of `agent-contract`, and stopped there — eight other places
+went on calling the same closure "high-risk", which is precisely the claim the
+measurement refuted.
 
-SOURCES ONLY. `.claude/`, `.cursor/` and friends are bootstrap COPIES — they are
-regenerated from these files, so flagging them would report one defect many
-times and be "fixed" by a rebuild rather than by an edit.
+Guard 2 — one model family per environment (1.11.6). Until 1.11.6 SENAR Rule
+4 required the L3 reviewer to run on a DIFFERENT model family, and
+unavailability of one stopped the ship ("stop; never downgrade"). That
+boundary is inverted: the reviewer runs on the host's own model in an
+isolated read-only context, and pulling another family is refused.
+
+SOURCES ONLY. `.claude/`, `.cursor/` and friends are bootstrap COPIES — they
+are regenerated from these files, so flagging them would report one defect
+many times and be "fixed" by a rebuild rather than by an edit.
 """
 
 from __future__ import annotations
@@ -22,18 +30,23 @@ from __future__ import annotations
 import os
 import re
 
+import pytest
+
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-# This guard sweeps the whole tree, so no filename maps it to any one module and
-# the resolver would leave it out of every scoped verify — see
-# `verify-certifies-a-run-that-touched-no-test-of-the-subject`. Declared against
-# the modules that actually PRINT the framing, so a change to any of them runs
-# the guard rather than merely hoping the full suite does.
+# Both guards sweep the whole tree, so no filename maps them to any one module
+# and the resolver would leave them out of every scoped verify — see
+# `verify-certifies-a-run-that-touched-no-test-of-the-subject`. Declared
+# against the modules that actually CARRY the claims, so a change to any of
+# them runs the guards rather than merely hoping the full suite does.
 CROSSCUTTING_SCOPE = [
     "scripts/risk_l3_trigger.py",
     "scripts/risk_metrics.py",
     "scripts/config_trust.py",
     "scripts/external_reviewer.py",
+    "scripts/review_separation.py",
+    "scripts/review_routing.py",
+    "scripts/project_parser_review.py",
     "docs/",
     "harness/",
     "README.md",
@@ -43,7 +56,7 @@ CROSSCUTTING_SCOPE = [
 # Phrases that frame the selector as a prediction about danger rather than a
 # description of evidence. Russian spellings are here for the same reason the
 # mirrors exist: a claim is no less false for being made in the other language.
-_FORBIDDEN = (
+_FRAMING_FORBIDDEN = (
     re.compile(r"high[- ]risk\s+clos", re.IGNORECASE),
     re.compile(r"high[- ]risk\s+task", re.IGNORECASE),
     re.compile(r"Recent high-risk"),
@@ -51,6 +64,72 @@ _FORBIDDEN = (
     re.compile(r"при\s+high-risk", re.IGNORECASE),
     re.compile(r"закрыти\w*\s+высокого\s+риска", re.IGNORECASE),
 )
+
+# Phrases that demand or describe the pre-1.11.6 cross-model review boundary.
+# The legacy DB token 'different-model' is NOT here: code must keep reading
+# historical records that carry it.
+_FAMILY_FORBIDDEN = (
+    re.compile(r"different\s+model\s+family", re.IGNORECASE),
+    re.compile(r"different-family\s+reviewer", re.IGNORECASE),
+    re.compile(r"a\s+different\s+model\s+(than|from)", re.IGNORECASE),
+    re.compile(r"requires?\s+a\s+different\s+model", re.IGNORECASE),
+    re.compile(r"never\s+downgrade(?![a-z])", re.IGNORECASE),
+    re.compile(r"ревью\s+на\s+другой\s+модели", re.IGNORECASE),
+    re.compile(r"другой\s+модел\w+,?\s+чем\s+у\s+автора", re.IGNORECASE),
+)
+
+# One entry per retired claim: (id, forbidden patterns, samples that must fire,
+# replacement samples that must NOT be flagged, refusal message).
+_RETIRED_CLAIMS = [
+    (
+        "risk-framing",
+        _FRAMING_FORBIDDEN,
+        (
+            "blocks a high-risk closure until",
+            "close a high-risk task",
+            "Recent high-risk: a, b",
+            "блокирует high-risk закрытие до записи",
+            "| Hard (при high-risk) |",
+            "требование внешнего L3-ревью при закрытии высокого риска",
+        ),
+        (
+            "blocks an under-evidenced closure until an L3 review is recorded",
+            "close an under-evidenced task",
+            "Recent under-evidenced: a, b",
+            "блокирует закрытие с тонким доказательством до записи L3-ревью",
+            "| Hard (при тонком доказательстве) |",
+            "требование внешнего L3-ревью при закрытии с тонким доказательством",
+        ),
+        "These call the L3 selector a risk verdict. The composite was measured "
+        "and does NOT discriminate (AUC 0.4820, decision #212) — it describes "
+        "how thin the evidence is. Say 'under-evidenced closure' (EN) or "
+        "'закрытие с тонким доказательством' (RU).",
+    ),
+    (
+        "one-family",
+        _FAMILY_FORBIDDEN,
+        (
+            "one external reviewer on a different model family via",
+            "review on a different model than the author",
+            "L3 requires a different model from the author's",
+            "If a different model is unavailable, stop; never downgrade.",
+            "требует ревью на другой модели",
+            "другой моделью, чем у автора",
+        ),
+        (
+            "one external reviewer on the SAME model family (the host's own model)",
+            "pulling another family for review is prohibited",
+            "a reviewer from ANOTHER model family than the author's is refused",
+            "запрещено дергать другое семейство для ревью",
+            "reviewer_context TEXT NOT NULL CHECK(reviewer_context IN "
+            "('external', 'different-model'))",
+        ),
+        "These demand or describe the pre-1.11.6 cross-model review boundary. "
+        "Since 1.11.6 one model family runs per environment: the reviewer is "
+        "the host's own model in an isolated read-only context, and pulling "
+        "another family is prohibited.",
+    ),
+]
 
 _SEARCH_ROOTS = ("scripts", "docs", "harness", "bootstrap")
 _SEARCH_FILES = ("README.md", "README.ru.md", "CLAUDE.md")
@@ -86,7 +165,7 @@ def _candidate_files() -> list[str]:
     return found
 
 
-def _offenders() -> list[str]:
+def _offenders(forbidden: tuple[re.Pattern[str], ...]) -> list[str]:
     hits: list[str] = []
     for path in _candidate_files():
         try:
@@ -99,21 +178,18 @@ def _offenders() -> list[str]:
             hits.append(f"{os.path.relpath(path, REPO)}: UNREADABLE")
             continue
         for number, line in enumerate(lines, 1):
-            for pattern in _FORBIDDEN:
+            for pattern in forbidden:
                 if pattern.search(line):
                     hits.append(f"{os.path.relpath(path, REPO)}:{number}: {line.strip()[:120]}")
                     break
     return hits
 
 
-def test_no_shipped_text_calls_an_under_evidenced_closure_high_risk():
-    offenders = _offenders()
-    assert not offenders, (
-        "These call the L3 selector a risk verdict. The composite was measured and "
-        "does NOT discriminate (AUC 0.4820, decision #212) — it describes how thin "
-        "the evidence is. Say 'under-evidenced closure' (EN) or 'закрытие с тонким "
-        "доказательством' (RU).\n" + "\n".join(offenders)
-    )
+@pytest.mark.parametrize("claim", _RETIRED_CLAIMS, ids=[c[0] for c in _RETIRED_CLAIMS])
+def test_no_shipped_text_makes_a_retired_claim(claim):
+    _, forbidden, _, _, message = claim
+    offenders = _offenders(forbidden)
+    assert not offenders, f"{message}\n" + "\n".join(offenders)
 
 
 def test_the_guard_actually_scans_something():
@@ -124,35 +200,28 @@ def test_the_guard_actually_scans_something():
     for expected in (
         "scripts/risk_l3_trigger.py",
         "scripts/risk_metrics.py",
+        "scripts/review_separation.py",
+        "scripts/external_reviewer.py",
         "docs/en/senar.md",
         "docs/ru/senar.md",
+        "docs/en/workflow.md",
         "README.md",
         "harness/claude/subagents/tausik-external-reviewer.md",
     ):
         assert expected in rel, f"{expected} is not in the swept set"
 
 
-def test_the_patterns_would_actually_fire():
+@pytest.mark.parametrize("claim", _RETIRED_CLAIMS, ids=[c[0] for c in _RETIRED_CLAIMS])
+def test_the_patterns_would_actually_fire(claim):
     """The other half: patterns that match nothing would also pass forever."""
-    for sample in (
-        "blocks a high-risk closure until",
-        "close a high-risk task",
-        "Recent high-risk: a, b",
-        "блокирует high-risk закрытие до записи",
-        "| Hard (при high-risk) |",
-        "требование внешнего L3-ревью при закрытии высокого риска",
-    ):
-        assert any(p.search(sample) for p in _FORBIDDEN), f"nothing matched: {sample}"
+    _, forbidden, fire, _, _ = claim
+    for sample in fire:
+        assert any(p.search(sample) for p in forbidden), f"nothing matched: {sample}"
 
 
-def test_the_replacement_wording_is_not_itself_flagged():
+@pytest.mark.parametrize("claim", _RETIRED_CLAIMS, ids=[c[0] for c in _RETIRED_CLAIMS])
+def test_the_replacement_wording_is_not_itself_flagged(claim):
     """A guard that rejects the fix would make the fix unlandable."""
-    for sample in (
-        "blocks an under-evidenced closure until an L3 review is recorded",
-        "close an under-evidenced task",
-        "Recent under-evidenced: a, b",
-        "блокирует закрытие с тонким доказательством до записи L3-ревью",
-        "| Hard (при тонком доказательстве) |",
-        "требование внешнего L3-ревью при закрытии с тонким доказательством",
-    ):
-        assert not any(p.search(sample) for p in _FORBIDDEN), f"wrongly flagged: {sample}"
+    _, forbidden, _, safe, _ = claim
+    for sample in safe:
+        assert not any(p.search(sample) for p in forbidden), f"wrongly flagged: {sample}"

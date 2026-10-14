@@ -320,6 +320,9 @@ def test_latest_evidence_wins_and_route_drift_cannot_reuse_cohort(cohort_project
 def test_membership_and_model_family_drift_are_refused(cohort_project):
     service, tmp_path = cohort_project
     opened = open_review_cohort(service, story="s")
+    # 1.11.6: a reviewer from ANOTHER family than the author is the refused
+    # form (one family per environment); same-family is valid, so the drift
+    # probe must now pull a foreign family to stay a probe.
     with pytest.raises(ValueError, match="invalid L3 reviewer evidence"):
         record_review_round(
             service,
@@ -328,7 +331,7 @@ def test_membership_and_model_family_drift_are_refused(cohort_project):
             [_result("a"), _result("b")],
             packet_digest=opened["packet"]["packet_digest"],
             author_model=AUTHOR,
-            reviewer_model=AUTHOR,
+            reviewer_model="claude-opus-5-5",
         )
     with pytest.raises(ValueError, match="trusted per-task provenance"):
         record_review_round(

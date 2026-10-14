@@ -137,7 +137,7 @@ def record_review_round(
                     run_type="L3",
                     author_model=authors[slug],
                     reviewer_model=reviewer_model,
-                    reviewer_context="different-model",
+                    reviewer_context="external",
                     reviewer_invocations=1,
                 )
                 if errors:
@@ -146,7 +146,7 @@ def record_review_round(
             conn.execute(
                 "INSERT INTO review_cohort_rounds(cohort_pk,round_number,packet_json,author_model,"
                 "reviewer_model,reviewer_context,reviewer_invocations,usage_json,recorded_at) "
-                "VALUES(?,?,?,?,?,'different-model',1,?,?)",
+                "VALUES(?,?,?,?,?,'external',1,?,?)",
                 (
                     cohort_id,
                     round_number,

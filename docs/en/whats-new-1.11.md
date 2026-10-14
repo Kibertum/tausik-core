@@ -112,3 +112,25 @@ own status and never appears as an ordinary green result.
 
 - [Bounded L3 contract](review-cohort-contract.md)
 - [Exact 1.11.5 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.5/CHANGELOG.md)
+
+## 1.11.6 — one model family per environment
+
+SENAR Rule 4 no longer requires the L3 reviewer to run on a different model
+family. Separation of duties holds by the isolated, mechanically read-only
+reviewer context: the reviewer runs on the SAME model family as the author —
+the model the host already runs. A Claude host reviews with Claude only,
+Codex with GPT only, z.ai with GLM only; pulling another family for review
+is prohibited, and an L3 record with a cross-family reviewer is refused.
+Same-family records (including the author's own model) are the recordable
+form, and both model identities stay mandatory.
+
+The pre-1.11.6 `different-model` context token remains readable, so
+historical review records stay valid; new rounds record `external`, and
+schema v81 widens the cohort-round CHECK by a guarded table rebuild. The
+external-reviewer subagent drops its hardcoded model and blocks a delegation
+asking for another family. Also fixed: the bounded task-context package
+could return a few bytes over its budget when the omission marker itself
+crossed the ceiling.
+
+- [SENAR rules](senar.md)
+- [Exact 1.11.6 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.6/CHANGELOG.md)

@@ -3,9 +3,10 @@
 THE GAP, MEASURED (session #239). A verify receipt is signed with the PROJECT
 key from `.tausik/keys/project.pub`. It answers "which gates passed on which
 state of the code" and says nothing about who ran them. Meanwhile the whole
-quality story rests on separation of duties: an external reviewer on a DIFFERENT
-model, and with P8 also "the test author is not the implementer". All of it was
-ASSERTED and none of it attestable — one signature, one project.
+quality story rests on separation of duties: an external reviewer in an
+isolated context (same model family since 1.11.6), and with P8 also "the test
+author is not the implementer". All of it was ASSERTED and none of it
+attestable — one signature, one project.
 
 WHAT THE NUMBERS SAID, and they are harder than the filing was. Across 1,686
 receipts not one carries any actor field. Of 1,574 tasks, `claimed_by` is NULL

@@ -25,7 +25,7 @@ LOW = {
 
 
 @pytest.mark.parametrize(
-    "assurance, expected_depth, calls, different_model",
+    "assurance, expected_depth, calls, same_family",
     [
         (
             evaluate_assurance(
@@ -55,11 +55,13 @@ LOW = {
         ),
     ],
 )
-def test_route_fanout_follows_residual_assurance(assurance, expected_depth, calls, different_model):
+def test_route_fanout_follows_residual_assurance(assurance, expected_depth, calls, same_family):
     route = build_review_route(assurance)
     assert route["depth"] == expected_depth
     assert route["execution"]["reviewer_invocations"] == calls
-    assert route["execution"]["different_model_required"] is different_model
+    assert route["execution"]["same_family_required"] is same_family
+    if expected_depth == "L3":
+        assert route["execution"]["reviewer_context"] == "external"
 
 
 def test_mixed_profiles_retain_the_union_and_executable_gaps():
@@ -217,8 +219,8 @@ def test_bound_l3_record_with_l1_route_and_zero_invocations_fails_closed(tmp_pat
     "overrides, fragment",
     [
         ({"reviewer_available": False}, "unavailable"),
-        ({"reviewer_context": "fresh"}, "different-model"),
-        ({"reviewer_model": "claude-opus-4-8"}, "same-family"),
+        ({"reviewer_context": "fresh"}, "isolated context"),
+        ({"reviewer_model": "glm-5.2"}, "another model family"),
         ({"verification_passed": False}, "verification failed"),
         ({"critical_findings": 1}, "HIGH/CRITICAL"),
         ({"high_findings": 1}, "HIGH/CRITICAL"),
@@ -240,11 +242,33 @@ def test_l3_negative_cases_never_validate_as_a_lower_or_passing_route(overrides,
         "run_type": "L3",
         "author_model": "claude-opus-5-5",
         "reviewer_model": "claude-fable-5-1",
-        "reviewer_context": "different-model",
+        "reviewer_context": "external",
         "reviewer_invocations": 1,
     }
     values.update(overrides)
     assert fragment in "; ".join(validate_review_record(route, **values))
+
+
+def test_a_legacy_cross_family_record_still_satisfies_its_stored_route():
+    """Pre-1.11.6 rows carry reviewer_context='different-model' with a
+    cross-family pair that was valid then; validate must keep reading them
+    instead of retroactively refusing history."""
+    route = build_review_route(
+        evaluate_assurance(
+            profiles=["executable"],
+            impact={**LOW, "security_boundary": True},
+            observed_evidence=[],
+        )
+    )
+    errors = validate_review_record(
+        route,
+        run_type="L3",
+        author_model="claude-opus-5-5",
+        reviewer_model="glm-5.2",
+        reviewer_context="different-model",
+        reviewer_invocations=1,
+    )
+    assert errors == []
 
 
 def test_structured_review_record_persists_route_identity_and_available_usage(tmp_path):

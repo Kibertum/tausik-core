@@ -23,11 +23,15 @@ class TestSkillHints:
         # critic / synthesis escalates to the stronger reasoner
         assert "Opus 4.8" in text
 
-    def test_ship_documents_sonnet_subagents(self):
+    def test_ship_documents_the_one_family_reviewer(self):
         text = _read("harness", "skills", "ship", "SKILL.md")
         assert "Subagent route (phase=code-review)" in text
-        assert "Terra on Codex" in text
-        assert 'model: "sonnet"' in text
+        # 1.11.6: one model family per environment — the review-phase guidance
+        # documents the same-family reviewer, not a foreign-family pull.
+        # (Same-family tier hints elsewhere in the skill, e.g. the test phase's
+        # model: "sonnet", remain legal under the rule.)
+        assert "SAME model family" in text
+        assert "Terra on Codex" not in text
 
     def test_debug_documents_gatefixer_model(self):
         text = _read("harness", "skills", "debug", "SKILL.md")
