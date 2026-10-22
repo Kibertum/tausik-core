@@ -1,6 +1,8 @@
 ---
 name: tausik-memory
-description: "memory-only playbook — search then decide/memory_add; light tasks per canon B."
+description: "tausik-memory: search then decide/memory_add (canon B)."
+effort: fast
+context: inline
 ---
 
 # /tausik-memory — Memory-only playbook
@@ -35,3 +37,12 @@ Call **`tausik_memory_brief`** once at the start of work. It returns profile, do
 ## Shared surface
 
 `advertise_do_dont()` in `scripts/memory_only_backlog.py` is the do/dont source for brief and MCP advertise. Keep skills aligned with that list.
+
+## Gotchas
+
+- Description must stay ≤60 characters (skill inventory tax) while still naming
+  `tausik-memory` so natural-language matching finds this skill.
+- `full_path` / `--full-path` is the only way back onto verify/gates under
+  memory-only; a light `task done` is accounting, not a green receipt.
+- Do not write project facts into host-local memory (`~/.claude/`, `.cursor/rules/`);
+  use `tausik_memory_*` / `tausik_decide` so the next agent on another host inherits them.
