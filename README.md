@@ -144,7 +144,7 @@ Those are **suggestions** — text the agent reads and can ignore when it's inco
 - **151 MCP tools** — full programmatic access to the project database.
 - **23 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
-- **13 core skills** auto-deployed; the official store has only `docs`, `excel`, and `pdf`, installed one at a time so unused instructions add no prompt cost.
+- **14 core skills** auto-deployed; the official store has only `docs`, `excel`, and `pdf`, installed one at a time so unused instructions add no prompt cost.
 - **6 automatic metrics**, **a shared local knowledge store** (`~/.tausik-knowledge`, `--global`), **batch execution** (`/run plan.md`).
 
 </details>
@@ -153,13 +153,13 @@ Those are **suggestions** — text the agent reads and can ignore when it's inco
 
 | IDE | MCP tools | Skills | Hooks | Status |
 |---|---|---|---|---|
-| **Claude Code** | 151 | 13 core + opt-in | 23 (full) | First-class |
-| **Qwen Code** | 151 | 13 core + opt-in | 23 (parity with Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 151 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
-| **Cursor** | 151 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
-| VSCode + Claude Extension | 151 | 13 core + opt-in | 23 | Tested E2E |
-| **Codex CLI** | 151 | 13 core + opt-in | 23 (same declaration as Claude; enforce once you trust the project hooks in Codex) | First-class, live-verified in 1.9 |
-| **OpenCode** | 151 | 13 core + opt-in | — (one QG-0 plugin; gates at task start/done) | Supported via MCP |
+| **Claude Code** | 151 | 14 core + opt-in | 23 (full) | First-class |
+| **Qwen Code** | 151 | 14 core + opt-in | 23 (parity with Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 151 | 14 core + opt-in | — (gates at task start/done) | First-class via MCP |
+| **Cursor** | 151 | 14 core + opt-in | — (gates at task start/done) | Supported via MCP |
+| VSCode + Claude Extension | 151 | 14 core + opt-in | 23 | Tested E2E |
+| **Codex CLI** | 151 | 14 core + opt-in | 23 (same declaration as Claude; enforce once you trust the project hooks in Codex) | First-class, live-verified in 1.9 |
+| **OpenCode** | 151 | 14 core + opt-in | — (one QG-0 plugin; gates at task start/done) | Supported via MCP |
 | Windsurf | MCP + rules | host-dependent | host-specific | Expected / manual |
 
 Hooks run in **Claude Code, Qwen Code and Codex** (Codex runs them only after you trust the project — see the [Codex enforcement matrix](docs/en/model-providers.md#codex-enforcement-matrix)). Other hosts get the same tools and skills, with the checkpoints applied at `task start` and `task done`.

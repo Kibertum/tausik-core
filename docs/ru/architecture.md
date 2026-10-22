@@ -181,7 +181,7 @@ project-сервера весят 56 108 байт (порядка 14 000 ток�
 такое лежало в `harness/cursor/` и удалено в v1.7.0.
 ```
 harness/
-├── skills/           # 13 core auto-deployed; внешние ставятся по одному
+├── skills/           # 14 core auto-deployed; внешние ставятся по одному
 ├── roles/            # 7 ролей (architect, developer, devops, qa, researcher, tech-writer, ui-ux)
 ├── stacks/           # Руководства по стекам
 ├── overrides/        # Переопределения для конкретных сред (claude/, cursor/, qwen/)

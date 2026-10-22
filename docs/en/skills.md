@@ -6,7 +6,7 @@
 
 Skills are intent-based instructions that define agent behaviour. You don't memorize names or syntax — you write what you want, and the agent picks the right skill. Slash-prefix (`/plan`, `/ship`) explicitly invokes one.
 
-After bootstrap, **13 core skills** ship with TAUSIK from `harness/skills/`. The official store contains only `docs`, `excel`, and `pdf`. Install one only when needed with `tausik skill install <name>` so unused instructions add no prompt cost. **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md).
+After bootstrap, **14 core skills** ship with TAUSIK from `harness/skills/`. The official store contains only `docs`, `excel`, and `pdf`. Install one only when needed with `tausik skill install <name>` so unused instructions add no prompt cost. **Map of repo skills:** [Skill ecosystem (one page)](skill-ecosystem.md).
 
 > **Token rule since v1.4.** Before v1.4, bootstrap exposed the whole catalog and spent about 1,520 tokens on its reminder list. The default now exposes only core skills. `--include-official` remains a local-checkout compatibility switch, but per-skill installation is the supported economical path.
 

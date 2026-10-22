@@ -144,7 +144,7 @@ Run `tausik verify --task fix-mobile-button` first.
 - **151 MCP-инструментов** — полный программный доступ к базе проекта.
 - **23 хука реального времени** — гейт задачи, bash firewall, push gate, автоформат, детектор дрифта, аудит памяти и другие.
 - **25 стек-зависимых наборов проверок** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и другие, по тронутым файлам.
-- **13 core-навыков** разворачиваются автоматически; в официальном магазине остаются только `docs`, `excel` и `pdf`, которые ставятся по одному и не расходуют контекст без необходимости.
+- **14 core-навыков** разворачиваются автоматически; в официальном магазине остаются только `docs`, `excel` и `pdf`, которые ставятся по одному и не расходуют контекст без необходимости.
 - **6 автоматических метрик**, **общая локальная база знаний** (`~/.tausik-knowledge`, `--global`), **пакетное выполнение** (`/run plan.md`).
 
 </details>
@@ -153,13 +153,13 @@ Run `tausik verify --task fix-mobile-button` first.
 
 | IDE | MCP-инструменты | Навыки | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 151 | 13 core + по запросу | 23 (полностью) | First-class |
-| **Qwen Code** | 151 | 13 core + по запросу | 23 (паритет с Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 151 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
-| **Cursor** | 151 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
-| VSCode + Claude Extension | 151 | 13 core + по запросу | 23 | Прогнано E2E |
-| **Codex CLI** | 151 | 13 core + по запросу | 23 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
-| **OpenCode** | 151 | 13 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
+| **Claude Code** | 151 | 14 core + по запросу | 23 (полностью) | First-class |
+| **Qwen Code** | 151 | 14 core + по запросу | 23 (паритет с Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 151 | 14 core + по запросу | — (гейты на task start/done) | First-class через MCP |
+| **Cursor** | 151 | 14 core + по запросу | — (гейты на task start/done) | Через MCP |
+| VSCode + Claude Extension | 151 | 14 core + по запросу | 23 | Прогнано E2E |
+| **Codex CLI** | 151 | 14 core + по запросу | 23 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
+| **OpenCode** | 151 | 14 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
 | Windsurf | MCP + правила | зависит от хоста | зависит от хоста | Ожидается / вручную |
 
 Хуки работают в **Claude Code, Qwen Code и Codex** (Codex запускает их только после того, как вы доверили проект, — см. [матрицу принуждения Codex](docs/ru/model-providers.md#матрица-принуждения-codex)). Остальные хосты получают те же инструменты и навыки, а контрольные точки срабатывают на `task start` и `task done`.
