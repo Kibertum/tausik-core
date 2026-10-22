@@ -126,6 +126,7 @@ def bootstrap_ide(
         ide,
         vendor_skills,
         include_official_stubs=include_official_stubs,
+        governance_profile=governance_profile,
     )
     print(f"  Skills: {n_skills} copied")
 

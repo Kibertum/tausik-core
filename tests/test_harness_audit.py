@@ -179,3 +179,11 @@ def test_scan_text_secrets_reports_detector_names_not_literals():
     found = scan_text_secrets(text)
     assert "aws_access_key" in found and "private_key_block" in found
     assert all("AKIA" not in f for f in found)
+
+
+# Whole-tree / doctor-run meta-scanners (1.11.6 lane cut): each test here walks
+# the repository or spawns the CLI, so the file costs minutes, not milliseconds
+# (measured: senar_self_check 97s, doctor_trust_tier 94s, gen_doc_constants 74s
+# on a 20-core box). They still gate every push through the ubuntu test-full
+# job and the GitLab full lane; the fast lane does not pay for them twice.
+pytestmark = pytest.mark.slow

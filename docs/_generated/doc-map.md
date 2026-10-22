@@ -115,6 +115,7 @@ generated from those declarations.
 |---|---|---|
 | `codex-economy-baseline.md` | maintainer | en, ru |
 | `context-economy.md` | maintainer | en, ru |
+| `cursor-economy-baseline.md` | maintainer | en, ru |
 | `i18n-strategy.md` | maintainer | en, ru |
 | `publishing.md` | maintainer | en, ru |
 | `renar-11-deltas.md` | maintainer | en, ru |
@@ -156,4 +157,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-80 page(s), 79 carried by both languages.
+81 page(s), 80 carried by both languages.

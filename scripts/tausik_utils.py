@@ -262,6 +262,11 @@ def format_status_compact_json(data: dict[str, Any], duration_warning: str | Non
     the compact response without a follow-up tausik_status call.
     """
 
+    if data.get("governance_profile") == "memory-only":
+        from memory_only_backlog import memory_only_compact
+
+        return json.dumps(memory_only_compact(data), separators=(",", ":"), ensure_ascii=False)
+
     counts = data["task_counts"]
     total = sum(counts.values())
     done = counts.get("done", 0)

@@ -9,6 +9,80 @@
 > начиная с v1.3.2; для более ранних релизов смотри английскую версию.
 > При добавлении новой записи держи оба файла синхронизированными.
 
+## [Unreleased]
+
+## [1.11.7] — 2026-10-22
+
+### Added — `task rename` двигает опубликованный слаг со всеми ссылками
+
+- `tausik task rename <old> <new>` / MCP `tausik_task_rename` переписывают слаг
+  задачи и каждую колонку, которая его хранит, в одной транзакции. Перечень
+  ссылающихся колонок выводится из живой схемы (`PRAGMA foreign_key_list` +
+  колонки `task_slug`), а не набирается руками. `PRAGMA foreign_key_check`
+  обязан пройти, иначе откат целиком. Занятый целевой слаг отвергается
+  именем. Старый файл проекции удаляется. Переименование эпика/стори — вне
+  объёма.
+
+### Изменено — релизный CI-гейт минутный, а не часовой
+
+- Windows выведен из per-push гейта `Tests` в отдельный workflow
+  `windows-lane` (nightly 03:00 UTC + ручной запуск). Замер на 1.11.6:
+  windows fast lane стоила 52m59s, при том что ubuntu `test-full` (fast И
+  slow — строго больше тестов) шёл 8m27s, macOS 9m12s — налог Windows-раннера
+  ~6x, и именно Windows была единственным часовым гейтом релиза.
+  Push/релизный гейт теперь `test-full` + macOS fast + lint, ≈9-10 минут
+  (решение #430).
+- Одиннадцать файлов мета-сканеров дерева/доктора — ~60% замеренного compute
+  fast-ленты (`senar_self_check` 97s, `doctor_trust_tier` 94s,
+  `gen_doc_constants` 74s на 20 ядрах) — переведены в `pytest.mark.slow`:
+  238 тестов перенесены, а не удалены; каждый контракт по-прежнему исполняется
+  на каждом пуше через ubuntu `test-full` и GitLab full-лейн. Локальная
+  fast-лейна: 3m17s → 2m58s, 381 тест деселектится как slow.
+- `tests/test_repo_hygiene_ratchet.py` объявлен в `_SLOW_RATCHET_EXCEPTIONS`
+  с замером (29.5s/2 теста); ratchet-guard держит все остальные
+  читающие-базлайн тесты в дефолт-лейне.
+- Два файла покинули замороженный `ruff_format` legacy-список после
+  переформатирования (93 → 91).
+
+### Изменено — memory-only бэклог стал лёгким
+
+- `governance_profile: "memory-only"` оставляет записи epic, story и task
+  учётом работ. QG-0, QG-2, session и verify не являются путём по умолчанию.
+  `tausik_session_start` и `tausik_verify` отвечают `profile=disabled`, пока
+  владелец не передаст `full_path`. `task_done` закрывает задачу без gates,
+  пока не задан `full_path` / `--full-path`. `status` и `doctor` не выводят
+  стены SENAR/RENAR и не предлагают полный bootstrap навыков. Профиль `full`
+  не изменён.
+- В memory-only хиты задач из `search_knowledge` помечены как
+  historical/optional учёт бэклога; memory и decisions остаются первичными.
+  Формулировка хитов задач в профиле `full` не изменена.
+- Пустой MCP `properties: {}` у инструмента с обязательными аргументами —
+  дефект. Ядро держит полные eager-схемы; остальное — непустой stub и
+  `tausik_tool_schema` по требованию. Не чинить угадывание аргументов в Cursor
+  жадной отправкой всех ~149 полных схем (храповик `mcp_surface`).
+- В memory-only `tools/list` помечает `tausik_session_start` /
+  `tausik_verify` как `[profile=disabled]` и откладывает их схемы; лёгкий
+  бэклог остаётся в advertise. `advertise_do_dont()` — общий источник для
+  будущего `agent_brief`. Advertise профиля `full` не изменён.
+- Bootstrap memory-only ставит `tausik-memory` (поиск → decide/memory_add,
+  лёгкие задачи по канону B) и не ставит SENAR-сессионные `start`/`end`/
+  `checkpoint`. `doctor` / `status` не толкают полный skill bootstrap, который
+  стёр бы lite-набор. Полный профиль без изменений.
+- MCP `tausik_memory_brief`: playbook memory-only одним вызовом (profile, do/dont,
+  decide_vs_memory, next_hint) с `max_bytes` как у package (по умолчанию 8192)
+  и overflow-метаданными. Сессию не открывает. Lite-skill зовёт его первым.
+- Таблица маршрутизации decide/memory в brief и skill `tausik-memory`: выбор
+  владельца → decide; факт → memory; stop-doing → dead_end/gotcha; черновик →
+  лёгкая задача или заметка. `task_slug` у `memory_add` опционален — задача
+  перед decide/memory не нужна.
+- `tausik doctor` на Cursor предупреждает, если non-TAUSIK MCP делят тот же
+  бюджет плана (налог advertise на ход). В доках: отключайте лишний MCP для
+  сфокусированной работы; чужие токены TAUSIK не мерит.
+- Базовый замер экономики Cursor (1.11.7): метод раундов для fixture
+  memory-only playbook; before/after **unknown** (нет ledger Cursor); числа
+  Codex нельзя переклеивать как Cursor. См.
+  `docs/ru/cursor-economy-baseline.md`.
+
 ## [1.11.6] — 2026-10-14
 
 ### Изменено — одно семейство моделей на окружение для ревью

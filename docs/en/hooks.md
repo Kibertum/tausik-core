@@ -6,7 +6,7 @@
 
 TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **23 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 24 gates in total (v1.4 introduced `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, and `task_cost_budget_check.py`; 1.8 added `scope_write_gate.py` and `bash_write_gate.py`; 1.9 added `read_ledger_gate.py`, off by default).
 
-The default `governance_profile: "full"` deploys the table below. An explicit project-level `"memory-only"` profile deploys only `memory_pretool_block.py` and `memory_posttool_audit.py` on hook-capable hosts, removes the OpenCode QG-0 plugin, and retains TAUSIK MCP/RAG/data. Use this profile for repositories where project memory is useful but TAUSIK task/verify ceremony is not. It is never inferred from an infrastructure stack. See [configuration](configuration.md#governance-footprint) for the guarantees deliberately lost.
+The default `governance_profile: "full"` deploys the table below. An explicit project-level `"memory-only"` profile deploys only `memory_pretool_block.py` and `memory_posttool_audit.py` on hook-capable hosts, removes the OpenCode QG-0 plugin, and retains TAUSIK MCP/RAG/data. The same profile keeps a light backlog: task records stay usable, and session, verify, and gated close are not the default. Use it where project memory and work accounting are useful but TAUSIK task/verify ceremony is not. It is never inferred from an infrastructure stack. See [configuration](configuration.md#governance-footprint) for the guarantees deliberately lost.
 
 ## What Are Hooks
 

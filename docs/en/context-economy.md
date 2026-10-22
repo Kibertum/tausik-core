@@ -80,8 +80,27 @@ search, doctor and recovery operations keep their complete eager definitions.
 This deterministic server-side reduction does not change the earlier statement
 about unknown native Codex schema accounting.
 
+**Empty `properties: {}` is a defect when the tool needs arguments.** On Cursor
+and similar hosts it reads as “no parameters”, which drives `--help` / arg-guess
+loops. Non-core tools must not be “fixed” by eager-shipping every full schema:
+that inflates the per-turn surface (~17× names-only vs full). The fix is a
+non-empty stub (`additionalProperties: true`) plus on-demand
+`tausik_tool_schema(name=...)`, with the `mcp_surface` ratchet capping growth.
+
 The one-call count is deterministic on the shared Codex, Claude and GLM skill.
 Live GLM quota and retry savings remain unmeasured until the release acceptance
 run; TAUSIK does not translate the saved call into a token or subscription
 quota claim. Retry cases and measurement boundaries are recorded in the
 [1.11 compound workflow note](../ru/research/compound-workflow-111.md).
+
+## Cursor: extra MCP servers tax the same plan
+
+On Cursor, every enabled MCP server (project `.cursor/mcp.json`, user MCP, or
+plugins) contributes tools to the per-turn advertise list. That cost sits on
+the **same** Cursor subscription budget as TAUSIK. For focused memory-only
+work, disable unused MCP in Cursor Settings → MCP or trim the project file —
+not only `~/.cursor/mcp.json`. `tausik doctor` warns when non-TAUSIK servers
+are present. TAUSIK cannot meter third-party MCP token use.
+
+Rounds method and honesty rules for the memory-only playbook:
+[Cursor economy baseline](cursor-economy-baseline.md).

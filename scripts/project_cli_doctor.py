@@ -209,7 +209,11 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
     warnings += _w
 
     skills_dir = os.path.join(project_dir, ide_rel, "skills")
-    if os.path.isdir(skills_dir):
+    from memory_only_backlog import profile_of_dir
+
+    if profile_of_dir(os.path.join(project_dir, ".tausik")) == "memory-only":
+        _print_ok("Core skills", "memory-only: full skill bootstrap is not required")
+    elif os.path.isdir(skills_dir):
         skills = [d for d in os.listdir(skills_dir) if os.path.isdir(os.path.join(skills_dir, d))]
         critical = {
             "start",

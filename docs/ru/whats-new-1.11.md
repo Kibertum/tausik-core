@@ -137,3 +137,20 @@ task-context мог вернуть на несколько байт больше
 
 - [Правила SENAR](senar.md)
 - [Точный changelog 1.11.6](https://github.com/Kibertum/tausik-core/blob/v1.11.6/CHANGELOG.ru.md)
+
+## 1.11.7 — memory-only playbook для Cursor и переименование задачи
+
+memory-only держит лёгкий бэклог (канон B): epic/story/task остаются
+учётом работ, а стены session/verify/QG не на пути по умолчанию, пока
+владелец не попросит `full_path`. Bootstrap ставит `tausik-memory`;
+`tausik_memory_brief` отдаёт playbook одним вызовом. `tools/list`
+помечает отключённые тулы профиля. Экономия Cursor — rounds+surface
+(мультипроект), не полировка кэша; цифры Codex не переименовываются
+в Cursor.
+
+`task rename` / `tausik_task_rename` двигают опубликованный слаг со
+всеми ссылающимися колонками в одной транзакции (перечень из схемы,
+`foreign_key_check`, очистка проекции). Релизный CI-гейт остаётся
+минутным: Windows — nightly, не per-push.
+
+- [Точный changelog 1.11.7](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.ru.md)

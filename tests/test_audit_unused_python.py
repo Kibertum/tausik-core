@@ -123,9 +123,18 @@ class TestCli:
             [str(py), str(REPO / "scripts" / "audit_unused_python.py")],
             cwd=str(REPO),
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         # Exit 0 (clean) or 1 (--check would flag) — never crash on real repo
         assert r.returncode == 0
         assert "Unused Python audit" in r.stdout
+
+
+# Whole-tree / doctor-run meta-scanners (1.11.6 lane cut): each test here walks
+# the repository or spawns the CLI, so the file costs minutes, not milliseconds
+# (measured: senar_self_check 97s, doctor_trust_tier 94s, gen_doc_constants 74s
+# on a 20-core box). They still gate every push through the ubuntu test-full
+# job and the GitLab full lane; the fast lane does not pay for them twice.
+pytestmark = pytest.mark.slow

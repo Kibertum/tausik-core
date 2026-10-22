@@ -85,14 +85,16 @@ def test_a_machine_wide_weakening_in_effect_says_so_and_points_at_the_scoped_for
 
 def test_a_weakening_scoped_to_this_project_is_reported_as_such(tiers, tmp_path):
     project = str(tmp_path / "here")
-    tiers({"projects": {project: {"task_done": {"auto_verify": True, "_reason": "this repo only"}}}})
+    tiers(
+        {"projects": {project: {"task_done": {"auto_verify": True, "_reason": "this repo only"}}}}
+    )
 
     lines, ok = ctw.summary({"task_done": {"auto_verify": True}}, project)
 
     assert ok is None
     (line,) = lines
     assert "scoped to this project" in line
-    assert "MACHINE-WIDE" not in line and 'move it under' not in line
+    assert "MACHINE-WIDE" not in line and "move it under" not in line
 
 
 def test_another_projects_scoped_entry_is_counted_not_applied(tiers, tmp_path):
@@ -102,8 +104,6 @@ def test_another_projects_scoped_entry_is_counted_not_applied(tiers, tmp_path):
 
     assert lines == []
     assert ok is not None and "1 project-scoped entry for other projects, not applied here" in ok
-
-
 
 
 def test_user_tier_weakening_is_named_with_its_tier_key_and_file(tiers):
@@ -437,3 +437,11 @@ def test_the_real_user_config_is_never_opened(tiers):
         _run_doctor(resolved=weak)
 
     assert REAL_USER_CONFIG not in opened
+
+
+# Whole-tree / doctor-run meta-scanners (1.11.6 lane cut): each test here walks
+# the repository or spawns the CLI, so the file costs minutes, not milliseconds
+# (measured: senar_self_check 97s, doctor_trust_tier 94s, gen_doc_constants 74s
+# on a 20-core box). They still gate every push through the ubuntu test-full
+# job and the GitLab full lane; the fast lane does not pay for them twice.
+pytestmark = pytest.mark.slow

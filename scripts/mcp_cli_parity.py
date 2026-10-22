@@ -43,6 +43,7 @@ PARITY: dict[str, tuple[str, ...] | None] = {
     "tausik_task_log": ("task", "log"),
     "tausik_task_logs": ("task", "logs"),
     "tausik_task_move": ("task", "move"),
+    "tausik_task_rename": ("task", "rename"),
     "tausik_task_next": ("task", "next"),
     "tausik_task_plan": ("task", "plan"),
     "tausik_task_quick": ("task", "quick"),
@@ -180,6 +181,7 @@ PARITY: dict[str, tuple[str, ...] | None] = {
     "tausik_audit_check": ("audit", "check"),
     "tausik_audit_mark": ("audit", "mark"),
     "tausik_doctor": ("doctor",),
+    "tausik_memory_brief": None,
     "tausik_explore_current": ("explore", "current"),
     "tausik_explore_end": ("explore", "end"),
     "tausik_explore_start": ("explore", "start"),
@@ -232,11 +234,15 @@ NO_TWIN_REASONS: dict[str, str] = {
         "CLI `snippet` exposes detect/extract over the working tree; the "
         "clone-cluster search behind tausik_snippet_search has no CLI command."
     ),
+    "tausik_memory_brief": (
+        "Budgeted memory-only playbook RPC (do/dont + decide_vs_memory). "
+        "No CLI twin: the lite skill and MCP advertise own this surface."
+    ),
 }
 
 # The number is part of the contract: an exception added without updating this
 # literal (and the test that reads it) fails the ratchet.
-NO_TWIN_COUNT = 9
+NO_TWIN_COUNT = 10
 
 # --- The loss ratchet: read-only pairs driven on a planted project -------------
 # (mcp_tool, cli_argv, mcp_args). SLUG/QUERY substitutions happen in the test.

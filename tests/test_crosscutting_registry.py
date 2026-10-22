@@ -397,7 +397,13 @@ _SLOW_MARK = re.compile(r"(?:pytestmark\s*=\s*pytest\.mark\.slow|@pytest\.mark\.
 #: Declared exception, with its reason. `test_consumer_first_close` names gates.json
 #: because it WRITES one into a temporary consumer project; it reads no baseline of
 #: this repository, and it genuinely costs 72s.
-_SLOW_RATCHET_EXCEPTIONS = frozenset({"test_consumer_first_close.py"})
+#: `test_repo_hygiene_ratchet` (1.11.6 lane cut) DOES read this repo's baseline and
+#: re-walks the live tree — 29.5s measured for 2 tests. Its zero is held per push
+#: by the ubuntu `test-full` job and the GitLab full lane (both run `-m ''`), not
+#: by a lane nobody runs; the fast lane stopped paying for the tree walk.
+_SLOW_RATCHET_EXCEPTIONS = frozenset(
+    {"test_consumer_first_close.py", "test_repo_hygiene_ratchet.py"}
+)
 
 
 def _ratchets_deselected_by_default() -> set[str]:

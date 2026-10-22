@@ -46,6 +46,16 @@ def run_optional_checks(
             else:
                 print_ok(label, detail)
 
+    # Cursor MCP surface tax — only when `.cursor/mcp.json` exists. Extra
+    # (non-TAUSIK) servers share the same Cursor plan budget; we do not meter them.
+    try:
+        from service_doctor_cursor import check_cursor_mcp_surface
+
+        drain(check_cursor_mcp_surface(project_dir))
+    except Exception as e:  # noqa: BLE001 — best-effort: a Cursor-check bug must not crash doctor
+        print_warn("Cursor MCP surface", f"could not validate: {e}")
+        warnings += 1
+
     # Kilo MCP config — only fires for Kilo installs (.kilo/.kilocode present).
     # Silent for non-Kilo projects so it adds no noise to the common path.
     try:

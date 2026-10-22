@@ -152,6 +152,7 @@ def run_progress_close(
     no_changelog: bool = False,
     zero_gate_ack: bool = False,
     progress_fn: Any | None = None,
+    full_path: bool = False,
 ) -> dict[str, Any]:
     """Run deterministic progress operations and optionally verify + close."""
     message, step_num = _validate(
@@ -187,7 +188,9 @@ def run_progress_close(
         return _failure(svc, slug, result, "task_step", str(exc))
 
     handle = verify_handle
-    if close and verify:
+    from memory_only_backlog import gates_are_skipped
+
+    if close and verify and not gates_are_skipped(svc, full_path):
         try:
             verify_report = svc.run_verify_for_task(
                 slug,
@@ -225,6 +228,7 @@ def run_progress_close(
                 no_changelog=no_changelog,
                 verify_handle=handle,
                 zero_gate_ack=zero_gate_ack,
+                full_path=full_path,
             )
             result["completed"].append("task_done")
             result["closed"] = True

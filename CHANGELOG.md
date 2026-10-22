@@ -7,6 +7,78 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 > Russian mirror: [`CHANGELOG.ru.md`](CHANGELOG.ru.md). Both files cover
 > the same releases — keep them in sync when adding a new entry.
 
+## [Unreleased]
+
+## [1.11.7] — 2026-10-22
+
+### Added — `task rename` moves a published slug with every referrer
+
+- `tausik task rename <old> <new>` / MCP `tausik_task_rename` rewrite the task
+  slug and every column that stores it in one transaction. Referring columns
+  are derived from the live schema (`PRAGMA foreign_key_list` + `task_slug`
+  columns), not a hand list. `PRAGMA foreign_key_check` must pass or the
+  whole rename rolls back. Occupied target slug is refused by name. The old
+  projection file is dropped. Epic/story rename is out of scope.
+
+### Changed — the release CI gate is minutes, not an hour
+
+- Windows is out of the per-push `Tests` gate and runs in a dedicated
+  `windows-lane` workflow (nightly 03:00 UTC + manual dispatch). Measured on
+  1.11.6: the windows fast lane cost 52m59s while ubuntu `test-full` (fast AND
+  slow, strictly more tests) ran 8m27s and macOS 9m12s — a ~6x runner tax that
+  made Windows alone the release gate. The push/release gate is now
+  `test-full` + macOS fast + lint, ≈9-10 minutes (decision #430).
+- Eleven whole-tree/doctor meta-scanner test files — ~60% of the fast lane's
+  measured compute (`senar_self_check` 97s, `doctor_trust_tier` 94s,
+  `gen_doc_constants` 74s on 20 cores) — moved to `pytest.mark.slow`: 238
+  tests re-laned, not deleted; every contract still runs per push through the
+  ubuntu `test-full` job and the GitLab full lane. The local fast lane drops
+  from 3m17s to 2m58s and deselects 381 slow tests.
+- `tests/test_repo_hygiene_ratchet.py` declared in `_SLOW_RATCHET_EXCEPTIONS`
+  with its measured cost (29.5s/2 tests); the ratchet-slow guard keeps every
+  other baseline-reading test in the default lane.
+- Two files left the frozen `ruff_format` legacy list after reformatting
+  (gate list 93 → 91).
+
+### Changed — memory-only backlog is a light backlog
+
+- `governance_profile: "memory-only"` keeps epic, story, and task records as
+  work accounting. QG-0, QG-2, session, and verify are not the default path.
+  `tausik_session_start` and `tausik_verify` return `profile=disabled` unless
+  the owner passes `full_path`. `task_done` closes without gates unless
+  `full_path` / `--full-path` is set. `status` and `doctor` omit SENAR/RENAR
+  walls and do not recommend a full skills bootstrap. The full profile is
+  unchanged.
+- Under memory-only, `search_knowledge` task hits are labeled
+  historical/optional backlog accounting; memory and decision hits stay
+  primary. Full-profile task hit wording is unchanged.
+- Empty MCP `properties: {}` on tools that require arguments is treated as a
+  defect. Core tools keep eager full schemas; non-core tools keep a non-empty
+  stub and `tausik_tool_schema` on demand. Do not fix Cursor arg-guessing by
+  eager-shipping all ~149 full schemas (`mcp_surface` ratchet).
+- Under memory-only, `tools/list` annotates `tausik_session_start` /
+  `tausik_verify` as `[profile=disabled]` and defers their schemas; light
+  backlog tools stay advertised. `advertise_do_dont()` is the shared source
+  for a later `agent_brief`. Full-profile advertise is unchanged.
+- memory-only bootstrap deploys `tausik-memory` (search → decide/memory_add,
+  light tasks per canon B) and omits SENAR session skills `start`/`end`/
+  `checkpoint`. `doctor` / `status` do not nudge a full skill bootstrap that
+  would replace the lite set. Full profile skill deploy is unchanged.
+- MCP `tausik_memory_brief`: one-call memory-only playbook (profile, do/dont,
+  decide_vs_memory, next_hint) with package-style `max_bytes` (default 8192)
+  and overflow metadata. Never starts a session. Lite skill calls it first.
+- memory-only decide/memory routing table in brief + `tausik-memory` skill:
+  owner choice → decide; fact → memory; stop-doing → dead_end/gotcha; draft →
+  light task or note. `task_slug` on `memory_add` stays optional — no task
+  required before decide/memory.
+- `tausik doctor` on Cursor warns when non-TAUSIK MCP servers share the same
+  plan budget (per-turn surface tax). Docs: disable unused MCP for focused
+  work; TAUSIK does not meter third-party MCP tokens.
+- Cursor economy baseline (1.11.7): documented rounds method for the
+  memory-only playbook fixture; before/after **unknown** (no Cursor ledger);
+  Codex numbers must not be relabeled as Cursor. See
+  `docs/en/cursor-economy-baseline.md`.
+
 ## [1.11.6] — 2026-10-14
 
 ### Changed — one model family per environment for review

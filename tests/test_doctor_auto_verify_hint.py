@@ -154,3 +154,11 @@ def test_a_recorded_reason_turns_the_warning_into_a_report(reason, acknowledged)
     else:
         assert line.lstrip().startswith(YELLOW)
         assert "task_done._auto_verify_reason" in line
+
+
+# Whole-tree / doctor-run meta-scanners (1.11.6 lane cut): each test here walks
+# the repository or spawns the CLI, so the file costs minutes, not milliseconds
+# (measured: senar_self_check 97s, doctor_trust_tier 94s, gen_doc_constants 74s
+# on a 20-core box). They still gate every push through the ubuntu test-full
+# job and the GitLab full lane; the fast lane does not pay for them twice.
+pytestmark = pytest.mark.slow

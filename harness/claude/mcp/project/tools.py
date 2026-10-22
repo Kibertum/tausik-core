@@ -359,6 +359,10 @@ TOOLS = [
                     "type": "string",
                     "description": "JSON {message,step,verify}.",
                 },
+                "full_path": {
+                    "type": "boolean",
+                    "description": "memory-only: owner asks for gates. Default skips them.",
+                },
             },
             "required": ["slug"],
         },
@@ -540,6 +544,25 @@ TOOLS = [
         },
     },
     {
+        "name": "tausik_task_rename",
+        "description": (
+            "Rename a task slug and every referring column in one transaction. "
+            "Referrers are derived from the live schema; foreign_key_check must pass."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string", "description": "Current task slug"},
+                "new_slug": {
+                    "type": "string",
+                    "description": "New slug (lowercase letters, digits, hyphens)",
+                },
+            },
+            "required": ["slug", "new_slug"],
+            "additionalProperties": False,
+        },
+    },
+    {
         "name": "tausik_task_log",
         "description": "Append a timestamped log entry to task notes. Use for continuous journaling — crash-safe progress tracking",
         "inputSchema": {
@@ -640,7 +663,15 @@ TOOLS = [
     {
         "name": "tausik_session_start",
         "description": "Start a new work session",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "full_path": {
+                    "type": "boolean",
+                    "description": "memory-only: run only when the owner asks. Default is profile=disabled.",
+                },
+            },
+        },
     },
     {
         "name": "tausik_session_end",
@@ -819,7 +850,13 @@ TOOLS = [
                 "title": {"type": "string"},
                 "content": {"type": "string"},
                 "tags": {"type": "array", "items": {"type": "string"}},
-                "task_slug": {"type": "string"},
+                "task_slug": {
+                    "type": "string",
+                    "description": (
+                        "Optional link to a task. Under memory-only not required — "
+                        "do not invent a task only to attach memory."
+                    ),
+                },
                 "provenance": {"type": "string", "enum": ["observed", "inferred", "told"]},
             },
             "required": ["type", "title", "content"],

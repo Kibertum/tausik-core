@@ -118,6 +118,11 @@ _DISPATCH_LOCK = threading.RLock()
 def handle_tool(svc: Any, name: str, args: dict) -> str:
     """Dispatch tool call to service method. Returns text result."""
     with _DISPATCH_LOCK:
+        from memory_only_backlog import deferred_reply
+
+        refused = deferred_reply(svc, name, args)
+        if refused is not None:
+            return refused
         # SENAR Rule 9.3: track tool call count for checkpoint reminder
         checkpoint_warning = _increment_tool_counter(svc)
         result = _dispatch_tool(svc, name, args)

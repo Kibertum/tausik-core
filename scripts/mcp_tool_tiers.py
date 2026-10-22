@@ -54,6 +54,7 @@ CORE_TOOLS: frozenset[str] = frozenset(
         "tausik_session_end",
         "tausik_session_handoff",
         "tausik_status",
+        "tausik_memory_brief",
         "tausik_task_list",
         "tausik_task_next",
         "tausik_task_show",
@@ -80,9 +81,11 @@ CORE_TOOLS: frozenset[str] = frozenset(
 #: что оно попадает в текст указателя: строка «спроси где-нибудь» бесполезна.
 SCHEMA_TOOL = "tausik_tool_schema"
 
-#: Минимальная схема выгруженного инструмента. НЕ пустой объект: `additionalProperties`
-#: разрешает аргументы, чтобы прямой вызов скрытого инструмента не отвергался
-#: валидатором хоста до того, как дойдёт до нашего `call_tool`.
+#: Минимальная схема выгруженного инструмента. НЕ `properties: {}`: пустой
+#: объект properties на Cursor читается как «аргументов нет» и гоняет агента
+#: в --help-цикл. `additionalProperties` разрешает аргументы, чтобы прямой
+#: вызов скрытого инструмента не отвергался валидатором хоста до нашего
+#: `call_tool`. Полная схема — через `tausik_tool_schema(name=...)`.
 _STUB_SCHEMA: dict[str, Any] = {"type": "object", "additionalProperties": True}
 
 

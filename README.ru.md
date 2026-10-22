@@ -10,7 +10,7 @@ TAUSIK встаёт поверх ИИ-агента, которым вы уже �
 
 **Где это стоит.** Поле называет эту дисциплину *harness engineering*: харнесс — это цикл агента, интерфейс инструментов, управление контекстом и механизмы контроля. TAUSIK — не харнесс: цикл и инструменты принадлежат Claude Code, Cursor, Codex и другим. Это слой проверки и контроля поверх них, и его отличие в том, что без доказательства ничто не считается сделанным.
 
-[![v1.11.6](https://img.shields.io/badge/version-v1.11.6-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.11.7](https://img.shields.io/badge/version-v1.11.7-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
 [![13444 tests](https://img.shields.io/badge/tests-13444-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#доказательство-tausik-построен-на-tausik)
@@ -141,7 +141,7 @@ Run `tausik verify --task fix-mobile-button` first.
 <details>
 <summary>Сырые числа</summary>
 
-- **149 MCP-инструментов** — полный программный доступ к базе проекта.
+- **151 MCP-инструментов** — полный программный доступ к базе проекта.
 - **23 хука реального времени** — гейт задачи, bash firewall, push gate, автоформат, детектор дрифта, аудит памяти и другие.
 - **25 стек-зависимых наборов проверок** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и другие, по тронутым файлам.
 - **13 core-навыков** разворачиваются автоматически; в официальном магазине остаются только `docs`, `excel` и `pdf`, которые ставятся по одному и не расходуют контекст без необходимости.
@@ -153,13 +153,13 @@ Run `tausik verify --task fix-mobile-button` first.
 
 | IDE | MCP-инструменты | Навыки | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 149 | 13 core + по запросу | 23 (полностью) | First-class |
-| **Qwen Code** | 149 | 13 core + по запросу | 23 (паритет с Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 149 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
-| **Cursor** | 149 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
-| VSCode + Claude Extension | 149 | 13 core + по запросу | 23 | Прогнано E2E |
-| **Codex CLI** | 149 | 13 core + по запросу | 23 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
-| **OpenCode** | 149 | 13 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
+| **Claude Code** | 151 | 13 core + по запросу | 23 (полностью) | First-class |
+| **Qwen Code** | 151 | 13 core + по запросу | 23 (паритет с Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 151 | 13 core + по запросу | — (гейты на task start/done) | First-class через MCP |
+| **Cursor** | 151 | 13 core + по запросу | — (гейты на task start/done) | Через MCP |
+| VSCode + Claude Extension | 151 | 13 core + по запросу | 23 | Прогнано E2E |
+| **Codex CLI** | 151 | 13 core + по запросу | 23 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
+| **OpenCode** | 151 | 13 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
 | Windsurf | MCP + правила | зависит от хоста | зависит от хоста | Ожидается / вручную |
 
 Хуки работают в **Claude Code, Qwen Code и Codex** (Codex запускает их только после того, как вы доверили проект, — см. [матрицу принуждения Codex](docs/ru/model-providers.md#матрица-принуждения-codex)). Остальные хосты получают те же инструменты и навыки, а контрольные точки срабатывают на `task start` и `task done`.

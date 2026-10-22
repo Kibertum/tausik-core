@@ -10,7 +10,7 @@ TAUSIK sits on top of the AI coding agent you already use — Claude Code, Curso
 
 **Where it sits.** The field calls this discipline *harness engineering*: a harness is the agent loop, the tool interface, context management and control mechanisms. TAUSIK is not a harness — the loop and the tools belong to Claude Code, Cursor, Codex and the rest. It is the verification and control layer on top of them: what makes it different is that nothing counts as done without evidence.
 
-[![v1.11.6](https://img.shields.io/badge/version-v1.11.6-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.11.7](https://img.shields.io/badge/version-v1.11.7-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/en/receipts.md)
 [![13444 tests](https://img.shields.io/badge/tests-13444-brightgreen.svg)](#proof-tausik-built-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#proof-tausik-built-tausik)
@@ -141,7 +141,7 @@ Those are **suggestions** — text the agent reads and can ignore when it's inco
 <details>
 <summary>Raw counts</summary>
 
-- **149 MCP tools** — full programmatic access to the project database.
+- **151 MCP tools** — full programmatic access to the project database.
 - **23 real-time hooks** — task gate, bash firewall, push gate, auto-format, drift detection, memory pre/post audit, and more.
 - **25 stack-aware verify suites** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint, and others, scoped to the files you touched.
 - **13 core skills** auto-deployed; the official store has only `docs`, `excel`, and `pdf`, installed one at a time so unused instructions add no prompt cost.
@@ -153,13 +153,13 @@ Those are **suggestions** — text the agent reads and can ignore when it's inco
 
 | IDE | MCP tools | Skills | Hooks | Status |
 |---|---|---|---|---|
-| **Claude Code** | 149 | 13 core + opt-in | 23 (full) | First-class |
-| **Qwen Code** | 149 | 13 core + opt-in | 23 (parity with Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 149 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
-| **Cursor** | 149 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
-| VSCode + Claude Extension | 149 | 13 core + opt-in | 23 | Tested E2E |
-| **Codex CLI** | 149 | 13 core + opt-in | 23 (same declaration as Claude; enforce once you trust the project hooks in Codex) | First-class, live-verified in 1.9 |
-| **OpenCode** | 149 | 13 core + opt-in | — (one QG-0 plugin; gates at task start/done) | Supported via MCP |
+| **Claude Code** | 151 | 13 core + opt-in | 23 (full) | First-class |
+| **Qwen Code** | 151 | 13 core + opt-in | 23 (parity with Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/en/kilo-zai.md)) | 151 | 13 core + opt-in | — (gates at task start/done) | First-class via MCP |
+| **Cursor** | 151 | 13 core + opt-in | — (gates at task start/done) | Supported via MCP |
+| VSCode + Claude Extension | 151 | 13 core + opt-in | 23 | Tested E2E |
+| **Codex CLI** | 151 | 13 core + opt-in | 23 (same declaration as Claude; enforce once you trust the project hooks in Codex) | First-class, live-verified in 1.9 |
+| **OpenCode** | 151 | 13 core + opt-in | — (one QG-0 plugin; gates at task start/done) | Supported via MCP |
 | Windsurf | MCP + rules | host-dependent | host-specific | Expected / manual |
 
 Hooks run in **Claude Code, Qwen Code and Codex** (Codex runs them only after you trust the project — see the [Codex enforcement matrix](docs/en/model-providers.md#codex-enforcement-matrix)). Other hosts get the same tools and skills, with the checkpoints applied at `task start` and `task done`.

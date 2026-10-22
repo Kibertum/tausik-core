@@ -311,6 +311,24 @@ TOOLS_EXTRA = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "tausik_memory_brief",
+        "description": (
+            "memory-only playbook in one call: profile, do/dont, decide_vs_memory, "
+            "next_hint. Budgeted (default max_bytes=8192). Never starts a session."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "max_bytes": {
+                    "type": "integer",
+                    "description": "Hard UTF-8 budget for the JSON body (default 8192).",
+                    "minimum": 512,
+                    "maximum": 65536,
+                },
+            },
+        },
+    },
+    {
         "name": "tausik_verify",
         "description": (
             "Run verification gates. With task_slug, scope to its relevant files; without it, "
@@ -343,6 +361,10 @@ TOOLS_EXTRA = [
                         "Gate trigger to run. Defaults to `verify` (heavy "
                         "gates). `task-done` exists for parity / dry-run."
                     ),
+                },
+                "full_path": {
+                    "type": "boolean",
+                    "description": "memory-only: run only when the owner asks. Default is profile=disabled.",
                 },
             },
         },

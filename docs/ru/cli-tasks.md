@@ -178,6 +178,7 @@ task log <slug> <сообщение>    # Таймстемп-заметка (cra
 task logs <slug> [--phase PHASE] # Чтение структурированных логов (planning/implementation/review/testing/done)
 task reason-step <slug> <kind> <content>  # RENAR шаг рассуждения (kind: intent|premise|action|verification)
 task replay <slug> [--output FILE]  # Хронологический таймлайн: logs + reasoning + events + verification
+task rename <old> <new>        # Переименовать слаг и все ссылающиеся колонки
 task move <slug> <new_story>   # Переместить задачу в другую стори
 task claim <slug> <agent_id>   # Мульти-агент: занять задачу
 task unclaim <slug>            # Освободить задачу

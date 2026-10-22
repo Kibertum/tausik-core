@@ -220,3 +220,39 @@ class TestЭкономияИзмеренаЧислом:
         compact = tiers.compact_tools(all_tools)
         repeated = [t for t in compact if tiers.SCHEMA_TOOL in (t.get("description") or "")]
         assert len(repeated) <= 1, "указатель вернулся в каждое описание"
+
+
+class TestEmptyPropertiesIsADefect:
+    """Cursor reads `properties: {}` as “no arguments” and loops on --help."""
+
+    def test_no_tool_with_required_args_advertises_empty_properties(self, all_tools):
+        bad = []
+        for tool in all_tools:
+            schema = tool.get("inputSchema") or {}
+            props = schema.get("properties")
+            required = schema.get("required") or []
+            if props == {} and required:
+                bad.append(tool.get("name"))
+        assert bad == [], (
+            "tools with required args must not advertise properties:{} — "
+            f"fix the schema or move args into properties: {bad}"
+        )
+
+    def test_compact_stub_is_never_empty_properties(self, all_tools):
+        for tool in tiers.compact_tools(all_tools):
+            if tool["name"] in tiers.CORE_TOOLS:
+                continue
+            schema = tool.get("inputSchema") or {}
+            assert schema.get("properties") != {}, (
+                f"{tool['name']}: deferred stub must not be properties:{{}} "
+                "(use additionalProperties; full schema via tausik_tool_schema)"
+            )
+            assert schema.get("additionalProperties") is True
+
+    def test_core_keeps_full_eager_schemas(self, all_tools):
+        by_name = {t["name"]: t for t in all_tools}
+        compact = {t["name"]: t for t in tiers.compact_tools(all_tools)}
+        for name in tiers.CORE_TOOLS:
+            if name not in by_name:
+                continue
+            assert compact[name] == by_name[name]

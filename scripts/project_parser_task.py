@@ -221,6 +221,12 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="Confirm all acceptance criteria verified",
     )
     tdone.add_argument(
+        "--full-path",
+        action="store_true",
+        dest="full_path",
+        help="memory-only: owner asks for verify and gates. Ignored on the full profile.",
+    )
+    tdone.add_argument(
         "--no-knowledge",
         action="store_true",
         dest="no_knowledge",
@@ -501,6 +507,13 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tmove = task_sub.add_parser("move")
     tmove.add_argument("slug")
     tmove.add_argument("new_story_slug")
+
+    trename = task_sub.add_parser(
+        "rename",
+        help="Rename a task slug and every column that stores it (one transaction)",
+    )
+    trename.add_argument("slug", help="Current task slug")
+    trename.add_argument("new_slug", help="New task slug (lowercase, digits, hyphens)")
 
     tclaim = task_sub.add_parser("claim")
     tclaim.add_argument("slug")

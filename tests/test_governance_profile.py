@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "bootstrap"))
 
 from bootstrap_codex import build_codex_hooks, generate_codex_hooks  # noqa: E402
 from bootstrap_config import resolve_governance_profile  # noqa: E402
-from bootstrap_generate import generate_agents_md  # noqa: E402
+from bootstrap_generate import generate_agents_md, generate_cursorrules  # noqa: E402
 from bootstrap_hooks import MEMORY_ONLY_HOOKS, build_hooks_dict  # noqa: E402
 from bootstrap_opencode import scaffold_opencode  # noqa: E402
 from bootstrap_opencode_assets import PLUGIN_FILE, PLUGINS_SUBDIR  # noqa: E402
@@ -61,7 +61,20 @@ def test_memory_only_rules_name_retained_and_lost_guarantees_without_rituals():
         assert retained in body
     for ritual in ("No code without a task", "task start", "verify --task", "/start"):
         assert ritual not in body
+    assert "light backlog" in body
+    assert "Do not open or close TAUSIK tasks" not in body
     assert "Not guaranteed in this profile" in body
+
+
+def test_cursor_and_agents_rules_describe_the_light_backlog(tmp_path):
+    generate_agents_md(str(tmp_path), "infra", ["ansible"], governance_profile="memory-only")
+    generate_cursorrules(str(tmp_path), "infra", ["ansible"], governance_profile="memory-only")
+    for name in ("AGENTS.md", ".cursorrules"):
+        text = (tmp_path / name).read_text(encoding="utf-8")
+        assert "TAUSIK:GOVERNANCE-PROFILE:memory-only" in text
+        assert "light backlog" in text
+        assert "Do not open or close TAUSIK tasks" not in text
+        assert "No code without a task" not in text
 
 
 def test_generated_rules_switch_profiles_idempotently_but_custom_rules_survive(tmp_path):

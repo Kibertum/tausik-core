@@ -158,6 +158,7 @@ def main():
     # равно скрыт, значило бы платить указателем за невидимое.
     from mcp_tool_scope import LIST_CACHE_HINT, expose_tools
     from mcp_tool_tiers import apply_tiers
+    from memory_only_backlog import annotate_advertise
 
     def _listing_service():
         """A service for the ACL read, or None. Never raises: see the comment above `svc`."""
@@ -168,6 +169,13 @@ def main():
         except Exception:  # noqa: BLE001 - an unopened project still gets the full tool list
             return None
 
+    def _advertise_list(listing_svc):
+        """Scope → tiers → memory-only annotate/defer. Fail-open inside each step."""
+        return annotate_advertise(
+            apply_tiers(expose_tools(TOOLS, listing_svc)),
+            listing_svc,
+        )
+
     @server.list_tools()
     async def list_tools():
         tools = [
@@ -176,7 +184,7 @@ def main():
                 description=t["description"],
                 inputSchema=t["inputSchema"],
             )
-            for t in apply_tiers(expose_tools(TOOLS, _listing_service()))
+            for t in _advertise_list(_listing_service())
         ]
         return ListToolsResult.model_validate({"tools": tools, **LIST_CACHE_HINT})
 

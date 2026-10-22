@@ -28,20 +28,26 @@ jobs:
       - name: Security scan (bandit, advisory)
         run: bandit -r scripts/ -ll -q || true
 
-  # Fast lane on Windows and macOS. `pytest tests/` inherits addopts = -m 'not slow'
-  # from pyproject, so this is the quick lane — broad platform/version coverage, ~5 min.
-  # It also inherits `-n auto` from the same addopts. The ~5 min is the SERIAL figure
-  # measured before that; a GitHub runner has 2-4 cores, so expect less than the 8.5x
-  # this project measures on a 20-core box, and do not restate a number nobody timed here.
+  # Fast lane on macOS. `pytest tests/` inherits addopts = -m 'not slow'
+  # from pyproject, so this is the quick lane. It also inherits `-n auto`
+  # from the same addopts.
+  #
+  # WINDOWS IS DELIBERATELY NOT HERE (decision on the 1.11.6 lane cut). Measured
+  # on release 1.11.6: the same fast lane cost 52m59s on windows-latest while
+  # ubuntu test-full (fast AND slow, strictly more tests) ran 8m27s and macOS
+  # 9m12s — a ~6x runner tax that made Windows alone the release gate. Windows
+  # coverage moved to .github/workflows/windows-lane.yml (nightly + manual
+  # dispatch), same steps. The push/release gate is test-full + this job + lint.
   test:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      # Windows and macOS once each. Ubuntu is covered by `test-full` below, which runs
-      # every test including the slow ones, so a fast Ubuntu cell would repeat it.
+      # macOS only here. Ubuntu is covered by `test-full` below, which runs
+      # every test including the slow ones, so a fast Ubuntu cell would repeat
+      # it. Windows is covered nightly by windows-lane.yml (see the comment
+      # above for the measured reason).
       matrix:
         include:
-          - {os: windows-latest, python-version: '3.12'}
           - {os: macos-latest, python-version: '3.13'}
     steps:
       - uses: actions/checkout@v4

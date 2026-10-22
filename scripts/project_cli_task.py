@@ -193,6 +193,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         # the final bounded verdict and durable artifacts are the interface.
         compound_message = getattr(args, "message", None)
         compound_step = getattr(args, "compound_step", None)
+        from memory_only_backlog import gates_are_skipped
+
+        full_path = bool(getattr(args, "full_path", False))
         if (compound_message is None) != (compound_step is None):
             from tausik_utils import ServiceError
 
@@ -218,6 +221,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                     no_changelog=bool(getattr(args, "no_changelog", False)),
                     zero_gate_ack=bool(getattr(args, "zero_gate_ack", False)),
                     progress_fn=None,
+                    full_path=full_path,
                 )
             )
             return
@@ -229,7 +233,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
 
         refuse_two_sources(args)
         handle = getattr(args, "verify_handle", None)
-        if getattr(args, "verify", False):
+        if getattr(args, "verify", False) and not gates_are_skipped(svc, full_path):
             handle = handle_for_close(svc, args) or None
 
         _print_with_warnings(
@@ -245,6 +249,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 no_changelog=getattr(args, "no_changelog", False),
                 verify_handle=handle,
                 zero_gate_ack=bool(getattr(args, "zero_gate_ack", False)),
+                full_path=full_path,
             )
         )
         # The verdict a driver used to spend a separate call on. `budget-check` stays — it
@@ -335,6 +340,10 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         print(svc.task_step(args.slug, args.step_num))
     elif c == "move":
         print(svc.task_move(args.slug, args.new_story_slug))
+    elif c == "rename":
+        from service_task_rename import task_rename
+
+        print(task_rename(svc, args.slug, args.new_slug))
     elif c == "claim":
         print(svc.task_claim(args.slug, args.agent_id))
     elif c == "unclaim":
@@ -372,7 +381,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             print(refusal, file=sys.stderr)
             raise SystemExit(1)
     else:
-        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, delegate, undelegate, handoff, summary-back, plan, step, quick, next, depends, undepends, move, claim, unclaim, reason-step, replay, log, logs, budget-check"
+        subcmds = "add, list, show, start, done, block, unblock, review, update, delete, delegate, undelegate, handoff, summary-back, plan, step, quick, next, depends, undepends, move, rename, claim, unclaim, reason-step, replay, log, logs, budget-check"
         if c:
             from difflib import get_close_matches
 

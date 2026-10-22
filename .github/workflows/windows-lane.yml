@@ -1,0 +1,37 @@
+name: Windows lane
+
+# Windows coverage WITHOUT the push/release gate (decision on the 1.11.6 lane
+# cut). Measured on release 1.11.6: the fast lane cost 52m59s on
+# windows-latest while ubuntu test-full (fast AND slow, strictly more tests)
+# ran 8m27s and macOS 9m12s — a ~6x runner tax. A per-push Windows job made
+# every release wait most of an hour for a tree three other jobs had already
+# proven, so Windows runs here: nightly, and on demand via workflow_dispatch.
+# Steps mirror the `test` job of tests.yml; findings land as repo notifications,
+# and a red here is a finding to fix — not a gate to bypass.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test deps
+        # Same contract as tests.yml: pytest-xdist is NOT optional — addopts
+        # carries `-n auto`, so without the plugin pytest exits before
+        # collecting a single test. ruff/mypy/bandit are deps for ~30 tests
+        # that shell out to them; requirements.txt (mcp) feeds the MCP tests.
+        run: |
+          pip install -c ci-constraints.txt pytest pytest-xdist ruff mypy bandit
+          pip install -r requirements.txt
+      - name: Bootstrap host profiles (required by mirror-sync tests)
+        run: python bootstrap/bootstrap.py --no-detect --ide all
+      - name: Doc-constants drift check
+        run: python scripts/gen_doc_constants.py --check --skip-test-count
+      - name: Run fast lane
+        run: pytest tests/ --tb=short

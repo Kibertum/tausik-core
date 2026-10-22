@@ -14,9 +14,20 @@ DYNAMIC_END = "<!-- DYNAMIC:END -->"
 
 MEMORY_ONLY_RULES = """## Governance profile: memory-only
 
-This project explicitly keeps TAUSIK as a project-memory and retrieval layer, not as a
-task/verification workflow. Do not open or close TAUSIK tasks or sessions, declare scope,
-or run TAUSIK verify unless the owner asks for that operation.
+This project keeps TAUSIK as project memory, retrieval, and a light backlog.
+Epic, story, and task records stay usable work accounting. QG-0, QG-2, session
+lifecycle, and verify are not required and are not the default next step.
+
+Do:
+- search and write project memory, decisions, and logs through `tausik-project`;
+- search code through `codebase-rag`;
+- add, list, show, and log tasks when the owner wants work accounted;
+- close a light task with `task_done` without gates.
+
+Do not, unless the owner explicitly asks for the full path:
+- open a TAUSIK session (`session_start`);
+- run `tausik_verify` or a gated close;
+- treat a SENAR or RENAR wall, or a full skills bootstrap, as the next action.
 
 Retained:
 - project memory, decisions and logs through the `tausik-project` MCP/CLI;

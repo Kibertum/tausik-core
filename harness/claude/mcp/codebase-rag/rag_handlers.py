@@ -62,15 +62,26 @@ def _format_code_results(results: list[dict]) -> str:
     return header + "\n".join(lines)
 
 
-def _format_knowledge_results(results: dict[str, list]) -> str:
-    """Format knowledge search results."""
+def _format_knowledge_results(results: dict[str, list], *, governance_profile: str = "full") -> str:
+    """Format knowledge search results.
+
+    Under memory-only, task hits are backlog accounting (canon B), not a SENAR
+    workflow. Memory and decision hits stay primary for facts and agreements.
+    """
     if not any(results.values()):
         return "No knowledge matches found."
+    memory_only = governance_profile == "memory-only"
     lines = []
     for scope, items in results.items():
         if not items:
             continue
-        lines.append(f"\n=== {scope.upper()} ({len(items)} results) ===")
+        if scope == "tasks" and memory_only:
+            lines.append(
+                f"\n=== TASKS ({len(items)} results) — historical/optional "
+                "backlog accounting (memory-only); not required SENAR workflow ==="
+            )
+        else:
+            lines.append(f"\n=== {scope.upper()} ({len(items)} results) ===")
         for item in items[:8]:
             if "slug" in item:
                 status = f" [{item.get('status', '')}]" if item.get("status") else ""
@@ -219,7 +230,12 @@ def call_tool_sync(name: str, arguments: dict, project_dir: str) -> str:
                 arguments["query"],
                 arguments.get("scope", "all"),
             )
-            output = _format_knowledge_results(results)
+            from memory_only_backlog import profile_of_dir
+
+            output = _format_knowledge_results(
+                results,
+                governance_profile=profile_of_dir(os.path.join(project_dir, ".tausik")),
+            )
             if results.get("tasks"):
                 files = _extract_relevant_files(results["tasks"])
                 if files:

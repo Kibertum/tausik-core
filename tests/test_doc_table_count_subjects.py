@@ -330,3 +330,11 @@ def test_a_header_reworded_around_the_noun_is_still_found(tmp_path, header, labe
 def test_the_live_tree_is_clean():
     """The repository itself, after the measured cells were corrected."""
     assert scan_table_count_columns(_REPO_ROOT, build_constants_doc(_REPO_ROOT)) == []
+
+
+# Whole-tree / doctor-run meta-scanners (1.11.6 lane cut): each test here walks
+# the repository or spawns the CLI, so the file costs minutes, not milliseconds
+# (measured: senar_self_check 97s, doctor_trust_tier 94s, gen_doc_constants 74s
+# on a 20-core box). They still gate every push through the ubuntu test-full
+# job and the GitLab full lane; the fast lane does not pay for them twice.
+pytestmark = pytest.mark.slow

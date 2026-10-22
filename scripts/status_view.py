@@ -92,6 +92,10 @@ def build_status_view(
         except Exception:  # noqa: BLE001 — fall back to ambient config on any resolve error
             td = None
     cfg = load_config(td)
+    from memory_only_backlog import memory_only_status_view, profile_of_dir
+
+    if profile_of_dir(td) == "memory-only":
+        return memory_only_status_view(data)
     max_min = cfg.get("session_max_minutes", DEFAULT_SESSION_MAX_MINUTES)
     cap = cfg.get("session_capacity_calls", DEFAULT_SESSION_CAPACITY_CALLS)
 
@@ -264,7 +268,11 @@ def build_status_view(
             capacity = None
 
     project_root = os.path.dirname(td) if td else None
-    skill_warning = _skill_set_warning(project_root)
+    # memory-only keeps a lite skill set; never nudge re-bootstrap toward the
+    # full 12+ core pack (that wipe would undo tausik-memory playbook deploy).
+    skill_warning = (
+        None if profile_of_dir(td) == "memory-only" else _skill_set_warning(project_root)
+    )
 
     return {
         "data": data,
@@ -409,8 +417,22 @@ def status_warning_lines(view: dict[str, Any]) -> list[str]:
     return warnings
 
 
+def _render_memory_only(view: dict[str, Any]) -> str:
+    """Backlog counts and the profile. No SENAR/RENAR wall and no bootstrap nudge."""
+    lines = [
+        "Profile: memory-only (light backlog, canon B).",
+        _tasks_line(view["data"]),
+    ]
+    if view["epics_count"]:
+        lines.append(f"Epics: {view['epics_count']}")
+    lines.append("Session, verify, and gated close are not the default path.")
+    return "\n".join(lines)
+
+
 def render_status_cli(view: dict[str, Any]) -> str:
     """Human render for the CLI: one signal per line, warnings prefixed."""
+    if view.get("governance_profile") == "memory-only":
+        return _render_memory_only(view)
     out = list(status_primary_lines(view))
     out.extend(f"  WARNING: {w}" for w in status_warning_lines(view))
     return "\n".join(out)
@@ -418,6 +440,8 @@ def render_status_cli(view: dict[str, Any]) -> str:
 
 def render_status_mcp(view: dict[str, Any]) -> str:
     """Agent render for the MCP handler: same signals, ⚠-prefixed warnings."""
+    if view.get("governance_profile") == "memory-only":
+        return _render_memory_only(view)
     out = list(status_primary_lines(view))
     out.extend(f"⚠ {w}" for w in status_warning_lines(view))
     return "\n".join(out)

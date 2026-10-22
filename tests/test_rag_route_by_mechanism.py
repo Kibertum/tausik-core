@@ -32,6 +32,7 @@ ALLOWED = {
     "harness/skills/explore/SKILL.md": "route to code",
     "harness/skills/start/SKILL.md": "route to code",
     "harness/skills/task/SKILL.md": "route to code",
+    "harness/skills/tausik-memory/SKILL.md": "memory-only playbook: RAG before guess",
     "harness/skills/task/variants/model/gpt-5-5.md": "read tools to batch",
     "scripts/hooks/session_start.py": "index-not-ready status line",
     "scripts/hooks/pre-commit": "comment on the post-commit reindex",

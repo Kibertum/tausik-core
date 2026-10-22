@@ -134,3 +134,20 @@ crossed the ceiling.
 
 - [SENAR rules](senar.md)
 - [Exact 1.11.6 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.6/CHANGELOG.md)
+
+## 1.11.7 — memory-only Cursor playbook and task rename
+
+memory-only keeps a light backlog (canon B): epic/story/task stay as
+work accounting while session/verify/QG walls stay off the default path
+unless the owner asks for `full_path`. Bootstrap deploys `tausik-memory`;
+`tausik_memory_brief` returns the playbook in one call. `tools/list`
+annotates disabled profile tools. Cursor economy is documented as rounds
++ surface (multi-project), not cache polish; Codex numbers are not
+relabeled as Cursor.
+
+`task rename` / `tausik_task_rename` move a published slug with every
+referring column in one transaction (schema-derived referrers,
+`foreign_key_check`, projection cleanup). The release CI gate stays
+minutes: Windows is nightly, not per-push.
+
+- [Exact 1.11.7 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.md)

@@ -4,13 +4,13 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
-**149 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+**151 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 149 count - total with it is 156 tools.
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 151 count - total with it is 158 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (149): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (151): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 
 There is also an optional `codebase-rag` server documented at the bottom.
 
@@ -37,6 +37,7 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | `tausik_self_check` | MCP-server freshness: startup time, watched-module mtime snapshot vs current on-disk mtimes, `drift_detected` flag, stale modules with `delta_seconds`, sibling MCP project server count. Call from `/start` to catch silent-hang precursors (gotchas #77/#79/#80). | — |
 | `tausik_status` | Project overview: tasks, session, epics. Optional `compact: true` → one-line JSON (default text unchanged). | `compact` (optional) |
 | `tausik_doctor` | 4-group health (venv + DB + MCP + skills + drift) | — |
+| `tausik_memory_brief` | memory-only playbook (do/dont, decide_vs_memory); budgeted; no session | `max_bytes?` |
 | `tausik_metrics` | SENAR metrics, or compact native usage with `host=codex\|kilo` | `host?` |
 | `tausik_usage_event_log` | Append manual row to `usage_events` (does not update session aggregates) | `tokens_input`, `tokens_output`, `tokens_total`, `cost_usd` |
 | `tausik_search` | Full-text search across tasks, memory, decisions | `query` |
@@ -63,6 +64,7 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 | `tausik_task_review` | Move one task to review, or execute a bounded L3 cohort action | `slug`, or `cohort` object |
 | `tausik_task_delete` | Delete task | `slug` |
 | `tausik_task_move` | Move to another story | `slug`, `new_story_slug` |
+| `tausik_task_rename` | Rename slug + every referring column (one transaction; schema-derived referrers; FK check) | `slug`, `new_slug` |
 | `tausik_task_next` | Pick next task by score | — |
 | `tausik_task_claim` | Claim task (multi-agent) | `slug`, `agent_id` |
 | `tausik_task_unclaim` | Release task | `slug` |
@@ -353,7 +355,7 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 149 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 150 count — they belong to the optional `codebase-rag` server.
 
 ## Scoped tool surface (`mcp.scope_tools_exposure`)
 
@@ -374,8 +376,8 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 149 tools ≈ 60.3 KB of tool
-definitions (60,273 bytes, ~15.1k estimated tokens at bytes/4; the ratchet in
+**Measured cost.** The full authored surface is 151 tools ≈ 61.1 KB of tool
+definitions (61,097 bytes, ~15.3k estimated tokens at bytes/4; the ratchet in
 `tausik/gates.json` (`mcp_surface`) pins this and refuses growth without an
 argued raise). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet

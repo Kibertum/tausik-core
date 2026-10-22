@@ -4,13 +4,13 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
-**149 инструмента** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+**151 инструментов** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 149 — итого с ним 156 инструментов.
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 151 — итого с ним 158 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (149): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (151): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
 
@@ -37,6 +37,7 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | `tausik_self_check` | Свежесть MCP-сервера: время старта, snapshot mtime watched-модулей vs текущие mtime на диске, флаг `drift_detected`, список stale-модулей с `delta_seconds`, число sibling MCP project-серверов. Вызывать из `/start` чтобы поймать предвестники тихих зависаний (gotchas #77/#79/#80). | — |
 | `tausik_status` | Обзор проекта: задачи, сессия, эпики. `compact: true` → один JSON без изменения текстового режима по умолчанию. | `compact` (опционально) |
 | `tausik_doctor` | 4-group health (venv + DB + MCP + skills + drift) | — |
+| `tausik_memory_brief` | playbook memory-only (do/dont, decide_vs_memory); с бюджетом; без сессии | `max_bytes?` |
 | `tausik_metrics` | Метрики SENAR или компактный нативный расход при `host=codex\|kilo` | `host?` |
 | `tausik_usage_event_log` | Ручная запись в `usage_events` (агрегаты сессии не трогает) | `tokens_input`, `tokens_output`, `tokens_total`, `cost_usd` |
 | `tausik_search` | Полнотекстовый поиск по задачам, памяти, решениям | `query` |
@@ -63,6 +64,7 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 | `tausik_task_review` | Перевести задачу в review или выполнить действие ограниченной L3-когорты | `slug` или объект `cohort` |
 | `tausik_task_delete` | Удалить | `slug` |
 | `tausik_task_move` | Переместить в другую стори | `slug`, `new_story_slug` |
+| `tausik_task_rename` | Переименовать слаг и все ссылающиеся колонки (одна транзакция; перечень из схемы; FK-check) | `slug`, `new_slug` |
 | `tausik_task_next` | Выбрать следующую задачу по score | — |
 | `tausik_task_claim` | Занять задачу (мульти-агент) | `slug`, `agent_id` |
 | `tausik_task_unclaim` | Освободить | `slug` |
@@ -351,7 +353,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 149 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 151 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Область tool-поверхности (`mcp.scope_tools_exposure`)
 
@@ -372,8 +374,8 @@ Rule 2) и всегда-безопасного ядра — целиком се�
 write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
 `list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
 
-**Замер стоимости.** Полная авторская поверхность — 149 тула ~ 60,3 КБ определений
-(60 273 байта, ~15.1k оценочных токенов при байтах/4; храповик в
+**Замер стоимости.** Полная авторская поверхность — 151 тул ~ 61,1 КБ определений
+(61 097 байт, ~15.3k оценочных токенов при байтах/4; храповик в
 `tausik/gates.json` (`mcp_surface`) фиксирует это и отказывает росту без
 обоснованного повышения). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
 эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой

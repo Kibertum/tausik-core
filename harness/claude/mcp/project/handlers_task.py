@@ -109,8 +109,16 @@ def _do_task_done(svc: Any, args: dict) -> str:
             # Per-gate progress is deterministic runner state, not a model
             # decision boundary. The final bounded report carries the result.
             progress_fn=None,
+            full_path=bool(args.get("full_path", False)),
         )
         return json.dumps(result, ensure_ascii=False)
+
+    if not args.get("full_path"):
+        from memory_only_backlog import try_light_close
+
+        light = try_light_close(svc, args["slug"])
+        if light is not None:
+            return json.dumps(light, ensure_ascii=False)
 
     result = svc._task_done_report(
         args["slug"],
@@ -241,6 +249,12 @@ def _do_task_review(svc: Any, args: dict) -> str:
     return svc.task_review(slug)
 
 
+def _do_task_rename(svc: Any, args: dict) -> str:
+    from service_task_rename import task_rename
+
+    return task_rename(svc, args["slug"], args["new_slug"])
+
+
 TASK_HANDLERS = {
     "tausik_task_list": lambda svc, args: _handle_task_list(svc, args),
     "tausik_task_show": lambda svc, args: _handle_task_show(svc, args),
@@ -267,6 +281,7 @@ TASK_HANDLERS = {
     "tausik_task_delete": lambda svc, args: svc.task_delete(args["slug"]),
     "tausik_task_review": _do_task_review,
     "tausik_task_move": lambda svc, args: svc.task_move(args["slug"], args["new_story_slug"]),
+    "tausik_task_rename": lambda svc, args: _do_task_rename(svc, args),
     "tausik_task_log": lambda svc, args: svc.task_log(args["slug"], args["message"]),
     "tausik_task_logs": lambda svc, args: _handle_task_logs(svc, args),
     "tausik_task_claim": lambda svc, args: svc.task_claim(args["slug"], args["agent_id"]),

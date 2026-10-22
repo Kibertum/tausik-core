@@ -219,10 +219,19 @@ def _do_snippet_search(svc: Any, args: dict) -> str:
     )
 
 
+def _do_agent_brief(svc: Any, args: dict) -> str:
+    from agent_brief import DEFAULT_MAX_BYTES, serialize_agent_brief
+
+    raw = args.get("max_bytes", DEFAULT_MAX_BYTES)
+    max_bytes = DEFAULT_MAX_BYTES if raw is None else int(raw)
+    return serialize_agent_brief(svc, max_bytes=max_bytes)
+
+
 STATUS_HANDLERS = {
     "tausik_health": lambda svc, args: _handle_health(svc),
     "tausik_self_check": lambda svc, args: _handle_self_check(),
     "tausik_status": lambda svc, args: _handle_status(svc, args),
+    "tausik_memory_brief": _do_agent_brief,
     "tausik_metrics": lambda svc, args: _handle_metrics(svc, args),
     "tausik_usage_event_log": _do_usage_event_log,
     "tausik_search": lambda svc, args: _handle_search(svc, args),

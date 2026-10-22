@@ -24,6 +24,10 @@ from bootstrap_skill_helpers import (  # noqa: F401
     validate_skill_frontmatter,
 )
 
+# SENAR session / lifecycle rituals — omitted under governance_profile=memory-only.
+# There is no builtin skill named `verify`; session start/end/checkpoint cover AC-2.
+MEMORY_ONLY_EXCLUDED_SKILLS = frozenset({"start", "end", "checkpoint"})
+
 
 def _on_rmtree_error(func, path, exc_info):
     import logging
@@ -121,10 +125,13 @@ def copy_skills(
     vendor_skills: dict[str, str] | None = None,
     *,
     include_official_stubs: bool = False,
+    governance_profile: str = "full",
 ) -> int:
     """Copy skills to target IDE directory.
 
-    Built-in skills (in harness/skills/) are always copied in full.
+    Built-in skills (in harness/skills/) are always copied in full, except under
+    `governance_profile=memory-only`, which drops SENAR session lifecycle skills
+    (`start`/`end`/`checkpoint`) and keeps the `tausik-memory` playbook.
 
     Official skills (skills-official/registry.json) are auto-stubbed only
     when `include_official_stubs=True` (CLI flag --include-official). Default
@@ -177,6 +184,12 @@ def copy_skills(
                 continue
             if os.path.isdir(os.path.join(builtin_dir, name)):
                 builtin_names.append(name)
+    if governance_profile == "memory-only":
+        builtin_names = [n for n in builtin_names if n not in MEMORY_ONLY_EXCLUDED_SKILLS]
+        if "tausik-memory" not in builtin_names and os.path.isdir(
+            os.path.join(builtin_dir, "tausik-memory")
+        ):
+            builtin_names.append("tausik-memory")
     if not builtin_names:
         print(
             f"  WARN: harness/skills/ empty or missing at {builtin_dir} — "
@@ -192,6 +205,11 @@ def copy_skills(
     if not include_official_stubs:
         explicit = installed | set(vendor_activated)
         config_skills = [s for s in config_skills if s in explicit or s not in registry_names]
+    if governance_profile == "memory-only":
+        # Do not reintroduce SENAR lifecycle via config/vendor names.
+        config_skills = [s for s in config_skills if s not in MEMORY_ONLY_EXCLUDED_SKILLS]
+        vendor_activated = [v for v in vendor_activated if v not in MEMORY_ONLY_EXCLUDED_SKILLS]
+        installed -= MEMORY_ONLY_EXCLUDED_SKILLS
     all_skills_with_vendor = list(dict.fromkeys(builtin_names + config_skills + vendor_activated))
     # Also add official skills from registry (as stubs) — v1.4 opt-in only.
     # Without --include-official the agent gets a smaller skill list and

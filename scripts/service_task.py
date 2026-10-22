@@ -260,7 +260,14 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         no_changelog: bool = False,
         verify_handle: str | None = None,
         zero_gate_ack: bool = False,
+        full_path: bool = False,
     ) -> str:
+        if not full_path:
+            from memory_only_backlog import try_light_close
+
+            light = try_light_close(self, slug)
+            if light is not None:
+                return str(light["message"])
         report = self._task_done_report(
             slug,
             relevant_files=relevant_files,
