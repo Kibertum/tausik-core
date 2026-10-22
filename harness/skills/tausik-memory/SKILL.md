@@ -45,4 +45,4 @@ Call **`tausik_memory_brief`** once at the start of work. It returns profile, do
 - `full_path` / `--full-path` is the only way back onto verify/gates under
   memory-only; a light `task done` is accounting, not a green receipt.
 - Do not write project facts into host-local memory (`~/.claude/`, `.cursor/rules/`);
-  use `tausik_memory_*` / `tausik_decide` so the next agent on another host inherits them.
+  use the memory and decide MCP tools so the next agent on another host inherits them.
