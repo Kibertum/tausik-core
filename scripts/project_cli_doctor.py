@@ -79,6 +79,15 @@ def auto_verify_acknowledged_reason(cfg: dict) -> str | None:
     return reason.strip() if isinstance(reason, str) and reason.strip() else None
 
 
+def session_status_detail(svc: Any) -> str:
+    """Render session age without treating a rounded zero as no session."""
+    if not svc.session_current():
+        return "no active session"
+    active = svc.session_active_minutes()
+    wall = svc.session_wall_minutes()
+    return f"{active}m active / {wall}m wall"
+
+
 def _user_tier_location_line() -> None:
     """Where the user tier is read from — and when the legacy place shadows or is shadowed."""
     from config_trust import (
@@ -245,12 +254,15 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
 
     fix_pyc = getattr(args, "fix_bytecode", False)  # tests call cmd_doctor with bare namespaces
     warnings += doctor_section(project_dir, fix_pyc, _print_ok, _print_warn)
-    md_is_warn, md_detail = _format_claudemd_drift_line(_claudemd_drift_report(project_dir))
-    if md_is_warn:
-        _print_warn("CLAUDE.md drift", md_detail)
-        warnings += 1
+    if not _claudemd_drift_applicable(project_dir):
+        _print_ok("CLAUDE.md drift", "not applicable to the selected IDE profile")
     else:
-        _print_ok("CLAUDE.md drift", md_detail)
+        md_is_warn, md_detail = _format_claudemd_drift_line(_claudemd_drift_report(project_dir))
+        if md_is_warn:
+            _print_warn("CLAUDE.md drift", md_detail)
+            warnings += 1
+        else:
+            _print_ok("CLAUDE.md drift", md_detail)
 
     try:
         from project_config import (
@@ -335,12 +347,7 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         warnings += 1
 
     try:
-        active = svc.session_active_minutes()
-        wall = svc.session_wall_minutes()
-        if wall > 0:
-            _print_ok("Session", f"{active}m active / {wall}m wall")
-        else:
-            _print_ok("Session", "no active session")
+        _print_ok("Session", session_status_detail(svc))
     except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Session", f"could not read: {e}")
         warnings += 1
@@ -458,6 +465,7 @@ def _print_fail(label: str, detail: str) -> None:
 from service_doctor_drift import (  # noqa: E402,F401
     check_claudemd_drift as _check_claudemd_drift,
     check_scripts_drift as _check_scripts_drift,
+    claudemd_drift_applicable as _claudemd_drift_applicable,
     claudemd_drift_report as _claudemd_drift_report,
     format_claudemd_drift_line as _format_claudemd_drift_line,
     format_scripts_drift_line as _format_scripts_drift_line,

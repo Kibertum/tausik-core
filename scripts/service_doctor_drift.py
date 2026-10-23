@@ -43,6 +43,19 @@ class ClaudemdDriftReport(TypedDict):
 _TEMPLATE_SHAPED_MIN_RATIO = 0.5
 
 
+def claudemd_drift_applicable(project_dir: str) -> bool:
+    """Whether this project's bootstrap profile is expected to own CLAUDE.md."""
+    try:
+        from project_config import load_project_config  # ruff-not-enabled: PLC0415
+
+        cfg = load_project_config(os.path.join(project_dir, ".tausik")) or {}
+    except Exception:  # noqa: BLE001 — an unreadable config must not hide a real drift warning
+        return True
+    bootstrap = cfg.get("bootstrap") if isinstance(cfg, dict) else None
+    ide = bootstrap.get("ide") if isinstance(bootstrap, dict) else None
+    return not isinstance(ide, str) or ide.strip().lower() in ("", "all", "claude")
+
+
 def _resolve_output_mode_for_drift(cfg: dict) -> str:
     """output_mode from the config root, or "off". Never raises — drift is best-effort."""
     try:

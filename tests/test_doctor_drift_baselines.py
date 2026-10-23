@@ -29,7 +29,7 @@ from project_cli_doctor import (
     _claudemd_drift_report,
     _format_claudemd_drift_line,
 )
-from service_doctor_drift import ClaudemdDriftReport
+from service_doctor_drift import ClaudemdDriftReport, claudemd_drift_applicable
 
 
 def _report(**over) -> ClaudemdDriftReport:
@@ -253,6 +253,24 @@ class TestCheckClaudemdDrift:
         # No CLAUDE.md at all → None (cannot compare).
         assert _check_claudemd_drift(str(tmp_path)) is None
         assert _claudemd_drift_report(str(tmp_path)) is None
+
+    def test_missing_claudemd_is_not_applicable_for_codex(self, tmp_path) -> None:
+        tausik = tmp_path / ".tausik"
+        tausik.mkdir()
+        (tausik / "config.json").write_text(
+            json.dumps({"bootstrap": {"ide": "codex"}}), encoding="utf-8"
+        )
+
+        assert claudemd_drift_applicable(str(tmp_path)) is False
+
+    def test_missing_claudemd_remains_applicable_for_claude(self, tmp_path) -> None:
+        tausik = tmp_path / ".tausik"
+        tausik.mkdir()
+        (tausik / "config.json").write_text(
+            json.dumps({"bootstrap": {"ide": "claude"}}), encoding="utf-8"
+        )
+
+        assert claudemd_drift_applicable(str(tmp_path)) is True
 
 
 # ---------- brain skill is conditional in critical set ----------
