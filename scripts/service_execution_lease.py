@@ -469,7 +469,7 @@ def consume_mcp_authorization(
         thread_id=lease.get("thread_id"),
         nonce=lease.get("nonce"),
         now=instant,
-        allow_package_rebind=route_allows_package_bypass(route),
+        allow_package_rebind=route_allows_package_bypass(route, lease),
     )
     require_task_argument_binding(validated, route, arguments)
     return cast(dict[str, Any], validated)

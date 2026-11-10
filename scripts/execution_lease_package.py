@@ -172,9 +172,11 @@ def require_task_argument_binding(
         )
 
 
-def route_allows_package_bypass(route: str | None) -> bool:
+def route_allows_package_bypass(route: str | None, lease: Mapping[str, Any] | None = None) -> bool:
     """Allow only lifecycle routes that establish session/task package context."""
-    return route in _REBIND_ROUTES or route in _SESSION_BOOTSTRAP_ROUTES
+    if route in _REBIND_ROUTES or route in _SESSION_BOOTSTRAP_ROUTES:
+        return True
+    return bool(route in _UNBOUND_TASK_ROUTES and lease is not None and not lease.get("task_slug"))
 
 
 def require_current_task_package(svc: Any, lease: Mapping[str, Any]) -> None:

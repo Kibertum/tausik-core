@@ -81,6 +81,7 @@ def close_obsolete(svc: Any, slug: str, reason: str | None) -> str:
             resolution_reason=text,
         )
         svc.be.task_append_notes(slug, f"OBSOLETE (was {task['status']}): {text}")
+        svc.be._execution_lease_unbind_task(slug, now)
         msgs = [
             f"Task '{slug}' closed as OBSOLETE — kept on record, left out of delivery "
             "metrics (FPSR, DER, cycle/lead time, calibration)."

@@ -133,6 +133,20 @@ class ExecutionLeaseMixin:
             (reason_at,),
         )
 
+    def _execution_lease_unbind_task(self, task_slug: str, changed_at: str) -> int:
+        """Release live leases from a terminal task without touching other threads."""
+        self._ex(
+            "UPDATE execution_authorizations SET consumed_at=? "
+            "WHERE consumed_at IS NULL AND lease_id IN "
+            "(SELECT id FROM execution_leases WHERE task_slug=? AND revoked_at IS NULL)",
+            (changed_at, task_slug),
+        )
+        return self._ex(
+            "UPDATE execution_leases SET task_slug=NULL,task_package_fingerprint=NULL "
+            "WHERE task_slug=? AND revoked_at IS NULL",
+            (task_slug,),
+        )
+
     def _execution_lease_state(self) -> dict[str, Any] | None:
         return self._q1("SELECT * FROM execution_lease_state WHERE singleton=1")
 

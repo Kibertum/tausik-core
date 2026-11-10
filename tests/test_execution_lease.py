@@ -9,6 +9,7 @@ import sys
 
 import pytest
 
+from execution_lease_package import route_allows_package_bypass
 from project_backend import SQLiteBackend
 from project_service import ProjectService
 from service_execution_lease import (
@@ -604,6 +605,36 @@ def test_contract_change_makes_bound_lease_stale(service):
             thread_id="thread-a",
             nonce=lease["nonce"],
             now=now + timedelta(seconds=2),
+        )
+
+
+@pytest.mark.parametrize("route", ["tausik_task_add", "tausik_task_quick"])
+def test_unbound_task_routes_do_not_bypass_a_bound_stale_package(service, route):
+    svc, project = service
+    assertion = trusted_assertion(project)
+    prepare(svc, assertion)
+    lease = issue_execution_lease(svc, assertion)
+    svc.epic_add("e", "E")
+    svc.story_add("e", "s", "S")
+    svc.task_add("s", "a", "A", complexity="simple")
+    svc.task_update(
+        "a",
+        goal="ship a",
+        acceptance_criteria="AC-1 works. Negative: invalid input is refused.",
+    )
+    svc.task_start("a", include_memory=False, execution_lease_id=lease["id"])
+    svc.task_update("a", goal="make the bound package stale")
+    bound = svc.be._execution_lease_by_nonce(lease["nonce"])
+
+    assert not route_allows_package_bypass(route, bound)
+    with pytest.raises(ExecutionLeaseError, match="PACKAGE_STALE"):
+        require_execution_lease(
+            svc,
+            project_dir=str(project),
+            host_instance="codex",
+            thread_id="thread-a",
+            nonce=lease["nonce"],
+            allow_package_rebind=route_allows_package_bypass(route, bound),
         )
 
 

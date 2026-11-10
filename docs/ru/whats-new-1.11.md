@@ -173,6 +173,21 @@ memory-only держит лёгкий бэклог (канон B): epic/story/ta
 
 - [Точный changelog 1.11.7](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.ru.md)
 
+## 1.11.10 — передача lease после obsolete-задачи
+
+Когда задача закрывается как obsolete, TAUSIK в той же транзакции очищает её
+package-привязку у живых execution leases. Тот же поток Cursor сразу может
+создать и запустить следующую задачу без owner reconcile и нового чата.
+Неиспользованные авторизации старой привязки погашаются, а leases других
+активных задач остаются неизменными.
+
+Обновите используемую проектом копию фреймворка, повторно запустите bootstrap
+для Cursor и выполните Reload Window, чтобы MCP-сервер стартовал на 1.11.10.
+После этого обновления runtime существующий чат продолжит работу без owner
+reconcile и без нового чата.
+
+- [Точный changelog 1.11.10](https://github.com/Kibertum/tausik-core/blob/v1.11.10/CHANGELOG.ru.md)
+
 ## 1.11.9 — восстановление execution lease в Cursor и Codex
 
 Патч исправляет rollout execution lease из 1.11.8 во всех проектах полного

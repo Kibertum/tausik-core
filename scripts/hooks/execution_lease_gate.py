@@ -130,7 +130,7 @@ def require_live_lease(
                 thread_id=thread_id.strip(),
                 nonce=current["nonce"],
                 allow_package_rebind=bool(request_items)
-                and route_allows_package_bypass(request_items[0][0]),
+                and route_allows_package_bypass(request_items[0][0], current),
             )
             from execution_lease_package import require_task_argument_binding
 

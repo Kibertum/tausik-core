@@ -169,6 +169,21 @@ minutes: Windows is nightly, not per-push.
 
 - [Exact 1.11.7 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.md)
 
+## 1.11.10 — obsolete-task lease handoff
+
+When a task is closed as obsolete, TAUSIK now clears that task's package
+binding from its live execution leases in the same transaction. The same
+Cursor thread can immediately create and start its next task without an owner
+reconcile or a new chat. Unused authorizations from the old binding are
+invalidated, while leases bound to other active tasks remain unchanged.
+
+Upgrade the framework copy used by the project, rerun the Cursor bootstrap,
+then reload the Cursor window so the MCP server starts with 1.11.10. After that
+runtime refresh, the existing chat can continue without an owner reconcile or
+a new chat.
+
+- [Exact 1.11.10 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.10/CHANGELOG.md)
+
 ## 1.11.9 — execution-lease recovery for Cursor and Codex
 
 This patch repairs the 1.11.8 execution-lease rollout across every full-profile

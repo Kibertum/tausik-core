@@ -8,11 +8,22 @@ QG-2, and a closed finding does not count as a shipped one.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 import claudemd_state
 from project_backend import SQLiteBackend
 from project_service import ProjectService
+from service_execution_lease import (
+    ExecutionLeaseError,
+    authorize_mcp_mutation,
+    assertion_from_session_start,
+    consume_mcp_authorization,
+    issue_execution_lease,
+    reconcile_execution_lease_state,
+    require_execution_lease,
+)
 from task_obsolete import close_obsolete
 from tausik_utils import ServiceError
 
@@ -108,6 +119,121 @@ def test_the_status_line_and_claude_md_report_it_apart(svc):
 def test_the_story_closes_when_its_last_open_task_goes_obsolete(svc):
     msg = close_obsolete(svc, "stale", REASON)
     assert "Story 's' auto-closed." in msg
+
+
+def _issue_thread_lease(svc, project, thread_id):
+    assertion = assertion_from_session_start(
+        {"hook_event_name": "SessionStart", "session_id": thread_id},
+        str(Path(svc.tausik_dir()).resolve().parent),
+        trusted_host="cursor",
+    )
+    reconcile_execution_lease_state(svc, assertion)
+    return issue_execution_lease(svc, assertion)
+
+
+def _start_with_lease(svc, slug, lease_id):
+    svc.task_update(
+        slug,
+        goal=f"deliver {slug}",
+        acceptance_criteria="AC-1 works. Negative: stale state is refused.",
+        scope=f"scripts/{slug}.py",
+        rollback_plan="revert",
+        complexity="medium",
+    )
+    svc.task_start(slug, include_memory=False, execution_lease_id=lease_id)
+
+
+def test_obsolete_close_releases_the_same_thread_for_its_next_task(svc, tmp_path):
+    lease = _issue_thread_lease(svc, tmp_path, "thread-a")
+    _start_with_lease(svc, "stale", lease["id"])
+    lease = svc.be._execution_lease_by_nonce(lease["nonce"])
+    old_arguments = {"slug": "stale", "message": "old pending write"}
+    authorize_mcp_mutation(svc, lease=lease, route="tausik_task_log", arguments=old_arguments)
+
+    close_obsolete(svc, "stale", REASON)
+
+    released = svc.be._execution_lease_by_nonce(lease["nonce"])
+    assert released["task_slug"] is None
+    assert released["task_package_fingerprint"] is None
+    validated = require_execution_lease(
+        svc,
+        project_dir=str(Path(svc.tausik_dir()).resolve().parent),
+        host_instance="cursor",
+        thread_id="thread-a",
+        nonce=lease["nonce"],
+    )
+    svc.story_add("e", "next-story", "Next story")
+    authorize_mcp_mutation(
+        svc,
+        lease=validated,
+        route="tausik_task_add",
+        arguments={"story": "next-story", "slug": "next", "title": "Next"},
+    )
+    consume_mcp_authorization(
+        svc,
+        route="tausik_task_add",
+        arguments={"story": "next-story", "slug": "next", "title": "Next"},
+    )
+    svc.task_add("next-story", "next", "Next")
+    _start_with_lease(svc, "next", lease["id"])
+    assert svc.be._execution_lease_by_nonce(lease["nonce"])["task_slug"] == "next"
+    with pytest.raises(ExecutionLeaseError, match="IDENTITY_MISSING"):
+        consume_mcp_authorization(svc, route="tausik_task_log", arguments=old_arguments)
+
+
+def test_obsolete_close_does_not_unbind_another_threads_active_task(svc, tmp_path):
+    lease_a = _issue_thread_lease(svc, tmp_path, "thread-a")
+    _start_with_lease(svc, "stale", lease_a["id"])
+    svc.task_add("s", "other", "Other")
+    lease_b = _issue_thread_lease(svc, tmp_path, "thread-b")
+    _start_with_lease(svc, "other", lease_b["id"])
+
+    close_obsolete(svc, "stale", REASON)
+
+    released = require_execution_lease(
+        svc,
+        project_dir=str(Path(svc.tausik_dir()).resolve().parent),
+        host_instance="cursor",
+        thread_id="thread-a",
+        nonce=lease_a["nonce"],
+        allow_package_rebind=True,
+    )
+    authorize_mcp_mutation(
+        svc,
+        lease=released,
+        route="tausik_task_add",
+        arguments={"story": "s", "slug": "next", "title": "Next"},
+    )
+    consume_mcp_authorization(
+        svc,
+        route="tausik_task_add",
+        arguments={"story": "s", "slug": "next", "title": "Next"},
+    )
+    svc.task_add("s", "next", "Next")
+    _start_with_lease(svc, "next", lease_a["id"])
+    assert svc.be._execution_lease_by_nonce(lease_a["nonce"])["task_slug"] == "next"
+    assert svc.be._execution_lease_by_nonce(lease_b["nonce"])["task_slug"] == "other"
+
+
+def test_obsolete_close_rolls_back_lease_release_on_failure(svc, tmp_path, monkeypatch):
+    lease = _issue_thread_lease(svc, tmp_path, "thread-a")
+    _start_with_lease(svc, "stale", lease["id"])
+    lease = svc.be._execution_lease_by_nonce(lease["nonce"])
+    arguments = {"slug": "stale", "message": "still valid after rollback"}
+    authorize_mcp_mutation(svc, lease=lease, route="tausik_task_log", arguments=arguments)
+    unbind = svc.be._execution_lease_unbind_task
+
+    def fail_after_unbind(task_slug, changed_at):
+        unbind(task_slug, changed_at)
+        raise RuntimeError("injected failure after lease release")
+
+    monkeypatch.setattr(svc.be, "_execution_lease_unbind_task", fail_after_unbind)
+    with pytest.raises(RuntimeError, match="injected failure"):
+        close_obsolete(svc, "stale", REASON)
+
+    assert svc.be.task_get("stale")["status"] == "active"
+    assert svc.be._execution_lease_by_nonce(lease["nonce"])["task_slug"] == "stale"
+    consume_mcp_authorization(svc, route="tausik_task_log", arguments=arguments)
 
 
 def test_task_done_refuses_a_task_that_never_started(svc):

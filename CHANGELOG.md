@@ -9,6 +9,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.10] — 2026-11-10
+
+### Fixed — obsolete task lease handoff
+
+- Closing a task as obsolete now atomically clears that task's package binding
+  from its live execution leases and invalidates unused authorizations issued
+  under the old binding. The same Cursor thread can create its next task
+  immediately, while leases owned by other active tasks remain unchanged.
+
 ## [1.11.9] — 2026-11-10
 
 ### Fixed — Cursor execution-lease completion
