@@ -85,12 +85,20 @@ Cursor runs these adapters only after the workspace project hooks are trusted.
 Bootstrap binds every adapter to the selected Python interpreter and project,
 attests the complete generated hook configuration, and routes both
 `postToolUse` and `postToolUseFailure` through the durable preflight audit.
-The managed Cursor MCP server also requires a Cursor-bound execution lease, so
+In the `full` profile, the managed Cursor MCP server requires a Cursor-bound execution lease, so
 a direct mutating MCP call cannot bypass the `preToolUse` authorization path.
 Cursor cloud agents do not run `sessionStart`, `sessionEnd`, `beforeMCPExecution`
 or `afterMCPExecution` during the early read-only phase. TAUSIK therefore makes
-the first writable `preToolUse` fail closed when no trusted execution lease was
-minted; it does not claim enforcement for the preceding read-only cloud phase.
+the first writable `preToolUse` renew or mint a lease after the complete hook
+capability is attested. It fails closed on missing identity, stale capability,
+maintenance, or an ambiguous/stale task package; it does not claim enforcement
+for the preceding read-only cloud phase. In `memory-only`, bootstrap omits lease
+enforcement together with the lifecycle hooks.
+
+Authorized MCP `session_start`, `session_end`, `session_extend`, and
+`session_handoff` operations target the lease's exact host thread, never the
+newest unrelated session. `SessionEnd` closes that exact session even when no
+transcript is available for metrics.
 
 Where it says `cli`, what closing by a hook does is lost: recording the
 transcript's metrics and the generated handoff at exit. `session end` by hand

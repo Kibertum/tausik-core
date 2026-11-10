@@ -160,7 +160,7 @@ def test_claude_mcp_external_python_stays_absolute(tmp_path):
     assert srv["args"][0] == "${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/project/server.py"
 
 
-def test_cursor_mcp_uses_workspacefolder(tmp_path):
+def test_cursor_mcp_uses_supported_platform_transport(tmp_path):
     from bootstrap_generate import generate_cursor_mcp_json
 
     project = tmp_path / "proj"
@@ -170,8 +170,15 @@ def test_cursor_mcp_uses_workspacefolder(tmp_path):
     srv = json.loads((project / ".cursor" / "mcp.json").read_text(encoding="utf-8"))["mcpServers"][
         "tausik-project"
     ]
-    assert srv["args"][0] == "${workspaceFolder}/.cursor/mcp/project/server.py"
-    assert srv["args"][2] == "${workspaceFolder}"
+    anchor = (
+        os.path.normpath(str(project)).replace("\\", "/")
+        if os.name == "nt"
+        else "${workspaceFolder}"
+    )
+    assert srv["args"][0] == f"{anchor}/.cursor/mcp/project/server.py"
+    assert srv["args"][2] == anchor
+    if os.name == "nt":
+        assert "${workspaceFolder}" not in json.dumps(srv)
 
 
 def test_claude_hooks_are_rename_proof(tmp_path):

@@ -67,6 +67,29 @@ def test_ok_when_only_tausik_servers(tmp_path: Path):
     assert "no extra MCP" in rows[0][2]
 
 
+def test_ok_with_bootstrap_absolute_windows_style_paths(tmp_path: Path):
+    mcp = tmp_path / ".cursor"
+    mcp.mkdir()
+    servers = {name: _managed_entry(tmp_path, name) for name in ("tausik-project", "codebase-rag")}
+    for name, entry in servers.items():
+        relative = (
+            ".cursor/mcp/project/server.py"
+            if name == "tausik-project"
+            else f".cursor/mcp/{name}/rag_server.py"
+        )
+        entry["args"] = [
+            (tmp_path / relative).as_posix(),
+            "--project",
+            tmp_path.as_posix(),
+        ]
+    (mcp / "mcp.json").write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
+    _install_cursor_capability(tmp_path)
+
+    rows = check_cursor_mcp_surface(str(tmp_path))
+
+    assert len(rows) == 1 and rows[0][0] == "ok"
+
+
 def test_warns_when_managed_server_cannot_start(tmp_path: Path):
     mcp = tmp_path / ".cursor"
     mcp.mkdir()

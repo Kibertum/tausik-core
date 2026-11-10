@@ -15,10 +15,10 @@
     ],
     "total": 7
   },
-  "content_sha256": "b811ce59f92bf04a449b1fa7b2acdda31a0e20d92a24b88566747401cbed2edc",
-  "contract_bundle_sha256": "2eba0b5349cb60b9607aeec6175778399ce634456ca58a7251ea4a86fff4f071",
+  "content_sha256": "ab0f6bb8cdbb8113add9ba4c56d52db4fa25d91fb9131eca10e106cbae83af10",
+  "contract_bundle_sha256": "8112a002faff4b64075e33200e208f1ee33c416c378d0b60f473003ac11800cb",
   "counts": {"collected": 13, "deselected": 0, "failed": 13, "passed": 0},
-  "evaluator_sha256": "85d0a3cb20718c6337a6d92c66781eb163b27c2dc325cc9967375aa88288543e",
+  "evaluator_sha256": "f3c8e60891c4959bf8f8369a3ad24285b321f0ce87311af000411727e918219e",
   "fixture_sha256": "ac28c5b68a9399f2f8ea089878acb4aeb72b196ea96e8b7741356c9d007f90fd",
   "integration_census_sha256": "fc530726ad8df439b7ef27356b67a0aad2ff3263bb33deec336e3b22e7faf91a",
   "metrics": {
@@ -32,5 +32,5 @@
   },
   "phase": "acceptance",
   "policy_sha256": "6560a8c5817aef6e6176f01f890bc57fc3f14fdf7991fefdd213c667562e5b90",
-  "registry_sha256": "0a196fd57eaf3ed2752a6d08ecadede85a1b74474dc862e839439479bccfff7c"
+  "registry_sha256": "a01ed38b9632d60c257a597f3899a813822666c1cd2ead2ec0b2c2782b9a3293"
 }

@@ -85,12 +85,19 @@ Cursor запускает эти адаптеры только после дов
 пространства. Bootstrap привязывает каждый adapter к выбранному Python и проекту,
 аттестует весь сгенерированный hooks-конфиг и направляет `postToolUse` вместе с
 `postToolUseFailure` в долговечный preflight-аудит. Управляемый MCP-сервер Cursor
-также требует execution lease, привязанную к Cursor, поэтому прямой изменяющий
+в полном профиле также требует execution lease, привязанную к Cursor, поэтому прямой изменяющий
 MCP-вызов не обходит авторизацию `preToolUse`. Cloud agents Cursor не запускают
 `sessionStart`, `sessionEnd`,
 `beforeMCPExecution` и `afterMCPExecution` в ранней read-only фазе. Поэтому
-первый пишущий `preToolUse` закрывается отказом, если доверенная execution lease
-не выдана; TAUSIK не заявляет enforcement для предшествующей read-only фазы.
+первый пишущий `preToolUse` после аттестации полного набора hooks выдаёт или
+продлевает execution lease. Он закрывается отказом при отсутствии identity,
+устаревшем capability, maintenance или неоднозначном/stale task package; TAUSIK
+не заявляет enforcement для предшествующей read-only фазы. В `memory-only`
+bootstrap не включает enforcement lease вместе с lifecycle hooks.
+
+MCP-операции `session_start`, `session_end`, `session_extend` и
+`session_handoff` адресуют точный поток авторизованного lease, а не новейшую
+чужую сессию. `SessionEnd` закрывает этот поток даже без transcript для метрик.
 
 Где стоит `cli`, теряется то, что делает закрытие хуком: запись метрик
 транскрипта и порождённый handoff в момент выхода. `session end` руками делает

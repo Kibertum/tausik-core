@@ -333,8 +333,13 @@ def _codex_preflight_hooks_ready(project_dir: str) -> bool:
     )
 
 
-def _issue_execution_lease(project_dir: str, payload: object, *, trusted_host: str) -> str | None:
-    """Issue only from this trusted SessionStart boundary; never from MCP/CLI."""
+def _issue_execution_lease(
+    project_dir: str,
+    payload: object,
+    *,
+    trusted_host: str,
+) -> str | None:
+    """Ensure a lease from an attested lifecycle hook; never from MCP/CLI."""
 
     if not isinstance(payload, dict):
         return "TAUSIK EXECUTION LEASE REFUSED. IDENTITY_MISSING: invalid hook payload."
@@ -344,7 +349,10 @@ def _issue_execution_lease(project_dir: str, payload: object, *, trusted_host: s
     if os.path.isfile(os.path.join(project_dir, ".tausik", "execution-lease-maintenance")):
         return (
             "TAUSIK EXECUTION LEASE REFUSED. LEASE_MAINTENANCE: a prior PostToolUse "
-            "audit could not persist; owner recovery is required. Do not begin project work."
+            "audit could not persist; owner recovery is required. From the project root run "
+            "`.tausik/tausik doctor --reconcile-execution-leases revoke-and-reconcile`, "
+            "then reload Cursor. Existing chats, tasks and files are preserved. "
+            "Do not begin project work before recovery."
         )
     scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if scripts_dir not in sys.path:
@@ -354,7 +362,6 @@ def _issue_execution_lease(project_dir: str, payload: object, *, trusted_host: s
         from project_service import ProjectService
         from service_execution_lease import (
             assertion_from_session_start,
-            enter_execution_lease_maintenance,
             issue_execution_lease,
             reconcile_execution_lease_state,
         )
@@ -373,9 +380,6 @@ def _issue_execution_lease(project_dir: str, payload: object, *, trusted_host: s
                 else cursor_preflight_hooks_ready(project_dir)
             )
             if not ready:
-                enter_execution_lease_maintenance(
-                    svc, f"{trusted_host} protected-action hook capability is missing or stale"
-                )
                 return (
                     "TAUSIK EXECUTION LEASE REFUSED. CAPABILITY_MISMATCH: "
                     f"{trusted_host} protected-action hooks are missing or stale. "
@@ -396,6 +400,13 @@ def _issue_execution_lease(project_dir: str, payload: object, *, trusted_host: s
             backend.close()
     except Exception as exc:  # noqa: BLE001 - trusted boundary fails closed with a typed notice
         if hasattr(exc, "code"):
+            if getattr(exc, "code", "") == "LEASE_MAINTENANCE":
+                return (
+                    f"TAUSIK EXECUTION LEASE REFUSED. {exc} From the project root run "
+                    "`.tausik/tausik doctor --reconcile-execution-leases "
+                    "revoke-and-reconcile`, then reload Cursor. Existing chats, tasks and "
+                    "files are preserved. Do not begin project work before recovery."
+                )
             return f"TAUSIK EXECUTION LEASE REFUSED. {exc} Do not begin project work."
         return (
             "TAUSIK EXECUTION LEASE REFUSED. LEASE_INTERNAL: "

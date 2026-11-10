@@ -168,3 +168,35 @@ referring column in one transaction (schema-derived referrers,
 minutes: Windows is nightly, not per-push.
 
 - [Exact 1.11.7 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.md)
+
+## 1.11.9 — execution-lease recovery for Cursor and Codex
+
+This patch repairs the 1.11.8 execution-lease rollout across every full-profile
+project. Cursor and Codex recover an existing thread on demand at the trusted
+PreToolUse boundary, including a single turn longer than the lease
+TTL. Compatible patch upgrades preserve valid pending reservations and reconcile
+without poisoning each project. Incompatible schema or capability, ambiguous
+identity, and audit-integrity failures remain fail-closed.
+
+Renewal retains exact per-thread task-package provenance even with concurrent
+active tasks. Session lifecycle calls target only the authorized thread.
+Cursor memory-only projects no longer enable an enforcement mode whose hooks
+are intentionally absent, read-only diagnostics stay lease-free, and a
+pre-execution permission denial terminates its exact audit reservation without
+entering maintenance.
+
+After updating, regenerate each consumer's Cursor profile with
+`python .tausik-lib/bootstrap/bootstrap.py --project-dir . --ide cursor`, then
+run **Developer: Reload Window** (or disable and re-enable `tausik-project`). A
+running MCP process keeps its imported 1.11.8 code until Cursor restarts it;
+bootstrap writes `TAUSIK_PROFILE_BUILD` so the refreshed runtime has an explicit
+content identity.
+
+Projects already placed in maintenance by 1.11.8 remain fail-closed because the
+persisted state cannot distinguish the Cursor regression from a genuine audit
+failure. From the project root, run `.tausik/tausik doctor
+--reconcile-execution-leases revoke-and-reconcile` once, then reload Cursor.
+This revokes technical lease bindings and pending reservations; it does not
+delete chats, tasks or files.
+
+- [Exact 1.11.9 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.9/CHANGELOG.md)

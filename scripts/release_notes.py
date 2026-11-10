@@ -14,6 +14,7 @@ before the owner creates the release; it refuses a body that misses a page.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 LANGS = ("en", "ru")
 
@@ -29,3 +30,21 @@ def whats_new_page(version: str, lang: str) -> str:
 def missing_links(body: str, version: str) -> list[str]:
     """Pages of `version` the release body does not link; empty when both are there."""
     return [page for page in (whats_new_page(version, lang) for lang in LANGS) if page not in body]
+
+
+def missing_release_sections(root: str, version: str) -> list[str]:
+    """Linked pages that do not actually contain this patch's release section."""
+    normalized = version.strip().removeprefix("v")
+    heading = re.compile(rf"^##\s+v?{re.escape(normalized)}(?:\s|$)", re.MULTILINE)
+    missing = []
+    for lang in LANGS:
+        page = whats_new_page(version, lang)
+        path = Path(root, page)
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            missing.append(page)
+            continue
+        if heading.search(text) is None:
+            missing.append(page)
+    return missing

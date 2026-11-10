@@ -62,7 +62,7 @@ def cmd_publish(svc: Any, args: Any) -> None:
             _remote_audit(_root(svc), args)
             return
         if sub == "notes":
-            _notes(args)
+            _notes(_root(svc), args)
             return
         if sub == "senar-check":
             _senar_check()
@@ -85,14 +85,18 @@ def cmd_publish(svc: Any, args: Any) -> None:
         sys.exit(2)
 
 
-def _notes(args: Any) -> None:
+def _notes(root: str, args: Any) -> None:
     """The release body links both whats-new pages (docs/en/publishing.md)."""
-    from release_notes import missing_links
+    from release_notes import missing_links, missing_release_sections
 
     with open(args.body_file, encoding="utf-8") as f:
         missing = missing_links(f.read(), args.version)
     if missing:
         print("REFUSED: the release body does not link " + ", ".join(missing))
+        sys.exit(1)
+    stale = missing_release_sections(root, args.version)
+    if stale:
+        print("REFUSED: whats-new pages do not contain this release: " + ", ".join(stale))
         sys.exit(1)
     print(f"OK: the release body of {args.version} links both whats-new pages")
 

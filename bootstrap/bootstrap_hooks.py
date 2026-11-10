@@ -1,6 +1,4 @@
-"""TAUSIK shared hooks block builder.
-Hosts supply `_hook_cmd(script, suffix="")`; this module owns the declaration.
-"""
+"""Shared hook declarations consumed by each host's command builder."""
 
 from __future__ import annotations
 
@@ -75,6 +73,7 @@ def assert_hooks_deployed(target_dir: str) -> str:
 #: rather than silently going ungated, which is the failure this constant is a
 #: memorial to.
 SHELL_MATCHER = "Bash|PowerShell"
+
 
 # ---- PR #5 (Okianiwa): every tool a guarded action is reachable with ---------
 #

@@ -12,7 +12,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "scripts"))
 
 from project_cli_publish import cmd_publish  # noqa: E402
-from release_notes import missing_links, whats_new_page  # noqa: E402
+from release_notes import missing_links, missing_release_sections, whats_new_page  # noqa: E402
 
 # The line the v1.9.0 GitHub Release carries, copied from it on 2026-09-23.
 V190_LINE = (
@@ -38,6 +38,10 @@ def test_the_page_is_named_by_major_minor():
 
 
 def _run(tmp_path, body):
+    for lang in ("en", "ru"):
+        page = tmp_path / "docs" / lang / "whats-new-1.9.md"
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text("## 1.9.0 — release\n", encoding="utf-8")
     f = tmp_path / "body.md"
     f.write_text(body, encoding="utf-8")
     args = SimpleNamespace(publish_cmd="notes", version="1.9.0", body_file=str(f))
@@ -55,6 +59,25 @@ def test_the_cli_refuses_a_body_missing_a_page(tmp_path, capsys):
 def test_the_cli_accepts_a_body_with_both_pages(tmp_path, capsys):
     _run(tmp_path, V190_LINE)
     assert "OK" in capsys.readouterr().out
+
+
+def test_linked_page_without_exact_patch_section_is_refused(tmp_path, capsys):
+    for lang in ("en", "ru"):
+        page = tmp_path / "docs" / lang / "whats-new-1.9.md"
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text("## 1.9.1 — another patch\n", encoding="utf-8")
+    assert missing_release_sections(str(tmp_path), "1.9.0") == [
+        "docs/en/whats-new-1.9.md",
+        "docs/ru/whats-new-1.9.md",
+    ]
+    args = SimpleNamespace(
+        publish_cmd="notes", version="1.9.0", body_file=str(tmp_path / "body.md")
+    )
+    (tmp_path / "body.md").write_text(V190_LINE, encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        cmd_publish(SimpleNamespace(tausik_dir=lambda: str(tmp_path / ".tausik")), args)
+    assert exc.value.code == 1
+    assert "do not contain this release" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("lang", ["en", "ru"])

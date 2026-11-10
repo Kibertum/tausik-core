@@ -422,7 +422,9 @@ def complete_preflight_for_thread(
     tool_name: str,
     tool_input: Mapping[str, Any],
     *,
+    host_instance: str = "codex",
     failed: bool = False,
+    failure_code: str | None = None,
     now: datetime | None = None,
 ) -> bool:
     """Complete the exact reservation even when the action revoked its own lease."""
@@ -433,10 +435,10 @@ def complete_preflight_for_thread(
     row = be._q1(
         "SELECT t.id FROM memory_preflight_tokens t "
         "JOIN execution_leases l ON l.id=t.lease_id "
-        "WHERE l.project_identity=? AND l.host_instance='codex' AND l.thread_id=? "
+        "WHERE l.project_identity=? AND l.host_instance=? AND l.thread_id=? "
         "AND t.action_id=? AND t.payload_hash=? AND t.status='reserved' "
         "ORDER BY t.id DESC LIMIT 1",
-        (project_identity, thread_id, action_id, payload_hash),
+        (project_identity, host_instance.casefold(), thread_id, action_id, payload_hash),
     )
     if row is None:
         return False
@@ -448,7 +450,7 @@ def complete_preflight_for_thread(
             (
                 status,
                 _iso(now or _now()),
-                "TOOL_FAILED" if failed else None,
+                (failure_code or "TOOL_FAILED") if failed else None,
                 row["id"],
             ),
         )

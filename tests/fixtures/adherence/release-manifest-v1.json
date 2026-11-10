@@ -4,7 +4,7 @@
     "scripts/adherence_contract.py": "7c37296e7a90bf0c6644b0302de2451abcd94ad4ba2a86d4f762217852afde7e",
     "scripts/adherence_evidence.py": "327f2837d1b3f12f700770bbf0b3bce61455ab4a72cdaf4110a42a9dfce3c3d0",
     "scripts/adherence_policy.py": "9e51f76c6c8be593bc94f6ad5eae23d18036da5a379ec5b6594d1eda1092e44f",
-    "scripts/adherence_registry.py": "45be11663df19dbba1518040dfb23d9a1c277f7ec2d8eda78fd935ca4d1d0412",
+    "scripts/adherence_registry.py": "b7288c6b49b6fa8b4a8c8f20f25e4164a657921e77791c508e712633e453ccf6",
     "scripts/adherence_release.py": "c795e607555648498bdb0e9f6af23f118dd84ccb2a2055d0c1349ad3c2c173ac",
     "scripts/adherence_runtime.py": "8c33c7ab9cf296545f92729825cee1206c4b378dd2ec1101883f8118dfd4a61f",
     "scripts/backend_migrations_v82.py": "1146c354832d4fd0bbd6820578509c5091c31a567e9406f2639cc3a37c7c148b",
@@ -12,7 +12,8 @@
     "scripts/backend_migrations_v84.py": "ebb99f32d29d8e1dc47cb051b6279f16be51a9beaff326fd061e7624d39b511b",
     "scripts/backend_migrations_v85.py": "3decae62914de4b47a653f82d168b051b374bb4ce3c1b74840d5127cab87dff9",
     "scripts/backend_migrations_v86.py": "61bc88dd699ee7fb0605864050725552edb0804bf3bbb8a7545616c91466de33",
-    "tests/fixtures/adherence/manifest-v1.json": "dc6a0917b9104327161f5e6e9eafd1f18452ed0a3dc685be10bdaa5773682343",
+    "scripts/mcp_handler_shape.py": "d1a859f19a4068892f9e4789e8d29a1c54ba67bfeb87e3dd8b9b768c34e3f82c",
+    "tests/fixtures/adherence/manifest-v1.json": "949a83a6999d86ee783fcd9ea0823dafa609587a3dcc31e0feb1590095d6feae",
     "tests/fixtures/adherence/policy-v1.json": "8384f8b9d9f8c3a165e7a853357ca78586dd44edfd278937ee8c29d5addbbcfe",
     "tests/fixtures/adherence/valid-events-v1.json": "f1ee79dce8dc53e2ca69158864a4acb53fb3fccd69570399a0901475f8cc69d4"
   },
@@ -22,12 +23,12 @@
       "nodes_sha256": "2f2bb2e6aaee63f3399c14e863c164bb0cbd340fab8d481612c9d6dde1df1247"
     },
     "codex_cursor": {
-      "count": 269,
-      "nodes_sha256": "13c88cdd8c66ecbeee1edf7604653af3921bbf805e416bdd313e59351164d5d9"
+      "count": 274,
+      "nodes_sha256": "7ca0f875d9509dabd5d9d2ddb48c1861148e643f5768726c3cb368441cfa0a9e"
     },
     "governance_restart": {
-      "count": 195,
-      "nodes_sha256": "38ce71da061c92bcdccbfa8b77d31f4b7466f78beaa941ff3a2832597b7bf782"
+      "count": 231,
+      "nodes_sha256": "6a67d147fa4125c0847a8dc428b0ae77b788be0ff263acfeeb47e39b6eae8f22"
     },
     "migration": {
       "count": 85,

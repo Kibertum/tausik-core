@@ -70,7 +70,7 @@ class SessionMixin:
 
         return session_overrun_warning(self.be, max_minutes, effective_limit=effective_limit)
 
-    def session_extend(self, minutes: int = 60) -> str:
+    def session_extend(self, minutes: int = 60, host_session_id: str | None = None) -> str:
         """Extend session active-time limit by N minutes (SENAR Rule 9.2)."""
         from project_config import DEFAULT_SESSION_MAX_MINUTES, load_config
         from service_session_metrics import (
@@ -78,7 +78,11 @@ class SessionMixin:
             session_active_minutes,
         )
 
-        current = self.be.session_current()
+        current = (
+            self.be.session_current(host_session_id)
+            if host_session_id
+            else self.be.session_current()
+        )
         if not current:
             raise ServiceError("No active session to extend.")
         cfg = load_config()
@@ -202,9 +206,9 @@ class SessionMixin:
 
         recent = self.be.session_list(1)
         current = (
-            (self.be.session_current(host_session_id) if host_session_id else None)
-            or self.be.session_current()
-            or (recent[0] if recent else None)
+            self.be.session_current(host_session_id)
+            if host_session_id
+            else (self.be.session_current() or (recent[0] if recent else None))
         )
         if not current:
             raise ServiceError(

@@ -16,6 +16,10 @@
 
 `memory-only` — лёгкий бэклог, а не запрет заводить задачи и не более слабое значение слова «проверено». Профиль отказывается от enforcement QG-0/QG-2, scope gates, автоматических сессий, verification receipts, secret scan, push protection и usage hooks. На MCP advertise `session_start` и `verify` помечены `[profile=disabled]` с отложенными схемами; лёгкие task/memory-инструменты остаются в списке. Bootstrap ставит skill `tausik-memory` и не ставит SENAR-сессионные (`start`/`end`/`checkpoint`); `doctor` и `status` не толкают полный skill bootstrap. Сначала вызывайте `tausik_memory_brief` — бюджетный playbook do/dont; сессию он не открывает. Пишите без выдуманной задачи: выбор владельца → `decide`; факт → `memory_add`; stop-doing → dead_end/gotcha; черновик → лёгкая задача или заметка. `task_slug` у `memory_add` опционален. Нативные тесты репозитория и операционные контроли остаются ответственностью проекта. Смена профиля не удаляет задачи, память, логи, историю или RAG-индекс.
 
+Для Cursor профиль `memory-only` также не добавляет
+`TAUSIK_ENFORCE_EXECUTION_LEASE` в управляемый MCP-сервер. У профиля намеренно
+нет ни lifecycle hooks lease, ни MCP-процесса, который ожидает их выдачу.
+
 ## Сигналы сессии (SENAR Rule 9.2 — с 1.10 совет, а не ворота)
 
 | Ключ | Дефолт | Назначение |

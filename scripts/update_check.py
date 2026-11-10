@@ -254,10 +254,10 @@ def session_start_release_check(
     return result
 
 
-def checked_session_start(svc: Any) -> str:
+def checked_session_start(svc: Any, host_session_id: str | None = None) -> str:
     """Run the shared direct-start path used by CLI and MCP transports."""
     check = session_start_release_check(svc)
-    result = svc.session_start()
+    result = svc.session_start(host_session_id)
     warning = check.get("warning")
     return f"WARNING: {warning}\n{result}" if warning else result
 

@@ -164,7 +164,7 @@ class _OpeningSvc(_Svc):
         super().__init__(path)
         self.opened = False
 
-    def session_start(self):
+    def session_start(self, host_session_id=None):
         self.opened = True
         return "opened"
 

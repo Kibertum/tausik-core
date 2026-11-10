@@ -14,7 +14,7 @@ exact upcoming `tool_name`, `tool_input`, and one closed `protected_kind`:
 exactly those IDs, and issues a five-minute token. A content change makes the
 inspection stale instead of silently rebinding acknowledgement to new text.
 
-The token binds the Codex execution lease, task-package fingerprint,
+The token binds the trusted host execution lease (Codex or Cursor), task-package fingerprint,
 memory-content revision, action identity, and normalized payload hash.
 PreToolUse reserves it atomically; PostToolUse records `executed` or `failed`.
 Missing, stale, conflicting, unknown, or replayed tokens fail closed. A typed

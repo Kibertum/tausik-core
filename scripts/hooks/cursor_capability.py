@@ -38,7 +38,6 @@ def cursor_preflight_hooks_ready(project_dir: str) -> bool:
         "codex_write_gate.py",
         "memory_preflight_posttool.py",
         "user_prompt_submit.py",
-        "can_stop_gate.py",
     }
     for name in required:
         path = os.path.join(hooks_dir, name)
@@ -56,12 +55,17 @@ def cursor_preflight_hooks_ready(project_dir: str) -> bool:
         "preToolUse": "codex_write_gate.py",
         "postToolUse": "memory_preflight_posttool.py",
         "postToolUseFailure": "memory_preflight_posttool.py",
-        "stop": "can_stop_gate.py",
     }
     python_exe = manifest.get("python")
     if not isinstance(python_exe, str) or not python_exe:
         return False
-    adapter = "${workspaceFolder}/.cursor/scripts/hooks/cursor_hook.py"
+    project_root = os.path.normpath(project_dir).replace("\\", "/")
+    if os.name == "nt":
+        adapter = f"{project_root}/.cursor/scripts/hooks/cursor_hook.py"
+        project = project_root
+    else:
+        adapter = "${workspaceFolder}/.cursor/scripts/hooks/cursor_hook.py"
+        project = "${workspaceFolder}"
     for event, script in expected.items():
         entries = [entry for entry in hooks.get(event, []) if isinstance(entry, dict)]
         matching = []
@@ -74,16 +78,12 @@ def cursor_preflight_hooks_ready(project_dir: str) -> bool:
                 parts = parts[1:]
             if parts[:3] != [python_exe, "-X", "utf8"]:
                 continue
-            if len(parts) < 9 or parts[3:9] != [
-                adapter,
-                "--event",
-                event,
-                "--script",
-                script,
-                "--project",
-            ]:
-                continue
-            if parts[9:10] != ["${workspaceFolder}"]:
+            if (
+                len(parts) < 10
+                or parts[3] != adapter
+                or parts[4:9] != ["--event", event, "--script", script, "--project"]
+                or parts[9] != project
+            ):
                 continue
             matching.append(entry)
         if not matching:

@@ -21,6 +21,18 @@ from handlers_render import render_list
 from handlers_status import _handle_self_check, _handle_status
 
 
+def _authorized_host_session_id(svc: Any) -> str | None:
+    lease = getattr(svc, "_authorized_execution_lease", None)
+    if lease is None:
+        return None
+    thread_id = lease.get("thread_id") if isinstance(lease, dict) else None
+    if isinstance(thread_id, str) and thread_id.strip():
+        return thread_id
+    from tausik_utils import ServiceError
+
+    raise ServiceError("authorized execution lease has no host thread identity")
+
+
 def _do_session_current(svc: Any, args: dict) -> str:
     from render_session import session_current_line
 
@@ -68,7 +80,9 @@ def _do_session_handoff(svc: Any, args: dict) -> str:
     what the caller sees, so a counter failure can no longer be mistaken for a
     handoff failure.
     """
-    result = svc.session_handoff(args.get("handoff"))
+    result = svc.session_handoff(
+        args.get("handoff"), host_session_id=_authorized_host_session_id(svc)
+    )
     reset_checkpoint_counter(svc)
     return result
 
@@ -345,15 +359,25 @@ def _handle_session_open(svc: Any, args: dict | None = None) -> str:
 def _do_session_start(svc: Any, args: dict) -> str:
     from update_check import checked_session_start
 
-    return checked_session_start(svc)
+    return checked_session_start(svc, _authorized_host_session_id(svc))
+
+
+def _do_session_end(svc: Any, args: dict) -> str:
+    return svc.session_end(args.get("summary"), host_session_id=_authorized_host_session_id(svc))
+
+
+def _do_session_extend(svc: Any, args: dict) -> str:
+    return svc.session_extend(
+        args.get("minutes", 60), host_session_id=_authorized_host_session_id(svc)
+    )
 
 
 SESSION_HANDLERS = {
     "tausik_session_current": _do_session_current,
     "tausik_session_list": _do_session_list,
     "tausik_session_start": _do_session_start,
-    "tausik_session_end": lambda svc, args: svc.session_end(args.get("summary")),
-    "tausik_session_extend": lambda svc, args: svc.session_extend(args.get("minutes", 60)),
+    "tausik_session_end": _do_session_end,
+    "tausik_session_extend": _do_session_extend,
     "tausik_session_handoff": _do_session_handoff,
     "tausik_session_last_handoff": _do_session_last_handoff,
     "tausik_session_open": lambda svc, args: _handle_session_open(svc, args),

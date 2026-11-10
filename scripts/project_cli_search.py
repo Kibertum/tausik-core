@@ -11,6 +11,13 @@ from typing import Any
 from project_service import ProjectService
 
 
+def render_fts_optimize(results: dict[str, str]) -> str:
+    """Render FTS optimization identically for CLI and MCP."""
+    lines = [f"  {table}: {status}" for table, status in results.items()]
+    lines.append("FTS5 optimization complete.")
+    return "\n".join(lines)
+
+
 def cmd_search(svc: ProjectService, args: Any) -> None:
     from render_status import SEARCH_LIMIT, search_lines
 
@@ -21,10 +28,7 @@ def cmd_search(svc: ProjectService, args: Any) -> None:
 def cmd_fts(svc: ProjectService, args: Any) -> None:
     c = getattr(args, "fts_cmd", None)
     if c == "optimize":
-        results = svc.fts_optimize()
-        for table, status in results.items():
-            print(f"  {table}: {status}")
-        print("FTS5 optimization complete.")
+        print(render_fts_optimize(svc.fts_optimize()))
     else:
         print("Usage: tausik fts optimize")
 

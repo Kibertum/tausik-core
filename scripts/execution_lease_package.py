@@ -93,13 +93,14 @@ def project_dir_from_tausik(svc: Any) -> str:
 
 def active_task_package(svc: Any, *, include_payload: bool = False) -> dict[str, Any] | None:
     columns = ",p.payload_json" if include_payload else ""
+    rows = svc.be._q(
+        f"SELECT t.slug AS task_slug,p.fingerprint{columns} FROM tasks t "
+        "LEFT JOIN task_context_packages p ON p.task_slug=t.slug WHERE t.status='active' "
+        "ORDER BY t.started_at DESC,t.id DESC LIMIT 2"
+    )
     return cast(
         dict[str, Any] | None,
-        svc.be._q1(
-            f"SELECT t.slug AS task_slug,p.fingerprint{columns} FROM tasks t "
-            "LEFT JOIN task_context_packages p ON p.task_slug=t.slug WHERE t.status='active' "
-            "ORDER BY t.started_at DESC,t.id DESC LIMIT 1"
-        ),
+        rows[0] if len(rows) == 1 else None,
     )
 
 
@@ -213,18 +214,36 @@ def renewal_package_binding(
     svc: Any, existing: Mapping[str, Any] | None
 ) -> tuple[str | None, str | None]:
     """Validate and preserve a prior thread binding during lease renewal."""
-    if existing is None:
-        return None, None
-    slug = existing.get("task_slug")
-    if isinstance(slug, str) and slug:
-        require_current_task_package(svc, existing)
-        fingerprint = existing.get("task_package_fingerprint")
-        return slug, fingerprint if isinstance(fingerprint, str) else None
-    active = svc.be._q1("SELECT COUNT(*) AS n FROM tasks WHERE status='active'")
-    if active and active["n"]:
-        from service_execution_lease import ExecutionLeaseError
+    if existing is not None:
+        slug = existing.get("task_slug")
+        if isinstance(slug, str) and slug:
+            bound = _bound_task_package(svc, slug)
+            if bound is not None and bound.get("status") == "active":
+                # Preserve exact thread provenance even if its package became stale.
+                # Protected calls still fail PACKAGE_STALE, while task_start remains
+                # the explicit recovery route that can refresh and rebind it.
+                fingerprint = existing.get("task_package_fingerprint")
+                return slug, fingerprint if isinstance(fingerprint, str) else None
+    active = active_task_package(svc, include_payload=True)
+    if active is not None:
+        if not active.get("fingerprint") or not active.get("payload_json"):
+            if existing is None:
+                return None, None
+            from service_execution_lease import ExecutionLeaseError
 
-        raise ExecutionLeaseError(
-            "PACKAGE_STALE", "unbound lease cannot renew while a task is active"
-        )
+            raise ExecutionLeaseError(
+                "PACKAGE_STALE", "unbound lease cannot renew: active task has no context package"
+            )
+        candidate = {
+            "task_slug": active["task_slug"],
+            "task_package_fingerprint": active.get("fingerprint"),
+        }
+        if existing is None:
+            # A fresh host thread must be able to reach task_start, which is the
+            # explicit package refresh/rebind route. Preserve the unique active
+            # task identity here; protected work still fails PACKAGE_STALE until
+            # that route refreshes the snapshot.
+            return active["task_slug"], active["fingerprint"]
+        require_current_task_package(svc, candidate)
+        return active["task_slug"], active["fingerprint"]
     return None, None

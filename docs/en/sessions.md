@@ -178,10 +178,13 @@ coupling, not the data.
   (Russian only; no English mirror exists yet).
 - [cost-telemetry.md](cost-telemetry.md) — what usage telemetry actually writes.
 
-## Codex execution lease
+## Trusted-host execution lease
 
-In the full Codex profile, the trusted `SessionStart` hook is the only issuer
-of a durable execution lease. The lease binds the normalized project,
+In the full Codex and Cursor profiles, trusted lifecycle hooks issue durable
+execution leases. `SessionStart` establishes the normal lease, while
+`PreToolUse` creates or renews one on demand after deployment, reconnect, or a
+single agent turn that outlives its TTL. Prompt hooks remain advisory.
+The lease binds the normalized project,
 host instance, host thread, TAUSIK session, nonce, expiry, installed build and
 capability range. Repeated starts for the same live thread are idempotent;
 ending the session or reaching the hard context ceiling revokes its lease.
@@ -204,9 +207,13 @@ the canonical TAUSIK wrapper/`scripts/project.py` spellings; it is bounded
 syntax coverage, not a claim to sandbox arbitrary same-user Python programs.
 Recognized TAUSIK CLI reads and mutations are both lease-checked.
 
-An unknown schema, build or capability mismatch revokes live leases and enters
-maintenance. A normal SessionStart cannot clear it. The owner first repairs or
-migrates the installation, then runs
+Compatible patch/build drift with the same capability version only advances
+the recorded build provenance; live leases, tokens, and exact per-thread task
+bindings remain valid. A
+reserved action, unknown schema, incompatible capability, ambiguous identity,
+or audit-integrity failure still revokes live leases and enters maintenance.
+A normal lifecycle hook cannot clear true maintenance. The owner first repairs
+or migrates the installation, then runs
 `tausik doctor --reconcile-execution-leases revoke-and-reconcile` in an external
 terminal. Recovery revokes every old binding before acknowledging the current
 build; restart Codex afterward.

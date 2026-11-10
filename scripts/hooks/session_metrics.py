@@ -17,10 +17,6 @@ import sys
 from collections.abc import Callable
 from glob import glob
 
-# Own directory FIRST: the siblings below are imported by bare name, and
-# scripts/hooks reaches sys.path only when this file is RUN as a script. Imported
-# as `hooks.<name>` — which model_routing does — those names did not resolve, and
-# the caller's except swallowed the ImportError into a silent None.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -233,15 +229,6 @@ from token_rows import (  # noqa: E402,F401
 from transcript_locator import latest_project_transcript  # noqa: E402
 
 
-# `resolve_session_id()` — "the newest session in the DB" — used to stamp every
-# row of a re-walked transcript. It is DELETED rather than deprecated: its only
-# caller was the token-row emitter, and there it was the defect itself (one
-# transcript spans several sessions, so each of them received a copy of the whole
-# file). Attribution now goes through `session_windows.make_session_resolver`,
-# which places a row by its own timestamp and answers None outside every session.
-# A function kept "just in case" would be an invitation to reintroduce the bug.
-
-
 def record_to_db(
     metrics: dict, project_root: str | None = None, session_id: int | None = None
 ) -> bool:
@@ -321,7 +308,11 @@ def record_to_db(
         return False
 
 
-def main():
+_HOST_TO_CLOSE: str | None = None
+
+
+def _main():
+    global _HOST_TO_CLOSE
     if len(sys.argv) < 2:
         print("Usage: session_metrics.py <transcript.jsonl>", file=sys.stderr)
         print("       session_metrics.py --session-dir <dir>", file=sys.stderr)
@@ -349,12 +340,10 @@ def main():
         print("Error: no transcript path provided", file=sys.stderr)
         sys.exit(1)
 
-    # SessionEnd hands the hook a payload on stdin: the host's own session id
-    # and the transcript it just wrote. Read it only when stdin is a pipe — a
-    # manual run from a terminal must not block waiting for input, and the
-    # service's own call passes DEVNULL.
     payload = _read_hook_payload() if args[0] == "--auto" else {}
     host_id = payload.get("session_id") if isinstance(payload.get("session_id"), str) else None
+    _HOST_TO_CLOSE = host_id if record else None
+    project_root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 
     path = None
     if args[0] == "--auto":
@@ -387,11 +376,11 @@ def main():
     if record and session_id is None and host_id:
         from session_windows import open_session_for_host
 
-        session_id = open_session_for_host(host_id)
+        session_id = open_session_for_host(host_id, project_root)
     if record and session_id is None:
         from session_windows import load_session_windows
 
-        windows = load_session_windows()
+        windows = load_session_windows(project_root)
         if windows and windows[-1][1] is None:
             session_id = windows[-1][2]
         else:
@@ -402,12 +391,14 @@ def main():
         metrics = parse_transcript(
             path,
             tool_rows,
-            session_resolver=make_session_resolver(),
+            session_resolver=make_session_resolver(project_root),
             session_id=session_id,
         )
     else:
         metrics = parse_transcript(path, tool_rows)
-    output = write_metrics(metrics)
+    output = write_metrics(
+        metrics, os.path.join(project_root, ".claude-project", "session-metrics.json")
+    )
     # `cost_usd` is None when it could not be computed — no model, or no price
     # for the one named. Printed as words, never as $0.00: the whole point of
     # storing absence is lost if the reader is shown a price anyway.
@@ -432,14 +423,14 @@ def main():
         print(f"OTLP trace: {otlp_path}")
 
     if record and session_id is not None:
-        record_to_db(metrics, session_id=session_id)
+        record_to_db(metrics, project_root=project_root, session_id=session_id)
 
     # Attribute each row to the session its OWN timestamp falls in. Stamping the
     # whole transcript with resolve_session_id() — the newest session in the DB —
     # gave three consecutive sessions a copy of the same transcript and made
     # 72.4% of this project's ledger duplicates (see session_windows).
-    rows = extract_token_rows(path, make_session_resolver())
-    jsonl = replace_session_token_rows(rows)
+    rows = extract_token_rows(path, make_session_resolver(project_root))
+    jsonl = replace_session_token_rows(rows, project_root)
     if jsonl:
         attributed = sum(1 for r in rows if r.get("session_id") is not None)
         print(
@@ -447,8 +438,18 @@ def main():
             f"({attributed} attributed, {len(rows) - attributed} outside any session)"
         )
 
-    if record and host_id:
-        _close_host_session(host_id)
+
+def main():
+    """Collect metrics, then close the exact host session on every exit path."""
+    global _HOST_TO_CLOSE
+    _HOST_TO_CLOSE = None
+    try:
+        return _main()
+    finally:
+        host_id = _HOST_TO_CLOSE
+        _HOST_TO_CLOSE = None
+        if host_id:
+            _close_host_session(host_id)
 
 
 def _read_hook_payload() -> dict:
@@ -462,14 +463,7 @@ def _read_hook_payload() -> dict:
 
 
 def _close_host_session(host_id: str) -> None:
-    """The host ended its session, so the TAUSIK session ends with it (decision #376).
-
-    Runs AFTER the metrics above, in this process, on purpose: Claude Code runs
-    the hooks of one event in parallel, so a separate closing hook could end
-    the session before its metrics were attributed. The CLI closes exactly the
-    session opened for this host id and is told not to re-collect metrics —
-    they were just recorded. Best-effort: a hook must not break session end.
-    """
+    """Best-effort close of the exact host session after metrics attribution."""
     import subprocess
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()

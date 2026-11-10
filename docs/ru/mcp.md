@@ -14,7 +14,7 @@
 ID и выдаёт токен на пять минут. Изменение содержимого делает inspection
 устаревшим и не перепривязывает подтверждение к новому тексту.
 
-Токен связывает execution lease Codex, fingerprint task package, ревизию
+Токен связывает execution lease доверенного host (Codex или Cursor), fingerprint task package, ревизию
 содержимого памяти, identity действия и хеш нормализованного payload.
 PreToolUse атомарно резервирует его, PostToolUse фиксирует `executed` или
 `failed`. Отсутствующий, устаревший, конфликтующий, неизвестный или повторный

@@ -15,19 +15,6 @@ PROTECTED_KINDS = frozenset(
 )
 _MCP_PREFIXES = ("mcp__tausik-project__", "mcp__tausik_project__")
 _TRUSTED_SHELL_TOOLS = frozenset({"Bash", "PowerShell", "mcp__windows-mcp__PowerShell"})
-_MCP_BOOTSTRAP_ROUTES = frozenset(
-    {
-        "tausik_memory_preflight",
-        "tausik_session_open",
-        "tausik_session_start",
-        "tausik_task_add",
-        "tausik_task_quick",
-        "tausik_task_update",
-        "tausik_task_plan",
-        "tausik_task_start",
-        "tausik_reason_step",
-    }
-)
 _LAUNCHER_VALUE_FLAGS = {
     "nice": frozenset({"-n", "--adjustment"}),
     "time": frozenset({"-f", "--format", "-o", "--output"}),
@@ -122,8 +109,6 @@ def _shell_kind(command: str) -> str | None:
         for route, arguments in bindings:
             if route == "cli_task_mutation" and arguments.get("action") == "block":
                 kinds.add("blocker")
-            elif route != "cli_task_start":
-                kinds.add("framework_ui")
     for tokens in _shell_vectors(command):
         executable = ntpath.basename(tokens[0].strip("\"'")).lower().removesuffix(".exe")
         args = [token.lower().strip("\"'") for token in tokens[1:]]
@@ -275,13 +260,12 @@ def classify_action(tool_name: object, tool_input: object) -> str | None:
             route = tool_name[len(prefix) :]
             break
     if route is not None:
-        from adherence_registry import _READ_ROUTES
-
-        if route in _MCP_BOOTSTRAP_ROUTES or f"mcp.{route}" in _READ_ROUTES:
-            return None
         if route == "tausik_task_block":
             return "blocker"
-        return "framework_ui"
+        # The execution lease is the authorization boundary for TAUSIK's own
+        # MCP surface. Memory preflight must not duplicate it and turn routine
+        # lifecycle calls into a multi-token protocol.
+        return None
     if tool_name not in _TRUSTED_SHELL_TOOLS:
         return None
     command = tool_input.get("command")

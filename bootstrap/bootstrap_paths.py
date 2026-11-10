@@ -17,6 +17,7 @@ a project rename does not move them.
 
 from __future__ import annotations
 
+import hashlib
 import os
 
 
@@ -49,3 +50,23 @@ def portable_path(abs_path: str, project_dir: str, workspace_var: str) -> str:
     if rel == os.pardir or rel.startswith(os.pardir + os.sep) or os.path.isabs(rel):
         return _fwd(abs_norm)  # outside the project tree
     return workspace_var + "/" + _fwd(rel)
+
+
+def mcp_runtime_fingerprint(ide_dir: str) -> str:
+    """Return the copied Python runtime's short content identity."""
+    digest = hashlib.sha256()
+    for relative_root in (os.path.join("mcp", "project"), "scripts"):
+        root = os.path.join(ide_dir, relative_root)
+        if not os.path.isdir(root):
+            continue
+        for current, dirs, files in os.walk(root):
+            dirs[:] = sorted(name for name in dirs if name != "__pycache__")
+            for name in sorted(files):
+                if not name.endswith(".py"):
+                    continue
+                path = os.path.join(current, name)
+                relative = os.path.relpath(path, ide_dir).replace("\\", "/")
+                digest.update(relative.encode("utf-8"))
+                with open(path, "rb") as source:
+                    digest.update(source.read())
+    return digest.hexdigest()[:16]

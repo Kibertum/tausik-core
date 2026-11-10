@@ -16,6 +16,10 @@ See also: [environment.md](environment.md) — env vars, [permissions.md](permis
 
 `memory-only` is a light backlog, not a ban on task records and not a weaker meaning of “verified”. It gives up QG-0/QG-2 enforcement, scope gates, automatic sessions, verification receipts, secret scanning, push protection and usage hooks. On the MCP advertise path, `session_start` and `verify` are marked `[profile=disabled]` with deferred schemas; light task/memory tools stay listed. Bootstrap deploys the `tausik-memory` playbook skill and omits SENAR session skills (`start`/`end`/`checkpoint`); `doctor` and `status` do not push a full skill bootstrap. Call `tausik_memory_brief` first for the budgeted do/dont playbook — it never opens a session. Route writes without inventing a task: owner choice → `decide`; observed fact → `memory_add`; stop-doing → dead_end/gotcha; drafts → light task or note. `task_slug` on `memory_add` is optional. Repository-native tests and operational controls remain the project's responsibility. Changing the profile does not delete tasks, memory, logs, history or the RAG index.
 
+For Cursor, `memory-only` also omits `TAUSIK_ENFORCE_EXECUTION_LEASE` from the
+managed MCP server. The profile intentionally has neither lease lifecycle hooks
+nor an MCP process that expects those hooks to mint a lease.
+
 ## Session signals (SENAR Rule 9.2 — advice, not gates since 1.10)
 
 | Key | Default | Purpose |

@@ -10,6 +10,16 @@ import shutil
 _TAUSIK_MCP_NAMES = frozenset({"tausik-project", "codebase-rag", "tausik-brain"})
 
 
+def _binds_path(value: str, expected: Path, workspace_form: str) -> bool:
+    """Accept Cursor's portable token or bootstrap's exact absolute Windows path."""
+    if value == workspace_form:
+        return True
+    try:
+        return Path(value).resolve() == expected.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
 def check_cursor_mcp_surface(project_dir: str) -> list[tuple[str, str, str]]:
     """Warn when non-TAUSIK MCP servers share Cursor's per-turn tool budget.
 
@@ -57,17 +67,23 @@ def check_cursor_mcp_surface(project_dir: str) -> list[tuple[str, str, str]]:
         if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
             broken.append(f"{name}: args must be a string array")
             continue
-        if "--project" not in args or "${workspaceFolder}" not in args:
-            broken.append(f"{name}: args do not bind --project to ${{workspaceFolder}}")
+        try:
+            project_arg = args[args.index("--project") + 1]
+        except (ValueError, IndexError):
+            project_arg = ""
+        project_root = Path(project_dir)
+        if not _binds_path(project_arg, project_root, "${workspaceFolder}"):
+            broken.append(f"{name}: --project does not bind to this project root")
             continue
         server_rel = (
             ".cursor/mcp/project/server.py"
             if name == "tausik-project"
             else f".cursor/mcp/{name}/rag_server.py"
         )
-        expected_server = f"${{workspaceFolder}}/{server_rel}"
-        if not args or args[0] != expected_server:
-            broken.append(f"{name}: server path must be {expected_server}")
+        expected_server = project_root / server_rel
+        workspace_server = f"${{workspaceFolder}}/{server_rel}"
+        if not args or not _binds_path(args[0], expected_server, workspace_server):
+            broken.append(f"{name}: server path does not resolve to {server_rel}")
             continue
         if not (Path(project_dir) / server_rel).is_file():
             broken.append(f"{name}: deployed server file is missing")

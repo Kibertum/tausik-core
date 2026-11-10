@@ -75,7 +75,6 @@ def preflight(tmp_path):
 @pytest.mark.parametrize(
     ("tool", "payload", "kind"),
     [
-        ("mcp__tausik-project__tausik_task_log", {"slug": "work", "message": "x"}, "framework_ui"),
         ("mcp__tausik-project__tausik_task_block", {"slug": "work"}, "blocker"),
         ("Bash", {"command": "git commit -m x"}, "commit"),
         ("Bash", {"command": "git push origin main"}, "push"),
@@ -90,6 +89,10 @@ def test_trusted_identifiers_map_to_closed_kinds(tool, payload, kind):
 
 def test_unknown_or_read_identifier_is_not_promoted_to_protected():
     assert classify_action("mcp__tausik-project__tausik_task_show", {"slug": "work"}) is None
+    assert classify_action("mcp__tausik-project__tausik_task_log", {"slug": "work"}) is None
+    assert classify_action("mcp__tausik-project__tausik_task_done", {"slug": "work"}) is None
+    assert classify_action("mcp__tausik-project__tausik_doctor", {}) is None
+    assert classify_action("mcp__tausik-project__tausik_future_route", {}) is None
     assert classify_action("invented_tool", {"command": "git commit -m x"}) is None
     with pytest.raises(MemoryPreflightError, match="PROTECTED_KIND_MISMATCH"):
         action_binding("invented_tool", {}, "commit")
@@ -124,7 +127,6 @@ def test_unknown_or_read_identifier_is_not_promoted_to_protected():
         (r"C:\\Git\\bin\\git.exe push origin main", "push"),
         ("python3.11 tools/release.py", "release_shell"),
         (".tausik/tausik task block work reason", "blocker"),
-        ("python scripts/project.py task log work note", "framework_ui"),
     ],
 )
 def test_common_protected_shell_and_cli_forms_fail_closed(command, kind):
@@ -133,6 +135,9 @@ def test_common_protected_shell_and_cli_forms_fail_closed(command, kind):
 
 def test_bootstrap_cli_and_quoted_command_text_remain_unprotected():
     assert classify_action("Bash", {"command": ".tausik/tausik task start work"}) is None
+    assert (
+        classify_action("Bash", {"command": "python scripts/project.py task log work note"}) is None
+    )
     assert classify_action("Bash", {"command": "Write-Output 'git commit -m x'"}) is None
     assert (
         classify_action("Bash", {"command": "powershell -Command Write-Output 'git push'"}) is None
@@ -219,7 +224,6 @@ def test_injection_quarantine_covers_every_disclosed_memory_surface(preflight, s
     ("command", "match"),
     [
         ("git commit -m x && git push origin main", "spans protected kinds"),
-        (".tausik/tausik task log work x && git push", "spans protected kinds"),
         ("git -c alias.ship=push ship origin main", "alias execution"),
         ("git -calias.save=commit save -m x", "alias execution"),
         ("git -c alias.ship=push -c color.ui=false ship origin main", "alias execution"),
@@ -229,6 +233,12 @@ def test_injection_quarantine_covers_every_disclosed_memory_surface(preflight, s
 def test_ambiguous_protected_commands_fail_closed(command, match):
     with pytest.raises(ProtectedActionClassificationError, match=match):
         classify_action("Bash", {"command": command})
+
+
+def test_routine_task_log_does_not_hide_a_real_protected_shell_action():
+    assert (
+        classify_action("Bash", {"command": ".tausik/tausik task log work x && git push"}) == "push"
+    )
 
 
 def test_quarantined_conflict_cannot_hide_below_disclosure_limit(preflight):
@@ -400,6 +410,64 @@ def test_posttool_completion_survives_lease_revocation(preflight):
     assert complete_preflight_for_thread(preflight.be, "project", "thread", "Bash", payload)
 
 
+def test_posttool_completion_isolated_by_trusted_host(preflight):
+    _issued, payload = _inspect_and_issue(preflight)
+    codex_lease = dict(preflight._authorized_execution_lease)
+    reserve_preflight(preflight.be, codex_lease, "Bash", payload)
+    cursor_lease_id = preflight.be._ins(
+        "INSERT INTO execution_leases(session_id,project_identity,host_instance,thread_id,"
+        "assertion_nonce,assertion_issued_at,assertion_expires_at,nonce,issued_at,expires_at,"
+        "projection_build,capability_min,capability_max,task_slug,task_package_fingerprint) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            codex_lease["session_id"],
+            "project",
+            "cursor",
+            "thread",
+            "cursor-assertion",
+            codex_lease["assertion_issued_at"],
+            codex_lease["assertion_expires_at"],
+            "cursor-nonce",
+            codex_lease["issued_at"],
+            codex_lease["expires_at"],
+            codex_lease["projection_build"],
+            codex_lease["capability_min"],
+            codex_lease["capability_max"],
+            codex_lease["task_slug"],
+            codex_lease["task_package_fingerprint"],
+        ),
+    )
+    cursor_lease = preflight.be._q1("SELECT * FROM execution_leases WHERE id=?", (cursor_lease_id,))
+    preflight._authorized_execution_lease = cursor_lease
+    _inspect_and_issue(preflight, payload=payload)
+    reserve_preflight(preflight.be, cursor_lease, "Bash", payload)
+
+    assert complete_preflight_for_thread(
+        preflight.be,
+        "project",
+        "thread",
+        "Bash",
+        payload,
+        host_instance="cursor",
+    )
+    rows = preflight.be._q(
+        "SELECT l.host_instance,t.status FROM memory_preflight_tokens t "
+        "JOIN execution_leases l ON l.id=t.lease_id ORDER BY l.host_instance"
+    )
+    assert rows == [
+        {"host_instance": "codex", "status": "reserved"},
+        {"host_instance": "cursor", "status": "executed"},
+    ]
+
+
+@pytest.mark.parametrize("values", [["codex", "cursor"], ["invented"]])
+def test_posttool_rejects_ambiguous_or_unknown_trusted_host(values):
+    from hooks.memory_preflight_posttool import _canonical_trusted_host
+
+    with pytest.raises(ValueError, match="trusted PostToolUse host"):
+        _canonical_trusted_host(values)
+
+
 def test_missing_token_store_fails_closed(preflight):
     _issued, payload = _inspect_and_issue(preflight)
     preflight.be._ex("DROP TABLE memory_preflight_tokens")
@@ -569,8 +637,9 @@ def test_posttool_does_not_turn_ordinary_failure_into_blocker_evidence():
     )
 
 
-def test_posttool_persists_observed_unavailable_event_for_exact_task_lease(
-    tmp_path, monkeypatch, capsys
+@pytest.mark.parametrize("trusted_host", ["codex", "cursor"])
+def test_posttool_persists_executed_unavailable_event_for_exact_task_lease(
+    tmp_path, monkeypatch, capsys, trusted_host
 ):
     from hooks import memory_preflight_posttool
     from service_execution_lease import normalize_project_identity
@@ -599,7 +668,7 @@ def test_posttool_persists_observed_unavailable_event_for_exact_task_lease(
         (
             session_id,
             normalize_project_identity(str(project)),
-            "codex",
+            trusted_host,
             "thread",
             "assertion",
             now,
@@ -627,9 +696,19 @@ def test_posttool_persists_observed_unavailable_event_for_exact_task_lease(
         "session_id": "thread",
         "tool_name": "Bash",
         "tool_input": payload,
-        "tool_response": {"is_error": True, "error_code": "PERMISSION_DENIED"},
+        "tool_response": {"is_error": True, "error_code": "ACCESS_DENIED"},
     }
-    monkeypatch.setattr(sys, "argv", ["memory_preflight_posttool.py", "--project", str(project)])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "memory_preflight_posttool.py",
+            "--project",
+            str(project),
+            "--trusted-host",
+            trusted_host,
+        ],
+    )
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(event)))
 
     assert memory_preflight_posttool.main() == 0
@@ -645,7 +724,7 @@ def test_posttool_persists_observed_unavailable_event_for_exact_task_lease(
         assert (row["task_slug"], row["lease_id"]) == ("work", lease_id)
         assert (row["event_kind"], row["status"]) == ("authority", "unavailable")
         detail = json.loads(row["detail_json"])
-        assert detail["observed_code"] == "PERMISSION_DENIED"
+        assert detail["observed_code"] == "ACCESS_DENIED"
         assert len(detail["response_hash"]) == 64
         block_input = {
             "slug": "work",
@@ -689,6 +768,72 @@ def test_posttool_persists_observed_unavailable_event_for_exact_task_lease(
         check.close()
 
 
+@pytest.mark.parametrize(
+    ("error_code", "expected_maintenance"),
+    [("PERMISSION_DENIED", False), ("TOOL_ERROR", True)],
+)
+def test_posttool_missing_token_distinguishes_pre_execution_denial(
+    tmp_path, monkeypatch, error_code, expected_maintenance
+):
+    from hooks import memory_preflight_posttool
+
+    project = tmp_path / "project"
+    backend = SQLiteBackend(str(project / ".tausik" / "tausik.db"))
+    backend.close()
+    event = {
+        "hook_event_name": "PostToolUse",
+        "session_id": "thread",
+        "tool_name": "Bash",
+        "tool_input": {"command": "git commit -m x"},
+        "tool_response": {
+            "is_error": True,
+            "error_code": error_code,
+            "error": "blocked before execution" if error_code == "PERMISSION_DENIED" else "failed",
+        },
+    }
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "memory_preflight_posttool.py",
+            "--project",
+            str(project),
+            "--trusted-host",
+            "cursor",
+        ],
+    )
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(event)))
+
+    assert memory_preflight_posttool.main() == 0
+
+    check = SQLiteBackend(str(project / ".tausik" / "tausik.db"))
+    try:
+        state = check._execution_lease_state()
+        assert (state is not None and state["mode"] == "maintenance") is expected_maintenance
+    finally:
+        check.close()
+
+
+def test_pre_execution_denial_terminalizes_exact_reserved_token(preflight):
+    svc = preflight
+    be = svc.be
+    _issued, payload = _inspect_and_issue(svc)
+    reserve_preflight(be, svc._authorized_execution_lease, "Bash", payload)
+
+    assert complete_preflight_for_thread(
+        be,
+        "project",
+        "thread",
+        "Bash",
+        payload,
+        failed=True,
+        failure_code="PRE_EXECUTION_DENIED",
+    )
+
+    token = be._q1("SELECT status,failure_code FROM memory_preflight_tokens")
+    assert token == {"status": "failed", "failure_code": "PRE_EXECUTION_DENIED"}
+
+
 def test_malformed_posttool_payload_enters_maintenance(tmp_path, monkeypatch, capsys):
     from hooks import memory_preflight_posttool
     from project_backend import SQLiteBackend
@@ -709,17 +854,22 @@ def test_malformed_posttool_payload_enters_maintenance(tmp_path, monkeypatch, ca
     reconcile_execution_lease_state(svc, assertion)
     backend.close()
     monkeypatch.setattr(sys, "argv", ["memory_preflight_posttool.py", "--project", str(project)])
-    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"tool_name": "Bash"})))
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.StringIO(json.dumps({"tool_name": "Bash", "session_id": "thread"})),
+    )
 
     assert memory_preflight_posttool.main() == 0
 
     check = SQLiteBackend(str(project / ".tausik" / "tausik.db"))
     try:
         assert check._execution_lease_state()["mode"] == "maintenance"
-        assert "malformed Codex PostToolUse" in check._execution_lease_state()["reason"]
     finally:
         check.close()
-    assert "MEMORY_PREFLIGHT_AUDIT_FAILED" in capsys.readouterr().err
+    diagnostic = capsys.readouterr().err
+    assert "MEMORY_PREFLIGHT_AUDIT_FAILED" in diagnostic
+    assert "malformed trusted PostToolUse tool_input" in diagnostic
 
 
 def test_posttool_db_failure_persists_independent_emergency_marker(tmp_path, monkeypatch, capsys):
@@ -743,4 +893,5 @@ def test_posttool_db_failure_persists_independent_emergency_marker(tmp_path, mon
     )
     assert allowed is False
     assert "LEASE_MAINTENANCE" in reason
+    assert ".tausik/tausik doctor --reconcile-execution-leases revoke-and-reconcile" in reason
     assert "database maintenance failed" in capsys.readouterr().err

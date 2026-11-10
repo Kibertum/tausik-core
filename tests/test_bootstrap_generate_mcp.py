@@ -102,10 +102,47 @@ def test_generates_cursor_project_mcp_json(ide_layout):
     assert "tausik-brain" not in cfg["mcpServers"]
     assert cfg["mcpServers"]["tausik-project"]["type"] == "stdio"
     assert cfg["mcpServers"]["tausik-project"]["command"] == "C:/py/python.exe"
-    assert cfg["mcpServers"]["tausik-project"]["env"] == {
+    env = cfg["mcpServers"]["tausik-project"]["env"]
+    assert env == {
         "TAUSIK_ENFORCE_EXECUTION_LEASE": "1",
         "TAUSIK_TRUSTED_HOST": "cursor",
+        "TAUSIK_PROFILE_BUILD": env["TAUSIK_PROFILE_BUILD"],
     }
+    assert len(env["TAUSIK_PROFILE_BUILD"]) == 16
+
+
+def test_cursor_runtime_content_changes_mcp_process_identity(ide_layout):
+    cursor_ide = os.path.join(ide_layout["project_dir"], ".cursor")
+    server = os.path.join(cursor_ide, "mcp", "project", "server.py")
+    _touch(server, "# first\n")
+    bootstrap_generate.generate_cursor_mcp_json(ide_layout["project_dir"], cursor_ide)
+    first = _load_cursor_config(ide_layout["project_dir"])["mcpServers"]["tausik-project"]["env"][
+        "TAUSIK_PROFILE_BUILD"
+    ]
+
+    _touch(server, "# second\n")
+    bootstrap_generate.generate_cursor_mcp_json(ide_layout["project_dir"], cursor_ide)
+    second = _load_cursor_config(ide_layout["project_dir"])["mcpServers"]["tausik-project"]["env"][
+        "TAUSIK_PROFILE_BUILD"
+    ]
+
+    assert first != second
+
+
+def test_cursor_memory_only_profile_does_not_enable_execution_lease(ide_layout):
+    cursor_ide = os.path.join(ide_layout["project_dir"], ".cursor")
+    os.makedirs(cursor_ide, exist_ok=True)
+    _touch(os.path.join(cursor_ide, "mcp", "project", "server.py"))
+
+    bootstrap_generate.generate_cursor_mcp_json(
+        ide_layout["project_dir"],
+        cursor_ide,
+        venv_python="python",
+        governance_profile="memory-only",
+    )
+
+    entry = _load_cursor_config(ide_layout["project_dir"])["mcpServers"]["tausik-project"]
+    assert "env" not in entry
 
 
 def test_cursor_mcp_json_preserves_user_servers(ide_layout):

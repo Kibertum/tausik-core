@@ -23,11 +23,13 @@ sys.path.insert(
 )
 
 import update_check as uc
-from handlers import handle_tool as _handle_tool
+import handlers
 from project_backend import SQLiteBackend
 from project_service import ProjectService
 from tausik_utils import ServiceError
 from tausik_version import __version__
+
+_handle_tool = handlers.handle_tool
 
 
 @pytest.fixture
@@ -117,6 +119,11 @@ class TestEnvelopeKeysAlwaysPresent:
             lambda *_args, **_kwargs: Response(json.dumps({"tag_name": f"v{newer}"}).encode()),
         )
         installed_svc = ProjectService(SQLiteBackend(str(td / "tausik.db")))
+        monkeypatch.setattr(
+            handlers,
+            "_require_codex_execution_lease",
+            lambda *_args, **_kwargs: {"thread_id": "mcp-thread"},
+        )
 
         with pytest.raises(ServiceError, match=rf"installed {__version__}.*latest {newer}"):
             _handle_tool(installed_svc, "tausik_session_start", {})

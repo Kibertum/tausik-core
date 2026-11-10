@@ -72,6 +72,12 @@ DECLARED_DIFFERENCES: dict[str, str] = {
         "Cursor documents no Glob tool matcher; Read, Grep and Shell remain covered, "
         "so the difference reflects host vocabulary rather than a reachable bypass."
     ),
+    "missing:hook:Stop:can_stop_gate.py@cursor": (
+        "Cursor emits Stop at the end of each agent answer, not at the end of a TAUSIK "
+        "work session. Registering can_stop_gate there trapped ordinary multi-turn work "
+        "in repeated trusted-turn and lease recovery loops. Codex keeps the hook because "
+        "its lifecycle contract supplies the trusted turn record that gate requires."
+    ),
     # Empty since 1.10 (decision #389): the four PostToolUse matcher
     # differences between Claude and Qwen were a hand-kept Qwen hook list,
     # which now builds from the shared declaration like Claude and Codex.

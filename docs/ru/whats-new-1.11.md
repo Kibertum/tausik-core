@@ -172,3 +172,34 @@ memory-only держит лёгкий бэклог (канон B): epic/story/ta
 минутным: Windows — nightly, не per-push.
 
 - [Точный changelog 1.11.7](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.ru.md)
+
+## 1.11.9 — восстановление execution lease в Cursor и Codex
+
+Патч исправляет rollout execution lease из 1.11.8 во всех проектах полного
+профиля. Cursor и Codex восстанавливают существующий поток по требованию на
+доверенной границе PreToolUse, включая один ход длиннее TTL lease. Совместимое
+patch-обновление сохраняет валидные незавершённые reservations, сверяется
+автоматически и не отравляет каждый проект. Несовместимая схема/capability,
+неоднозначная identity и сбой целостности аудита остаются fail-closed.
+
+Продление сохраняет package точного потока даже при нескольких активных
+задачах. Lifecycle-вызовы сессии адресуют только авторизованный поток. Cursor
+`memory-only` больше не включает enforcement, для которого намеренно нет hooks;
+read-only диагностика остаётся доступной без lease, а отказ до исполнения
+завершает точную audit reservation без maintenance.
+
+После обновления заново сгенерируйте Cursor-профиль каждого consumer-проекта:
+`python .tausik-lib/bootstrap/bootstrap.py --project-dir . --ide cursor`. Затем
+выполните **Developer: Reload Window** либо выключите и снова включите
+`tausik-project`. Уже запущенный MCP-процесс хранит импортированный код 1.11.8,
+пока Cursor его не перезапустит; bootstrap записывает `TAUSIK_PROFILE_BUILD`,
+чтобы новый runtime имел явную content identity.
+
+Проекты, которые 1.11.8 уже перевёл в maintenance, остаются fail-closed: данные
+в БД не позволяют отличить регрессию Cursor от настоящего сбоя аудита. Один раз
+выполните из корня проекта `.tausik/tausik doctor
+--reconcile-execution-leases revoke-and-reconcile`, затем перезагрузите Cursor.
+Команда отзывает технические lease-привязки и незавершённые reservations, но не
+удаляет чаты, задачи или файлы.
+
+- [Точный changelog 1.11.9](https://github.com/Kibertum/tausik-core/blob/v1.11.9/CHANGELOG.ru.md)

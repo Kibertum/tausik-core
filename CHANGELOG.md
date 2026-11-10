@@ -9,6 +9,34 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.9] — 2026-11-10
+
+### Fixed — Cursor execution-lease completion
+
+- Cursor `PostToolUse` now completes the memory-preflight reservation against
+  the Cursor-bound execution lease instead of a hard-coded Codex lease. This
+  prevents valid Cursor tool calls from entering lease maintenance and then
+  looping on `LEASE_MISSING` / missing trusted-turn failures.
+- Existing Cursor and Codex threads now recover leases at the trusted
+  `PreToolUse` boundary. Long agent turns can renew an expired lease, and a
+  compatible patch upgrade advances build provenance without invalidating live
+  work or forcing every project through manual owner recovery.
+- Lease renewal preserves or reconstructs the unique active task-package
+  binding. Session lifecycle mutations target the authorized host thread, so
+  one concurrent agent cannot end, extend or hand off another agent's session.
+- Cursor bootstrap no longer enables lease enforcement for the `memory-only`
+  governance profile. Read-only MCP diagnostics remain usable without a lease,
+  and pre-execution permission denials no longer consume stale audit tokens or
+  put the project into maintenance.
+- Upgrade requires regenerating each consumer's Cursor profile and restarting
+  the MCP runtime. Bootstrap writes `TAUSIK_PROFILE_BUILD`, but an existing
+  process retains its imported 1.11.8 modules until Cursor reloads it.
+- Existing 1.11.8 projects already in lease maintenance remain fail-closed: the
+  persisted data cannot distinguish the Cursor regression from a genuine audit
+  failure. Run `.tausik/tausik doctor --reconcile-execution-leases
+  revoke-and-reconcile` once from the project root, then reload Cursor. This
+  revokes technical lease bindings; it does not delete chats, tasks or files.
+
 ## [1.11.8] — 2026-11-10
 
 ### Changed — deterministic closure by default

@@ -49,21 +49,22 @@ class TrustedHostAssertion:
     expires_at: datetime
 
 
-def assertion_from_session_start(
+def _assertion_from_trusted_hook(
     payload: Mapping[str, object],
     project_dir: str,
     *,
     trusted_host: str,
+    expected_event: str,
     now: datetime | None = None,
 ) -> TrustedHostAssertion:
-    """Create authority only in a host-specific trusted SessionStart adapter."""
+    """Create authority only in an attested host hook with exact thread identity."""
 
     event = payload.get("hook_event_name") or payload.get("hookEventName")
-    if event != "SessionStart":
-        raise ExecutionLeaseError("IDENTITY_UNTRUSTED", "event is not SessionStart")
+    if event != expected_event:
+        raise ExecutionLeaseError("IDENTITY_UNTRUSTED", f"event is not {expected_event}")
     raw_thread = payload.get("session_id")
     if not isinstance(raw_thread, str) or not raw_thread.strip():
-        raise ExecutionLeaseError("IDENTITY_MISSING", "SessionStart has no session_id")
+        raise ExecutionLeaseError("IDENTITY_MISSING", f"{expected_event} has no session_id")
     host = trusted_host.casefold()
     if host not in {"codex", "cursor"}:
         raise ExecutionLeaseError("IDENTITY_UNTRUSTED", "issuer is not a trusted host adapter")
@@ -75,6 +76,42 @@ def assertion_from_session_start(
         secrets.token_hex(16),
         issued,
         issued + timedelta(seconds=ASSERTION_TTL_SECONDS),
+    )
+
+
+def assertion_from_session_start(
+    payload: Mapping[str, object],
+    project_dir: str,
+    *,
+    trusted_host: str,
+    now: datetime | None = None,
+) -> TrustedHostAssertion:
+    """Create authority in a host-specific trusted SessionStart adapter."""
+
+    return _assertion_from_trusted_hook(
+        payload,
+        project_dir,
+        trusted_host=trusted_host,
+        expected_event="SessionStart",
+        now=now,
+    )
+
+
+def assertion_from_pre_tool_use(
+    payload: Mapping[str, object],
+    project_dir: str,
+    *,
+    trusted_host: str,
+    now: datetime | None = None,
+) -> TrustedHostAssertion:
+    """Create renewal authority at the last trusted boundary before execution."""
+
+    return _assertion_from_trusted_hook(
+        payload,
+        project_dir,
+        trusted_host=trusted_host,
+        expected_event="PreToolUse",
+        now=now,
     )
 
 
@@ -121,6 +158,23 @@ def enter_execution_lease_maintenance(svc: Any, reason: str) -> None:
     _enter_maintenance(svc, reason, _utc())
 
 
+def _recover_state(svc: Any, instant: datetime, *, failure_code: str) -> None:
+    svc.be._execution_lease_revoke_all(_iso(instant))
+    svc.be._ex(
+        "UPDATE memory_preflight_tokens SET status='failed',completed_at=?,failure_code=? "
+        "WHERE status IN ('issued','reserved')",
+        (_iso(instant), failure_code),
+    )
+    svc.be._execution_lease_set_state(
+        mode="ready",
+        reason=None,
+        projection_build=__version__,
+        capability_version=CAPABILITY_VERSION,
+        updated_at=_iso(instant),
+    )
+    svc.be._ex("DELETE FROM meta WHERE key=?", (_MAINTENANCE_KEY,))
+
+
 def reconcile_execution_lease_state(svc: Any, assertion: TrustedHostAssertion) -> None:
     """Validate ready state at SessionStart; never clear maintenance implicitly."""
 
@@ -152,15 +206,29 @@ def reconcile_execution_lease_state(svc: Any, assertion: TrustedHostAssertion) -
             raise ExecutionLeaseError(
                 "LEASE_MAINTENANCE", str(state.get("reason") or "owner reconciliation is required")
             )
-        elif (
-            state["projection_build"] != __version__
-            or state["capability_version"] != CAPABILITY_VERSION
-        ):
+        elif state["capability_version"] != CAPABILITY_VERSION:
             problem = "persisted execution-lease capability differs from this build"
+        elif state["projection_build"] != __version__:
+            # Build is provenance; CAPABILITY_VERSION is the compatibility boundary.
+            svc.be._execution_lease_set_state(
+                mode="ready",
+                reason=None,
+                projection_build=__version__,
+                capability_version=CAPABILITY_VERSION,
+                updated_at=_iso(instant),
+            )
+            incompatible = svc.be._q1(
+                "SELECT id FROM execution_leases WHERE revoked_at IS NULL "
+                "AND (capability_min>? OR capability_max<?) LIMIT 1",
+                (CAPABILITY_VERSION, CAPABILITY_VERSION),
+            )
+            if incompatible is not None:
+                problem = "mixed execution-lease capability"
         elif problem is None:
             incompatible = svc.be._q1(
-                "SELECT id FROM execution_leases WHERE revoked_at IS NULL AND (projection_build<>? OR capability_min>? OR capability_max<?) LIMIT 1",
-                (__version__, CAPABILITY_VERSION, CAPABILITY_VERSION),
+                "SELECT id FROM execution_leases WHERE revoked_at IS NULL "
+                "AND (capability_min>? OR capability_max<?) LIMIT 1",
+                (CAPABILITY_VERSION, CAPABILITY_VERSION),
             )
             if incompatible is not None:
                 problem = "mixed execution-lease capability"
@@ -179,20 +247,7 @@ def recover_execution_lease_state(svc: Any, confirmation: str) -> None:
         _enter_maintenance(svc, "persistent lease schema is incompatible", instant)
         raise ExecutionLeaseError("CAPABILITY_MISMATCH", "repair or migrate schema first")
     with svc.be.transaction():
-        svc.be._execution_lease_revoke_all(_iso(instant))
-        svc.be._ex(
-            "UPDATE memory_preflight_tokens SET status='failed',completed_at=?,failure_code=? "
-            "WHERE status IN ('issued','reserved')",
-            (_iso(instant), "OWNER_RECONCILIATION"),
-        )
-        svc.be._execution_lease_set_state(
-            mode="ready",
-            reason=None,
-            projection_build=__version__,
-            capability_version=CAPABILITY_VERSION,
-            updated_at=_iso(instant),
-        )
-        svc.be._ex("DELETE FROM meta WHERE key=?", (_MAINTENANCE_KEY,))
+        _recover_state(svc, instant, failure_code="OWNER_RECONCILIATION")
     marker = os.path.join(os.path.dirname(svc.be.db_path), "execution-lease-maintenance")
     try:
         os.remove(marker)
@@ -246,7 +301,12 @@ def issue_execution_lease(
         existing = svc.be._execution_lease_current(
             assertion.project_identity, assertion.host_instance, assertion.thread_id
         )
-        task_slug, task_fingerprint = renewal_package_binding(svc, existing)
+        renewal_source = existing or svc.be._q1(
+            "SELECT * FROM execution_leases WHERE project_identity=? AND host_instance=? "
+            "AND thread_id=? ORDER BY id DESC LIMIT 1",
+            (assertion.project_identity, assertion.host_instance, assertion.thread_id),
+        )
+        task_slug, task_fingerprint = renewal_package_binding(svc, renewal_source)
         svc.session_start(assertion.thread_id)
         session = svc.be.session_current(assertion.thread_id)
         if session is None:
@@ -298,10 +358,7 @@ def require_execution_lease(
     state = svc.be._execution_lease_state()
     if state is None or state["mode"] != "ready":
         raise ExecutionLeaseError("LEASE_MAINTENANCE", "lease state requires reconciliation")
-    if (
-        state["projection_build"] != __version__
-        or state["capability_version"] != CAPABILITY_VERSION
-    ):
+    if state["capability_version"] != CAPABILITY_VERSION:
         _enter_maintenance(
             svc, "persisted execution-lease capability differs from this build", instant
         )
@@ -329,9 +386,7 @@ def require_execution_lease(
         raise ExecutionLeaseError("LEASE_REVOKED", "lease has been revoked")
     if lease["expires_at"] <= _iso(instant):
         raise ExecutionLeaseError("LEASE_STALE", "lease has expired")
-    if lease["projection_build"] != __version__ or not (
-        lease["capability_min"] <= CAPABILITY_VERSION <= lease["capability_max"]
-    ):
+    if not (lease["capability_min"] <= CAPABILITY_VERSION <= lease["capability_max"]):
         _enter_maintenance(svc, "mixed execution-lease capability", instant)
         raise ExecutionLeaseError("CAPABILITY_MISMATCH", "lease capability is incompatible")
     if not allow_package_rebind:
@@ -407,7 +462,14 @@ def consume_mcp_authorization(
     lease = svc.be._q1("SELECT * FROM execution_leases WHERE id=?", (row["lease_id"],))
     if lease is None:
         raise ExecutionLeaseError("LEASE_MISSING", "authorization lease disappeared")
-    if not route_allows_package_bypass(route):
-        require_current_task_package(svc, lease)
-        require_task_argument_binding(lease, route, arguments)
-    return cast(dict[str, Any], lease)
+    validated = require_execution_lease(
+        svc,
+        project_dir=project_dir_from_tausik(svc),
+        host_instance=lease.get("host_instance"),
+        thread_id=lease.get("thread_id"),
+        nonce=lease.get("nonce"),
+        now=instant,
+        allow_package_rebind=route_allows_package_bypass(route),
+    )
+    require_task_argument_binding(validated, route, arguments)
+    return cast(dict[str, Any], validated)

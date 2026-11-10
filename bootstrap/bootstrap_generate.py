@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import os
 import shlex
 import sys
 from typing import Any
 
+from bootstrap_cursor import cursor_matcher
 from bootstrap_hooks import build_hooks_dict, deployed_hooks_dir
-from bootstrap_paths import portable_path
+from bootstrap_paths import mcp_runtime_fingerprint, portable_path
 
 # Workspace variables each host expands at launch — used to keep generated
 # configs rename-proof (no absolute project paths). Claude's .mcp.json var is
@@ -113,7 +114,6 @@ def generate_mcp_json(project_dir: str, ide_dir: str, venv_python: str | None = 
 
     # Load existing config to preserve user-added servers
     existing = _load_existing_json_object(path, field="mcpServers")
-
     servers = existing.get("mcpServers", {})
     retire_managed_servers(servers)
 
@@ -145,7 +145,7 @@ def generate_mcp_json(project_dir: str, ide_dir: str, venv_python: str | None = 
 
 
 def generate_cursor_mcp_json(
-    project_dir: str, ide_dir: str, venv_python: str | None = None
+    project_dir: str, ide_dir: str, venv_python: str | None = None, governance_profile: str = "full"
 ) -> None:
     """Refresh TAUSIK servers in `.cursor/mcp.json` while preserving user servers."""
     python_exe = venv_python or sys.executable
@@ -158,13 +158,14 @@ def generate_cursor_mcp_json(
     servers = existing.get("mcpServers", {})
     retire_managed_servers(servers)
 
-    # Cursor expands ${workspaceFolder} at launch → rename-proof for in-project
-    # External paths stay absolute.
+    project_root = os.path.normpath(project_dir).replace("\\", "/")
+    path_anchor = project_root if os.name == "nt" else _CURSOR_VAR
+
     def _pp(p: str) -> str:
-        return portable_path(p, project_dir, _CURSOR_VAR)
+        return portable_path(p, project_dir, path_anchor)
 
     cmd = _pp(python_exe)
-    proj_arg = _CURSOR_VAR
+    proj_arg = path_anchor
 
     rag_server = os.path.join(ide_dir, "mcp", "codebase-rag", "rag_server.py")
     if os.path.exists(rag_server):
@@ -174,13 +175,20 @@ def generate_cursor_mcp_json(
         )
     project_server = os.path.join(ide_dir, "mcp", "project", "server.py")
     if os.path.exists(project_server):
+        lease_env = None
+        if governance_profile == "full":
+            lease_env = {
+                "TAUSIK_ENFORCE_EXECUTION_LEASE": "1",
+                "TAUSIK_TRUSTED_HOST": "cursor",
+                # Cursor may retain an MCP child across Reload Window when the
+                # command is unchanged. A content-bound env value makes a copied
+                # runtime update an observable transport configuration change.
+                "TAUSIK_PROFILE_BUILD": mcp_runtime_fingerprint(ide_dir),
+            }
         servers["tausik-project"] = _stdio_mcp_server(
             cmd,
             [_pp(project_server), "--project", proj_arg],
-            env={
-                "TAUSIK_ENFORCE_EXECUTION_LEASE": "1",
-                "TAUSIK_TRUSTED_HOST": "cursor",
-            },
+            env=lease_env,
         )
 
     mcp_config = {**existing, "mcpServers": servers}
@@ -196,27 +204,6 @@ _CURSOR_EVENT_NAMES = {
     "Stop": "stop",
     "SessionEnd": "sessionEnd",
 }
-
-
-def _cursor_matcher(matcher: str) -> str:
-    """Translate the shared Claude tool vocabulary to Cursor's native names."""
-    translated: list[str] = []
-    for name in matcher.split("|") if matcher else []:
-        if name in {"Bash", "PowerShell"}:
-            mapped = "Shell"
-        elif name in {"Edit", "MultiEdit", "NotebookEdit"}:
-            mapped = "Write"
-        elif name.startswith("mcp__"):
-            mapped = f"MCP:{name.rsplit('__', 1)[-1]}"
-        elif name == "Glob":
-            continue  # Cursor documents no Glob matcher.
-        else:
-            mapped = name
-        if mapped not in translated:
-            translated.append(mapped)
-    if "Write" in translated and "Delete" not in translated:
-        translated.append("Delete")
-    return "|".join(translated)
 
 
 def generate_cursor_hooks_json(
@@ -240,8 +227,11 @@ def generate_cursor_hooks_json(
     def source_command(script: str, suffix: str = "") -> str:
         return f"{script}{suffix}"
 
-    python_exe = portable_path(venv_python or sys.executable, project_dir, _CURSOR_VAR)
-    adapter = f"{_CURSOR_VAR}/.cursor/scripts/hooks/cursor_hook.py"
+    path_anchor = (
+        os.path.normpath(project_dir).replace("\\", "/") if os.name == "nt" else _CURSOR_VAR
+    )
+    python_exe = portable_path(venv_python or sys.executable, project_dir, path_anchor)
+    adapter = f"{path_anchor}/.cursor/scripts/hooks/cursor_hook.py"
 
     def adapter_command(event: str, command: str) -> str:
         parts = command.split()
@@ -256,7 +246,7 @@ def generate_cursor_hooks_json(
             "--script",
             script,
             "--project",
-            _CURSOR_VAR,
+            path_anchor,
             *(f"--script-arg={part}" for part in parts[1:] if part.startswith("--")),
         ]
 
@@ -277,9 +267,15 @@ def generate_cursor_hooks_json(
             continue
         entries: list[dict[str, Any]] = []
         for group in groups:
-            matcher = _cursor_matcher(str(group.get("matcher", "")))
+            matcher = cursor_matcher(str(group.get("matcher", "")))
             for hook in group.get("hooks", []):
                 shared_command = str(hook.get("command", ""))
+                # A TAUSIK task spans many responses. Cursor's Stop event is
+                # only the end of one response, so can_stop cannot infer that
+                # the response is incomplete from an active task. QG and the
+                # execution lease remain the actual enforcement boundaries.
+                if event == "stop" and shared_command.split()[:1] == ["can_stop_gate.py"]:
+                    continue
                 item: dict[str, Any] = {
                     "command": adapter_command(event, shared_command),
                     "timeout": int(hook.get("timeout", 10)),
@@ -341,7 +337,6 @@ def generate_cursor_hooks_json(
         "codex_write_gate.py",
         "memory_preflight_posttool.py",
         "user_prompt_submit.py",
-        "can_stop_gate.py",
     )
     adapters: dict[str, str] = {}
     hooks_dir = deployed_hooks_dir(target_dir)

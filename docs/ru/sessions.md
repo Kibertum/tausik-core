@@ -172,8 +172,11 @@ token-метрик, пиннинга модели, среза brain и каде�
 
 ## Execution lease Codex
 
-В полном профиле Codex только доверенный hook `SessionStart` выдаёт durable
-execution lease. Lease связывает нормализованный проект, экземпляр host,
+В полных профилях Codex и Cursor durable execution lease выдают доверенные
+хуки жизненного цикла. `SessionStart` создаёт обычный lease, а `PreToolUse`
+выдаёт или продлевает его по требованию после обновления, переподключения или
+хода агента длиннее TTL. Prompt hooks остаются advisory. Lease связывает
+нормализованный проект, экземпляр host,
 host thread, сессию TAUSIK, nonce, срок действия, установленную сборку и
 диапазон capability. Повторный старт живого thread идемпотентен. Завершение
 сессии или достижение жёсткого потолка контекста отзывает lease.
@@ -196,8 +199,12 @@ adapter распознаёт сгенерированные write tools, literal
 пользователя. Для распознанного TAUSIK CLI lease проверяется и у read, и у
 mutation вызовов.
 
-Неизвестная схема, build или несовместимый capability отзывает живые leases и
-включает maintenance. Обычный SessionStart его не снимает. Владелец сначала
+Совместимая смена patch/build при прежнем capability обновляет только build
+provenance; живые leases, токены и привязка package к точному потоку остаются
+валидными. Зарезервированное действие,
+неизвестная схема, несовместимый capability, неоднозначная identity или сбой
+аудита по-прежнему отзывают leases и включают maintenance. Обычный lifecycle
+hook настоящее maintenance не снимает. Владелец сначала
 чинит или мигрирует установку, затем во внешнем terminal выполняет
 `tausik doctor --reconcile-execution-leases revoke-and-reconcile`. Recovery
 отзывает все старые bindings до признания текущего build; после него Codex надо

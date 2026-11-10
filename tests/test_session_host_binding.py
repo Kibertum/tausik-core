@@ -113,6 +113,20 @@ class TestTheService:
         assert "nothing to end" in msg
         assert svc.be.session_current("host-A") is not None
 
+    def test_authorized_mcp_lifecycle_targets_only_calling_thread(self, svc, monkeypatch):
+        monkeypatch.setenv("TAUSIK_DISABLE_SESSION_METRICS", "1")
+        sys.path.insert(0, os.path.join(_ROOT, "harness", "claude", "mcp", "project"))
+        from handlers_session import _do_session_end, _do_session_extend
+
+        svc.session_start("host-A")
+        svc.session_start("host-B")
+        svc._authorized_execution_lease = {"thread_id": "host-A"}
+        assert "extended" in _do_session_extend(svc, {"minutes": 10})
+        _do_session_end(svc, {"summary": "done"})
+
+        assert svc.be.session_current("host-A") is None
+        assert svc.be.session_current("host-B") is not None
+
     def test_the_cli_path_without_a_host_id_is_unchanged(self, svc, monkeypatch):
         """NEGATIVE: a session opened without a host id keeps the old contract —
         one open session, reused, ended by plain `session end`."""
@@ -217,6 +231,22 @@ class TestTheHooks:
         monkeypatch.setattr(sys, "stdin", io.StringIO("not json"))
         assert hook._read_hook_payload() == {}
 
+    def test_session_end_without_transcript_still_closes_exact_host(self, monkeypatch, capsys):
+        import session_metrics as hook
+
+        closed = []
+        monkeypatch.setattr(sys, "argv", ["session_metrics.py", "--auto", "--record"])
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"session_id": "host-A"})))
+        monkeypatch.setattr(hook, "auto_find_transcript", lambda: None)
+        monkeypatch.setattr(hook, "_close_host_session", closed.append)
+
+        with pytest.raises(SystemExit) as stopped:
+            hook.main()
+
+        assert stopped.value.code == 0
+        assert closed == ["host-A"]
+        assert "No transcript found" in capsys.readouterr().err
+
     def test_the_read_only_lookup_finds_the_open_host_session(self, tmp_path):
         from session_windows import open_session_for_host
 
@@ -230,3 +260,39 @@ class TestTheHooks:
             assert open_session_for_host("host-Z", str(project)) is None
         finally:
             s.be.close()
+
+    def test_session_end_resolves_every_db_operation_from_trusted_project_root(
+        self, monkeypatch, tmp_path
+    ):
+        import session_metrics as hook
+
+        project = tmp_path / "project"
+        elsewhere = tmp_path / "elsewhere"
+        (project / ".tausik").mkdir(parents=True)
+        elsewhere.mkdir()
+        service = ProjectService(SQLiteBackend(str(project / ".tausik" / "tausik.db")))
+        service.session_start("cursor-thread")
+        sid = service.be.session_current("cursor-thread")["id"]
+        service.be.close()
+
+        transcript = project / "transcript.jsonl"
+        transcript.write_text("", encoding="utf-8")
+        observed: dict[str, object] = {}
+        monkeypatch.chdir(elsewhere)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+        monkeypatch.setattr(sys, "argv", ["session_metrics.py", str(transcript), "--record"])
+        monkeypatch.setattr(hook, "record_to_db", lambda metrics, **kw: observed.update(kw) or True)
+        monkeypatch.setattr(
+            hook,
+            "replace_session_token_rows",
+            lambda rows, project_root: observed.setdefault("token_root", project_root) and None,
+        )
+
+        hook._main()
+
+        assert observed == {
+            "project_root": str(project),
+            "session_id": sid,
+            "token_root": str(project),
+        }
+        assert (project / ".claude-project" / "session-metrics.json").is_file()

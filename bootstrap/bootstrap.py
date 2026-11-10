@@ -241,7 +241,9 @@ def bootstrap_ide(
         generate_agents_md(project_dir, proj, stacks, context_tier, output_mode, governance_profile)
 
     if ide == "cursor":
-        generate_cursor_mcp_json(project_dir, target_dir, venv_python)
+        generate_cursor_mcp_json(
+            project_dir, target_dir, venv_python, governance_profile=governance_profile
+        )
         generate_cursor_hooks_json(project_dir, target_dir, governance_profile, venv_python)
 
     print("  Done!")

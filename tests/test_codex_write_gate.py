@@ -322,9 +322,10 @@ def test_production_composite_trace_dispatches_exact_inner_calls_once(tmp_path, 
     assert completed.returncode == 0 and not completed.stderr
     backend = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
     try:
-        assert backend._q1(
-            "SELECT status FROM memory_preflight_tokens ORDER BY id DESC LIMIT 1"
-        ) == {"status": "executed"}
+        assert (
+            backend._q1("SELECT status FROM memory_preflight_tokens ORDER BY id DESC LIMIT 1")
+            is None
+        )
     finally:
         backend.close()
 
@@ -408,7 +409,7 @@ def test_composite_wrong_thread_cannot_authorize_inner_mutation(tmp_path):
         "tool_input": "tools.mcp__tausik_project__tausik_session_open({});",
         "session_id": "thread-b",
     }
-    assert "LEASE_MISSING" in assert_denied(run_gate(tmp_path, event, "allowed"))
+    assert "CAPABILITY_MISMATCH" in assert_denied(run_gate(tmp_path, event, "allowed"))
 
 
 def test_composite_session_open_bootstraps_before_task_package_binding(tmp_path):
@@ -464,7 +465,7 @@ def test_wrong_thread_cannot_authorize_mcp_mutation(tmp_path):
         "session_id": "thread-b",
     }
     result = run_gate(tmp_path, event, "allowed")
-    assert "LEASE_MISSING" in assert_denied(result)
+    assert "CAPABILITY_MISMATCH" in assert_denied(result)
 
 
 def test_protected_action_fails_closed_when_token_store_is_unavailable(tmp_path):
@@ -485,7 +486,7 @@ def test_every_governed_codex_write_surface_requires_current_thread_lease(tmp_pa
         else {"file_path": "allowed.py"}
     )
     wrong_thread = {"tool_name": tool, "tool_input": tool_input, "session_id": "thread-b"}
-    assert "LEASE_MISSING" in assert_denied(run_gate(tmp_path, wrong_thread, "allowed"))
+    assert "CAPABILITY_MISMATCH" in assert_denied(run_gate(tmp_path, wrong_thread, "allowed"))
 
     current_thread = {"tool_name": tool, "tool_input": tool_input, "session_id": "thread-a"}
     allowed = run_gate(tmp_path, current_thread, "allowed")
@@ -506,7 +507,7 @@ def test_codex_cli_mutations_require_the_event_thread_lease(tmp_path, command):
         "tool_input": {"command": command},
         "session_id": "thread-b",
     }
-    assert "LEASE_MISSING" in assert_denied(run_gate(tmp_path, event, "allowed"))
+    assert "CAPABILITY_MISMATCH" in assert_denied(run_gate(tmp_path, event, "allowed"))
 
 
 @pytest.mark.parametrize(

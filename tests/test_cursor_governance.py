@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import subprocess
 import sys
@@ -67,6 +68,7 @@ def test_cursor_hooks_preserve_user_entries_and_are_idempotent(tmp_path: Path):
     assert managed and all(entry["failClosed"] is True for entry in managed)
     assert any("Shell" in entry.get("matcher", "") for entry in managed)
     assert all(entry["failClosed"] is True for entry in data["hooks"]["stop"])
+    assert not any("can_stop_gate.py" in entry["command"] for entry in data["hooks"]["stop"])
     assert data["hooks"]["postToolUseFailure"]
     assert any(
         "--script-arg=--auto" in entry["command"] and "--script-arg=--record" in entry["command"]
@@ -82,6 +84,42 @@ def test_cursor_security_capability_is_digest_attested(tmp_path: Path):
     assert cursor_preflight_hooks_ready(str(tmp_path)) is True
     adapter = profile / "scripts" / "hooks" / "cursor_hook.py"
     adapter.write_text(adapter.read_text(encoding="utf-8") + "\n# drift\n", encoding="utf-8")
+    assert cursor_preflight_hooks_ready(str(tmp_path)) is False
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows absolute path transport")
+def test_cursor_hooks_bake_absolute_paths_on_windows(tmp_path: Path):
+    profile = tmp_path / ".cursor"
+    profile.mkdir()
+    copy_scripts(str(ROOT), str(profile))
+    generate_cursor_hooks_json(str(tmp_path), str(profile), venv_python=sys.executable)
+    hooks_text = (profile / "hooks.json").read_text(encoding="utf-8")
+    assert "${workspaceFolder}" not in hooks_text
+    project_root = os.path.normpath(str(tmp_path)).replace("\\", "/")
+    assert project_root in hooks_text
+    assert cursor_preflight_hooks_ready(str(tmp_path)) is True
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows absolute path transport")
+def test_cursor_capability_rejects_workspace_placeholder_on_windows(tmp_path: Path):
+    profile = tmp_path / ".cursor"
+    profile.mkdir()
+    copy_scripts(str(ROOT), str(profile))
+    generate_cursor_hooks_json(str(tmp_path), str(profile), venv_python=sys.executable)
+    hooks_path = profile / "hooks.json"
+    hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
+    command = hooks["hooks"]["postToolUse"][-1]["command"]
+    project_root = os.path.normpath(str(tmp_path)).replace("\\", "/")
+    hooks["hooks"]["postToolUse"][-1]["command"] = command.replace(
+        project_root, "${workspaceFolder}"
+    )
+    hooks_text = json.dumps(hooks, indent=2) + "\n"
+    hooks_path.write_text(hooks_text, encoding="utf-8")
+    manifest_path = profile / "tausik-capability.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["hooks_sha256"] = hashlib.sha256(hooks_text.encode("utf-8")).hexdigest()
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
     assert cursor_preflight_hooks_ready(str(tmp_path)) is False
 
 
@@ -117,6 +155,94 @@ def test_cursor_session_start_can_mint_host_bound_assertion(tmp_path: Path):
     )
     assert assertion.host_instance == "cursor"
     assert assertion.thread_id == "conversation"
+
+
+def test_cursor_prompt_stays_advisory_and_does_not_mint_authority(tmp_path: Path):
+    from project_backend import SQLiteBackend
+    from service_execution_lease import normalize_project_identity
+
+    backend = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
+    backend.close()
+    profile = tmp_path / ".cursor"
+    profile.mkdir()
+    copy_scripts(str(ROOT), str(profile))
+    generate_cursor_hooks_json(str(tmp_path), str(profile), venv_python=sys.executable)
+    adapter = profile / "scripts" / "hooks" / "cursor_hook.py"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(adapter),
+            "--event",
+            "beforeSubmitPrompt",
+            "--script",
+            "user_prompt_submit.py",
+            "--project",
+            str(tmp_path),
+        ],
+        input=json.dumps(
+            {
+                "conversation_id": "already-open-thread",
+                "generation_id": "turn-1",
+                "prompt": "check TAUSIK",
+            }
+        ),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    check = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
+    try:
+        lease = check._execution_lease_current(
+            normalize_project_identity(str(tmp_path)), "cursor", "already-open-thread"
+        )
+        assert lease is None
+    finally:
+        check.close()
+
+
+def test_transient_cursor_hook_drift_refuses_without_poisoning_project(tmp_path: Path, monkeypatch):
+    from hooks import session_start
+    from project_backend import SQLiteBackend
+
+    db_path = tmp_path / ".tausik" / "tausik.db"
+    backend = SQLiteBackend(str(db_path))
+    backend.close()
+    monkeypatch.setattr(session_start, "cursor_preflight_hooks_ready", lambda _project: False)
+
+    notice = session_start._issue_execution_lease(
+        str(tmp_path),
+        {"hook_event_name": "SessionStart", "session_id": "thread"},
+        trusted_host="cursor",
+    )
+
+    assert "CAPABILITY_MISMATCH" in notice
+    check = SQLiteBackend(str(db_path))
+    try:
+        assert check._q1("SELECT value FROM meta WHERE key='execution_lease_maintenance'") is None
+        state = check._execution_lease_state()
+        assert state is None or state["mode"] == "ready"
+    finally:
+        check.close()
+
+
+def test_cursor_maintenance_notice_gives_safe_owner_recovery(tmp_path: Path):
+    from hooks import session_start
+
+    tausik_dir = tmp_path / ".tausik"
+    tausik_dir.mkdir()
+    (tausik_dir / "tausik.db").touch()
+    (tausik_dir / "execution-lease-maintenance").write_text("audit failed", encoding="utf-8")
+
+    notice = session_start._issue_execution_lease(
+        str(tmp_path),
+        {"hook_event_name": "SessionStart", "session_id": "thread"},
+        trusted_host="cursor",
+    )
+
+    assert ".tausik/tausik doctor --reconcile-execution-leases revoke-and-reconcile" in notice
+    assert "Existing chats, tasks and files are preserved" in notice
 
 
 @pytest.mark.parametrize(
@@ -172,6 +298,16 @@ def test_cursor_adapter_normalizes_native_tools(monkeypatch):
     )
     identity = normalize_event({"conversation_id": "chat", "generation_id": "turn"}, "stop")
     assert identity["session_id"] == "chat" and identity["turn_id"] == "turn"
+    null_identity = normalize_event(
+        {
+            "session_id": None,
+            "turn_id": " ",
+            "conversation_id": "chat-2",
+            "generation_id": "turn-2",
+        },
+        "beforeSubmitPrompt",
+    )
+    assert (null_identity["session_id"], null_identity["turn_id"]) == ("chat-2", "turn-2")
     assert (
         normalize_event({"tool_name": "MCP:tausik_task_quick"}, "preToolUse")["tool_name"]
         == "mcp__tausik-project__tausik_task_quick"
@@ -185,6 +321,15 @@ def test_cursor_adapter_normalizes_native_tools(monkeypatch):
         "is_error": True,
         "error_code": "PERMISSION_DENIED",
         "error": "denied",
+    }
+
+
+def test_cursor_prompt_refusal_is_adapted_to_visible_native_context():
+    shared = json.dumps(
+        {"hookSpecificOutput": {"additionalContext": "LEASE REFUSED: retry safely"}}
+    )
+    assert json.loads(adapt_output(shared, "beforeSubmitPrompt", 0)) == {
+        "additional_context": "LEASE REFUSED: retry safely"
     }
 
 

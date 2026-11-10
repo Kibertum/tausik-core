@@ -204,14 +204,23 @@ def dispatch_entries(root: str) -> list[tuple[str, str, str | None]]:
     entries: list[tuple[str, str, str | None]] = []
     for module, tree in _module_trees(path).items():
         for node in ast.walk(tree):
-            if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Dict):
+            if isinstance(node, ast.Assign):
+                target: ast.expr = node.targets[0]
+                value: ast.expr | None = node.value
+            elif isinstance(node, ast.AnnAssign):
+                target, value = node.target, node.value
+            else:
                 continue
-            target = node.targets[0]
-            if not (isinstance(target, ast.Name) and target.id.endswith(_TABLE_SUFFIX)):
+            if not isinstance(value, ast.Dict):
                 continue
-            for key, value in zip(node.value.keys, node.value.values):
+            if not (
+                isinstance(target, ast.Name)
+                and (target.id == "_DISPATCH" or target.id.endswith(_TABLE_SUFFIX))
+            ):
+                continue
+            for key, handler in zip(value.keys, value.values):
                 if isinstance(key, ast.Constant) and isinstance(key.value, str):
-                    entries.append((key.value, module, _dispatch_target(value)))
+                    entries.append((key.value, module, _dispatch_target(handler)))
     if not entries:
         raise HandlersUnreadable(
             f"no dispatch table entries found under {path}; the table convention "

@@ -43,8 +43,10 @@ def _cursor_mcp_tool(short: str) -> str:
 def normalize_event(event: dict, event_name: str) -> dict:
     """Return the compatibility payload consumed by existing TAUSIK hooks."""
     normalized = dict(event)
-    normalized.setdefault("session_id", normalized.get("conversation_id"))
-    normalized.setdefault("turn_id", normalized.get("generation_id"))
+    if not isinstance(normalized.get("session_id"), str) or not normalized["session_id"].strip():
+        normalized["session_id"] = normalized.get("conversation_id")
+    if not isinstance(normalized.get("turn_id"), str) or not normalized["turn_id"].strip():
+        normalized["turn_id"] = normalized.get("generation_id")
     tool = normalized.get("tool_name")
     if tool == "Shell":
         normalized["tool_name"] = "PowerShell" if os.name == "nt" else "Bash"
@@ -99,7 +101,12 @@ def adapt_output(stdout: str, event_name: str, returncode: int) -> str:
                 return json.dumps(native)
         context = nested.get("additionalContext")
         if isinstance(context, str) and context:
-            if event_name in {"sessionStart", "postToolUse", "postToolUseFailure"}:
+            if event_name in {
+                "sessionStart",
+                "beforeSubmitPrompt",
+                "postToolUse",
+                "postToolUseFailure",
+            }:
                 return json.dumps({"additional_context": context})
         if event_name == "stop" and nested.get("decision") == "block":
             reason = nested.get("reason")

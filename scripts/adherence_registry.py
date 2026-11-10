@@ -32,15 +32,21 @@ cli.task.budget-check cli.task.list cli.task.next cli.task.show cli.update-check
 mcp.tausik_actz_list mcp.tausik_actz_search mcp.tausik_actz_show
 mcp.tausik_adapt_list mcp.tausik_adapt_search mcp.tausik_adapt_show
 mcp.tausik_at_check_freshness mcp.tausik_at_list mcp.tausik_at_search
-mcp.tausik_at_show mcp.tausik_decisions_list mcp.tausik_epic_list
-mcp.tausik_gates_status mcp.tausik_health mcp.tausik_memory_list
+mcp.tausik_at_show mcp.tausik_at_diagnose mcp.tausik_at_release_readiness
+mcp.tausik_audit_check mcp.tausik_decisions_list mcp.tausik_doctor
+mcp.tausik_epic_list mcp.tausik_events mcp.tausik_explore_current
+mcp.tausik_gates_status mcp.tausik_health mcp.tausik_memory_brief
+mcp.tausik_memory_graph mcp.tausik_memory_list mcp.tausik_memory_related
 mcp.tausik_memory_search mcp.tausik_memory_show mcp.tausik_metrics
 mcp.tausik_roadmap mcp.tausik_role_list mcp.tausik_role_show mcp.tausik_search
-mcp.tausik_self_check mcp.tausik_session_current mcp.tausik_session_list
+mcp.tausik_self_check mcp.tausik_session_current mcp.tausik_session_last_handoff
+mcp.tausik_session_list mcp.tausik_skill_catalog mcp.tausik_skill_list
+mcp.tausik_skill_repo_list mcp.tausik_stack_diff mcp.tausik_stack_lint
 mcp.tausik_snippet_search mcp.tausik_spec_list mcp.tausik_spec_search
 mcp.tausik_spec_show mcp.tausik_stack_list mcp.tausik_stack_show
-mcp.tausik_status mcp.tausik_story_list mcp.tausik_task_list
-mcp.tausik_task_next mcp.tausik_task_show
+mcp.tausik_status mcp.tausik_story_list mcp.tausik_task_list mcp.tausik_task_next
+mcp.tausik_task_show mcp.tausik_team mcp.tausik_tool_schema mcp.tausik_cq_query
+mcp.tausik_actz_verify mcp.tausik_actz_final_tz mcp.tausik_actz_orphans
 service.actz_list service.actz_search service.actz_show service.adapt_list
 service.adapt_search service.adapt_show service.at_check_freshness service.at_list
 service.at_search service.at_show service.audit_check service.epic_list

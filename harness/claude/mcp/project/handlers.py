@@ -185,20 +185,9 @@ def _require_codex_execution_lease(
 
 
 def _do_explore_current(svc: Any, args: dict) -> str:
-    exp = svc.exploration_current()
-    if not exp:
-        return "No active exploration."
-    elapsed = "?"
-    if exp.get("started_at"):
-        from datetime import datetime, timezone
+    from project_cli_explore import render_explore_current
 
-        try:
-            started = datetime.fromisoformat(exp["started_at"].replace("Z", "+00:00"))
-            elapsed = str(int((datetime.now(timezone.utc) - started).total_seconds() / 60))
-        except (ValueError, TypeError):
-            pass
-    limit = exp.get("time_limit_min", 30)
-    return f"Exploration: {exp['title']} ({elapsed}/{limit} min)"
+    return render_explore_current(svc.exploration_current())
 
 
 def _do_audit_check(svc: Any, args: dict) -> str:
@@ -207,8 +196,9 @@ def _do_audit_check(svc: Any, args: dict) -> str:
 
 
 def _do_fts_optimize(svc: Any, args: dict) -> str:
-    results = svc.fts_optimize()
-    return "\n".join(f"{t}: {s}" for t, s in results.items())
+    from project_cli_search import render_fts_optimize
+
+    return render_fts_optimize(svc.fts_optimize())
 
 
 # ---------------------------------------------------------------------------

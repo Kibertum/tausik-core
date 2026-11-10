@@ -10,6 +10,16 @@ from typing import Any
 from project_service import ProjectService
 
 
+def render_explore_current(exp: dict[str, Any] | None) -> str:
+    """Render the current exploration identically for CLI and MCP."""
+    if not exp:
+        return "No active exploration."
+    elapsed = exp.get("elapsed_min", "?")
+    limit = exp.get("time_limit_min", 30)
+    over = " [OVER LIMIT]" if exp.get("over_limit") else ""
+    return f"Exploration #{exp['id']}: {exp['title']}\n  Elapsed: {elapsed} min / {limit} min{over}"
+
+
 def cmd_explore(svc: ProjectService, args: Any) -> None:
     c = args.explore_cmd
     if c == "start":
@@ -17,15 +27,7 @@ def cmd_explore(svc: ProjectService, args: Any) -> None:
     elif c == "end":
         print(svc.exploration_end(args.summary, args.create_task))
     elif c == "current":
-        exp = svc.exploration_current()
-        if exp:
-            elapsed = exp.get("elapsed_min", "?")
-            limit = exp.get("time_limit_min", 30)
-            over = " [OVER LIMIT]" if exp.get("over_limit") else ""
-            print(f"Exploration #{exp['id']}: {exp['title']}")
-            print(f"  Elapsed: {elapsed} min / {limit} min{over}")
-        else:
-            print("No active exploration.")
+        print(render_explore_current(svc.exploration_current()))
     else:
         print("Usage: tausik explore [start|end|current]")
 

@@ -33,7 +33,10 @@ def require_live_lease(
     if os.path.isfile(emergency_marker):
         return (
             False,
-            "LEASE_MAINTENANCE: PostToolUse audit persistence failed; owner recovery required",
+            "LEASE_MAINTENANCE: PostToolUse audit persistence failed; from the project root "
+            "run `.tausik/tausik doctor --reconcile-execution-leases "
+            "revoke-and-reconcile`, then reload Cursor; existing chats, tasks and files "
+            "are preserved",
         )
     if trusted_host not in {"codex", "cursor"}:
         return False, f"IDENTITY_INVALID: unsupported trusted host {trusted_host!r}"
@@ -48,9 +51,12 @@ def require_live_lease(
         from project_service import ProjectService
         from service_host_context import enforce_hard_ceiling
         from service_execution_lease import (
+            assertion_from_pre_tool_use,
             authorize_mcp_mutation,
             enter_execution_lease_maintenance,
+            issue_execution_lease,
             normalize_project_identity,
+            reconcile_execution_lease_state,
             require_execution_lease,
         )
 
@@ -62,6 +68,28 @@ def require_live_lease(
                 is not None
             ):
                 return False, "HOST_CONTEXT_HARD: continue in a fresh host thread"
+            from tausik_version import __version__
+
+            state = backend._execution_lease_state()
+            if state is None or state.get("projection_build") != __version__:
+                from session_start import (
+                    _codex_preflight_hooks_ready,
+                    cursor_preflight_hooks_ready,
+                )
+
+                ready = (
+                    _codex_preflight_hooks_ready(project_dir)
+                    if trusted_host == "codex"
+                    else cursor_preflight_hooks_ready(project_dir)
+                )
+                if not ready:
+                    return False, (
+                        "CAPABILITY_MISMATCH: protected-action hooks are missing or stale"
+                    )
+                assertion = assertion_from_pre_tool_use(
+                    event, project_dir, trusted_host=trusted_host
+                )
+                reconcile_execution_lease_state(svc, assertion)
             try:
                 current = backend._execution_lease_current(
                     normalize_project_identity(project_dir), trusted_host, thread_id.strip()
@@ -70,7 +98,28 @@ def require_live_lease(
                 enter_execution_lease_maintenance(svc, str(exc))
                 return False, f"IDENTITY_AMBIGUOUS: {exc}"
             if current is None:
-                return False, f"LEASE_MISSING: no live lease for this {trusted_host} thread"
+                # A single agent turn may legitimately outlive the prompt lease.
+                # Renew only at this attested PreToolUse boundary, after proving
+                # the complete pre/post hook set is still deployed.
+                from session_start import (
+                    _codex_preflight_hooks_ready,
+                    cursor_preflight_hooks_ready,
+                )
+
+                ready = (
+                    _codex_preflight_hooks_ready(project_dir)
+                    if trusted_host == "codex"
+                    else cursor_preflight_hooks_ready(project_dir)
+                )
+                if not ready:
+                    return False, (
+                        "CAPABILITY_MISMATCH: protected-action hooks are missing or stale"
+                    )
+                assertion = assertion_from_pre_tool_use(
+                    event, project_dir, trusted_host=trusted_host
+                )
+                reconcile_execution_lease_state(svc, assertion)
+                current = issue_execution_lease(svc, assertion)
             request_items = list(requests) if requests is not None else [(route, arguments or {})]
             from execution_lease_package import route_allows_package_bypass
 
@@ -122,5 +171,11 @@ def require_live_lease(
             backend.close()
     except Exception as exc:  # noqa: BLE001 - hook boundary returns typed refusal
         code = getattr(exc, "code", "LEASE_STORE_UNAVAILABLE")
+        if code == "LEASE_MAINTENANCE":
+            return False, (
+                f"{code}: {exc}; from the project root run `.tausik/tausik doctor "
+                "--reconcile-execution-leases revoke-and-reconcile`, then reload Cursor; "
+                "existing chats, tasks and files are preserved"
+            )
         return False, f"{code}: {exc}"
     return True, ""

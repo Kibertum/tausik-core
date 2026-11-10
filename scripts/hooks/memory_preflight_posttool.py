@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PostToolUse hook: durably finish a reserved Codex memory-preflight token."""
+"""PostToolUse hook: durably finish a reserved host-bound memory-preflight token."""
 
 from __future__ import annotations
 
@@ -16,6 +16,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 EMERGENCY_MARKER = "execution-lease-maintenance"
 
 
+def _canonical_trusted_host(values: list[str] | None) -> str:
+    hosts = values or ["codex"]
+    if len(hosts) != 1:
+        raise ValueError("exactly one trusted PostToolUse host is required")
+    host = hosts[0].casefold()
+    if host not in {"codex", "cursor"}:
+        raise ValueError(f"unsupported trusted PostToolUse host {hosts[0]!r}")
+    return host
+
+
 def _failed(event: dict) -> bool:
     response = event.get("tool_response")
     if isinstance(response, dict):
@@ -26,6 +36,15 @@ def _failed(event: dict) -> bool:
             if isinstance(value, int) and not isinstance(value, bool) and value != 0:
                 return True
     return bool(event.get("error"))
+
+
+def _denied_before_execution(event: dict) -> bool:
+    """Recognize Cursor's structural signal that PreToolUse prevented execution."""
+    response = event.get("tool_response")
+    if not isinstance(response, dict) or not response.get("is_error"):
+        return False
+    code = response.get("error_code") or response.get("code")
+    return isinstance(code, str) and code.strip().upper().replace("-", "_") == "PERMISSION_DENIED"
 
 
 def _unavailable_observation(event: dict) -> tuple[str, dict[str, str]] | None:
@@ -121,17 +140,19 @@ def main() -> int:
     try:
         parser = argparse.ArgumentParser(add_help=False)
         parser.add_argument("--project")
-        parser.add_argument("--trusted-host", default="codex")
+        parser.add_argument("--trusted-host", action="append")
         args, _ = parser.parse_known_args()
+        trusted_host = _canonical_trusted_host(args.trusted_host)
         project = args.project or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
         event = json.load(sys.stdin)
         tool = event.get("tool_name")
         tool_input = event.get("tool_input")
         thread_id = event.get("session_id")
         if not isinstance(tool, str) or not isinstance(thread_id, str):
-            _enter_audit_maintenance(project, "malformed Codex PostToolUse identity payload")
+            _enter_audit_maintenance(project, "malformed trusted PostToolUse identity payload")
             print(
-                "MEMORY_PREFLIGHT_AUDIT_FAILED: malformed PostToolUse identity payload; maintenance entered",
+                "MEMORY_PREFLIGHT_AUDIT_FAILED: malformed trusted PostToolUse identity payload; "
+                "maintenance entered",
                 file=sys.stderr,
             )
             return 0
@@ -154,7 +175,7 @@ def main() -> int:
             clean_input.pop("_tausik_authorization", None)
             actions = [(tool, clean_input)]
         else:
-            raise ValueError("malformed Codex PostToolUse tool_input")
+            raise ValueError("malformed trusted PostToolUse tool_input")
         from memory_preflight import classify_action, complete_preflight_for_thread
 
         protected = [
@@ -169,6 +190,19 @@ def main() -> int:
 
         backend = SQLiteBackend(os.path.join(project, ".tausik", "tausik.db"))
         try:
+            if _denied_before_execution(event):
+                for action_tool, action_input in protected:
+                    complete_preflight_for_thread(
+                        backend,
+                        normalize_project_identity(project),
+                        thread_id.strip(),
+                        action_tool,
+                        action_input,
+                        host_instance=trusted_host,
+                        failed=True,
+                        failure_code="PRE_EXECUTION_DENIED",
+                    )
+                return 0
             completed = [
                 complete_preflight_for_thread(
                     backend,
@@ -176,6 +210,7 @@ def main() -> int:
                     thread_id.strip(),
                     action_tool,
                     action_input,
+                    host_instance=trusted_host,
                     failed=_failed(event),
                 )
                 for action_tool, action_input in protected
@@ -198,7 +233,7 @@ def main() -> int:
                 from project_service import ProjectService
 
                 lease = backend._execution_lease_current(
-                    normalize_project_identity(project), args.trusted_host, thread_id.strip()
+                    normalize_project_identity(project), trusted_host, thread_id.strip()
                 )
                 if lease is None:
                     raise ValueError("observed unavailable action has no live task lease")
