@@ -2,7 +2,7 @@
   "_comment": "PUBLISHED TAGS ARE PROMISES. README tells consumers to add this repository as a git submodule, and a submodule is pinned by SHA or by tag — so moving a published tag relocates somebody else's pin onto a different tree, silently. This snapshot makes 'no published tag moved' a checkable statement instead of a recollection: tests/test_published_tags_are_promises.py compares a live ls-remote against it via publication_scope.tags_unmoved, and treats appearing and vanishing as movement too.",
   "_how_taken": "git ls-remote --tags github, peeled objects (refs/tags/<name>^{}) where present; from v1.9.0 onward each GitHub tag is lightweight on the verified public snapshot while the same local/GitLab tag names the annotated development commit (publishing.md, decision #368).",
   "_taken_at": "2026-11-10",
-  "_taken_in_session": 310,
+  "_taken_in_session": 313,
   "_remote": "https://github.com/Kibertum/tausik-core.git",
   "tags": {
     "v1.5.3": "4adb7656b4b1ad6f1ae5f192b11722465bf0c5b7",
@@ -25,6 +25,7 @@
     "v1.11.6": "b4a1a596f3fe9c86b77e0cfc41e38adc14808468",
     "v1.11.7": "e0fe616820cc8dbc2f89897c4657a3a207d8d692",
     "v1.11.8": "bb13e58048f5a5085b2d9694f7a984519a34f6b4",
-    "v1.11.9": "bd9e874777adc8e2a2dab10203e4e5c2e87c7630"
+    "v1.11.9": "bd9e874777adc8e2a2dab10203e4e5c2e87c7630",
+    "v1.11.10": "be9436111e272e1c2794880e6d47158f59f8ac13"
   }
 }

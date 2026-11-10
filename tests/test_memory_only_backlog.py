@@ -34,9 +34,31 @@ def _service(tmp_path: Path, profile: str | None) -> ProjectService:
     return ProjectService(SQLiteBackend(str(tmp_path / "tausik.db")))
 
 
+def _bound_lease(svc: ProjectService, task_slug: str) -> dict:
+    session_id = svc.be.session_start("cursor-memory-thread")
+    return svc.be._execution_lease_issue(
+        session_id=session_id,
+        project_identity="memory-project",
+        host_instance="cursor",
+        thread_id="cursor-memory-thread",
+        assertion_nonce="assert-memory",
+        assertion_issued_at="2026-11-10T00:00:00+00:00",
+        assertion_expires_at="2099-01-01T00:00:00+00:00",
+        nonce="lease-memory",
+        issued_at="2026-11-10T00:00:00+00:00",
+        expires_at="2099-01-01T00:00:00+00:00",
+        projection_build="test",
+        capability_min=1,
+        capability_max=1,
+        task_slug=task_slug,
+        task_package_fingerprint="memory-package",
+    )
+
+
 def test_light_close_skips_gates_and_full_path_does_not(tmp_path: Path):
     svc = _service(tmp_path, "memory-only")
     svc.task_add(None, "light", "Light task")
+    lease = _bound_lease(svc, "light")
 
     def _boom(*_a, **_k):
         raise AssertionError("gates ran")
@@ -45,6 +67,7 @@ def test_light_close_skips_gates_and_full_path_does_not(tmp_path: Path):
     message = svc.task_done("light")
     assert "without gates" in message
     assert svc.be.task_get("light")["status"] == "done"
+    assert svc.be._execution_lease_by_nonce(lease["nonce"])["task_slug"] is None
 
     svc.task_add(None, "gated", "Gated task")
     with pytest.raises(ServiceError, match="never started"):

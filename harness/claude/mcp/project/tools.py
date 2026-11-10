@@ -236,40 +236,52 @@ TOOLS = [
     },
     {
         "name": "tausik_task_add",
-        "description": "Create a task with slug, title, QG-0 goal, optional story, and TOOL CALLS budget.",
+        "description": "Create a QG-0 task; budget is TOOL CALLS.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "story_slug": {
                     "type": "string",
-                    "description": "Parent story slug (optional, task can be standalone)",
+                    "description": "Optional parent story",
                 },
                 "slug": {
                     "type": "string",
-                    "description": "Unique task ID in kebab-case (e.g. fix-login-bug)",
+                    "description": "Unique kebab-case ID",
                 },
-                "title": {"type": "string", "description": "Human-readable task title"},
-                "goal": {
-                    "type": "string",
-                    "description": "What this task achieves (REQUIRED for QG-0 to pass on task start)",
+                "title": {"type": "string"},
+                "goal": {"type": "string"},
+                "acceptance_criteria": {"type": "string"},
+                "scope": {"type": "string"},
+                "scope_exclude": {"type": "string"},
+                "rollback_plan": {"type": "string"},
+                "scope_paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
                 },
-                "role": {
-                    "type": "string",
-                    "description": "Free-text role (e.g. developer, architect, qa, tech-writer, ui-ux)",
+                "scope_tools": {
+                    "type": "array",
+                    "items": {"type": "string"},
                 },
+                "assurance_profiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["declarative", "executable", "migration", "research"],
+                    },
+                },
+                "assurance_impact": {"type": "object"},
+                "role": {"type": "string"},
                 "complexity": {
                     "type": "string",
                     "enum": ["simple", "medium", "complex"],
-                    "description": "Task complexity. Affects story points: simple=1, medium=3, complex=8",
                 },
                 "stack": {
                     "type": "string",
-                    "description": "Technology stack for this task",
                     "enum": _STACKS_ENUM,
                 },
                 "defect_of": {
                     "type": "string",
-                    "description": "Parent task slug if this is a defect fix (triggers root cause requirement on done)",
+                    "description": "Parent task for a defect",
                 },
                 "call_budget": {
                     "type": "integer",
@@ -279,7 +291,7 @@ TOOLS = [
                 "tier": {
                     "type": "string",
                     "enum": ["trivial", "light", "moderate", "substantial", "deep"],
-                    "description": "Planning tier. Ignored if call_budget is also provided.",
+                    "description": "Ignored when call_budget is set",
                 },
             },
             "required": ["slug", "title"],

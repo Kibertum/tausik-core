@@ -173,6 +173,28 @@ memory-only держит лёгкий бэклог (канон B): epic/story/ta
 
 - [Точный changelog 1.11.7](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.ru.md)
 
+## 1.11.11 — непрерывный lifecycle задач в Cursor
+
+Cursor теперь создаёт стандартную simple/medium-задачу со всеми полями QG-0
+одним вызовом `tausik_task_add`, запускает и закрывает её, а затем сразу
+повторяет тот же lifecycle в том же потоке. Фреймворк больше не требует от
+непривязанного lease выполнить `task_update` до `task_start`.
+
+Освобождение lease теперь следует одному инварианту: каждый терминальный
+переход задачи атомарен с отвязкой. Обычный QG-2 close, memory-only light close,
+hierarchy receipt close и obsolete освобождают task-package-привязку. При сбое
+закрытия откатываются и задача, и lease. Stale и cross-thread leases остаются
+fail-closed.
+
+Release candidate выполнил два последовательных MCP-lifecycle в одном живом
+потоке Cursor отдельно в naproksen и BotAdminPanel. Существующие чаты и работа
+во время проверки сохранены.
+
+Обновите копию фреймворка, повторно запустите bootstrap для Cursor и выполните
+Reload Window, чтобы MCP-сервер стартовал на 1.11.11.
+
+- [Точный changelog 1.11.11](https://github.com/Kibertum/tausik-core/blob/v1.11.11/CHANGELOG.ru.md)
+
 ## 1.11.10 — передача lease после obsolete-задачи
 
 Когда задача закрывается как obsolete, TAUSIK в той же транзакции очищает её

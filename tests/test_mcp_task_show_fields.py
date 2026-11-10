@@ -67,3 +67,6 @@ def test_cli_and_mcp_read_one_list():
     assert "detail_lines" in src_cli and "detail_lines" in src_mcp
     assert '"rollback_plan",' not in src_mcp  # no second copy of the list
     assert {"scope_paths", "rollback_plan"} <= set(task_detail_fields.TASK_DETAIL_FIELDS)
+    assert {"assurance_profiles", "assurance_impact"} <= set(
+        task_detail_fields.TASK_CREATE_CONTRACT_FIELDS
+    )

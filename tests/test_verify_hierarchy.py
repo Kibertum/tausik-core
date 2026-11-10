@@ -104,6 +104,27 @@ def _green_receipt(svc, members, nonce="ab" * 16, ran_at=None, ttl_s=3600):
     return f"{run_id}.{nonce}", identity
 
 
+def _bound_lease(svc, task_slug="h-a"):
+    session_id = svc.be.session_start("cursor-hierarchy-thread")
+    return svc.be._execution_lease_issue(
+        session_id=session_id,
+        project_identity="hierarchy-project",
+        host_instance="cursor",
+        thread_id="cursor-hierarchy-thread",
+        assertion_nonce="assert-hierarchy",
+        assertion_issued_at="2026-11-10T00:00:00+00:00",
+        assertion_expires_at="2099-01-01T00:00:00+00:00",
+        nonce="lease-hierarchy",
+        issued_at="2026-11-10T00:00:00+00:00",
+        expires_at="2099-01-01T00:00:00+00:00",
+        projection_build="test",
+        capability_min=1,
+        capability_max=1,
+        task_slug=task_slug,
+        task_package_fingerprint="hierarchy-package",
+    )
+
+
 class TestResolution:
     def test_story_and_epic_descendants(self, svc):
         assert vh.resolve_descendants(svc.be, "st", "story") == ["h-a", "h-b", "h-c"]
@@ -147,6 +168,7 @@ class TestReadiness:
 
 class TestAtomicClose:
     def test_closes_everything_on_the_exact_receipt(self, svc):
+        lease = _bound_lease(svc)
         out = vh.run_hierarchy_verify(
             svc, "st", "story", prepare=False, _runner=lambda *a, **k: dict(GREEN)
         )
@@ -167,6 +189,26 @@ class TestAtomicClose:
             ]
             is not None
         )
+        assert svc.be._execution_lease_by_nonce(lease["nonce"])["task_slug"] is None
+
+    def test_close_failure_rolls_back_task_and_lease(self, svc, monkeypatch):
+        lease = _bound_lease(svc)
+        out = vh.run_hierarchy_verify(
+            svc, "st", "story", prepare=False, _runner=lambda *a, **k: dict(GREEN)
+        )
+        handle, _ = _green_receipt(svc, out["members"])
+        original = svc.be.story_update
+
+        def fail_after_member_closes(*args, **kwargs):
+            original(*args, **kwargs)
+            raise RuntimeError("injected hierarchy close failure")
+
+        monkeypatch.setattr(svc.be, "story_update", fail_after_member_closes)
+        msg = vh.hierarchy_done_with_handle(svc, "st", "story", handle)
+
+        assert msg.startswith("REFUSED: transaction rolled back")
+        assert svc.be.task_get("h-a")["status"] == "planning"
+        assert svc.be._execution_lease_by_nonce(lease["nonce"])["task_slug"] == "h-a"
 
     def test_edited_member_makes_handle_stale(self, svc):
         out = vh.run_hierarchy_verify(

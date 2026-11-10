@@ -217,6 +217,7 @@ def hierarchy_done_with_handle(
                 changed = be.task_update(slug, status="done", completed_at=now)
                 if changed != 1:
                     raise RuntimeError(f"{slug}: expected exactly one open row, got {changed}")
+                be._execution_lease_unbind_task(slug, now)
             if kind == "epic":
                 # Stories close with their epic: leaving them open under a
                 # done epic is the inverse of the doctor's open-epic check.

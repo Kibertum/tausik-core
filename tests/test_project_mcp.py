@@ -100,6 +100,63 @@ class TestTaskCRUD:
         )
         assert "created" in result
 
+    def test_task_add_persists_complete_qg0_contract_in_one_call(self, svc):
+        result = _handle_tool(
+            svc,
+            "tausik_task_add",
+            {
+                "slug": "ready-now",
+                "title": "Ready now",
+                "goal": "Make one-call MCP planning startable",
+                "acceptance_criteria": "Starts immediately. Negative: missing contract is refused.",
+                "scope": "scripts/ready.py",
+                "scope_exclude": "docs/",
+                "rollback_plan": "git revert",
+                "scope_paths": ["scripts/ready.py"],
+                "scope_tools": ["Edit"],
+                "complexity": "medium",
+            },
+        )
+
+        assert "created" in result
+        task = svc.task_show("ready-now")
+        assert task["acceptance_criteria"].startswith("Starts immediately")
+        assert task["scope"] == "scripts/ready.py"
+        assert task["scope_exclude"] == "docs/"
+        assert task["rollback_plan"] == "git revert"
+        assert json.loads(task["scope_paths"]) == ["scripts/ready.py"]
+        assert json.loads(task["scope_tools"]) == ["Edit"]
+        assert "started" in _handle_tool(svc, "tausik_task_start", {"slug": "ready-now"})
+
+    def test_task_add_makes_complex_work_startable_in_one_call(self, svc):
+        result = _handle_tool(
+            svc,
+            "tausik_task_add",
+            {
+                "slug": "complex-ready-now",
+                "title": "Complex ready now",
+                "goal": "Make complex MCP planning startable",
+                "acceptance_criteria": "Starts immediately. Negative: incomplete assurance fails.",
+                "scope": "scripts/complex.py",
+                "scope_exclude": "docs/",
+                "rollback_plan": "git revert",
+                "complexity": "complex",
+                "call_budget": 12,
+                "assurance_profiles": ["executable"],
+                "assurance_impact": {
+                    "level": "high",
+                    "blast_radius": "local",
+                    "reversibility": "reversible",
+                },
+            },
+        )
+
+        assert "created" in result
+        task = svc.task_show("complex-ready-now")
+        assert json.loads(task["assurance_profiles"]) == ["executable"]
+        assert json.loads(task["assurance_impact"])["blast_radius"] == "local"
+        assert "started" in _handle_tool(svc, "tausik_task_start", {"slug": "complex-ready-now"})
+
     def test_task_show(self, seeded):
         result = _handle_tool(seeded, "tausik_task_show", {"slug": "t1"})
         assert "Task: t1" in result

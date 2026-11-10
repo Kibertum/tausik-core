@@ -9,6 +9,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.11] — 2026-11-10
+
+### Fixed — uninterrupted Cursor task lifecycle
+
+- `tausik_task_add` now accepts the standard QG-0 fields in one authorized MCP
+  call. Cursor no longer needs an impossible unbound `task_update` between task
+  creation and `task_start`.
+- Every terminal close path now releases its task-package lease binding in the
+  same transaction: ordinary QG-2 close, memory-only light close, hierarchy
+  receipt close, and obsolete. The same Cursor thread can start its next task
+  immediately; a failed close rolls back both task state and lease state.
+- The fix was exercised as two consecutive complete MCP lifecycles in the same
+  live Cursor thread in both naproksen and BotAdminPanel.
+
 ## [1.11.10] — 2026-11-10
 
 ### Fixed — obsolete task lease handoff

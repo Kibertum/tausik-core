@@ -5,6 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import json
 import sys
 
 import pytest
@@ -1070,6 +1071,135 @@ def test_mcp_task_start_is_the_stale_package_recovery_route(service, monkeypatch
         host_instance="codex",
         thread_id="thread-a",
         nonce=lease["nonce"],
+    )
+
+
+def test_mcp_close_releases_lease_for_second_task_in_same_thread(service, monkeypatch):
+    """The real Cursor sequence must work twice without maintenance or recovery."""
+    from handlers import handle_tool
+
+    svc, project = service
+    assertion = trusted_assertion(project)
+    prepare(svc, assertion)
+    lease = issue_execution_lease(svc, assertion)
+    monkeypatch.setenv("TAUSIK_ENFORCE_EXECUTION_LEASE", "1")
+
+    def call(route, arguments):
+        current = svc.be._execution_lease_by_nonce(lease["nonce"])
+        authorization = authorize_mcp_mutation(
+            svc,
+            lease=current,
+            route=route,
+            arguments=arguments,
+            correlated=True,
+        )
+        return handle_tool(
+            svc,
+            route,
+            arguments,
+            authorization=authorization,
+        )
+
+    for slug in ("cursor-round-a", "cursor-round-b"):
+        add_args = {
+            "slug": slug,
+            "title": slug,
+            "goal": f"Complete {slug}",
+            "acceptance_criteria": "Lifecycle completes. Negative: stale lease is refused.",
+            "scope": "tests/",
+            "complexity": "simple",
+        }
+        assert "created" in call("tausik_task_add", add_args)
+        assert "started" in call("tausik_task_start", {"slug": slug})
+        assert "Logged" in call(
+            "tausik_task_log", {"slug": slug, "message": "AC verified: lifecycle completes"}
+        )
+        close = json.loads(
+            call(
+                "tausik_task_done",
+                {
+                    "slug": slug,
+                    "ac_verified": True,
+                    "evidence": "AC verified: lifecycle completes; stale lease negative covered.",
+                },
+            )
+        )
+        assert close["ok"] is True, close
+        assert svc.task_show(slug)["status"] == "done"
+        assert svc.be._execution_lease_by_nonce(lease["nonce"])["task_slug"] is None
+
+
+def test_full_close_failure_rolls_back_task_lease_and_unused_authorization(service, monkeypatch):
+    from handlers import handle_tool
+
+    svc, project = service
+    assertion = trusted_assertion(project)
+    prepare(svc, assertion)
+    lease = issue_execution_lease(svc, assertion)
+    monkeypatch.setenv("TAUSIK_ENFORCE_EXECUTION_LEASE", "1")
+
+    def call(route, arguments):
+        current = svc.be._execution_lease_by_nonce(lease["nonce"])
+        authorization = authorize_mcp_mutation(
+            svc,
+            lease=current,
+            route=route,
+            arguments=arguments,
+            correlated=True,
+        )
+        return handle_tool(svc, route, arguments, authorization=authorization)
+
+    slug = "cursor-close-rollback"
+    assert "created" in call(
+        "tausik_task_add",
+        {
+            "slug": slug,
+            "title": slug,
+            "goal": "Keep close atomic",
+            "acceptance_criteria": "Close is atomic. Negative: failure restores state.",
+            "scope": "tests/",
+            "complexity": "simple",
+        },
+    )
+    assert "started" in call("tausik_task_start", {"slug": slug})
+    assert "Logged" in call(
+        "tausik_task_log", {"slug": slug, "message": "AC verified: atomic close"}
+    )
+
+    current = svc.be._execution_lease_by_nonce(lease["nonce"])
+    authorize_mcp_mutation(
+        svc,
+        lease=current,
+        route="tausik_task_log",
+        arguments={"slug": slug, "message": "unused"},
+        correlated=True,
+    )
+    original = svc.be._execution_lease_unbind_task
+
+    def fail_after_unbind(task_slug, changed_at):
+        original(task_slug, changed_at)
+        raise RuntimeError("injected full close failure")
+
+    monkeypatch.setattr(svc.be, "_execution_lease_unbind_task", fail_after_unbind)
+    with pytest.raises(RuntimeError, match="injected full close failure"):
+        call(
+            "tausik_task_done",
+            {
+                "slug": slug,
+                "ac_verified": True,
+                "evidence": "AC verified: atomic close; negative rollback covered.",
+            },
+        )
+
+    assert svc.task_show(slug)["status"] == "active"
+    assert svc.be._execution_lease_by_nonce(lease["nonce"])["task_slug"] == slug
+    assert (
+        svc.be._q1(
+            "SELECT COUNT(*) AS n FROM execution_authorizations "
+            "WHERE lease_id=? AND route='tausik_task_log' AND consumed_at IS NULL",
+            (current["id"],),
+        )["n"]
+        == 1
     )
 
 

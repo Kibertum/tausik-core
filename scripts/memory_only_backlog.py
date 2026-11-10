@@ -163,6 +163,7 @@ def try_light_close(svc: Any, slug: str) -> dict[str, Any] | None:
     note = "LIGHT CLOSE: governance_profile=memory-only. Verify and gates were not run."
     with svc.be.transaction():
         svc.be.task_update(slug, status="done", completed_at=now, updated_at=now)
+        svc.be._execution_lease_unbind_task(slug, now)
         svc.be.task_append_notes(slug, note)
     try:
         svc._cascade_done(slug)

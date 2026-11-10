@@ -41,6 +41,22 @@ TASK_DETAIL_FIELDS: tuple[str, ...] = (
     "model_mismatch",
 )
 
+TASK_CREATE_CONTRACT_FIELDS: tuple[str, ...] = tuple(
+    field
+    for field in TASK_DETAIL_FIELDS
+    if field
+    in {
+        "acceptance_criteria",
+        "scope",
+        "scope_exclude",
+        "scope_paths",
+        "scope_tools",
+        "rollback_plan",
+        "assurance_profiles",
+        "assurance_impact",
+    }
+)
+
 
 def detail_lines(task: dict[str, Any]) -> list[str]:
     """`field: value` for every listed field that is set; an empty one prints nothing."""

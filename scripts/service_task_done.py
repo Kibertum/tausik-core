@@ -439,6 +439,7 @@ class TaskDoneReportMixin:
             model_updates, model_mismatch_msg = model_done_updates(self.be, task)
             updates.update(model_updates)
             self.be.task_update(slug, **updates)
+            self.be._execution_lease_unbind_task(slug, updates["completed_at"])
             msgs = [f"Task '{slug}' completed."]
             if risk_note:
                 self.be.task_append_notes(slug, risk_note)

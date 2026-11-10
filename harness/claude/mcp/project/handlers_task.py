@@ -15,18 +15,31 @@ from handlers_render import render_list
 
 
 def _do_task_add(svc: Any, args: dict) -> str:
-    return svc.task_add(
-        args.get("story_slug"),
-        args["slug"],
-        args["title"],
-        stack=args.get("stack"),
-        complexity=args.get("complexity"),
-        goal=args.get("goal"),
-        role=args.get("role"),
-        defect_of=args.get("defect_of"),
-        call_budget=args.get("call_budget"),
-        tier=args.get("tier"),
-    )
+    # QG-0 must be expressible in one authorized MCP mutation.  An unbound
+    # execution lease may create a task, but deliberately may not follow that
+    # with task_update (it is not task-bound until task_start).  Keep creation
+    # and the complete contract atomic, matching the CLI's task-add surface.
+    from task_detail_fields import TASK_CREATE_CONTRACT_FIELDS
+
+    contract_fields = {
+        key: args[key] for key in TASK_CREATE_CONTRACT_FIELDS if args.get(key) is not None
+    }
+    with svc.be.transaction():
+        result = svc.task_add(
+            args.get("story_slug"),
+            args["slug"],
+            args["title"],
+            stack=args.get("stack"),
+            complexity=args.get("complexity"),
+            goal=args.get("goal"),
+            role=args.get("role"),
+            defect_of=args.get("defect_of"),
+            call_budget=args.get("call_budget"),
+            tier=args.get("tier"),
+        )
+        if contract_fields:
+            svc.task_update(args["slug"], **contract_fields)
+    return result
 
 
 def _do_task_quick(svc: Any, args: dict) -> str:

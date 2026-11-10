@@ -169,6 +169,28 @@ minutes: Windows is nightly, not per-push.
 
 - [Exact 1.11.7 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.md)
 
+## 1.11.11 — uninterrupted Cursor task lifecycle
+
+Cursor can now create a standard simple or medium task with its QG-0 fields in
+one `tausik_task_add` call, start it, close it, and immediately repeat the same
+lifecycle in the same thread. The framework no longer asks an unbound lease to
+perform `task_update` before `task_start`.
+
+Lease release now follows the invariant that every terminal task transition is
+atomic with unbinding. Ordinary QG-2 close, memory-only light close, hierarchy
+receipt close, and obsolete all release the task-package binding. If a close
+fails, both the task and the lease roll back. Stale and cross-thread leases
+remain fail-closed.
+
+The release candidate completed two consecutive MCP lifecycles in one live
+Cursor thread in both naproksen and BotAdminPanel. Existing chats and work were
+preserved during the checks.
+
+Upgrade the framework copy used by the project, rerun the Cursor bootstrap,
+then reload the Cursor window so the MCP server starts with 1.11.11.
+
+- [Exact 1.11.11 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.11/CHANGELOG.md)
+
 ## 1.11.10 — obsolete-task lease handoff
 
 When a task is closed as obsolete, TAUSIK now clears that task's package

@@ -88,7 +88,7 @@ tausik_task_done(slug=…, ac_verified=True)   # lightweight: cache lookup
 
 | Tool | Description | Required Parameters |
 |---|---|---|
-| `tausik_task_add` | Create task (optionally in a story) | `slug`, `title` |
+| `tausik_task_add` | Create a task with QG-0 fields in one call (optionally in a story) | `slug`, `title`; optional `goal`, `acceptance_criteria`, `scope`, `scope_exclude`, `rollback_plan`, `assurance_profiles`, `assurance_impact` |
 | `tausik_task_quick` | Quick creation with auto-slug | `title` |
 | `tausik_task_start` | Start work; optionally return bounded context in the same result | `slug`, optional `package` |
 | `tausik_task_done` | Complete (QG-2: `ac_verified=true`, scoped pytest, verify cache). Returns structured JSON: `blocking_failures`, per-gate results, cache status. | `slug` |
