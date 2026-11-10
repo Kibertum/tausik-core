@@ -177,12 +177,19 @@ def main() -> int:
         else:
             raise ValueError("malformed trusted PostToolUse tool_input")
         from memory_preflight import classify_action, complete_preflight_for_thread
+        from memory_preflight_classification import ProtectedActionClassificationError
 
-        protected = [
-            (action_tool, action_input)
-            for action_tool, action_input in actions
-            if classify_action(action_tool, action_input) is not None
-        ]
+        denied_before_execution = _denied_before_execution(event)
+        protected = []
+        for action_tool, action_input in actions:
+            try:
+                kind = classify_action(action_tool, action_input)
+            except ProtectedActionClassificationError:
+                if denied_before_execution:
+                    continue
+                raise
+            if kind is not None:
+                protected.append((action_tool, action_input))
         if not protected:
             return 0
         from project_backend import SQLiteBackend
@@ -190,7 +197,7 @@ def main() -> int:
 
         backend = SQLiteBackend(os.path.join(project, ".tausik", "tausik.db"))
         try:
-            if _denied_before_execution(event):
+            if denied_before_execution:
                 for action_tool, action_input in protected:
                     complete_preflight_for_thread(
                         backend,

@@ -9,6 +9,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.12] — 2026-11-10
+
+### Fixed — recoverable Cursor audit refusals
+
+- Cursor `PostToolUseFailure` no longer puts the whole project into
+  `LEASE_MAINTENANCE` when a command rejected before execution cannot be parsed.
+  Executed actions and genuine audit inconsistencies still fail closed.
+
 ## [1.11.11] — 2026-11-10
 
 ### Fixed — uninterrupted Cursor task lifecycle
@@ -21,7 +29,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   receipt close, and obsolete. The same Cursor thread can start its next task
   immediately; a failed close rolls back both task state and lease state.
 - The fix was exercised as two consecutive complete MCP lifecycles in the same
-  live Cursor thread in both naproksen and BotAdminPanel.
+  live Cursor thread in each of two independent consumer projects.
 
 ## [1.11.10] — 2026-11-10
 

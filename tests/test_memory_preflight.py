@@ -228,6 +228,10 @@ def test_injection_quarantine_covers_every_disclosed_memory_surface(preflight, s
         ("git -calias.save=commit save -m x", "alias execution"),
         ("git -c alias.ship=push -c color.ui=false ship origin main", "alias execution"),
         ("git -c color.ui=false -c alias.ship=push ship origin main", "alias execution"),
+        (
+            '.tausik/tausik task show work | Select-String -Pattern "unclosed',
+            "TAUSIK CLI arguments could not be parsed",
+        ),
     ],
 )
 def test_ambiguous_protected_commands_fail_closed(command, match):
@@ -812,6 +816,58 @@ def test_posttool_missing_token_distinguishes_pre_execution_denial(
         assert (state is not None and state["mode"] == "maintenance") is expected_maintenance
     finally:
         check.close()
+
+
+@pytest.mark.parametrize(
+    ("error_code", "expected_maintenance"),
+    [("PERMISSION_DENIED", False), ("TOOL_ERROR", True)],
+)
+def test_posttool_parse_refusal_distinguishes_pre_execution_denial(
+    tmp_path, monkeypatch, capsys, error_code, expected_maintenance
+):
+    from hooks import memory_preflight_posttool
+
+    project = tmp_path / "project"
+    backend = SQLiteBackend(str(project / ".tausik" / "tausik.db"))
+    backend.close()
+    event = {
+        "hook_event_name": "PostToolUse",
+        "session_id": "thread",
+        "tool_name": "PowerShell",
+        "tool_input": {
+            "command": '.tausik/tausik task show work | Select-String -Pattern "unclosed'
+        },
+        "tool_response": {
+            "is_error": True,
+            "error_code": error_code,
+            "error": (
+                "Codex write payload could not be checked: "
+                "TAUSIK CLI arguments could not be parsed: No closing quotation"
+            ),
+        },
+    }
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "memory_preflight_posttool.py",
+            "--project",
+            str(project),
+            "--trusted-host",
+            "cursor",
+        ],
+    )
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(event)))
+
+    assert memory_preflight_posttool.main() == 0
+
+    check = SQLiteBackend(str(project / ".tausik" / "tausik.db"))
+    try:
+        state = check._execution_lease_state()
+        assert (state is not None and state["mode"] == "maintenance") is (expected_maintenance)
+    finally:
+        check.close()
+    assert ("MEMORY_PREFLIGHT_AUDIT_FAILED" in capsys.readouterr().err) is expected_maintenance
 
 
 def test_pre_execution_denial_terminalizes_exact_reserved_token(preflight):

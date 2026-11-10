@@ -173,6 +173,29 @@ memory-only держит лёгкий бэклог (канон B): epic/story/ta
 
 - [Точный changelog 1.11.7](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.ru.md)
 
+## 1.11.12 — отклонённые команды больше не останавливают работу Cursor
+
+Cursor больше не переводит весь проект в `LEASE_MAINTENANCE`, когда
+`PostToolUseFailure` получает некорректную команду, которую write gate уже
+отклонил до исполнения. Hook теперь учитывает такой отказ разбора как
+завершившееся неисполнение, а не как нарушение целостности аудита.
+
+Исключение намеренно узкое. Исполненное действие с нечитаемым audit payload,
+отсутствующая reservation или другая реальная несогласованность аудита
+по-прежнему закрываются безопасно и переводят lease в maintenance.
+
+Release candidate воспроизвёл исходный payload с незакрытой кавычкой в двух
+независимо развёрнутых consumer-проектах. После этого оба существующих потока
+Cursor продолжили исходные задачи и выполняли реальные task/tool-вызовы, не
+возвращаясь в maintenance.
+
+Обновите копию фреймворка в проекте, выполните
+`python .tausik-lib/bootstrap/bootstrap.py --project-dir . --ide cursor`, затем
+запустите **Developer: Reload Window**, чтобы hook и capability digest
+использовали 1.11.12.
+
+- [Точный changelog 1.11.12](https://github.com/Kibertum/tausik-core/blob/v1.11.12/CHANGELOG.ru.md)
+
 ## 1.11.11 — непрерывный lifecycle задач в Cursor
 
 Cursor теперь создаёт стандартную simple/medium-задачу со всеми полями QG-0
@@ -187,8 +210,8 @@ hierarchy receipt close и obsolete освобождают task-package-прив
 fail-closed.
 
 Release candidate выполнил два последовательных MCP-lifecycle в одном живом
-потоке Cursor отдельно в naproksen и BotAdminPanel. Существующие чаты и работа
-во время проверки сохранены.
+потоке Cursor в каждом из двух независимых consumer-проектов. Существующие чаты
+и работа во время проверки сохранены.
 
 Обновите копию фреймворка, повторно запустите bootstrap для Cursor и выполните
 Reload Window, чтобы MCP-сервер стартовал на 1.11.11.

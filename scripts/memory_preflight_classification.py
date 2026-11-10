@@ -104,7 +104,11 @@ def _strip_outer_quotes(value: str) -> str:
 def _shell_kind(command: str) -> str | None:
     authorization = importlib.import_module("hooks.codex_cli_authorization")
     kinds: set[str] = set()
-    for cli_tokens in authorization._cli_argument_vectors(command):
+    try:
+        cli_vectors = authorization._cli_argument_vectors(command)
+    except ValueError as exc:
+        raise ProtectedActionClassificationError(str(exc)) from exc
+    for cli_tokens in cli_vectors:
         bindings = authorization._bindings(cli_tokens)
         for route, arguments in bindings:
             if route == "cli_task_mutation" and arguments.get("action") == "block":

@@ -169,6 +169,28 @@ minutes: Windows is nightly, not per-push.
 
 - [Exact 1.11.7 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.md)
 
+## 1.11.12 — rejected commands no longer stop Cursor work
+
+Cursor no longer puts the whole project into `LEASE_MAINTENANCE` when
+`PostToolUseFailure` receives a malformed command that the write gate already
+rejected before execution. The hook now treats that parse refusal as a
+completed non-execution instead of an audit-integrity failure.
+
+The exception is deliberately narrow. An executed action with an unreadable
+audit payload, a missing reservation, or another genuine audit inconsistency
+still fails closed and enters maintenance.
+
+The release candidate replayed the original unmatched-quote payload against
+two independently deployed consumer projects. Both existing Cursor threads
+then resumed their original tasks and performed real task/tool activity without
+returning to maintenance.
+
+Upgrade the framework copy used by the project, run
+`python .tausik-lib/bootstrap/bootstrap.py --project-dir . --ide cursor`, then
+run **Developer: Reload Window** so the hook and capability digest use 1.11.12.
+
+- [Exact 1.11.12 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.12/CHANGELOG.md)
+
 ## 1.11.11 — uninterrupted Cursor task lifecycle
 
 Cursor can now create a standard simple or medium task with its QG-0 fields in
@@ -183,8 +205,8 @@ fails, both the task and the lease roll back. Stale and cross-thread leases
 remain fail-closed.
 
 The release candidate completed two consecutive MCP lifecycles in one live
-Cursor thread in both naproksen and BotAdminPanel. Existing chats and work were
-preserved during the checks.
+Cursor thread in each of two independent consumer projects. Existing chats and
+work were preserved during the checks.
 
 Upgrade the framework copy used by the project, rerun the Cursor bootstrap,
 then reload the Cursor window so the MCP server starts with 1.11.11.

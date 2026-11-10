@@ -10,8 +10,8 @@ failed close rolls back both task and lease state; stale and cross-thread
 leases remain fail-closed.
 
 The candidate completed two consecutive full MCP task lifecycles in the same
-live Cursor thread in both naproksen and BotAdminPanel without losing existing
-chats or application work.
+live Cursor thread in each of two independent consumer projects without losing
+existing chats or application work.
 
 Existing installations must update their framework copy, rerun the Cursor
 bootstrap, and reload the Cursor window so the MCP server starts on 1.11.11.
@@ -32,7 +32,7 @@ hierarchy receipt close и obsolete. Тот же поток Cursor сразу з
 cross-thread leases остаются fail-closed.
 
 Кандидат выполнил два последовательных полных MCP-lifecycle задач в одном
-живом потоке Cursor отдельно в naproksen и BotAdminPanel, не потеряв
+живом потоке Cursor в каждом из двух независимых consumer-проектов, не потеряв
 существующие чаты и работу над приложениями.
 
 Для уже установленных проектов нужно обновить копию фреймворка, повторно
