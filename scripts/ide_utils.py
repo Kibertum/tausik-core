@@ -6,7 +6,10 @@ Adding a new IDE = registering it in IDE_REGISTRY below.
 
 from __future__ import annotations
 
+import json
 import os
+
+from tausik_utils import tausik_config_path
 
 # --- IDE Registry ---
 # Each IDE entry: config_dir (relative to project root), rules_file, skills_subdir
@@ -18,7 +21,7 @@ IDE_REGISTRY: dict[str, dict[str, str]] = {
     },
     "cursor": {
         "config_dir": ".cursor",
-        "rules_file": ".cursorrules",
+        "rules_file": os.path.join(".cursor", "rules", "tausik.mdc"),
         "skills_subdir": "skills",
     },
     "windsurf": {
@@ -104,6 +107,17 @@ def detect_ide(project_dir: str | None = None) -> str:
         return "opencode"
     if os.environ.get("CODEX_SANDBOX_DIR"):
         return "codex"
+
+    # The recorded primary is deployment provenance, not proof of the live
+    # process. Use it only when no host environment identified this runtime.
+    if project_dir:
+        try:
+            with open(tausik_config_path(project_dir), encoding="utf-8") as fh:
+                configured = json.load(fh).get("bootstrap", {}).get("primary_ide")
+        except (OSError, ValueError, TypeError, AttributeError):
+            configured = None
+        if isinstance(configured, str) and configured in SUPPORTED_IDES:
+            return configured
 
     # Project-structure detection. kilo/qwen included so a Kilo-/Qwen-only
     # install resolves skill/rules paths to .kilo/.qwen instead of falling
@@ -194,7 +208,7 @@ def missing_profile_hint(project_dir: str, ide: str) -> str:
 
 
 def get_rules_file(project_dir: str, ide: str | None = None) -> str:
-    """Get IDE rules file path (CLAUDE.md, .cursorrules, etc.)."""
+    """Get the host rules path (CLAUDE.md, Cursor .mdc, AGENTS.md, etc.)."""
     config = get_ide_config(ide)
     return os.path.join(project_dir, config["rules_file"])
 

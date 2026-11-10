@@ -93,8 +93,7 @@ MIGRATION_V58: list[str] = [
     # DROP TABLE took the indexes with it. Recreated by hand rather than left to
     # `ensure_schema`: a rebuild that silently returns the table without its
     # indexes is a rebuild that makes every rollup slower and says nothing.
-    "CREATE INDEX IF NOT EXISTS idx_usage_events_session "
-    "ON usage_events(session_id, recorded_at)",
+    "CREATE INDEX IF NOT EXISTS idx_usage_events_session ON usage_events(session_id, recorded_at)",
     "CREATE INDEX IF NOT EXISTS idx_usage_events_task ON usage_events(task_slug, recorded_at)",
     "CREATE INDEX IF NOT EXISTS idx_usage_events_tool ON usage_events(tool_name, recorded_at)",
     # Only now, on the table that can hold it, is the absence written down.

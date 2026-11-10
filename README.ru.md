@@ -10,9 +10,9 @@ TAUSIK встаёт поверх ИИ-агента, которым вы уже �
 
 **Где это стоит.** Поле называет эту дисциплину *harness engineering*: харнесс — это цикл агента, интерфейс инструментов, управление контекстом и механизмы контроля. TAUSIK — не харнесс: цикл и инструменты принадлежат Claude Code, Cursor, Codex и другим. Это слой проверки и контроля поверх них, и его отличие в том, что без доказательства ничто не считается сделанным.
 
-[![v1.11.7](https://img.shields.io/badge/version-v1.11.7-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
+[![v1.11.8](https://img.shields.io/badge/version-v1.11.8-blue.svg)](https://github.com/Kibertum/tausik-core/releases)
 [![signed receipts: ed25519](https://img.shields.io/badge/signed%20receipts-ed25519-6f42c1.svg)](docs/ru/receipts.md)
-[![13444 tests](https://img.shields.io/badge/tests-13444-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
+[![14110 tests](https://img.shields.io/badge/tests-14110-brightgreen.svg)](#доказательство-tausik-построен-на-tausik)
 [![coverage 76%](https://img.shields.io/badge/coverage-76%25-green.svg)](#доказательство-tausik-построен-на-tausik)
 [![0 dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#что-внутри)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -42,11 +42,11 @@ TAUSIK встаёт поверх ИИ-агента, которым вы уже �
 
 ## Установка
 
-Нужны Python 3.11+ и git. По умолчанию bootstrap настраивает Claude Code; для другого хоста добавьте ко второй команде `--ide claude|cursor|qwen|kilo|opencode|codex` (или `--ide all`). Запустить его позже ещё раз с другим `--ide` безопасно. В своём проекте:
+Нужны Python 3.11+ и git. Явно выберите хост через `--ide claude|cursor|qwen|kilo|opencode|codex` (или `--ide all`). Без флага bootstrap продолжит работу только при однозначном host environment, записанном профиле или единственном каталоге профиля; молчаливого fallback на Claude больше нет. В своём проекте:
 
 ```bash
 git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
-python .tausik-lib/bootstrap/bootstrap.py --init
+python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
 echo ".tausik/" >> .gitignore
 ```
 
@@ -141,8 +141,8 @@ Run `tausik verify --task fix-mobile-button` first.
 <details>
 <summary>Сырые числа</summary>
 
-- **151 MCP-инструментов** — полный программный доступ к базе проекта.
-- **23 хука реального времени** — гейт задачи, bash firewall, push gate, автоформат, детектор дрифта, аудит памяти и другие.
+- **152 MCP-инструментов** — полный программный доступ к базе проекта.
+- **24 хука реального времени** — гейт задачи, bash firewall, push gate, автоформат, детектор дрифта, аудит памяти и другие.
 - **25 стек-зависимых наборов проверок** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и другие, по тронутым файлам.
 - **14 core-навыков** разворачиваются автоматически; в официальном магазине остаются только `docs`, `excel` и `pdf`, которые ставятся по одному и не расходуют контекст без необходимости.
 - **6 автоматических метрик**, **общая локальная база знаний** (`~/.tausik-knowledge`, `--global`), **пакетное выполнение** (`/run plan.md`).
@@ -153,13 +153,13 @@ Run `tausik verify --task fix-mobile-button` first.
 
 | IDE | MCP-инструменты | Навыки | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 151 | 14 core + по запросу | 23 (полностью) | First-class |
-| **Qwen Code** | 151 | 14 core + по запросу | 23 (паритет с Claude) | First-class |
-| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 151 | 14 core + по запросу | — (гейты на task start/done) | First-class через MCP |
-| **Cursor** | 151 | 14 core + по запросу | — (гейты на task start/done) | Через MCP |
-| VSCode + Claude Extension | 151 | 14 core + по запросу | 23 | Прогнано E2E |
-| **Codex CLI** | 151 | 14 core + по запросу | 23 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
-| **OpenCode** | 151 | 14 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
+| **Claude Code** | 152 | 14 core + по запросу | 24 (полностью) | First-class |
+| **Qwen Code** | 152 | 14 core + по запросу | 24 (паритет с Claude) | First-class |
+| **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 152 | 14 core + по запросу | — (гейты на task start/done) | First-class через MCP |
+| **Cursor** | 152 | 14 core + по запросу | — (нативные project hooks) | First-class в 1.11.8 |
+| VSCode + Claude Extension | 152 | 14 core + по запросу | 24 | Прогнано E2E |
+| **Codex CLI** | 152 | 14 core + по запросу | 24 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
+| **OpenCode** | 152 | 14 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
 | Windsurf | MCP + правила | зависит от хоста | зависит от хоста | Ожидается / вручную |
 
 Хуки работают в **Claude Code, Qwen Code и Codex** (Codex запускает их только после того, как вы доверили проект, — см. [матрицу принуждения Codex](docs/ru/model-providers.md#матрица-принуждения-codex)). Остальные хосты получают те же инструменты и навыки, а контрольные точки срабатывают на `task start` и `task done`.
@@ -171,7 +171,7 @@ Run `tausik verify --task fix-mobile-button` first.
 Каждая функция и каждое исправление TAUSIK прошли через те же контрольные точки, что поставляются в коробке.
 
 - **Каждая задача закрыта с целью и критериями приёмки**, ни одна — без пройденной проверки.
-- **13444 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
+- **14110 тестов**; **76% покрытия строк** `scripts/` (обновить: `pytest tests/ --cov=scripts --cov-report=json:coverage.json`).
 - **0 зависимостей ядра** — стандартная библиотека Python 3.11+; MCP-пакеты живут в изолированном `.tausik/venv/`.
 - **Одна объявленная точка проверки обновлений** — каждая попытка начать сессию отправляет анонимный GET на `api.github.com/repos/Kibertum/tausik-core/releases/latest`; более новая версия блокирует старт. Запрос не содержит имя проекта, путь, пользователя, версию схемы или установленную версию. `"updates": {"check": false}` в `.tausik/config.json` не отправляет запрос и разрешает старт с явным предупреждением о непроверенной версии. Отдельная кэшируемая проверка остаётся не чаще раза в сутки.
 

@@ -116,6 +116,41 @@ CLASSES_AT_DECLARATION = frozenset(
         # repository context shown to a reviewer; it is neither executable nor
         # a case for a normative assertion and has no test polarity/environment.
         "review_cohort_packets",
+        # r1118-codex-execution-lease (v82): live host-thread leases, their
+        # singleton compatibility state and one-use mutation authorizations.
+        # NOT TC artifact classes — they are execution-governance bookkeeping;
+        # none is an executable test case or carries a normative assertion,
+        # test polarity or execution-environment reference.
+        "execution_authorizations",
+        "execution_lease_state",
+        "execution_leases",
+        # r1118-bounded-task-package (v83): persisted decision-critical input
+        # snapshot for task activation and lease freshness. NOT a TC artifact
+        # class — it governs agent context and contains no executable case,
+        # assertion polarity or execution-environment reference.
+        "task_context_packages",
+        # r1118-work-continuity-lease (v85): execution-governance state and
+        # immutable evidence identities for task plan progress. NOT TC artifact
+        # classes — neither table represents an executable test case or carries
+        # normative assertion polarity/environment fields.
+        "task_continuity_state",
+        "task_step_evidence",
+        # r1118-memory-preflight-token (v86): protected-action inspection
+        # receipts and their lifecycle events. NOT TC artifact classes — these
+        # rows authorize and audit an agent action; they do not define an
+        # executable test case or carry assertion polarity/environment fields.
+        "memory_inspection_events",
+        # v87 preserves immutable terminal preflight outcomes across the
+        # capability-table rebuild. This is audit history for agent actions,
+        # not an executable test case or a normative assertion with polarity.
+        "memory_preflight_attempt_audit",
+        "memory_preflight_tokens",
+        # r1118-can-stop-guard (v89): trusted host-turn state and evidence of
+        # failed agent attempts/capability checks. NOT TC artifact classes —
+        # they govern whether an agent may terminate work and contain no test
+        # assertion polarity or execution-environment reference.
+        "can_stop_turns",
+        "task_attempt_events",
         # at-acceptance-tests-derived-by-an-isolated-agent (RENAR §8A): the AT
         # (Acceptance Test) header record. NOT a TC (test case) artifact class
         # — it records the RESULT of an isolated-generation procedure, not a

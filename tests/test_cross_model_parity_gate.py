@@ -119,12 +119,7 @@ class TestTheGateFindsRealDifferences:
         built them from a hand-kept list; since 1.10 it builds from the shared
         declaration (decision #389), and they must not come back unnoticed."""
         found = gate.find_differences(live_table)
-        for script in (
-            "activity_event.py",
-            "task_call_counter.py",
-            "tool_output_truncation_nudge.py",
-            "task_done_verify.py",
-        ):
+        for script in ("task_call_counter.py", "task_done_verify.py"):
             assert f"matcher:hook:PostToolUse:{script}" not in found
 
     def test_every_live_difference_is_declared(self, live_table):
@@ -264,19 +259,33 @@ class TestASingleBearerIsNotADifference:
         for d in plugin_diffs:
             assert d in gate.DECLARED_DIFFERENCES, f"declared or fix, not silence: {d}"
 
-    def test_a_host_with_no_mechanism_is_absent_from_the_table_entirely(self, live_table):
-        assert "cursor" not in live_table
+    def test_cursor_native_hooks_are_present_in_the_table(self, live_table):
+        assert "cursor" in live_table
+        assert any(cap.startswith("hook:PreToolUse:") for cap in live_table["cursor"])
 
 
 class TestTheBuilderMapCannotGoStale:
+    @pytest.mark.parametrize("command", ["'unterminated", '"unterminated', "trailing\\"])
+    def test_malformed_user_hook_command_does_not_crash_profile_read(self, tmp_path, command):
+        import json
+
+        profile = tmp_path / ".cursor"
+        profile.mkdir()
+        (profile / "hooks.json").write_text(
+            json.dumps({"hooks": {"preToolUse": [{"command": command}]}}),
+            encoding="utf-8",
+        )
+
+        assert hm._read_profile(str(profile)) == {}
+
     def test_the_disk_is_asked_whether_an_unbuilt_host_deploys_anything(self, tmp_path):
         """The guard on MECHANISM_BUILDERS: teach bootstrap to deploy hooks for
         Cursor, forget to add a builder, and the gate would go on calling Cursor
         mechanism-free — green, and wrong."""
         import json
 
-        (tmp_path / ".cursor").mkdir()
-        (tmp_path / ".cursor" / "settings.json").write_text(
+        (tmp_path / ".windsurf").mkdir()
+        (tmp_path / ".windsurf" / "settings.json").write_text(
             json.dumps(
                 {
                     "hooks": {
@@ -289,7 +298,7 @@ class TestTheBuilderMapCannotGoStale:
             encoding="utf-8",
         )
         problems = hm.cross_check_against_disk(str(tmp_path))
-        assert problems and "cursor" in problems[0]
+        assert problems and "windsurf" in problems[0]
         assert "MECHANISM_BUILDERS" in problems[0]
 
     def test_a_project_with_no_profiles_reports_nothing(self, tmp_path):

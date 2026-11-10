@@ -100,9 +100,11 @@ three jobs:
 
 - **Append-only.** Steps are never edited or deleted; the trace is an audit
   record. Wrong premise → new step, not a rewrite.
-- **Advisory, never blocking.** Neither QG-0 (`task start`) nor QG-2
-  (`task done`) inspects the trace. A task with **zero** reasoning steps starts
-  and closes normally — the `/task` nudge is a soft, escalating reminder only.
+- **Advisory by default.** Neither QG-0 (`task start`) nor QG-2 (`task done`)
+  requires a trace. The only authoritative exception is a continuity route
+  override: an `action` step must bind the exact route and arguments hash.
+  Generic prose grants no authority, and exhausted call budgets cannot be
+  extended by an agent reason step.
 - **One trace per task.** Steps are scoped to a task slug; there is no global
   trace.
 

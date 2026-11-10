@@ -115,18 +115,18 @@ def test_argparse_ide_choices_derive_from_scaffold_ides():
     parser = build_parser()
     action = next(a for a in parser._actions if "--ide" in getattr(a, "option_strings", []))
     assert list(action.choices) == [*SCAFFOLD_IDES, "all"]
+    assert action.default is None, (
+        "omitted host must be detected or refused, never default to Claude"
+    )
 
 
 def test_ide_all_expands_to_scaffold_ides():
     """`--ide all` must expand to exactly SCAFFOLD_IDES (verified via the source expression)."""
     import inspect
 
-    import bootstrap
+    import bootstrap_modes
 
-    src = inspect.getsource(
-        bootstrap.run_bootstrap if hasattr(bootstrap, "run_bootstrap") else bootstrap.main
-    )
-    # The reduction line: ides = list(SCAFFOLD_IDES) if args.ide == "all" else [args.ide]
+    src = inspect.getsource(bootstrap_modes.resolve_bootstrap_targets)
     assert "list(SCAFFOLD_IDES)" in src, "--ide all no longer derives from SCAFFOLD_IDES"
 
 

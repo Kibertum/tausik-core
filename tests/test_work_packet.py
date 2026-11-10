@@ -74,7 +74,7 @@ def test_packet_composes_existing_readers_with_addresses(svc):
     assert packet["bytes"] == len(encoded.encode())
 
 
-def test_utf8_ceiling_omits_whole_units_without_truncation(svc):
+def test_work_packet_refuses_when_canonical_task_package_cannot_fit(svc):
     for index in range(8):
         svc.memory_add(
             "context",
@@ -83,13 +83,8 @@ def test_utf8_ceiling_omits_whole_units_without_truncation(svc):
             task_slug="work",
         )
 
-    packet = build_work_packet(svc, "work", "bounded packet", max_bytes=4_096)
-
-    assert packet["bytes"] <= 4_096
-    assert packet["overflow"] is True
-    assert packet["omitted"]
-    assert all("reason" in item and "address" in item for item in packet["omitted"])
-    assert all(not str(hit.get("content", "")).endswith("…") for hit in packet["memory"])
+    with pytest.raises(ValueError, match="required task context"):
+        build_work_packet(svc, "work", "bounded packet", max_bytes=4_096)
 
 
 @pytest.mark.parametrize(

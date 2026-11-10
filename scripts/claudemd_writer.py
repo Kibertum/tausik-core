@@ -166,7 +166,16 @@ def resolve_sibling_targets(primary: str) -> list[str]:
     dir (never a bare cwd-relative 'AGENTS.md', which under an MCP server's cwd
     could hit an unrelated file)."""
     targets = [primary]
-    sibling = os.path.join(os.path.dirname(primary) or ".", CLAUDEMD_SIBLING_BASENAME)
+    primary_abs = os.path.abspath(primary)
+    root = os.path.dirname(primary_abs)
+    # Cursor's owned rule is two directories below the project root. Do not
+    # walk arbitrary ancestors looking for `.tausik`: a user-level install in
+    # HOME must never capture a temporary or nested project's AGENTS.md.
+    if os.path.basename(root).lower() == "rules":
+        profile = os.path.dirname(root)
+        if os.path.basename(profile).lower() == ".cursor":
+            root = os.path.dirname(profile)
+    sibling = os.path.join(root, CLAUDEMD_SIBLING_BASENAME)
     if os.path.exists(sibling) and os.path.abspath(sibling) != os.path.abspath(primary):
         targets.append(sibling)
     return targets

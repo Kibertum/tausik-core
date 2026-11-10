@@ -21,7 +21,9 @@ AI coding agents are powerful but unreliable. Without structure, they:
 - Forget everything between sessions
 - Try the same failed approach three times in a row
 
-AGENTS.md and .cursorrules are recommendations — the agent can ignore them. SENAR provides **enforcement**: hard blocks that physically prevent the agent from skipping steps.
+Instruction files remain recommendations by themselves. On supported trusted hosts,
+including Cursor with `.cursor/hooks.json`, SENAR also provides **enforcement**:
+hard blocks that prevent the agent from skipping covered steps.
 
 ## Core Concepts
 
@@ -89,7 +91,7 @@ When using TAUSIK, SENAR manifests as:
 | Rule 1 | No code without a task | Hook blocks file edits without an active task |
 | Rule 2 | Define scope boundaries | `scope_write_gate`/`bash_write_gate` block writes outside `scope_paths`; QG-0 hard-blocks a medium/complex start with no scope |
 | Rule 3 | Verify against criteria | QG-0 + QG-2 combined enforcement |
-| Rule 4 | External adversarial review | `risk_l3_trigger` blocks an under-evidenced closure until an L3 review is recorded; reviewer is the same-family, read-only `tausik-external-reviewer` subagent |
+| Rule 4 | Adversarial review | Optional separation-of-duties gate: set `review.external_agents: true` to require the routed read-only reviewer; signed verification remains mandatory without it |
 | Rule 5 | Verification checklist | Hard gate for substantial/deep tiers whose AC cite no existing test; escalating warning below |
 | Rule 6 | Plan rollback | `rollback_plan` field: QG-0 blocks a medium/complex start without a rollback plan; `task done` warns |
 | Rule 7 | Find root cause for defects | Warning if defect task has no root cause in notes |
@@ -99,7 +101,7 @@ When using TAUSIK, SENAR manifests as:
 | Rule 9.4 | Document dead ends | Dedicated tool + reminders in skills |
 | Rule 9.5 | Periodic audit | Auto-check at session start |
 
-> **A note on Rules 4–6.** As of **v1.5** these are enforced: **Rule 4** (external adversarial review — a read-only subagent on the same model family as the author gates under-evidenced closures; one family per environment since 1.11.6), **Rule 5** (verification checklist — a hard gate for substantial/deep planning tiers, advisory below), and **Rule 6** (rollback planning — QG-0 blocks new medium/complex tasks without a documented rollback plan). See the [SENAR Compliance Matrix](senar-compliance-matrix.md) for the full enforcement table.
+> **A note on Rules 4–6.** From 1.11.8 the Rule 4 second-agent gate is opt-in through `review.external_agents: true`; its review records and routing remain available. Rule 5 stays a hard gate for substantial/deep planning tiers, and Rule 6 keeps QG-0 rollback enforcement. Signed verification and QG-2 evidence remain mandatory. See the [SENAR Compliance Matrix](senar-compliance-matrix.md) for the full enforcement table.
 
 **Full compliance matrix:** [SENAR Compliance Matrix](senar-compliance-matrix.md)
 

@@ -93,12 +93,35 @@ TAUSIK automatically checks quality at two points:
 - **Blocks** if criteria don't include a negative scenario (error, failure, invalid input)
 - Warns for security tasks (auth, payments, PII) without security criteria
 - Warns if scope is not defined (what to change / what not to touch)
+- In the full profile, atomically builds the self-contained bounded task package
+  and binds its fingerprint only to the selecting thread's execution lease
+  before activation; task start is also the bounded stale-package recovery route
 
 **At task completion (QG-2):**
 - Each acceptance criterion is verified with evidence
 - All plan steps are completed
 - Tests pass (pytest, ruff, and other gates per stack)
 - Warns if knowledge is not documented
+
+**During strict complex-task execution:**
+
+- A plan step completes only with an immutable task-bound evidence reference:
+  `reason:<seq>`, green `verify:<id>`, `decision:<id>`, or a content-addressed
+  `artifact:sha256:<digest>`. The step transition and evidence row commit in
+  one transaction; a task-log claim is not evidence.
+- At the checkpoint-call threshold, normal mutation authority becomes a
+  single-use recovery lease. It permits checkpoint persistence, structured
+  blocking, decomposition, and exact action-bound reasoning only.
+- Exhausting `call_budget` uses the same recovery state but cannot be reset by
+  checkpoint or extended by an agent override. A recovery `task plan`
+  atomically creates runnable child tasks, orders the parent after them, and
+  parks the parent for owner resolution; otherwise wait for a trusted owner
+  planning change.
+- Successful recovery revokes the lease and invalidates the old package. A
+  fresh thread resumes with `task start <slug> --package`.
+- Generated handoff state includes the package fingerprint, first incomplete
+  step, last verified evidence, pending requirement, and copy-ready resume
+  action.
 
 These gates cannot be bypassed — the agent cannot start work without a goal
 and cannot close a task without verification.
@@ -212,3 +235,8 @@ No special setup is needed. Just run multiple agent sessions in the same project
 - **[Skills](skills.md)** — full list of what the agent can do
 - **[CLI Commands](cli.md)** — if you want to manage TAUSIK from the terminal
 - **[Architecture](architecture.md)** — how the framework works internally
+## Trusted Codex Stop boundary (1.11.8)
+
+`UserPromptSubmit` binds the host thread, exact current turn ID, execution lease, active task, and host-derived request kind in one durable record. `Stop` requires and consumes that exact turn ID; it never selects the newest row by inference. Read-only recognition uses a closed grammar. Answer prose, suffix text, punctuation, and model-supplied Stop fields cannot reclassify a work request as read-only.
+
+Incomplete work returns `CONTINUE` with the first safe plan or continuity-recovery action. A handoff is allowed only after the hard call ceiling, a persisted checkpoint, a copy-ready `task start <slug> --package` command, and revocation of the old lease. A blocker must reference unavailable capability or authority events observed by the trusted PostToolUse hook from an allowlisted structural host error code, never stdout/stderr text, plus an executed blocker memory preflight. The hook injects the trusted `attempt_event_id` into PostToolUse context. Supply that ID and `resume_action` together to `tausik_task_block` (CLI: repeat `--attempt-event-id` and add `--resume-action`); caller prose cannot create Stop evidence. Timeout, crash, malformed output, or no native block verdict is recorded as non-enforced.

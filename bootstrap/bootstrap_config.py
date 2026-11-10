@@ -79,7 +79,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     ],
     "extension_skills": [],
     "installed_skills": [],
-    "ide": "claude",
 }
 
 

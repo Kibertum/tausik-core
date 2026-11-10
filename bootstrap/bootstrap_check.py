@@ -19,7 +19,7 @@ independent: mcp, roles, subagents, aidd-templates. Excluded, and why:
     service_doctor_drift.scripts_drift_names already covers it — re-scaffolding
     238 files per profile here just to re-derive the same answer made the check
     take seconds. The gate runs BOTH comparators.
-  * GENERATED files (settings.json, CLAUDE.md, .mcp.json, .cursorrules, …) are
+  * GENERATED files (settings.json, CLAUDE.md, .mcp.json, Cursor .mdc, …) are
     not copies of source at all — comparing them to source is meaningless, and
     they are never scaffolded here, so they raise no false positive.
   * skills/ runs stub generation + orphan rmtree keyed on config; stacks/ and

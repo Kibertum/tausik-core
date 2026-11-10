@@ -65,7 +65,7 @@ def _run_bootstrap_ide(project, ide="claude"):
 # decision rather than an oversight.
 _RULES_FILE = {
     "claude": "CLAUDE.md",
-    "cursor": ".cursorrules",
+    "cursor": os.path.join(".cursor", "rules", "tausik.mdc"),
     "qwen": "QWEN.md",
     "opencode": os.path.join(".opencode", "tausik-rules.md"),
     # Codex reads AGENTS.md natively; bootstrap_ide writes it through the

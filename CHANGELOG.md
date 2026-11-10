@@ -9,6 +9,172 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.8] — 2026-11-10
+
+### Changed — deterministic closure by default
+
+- Task closure no longer requires review by another agent unless the project
+  explicitly sets `review.external_agents: true`. Signed verify receipts,
+  QG-2 evidence, tests and release adherence gates remain mandatory.
+
+### Added — content-addressed 1.11.8 release acceptance
+
+- `scripts/adherence_release.py` now blocks the release unless the reviewed
+  policy, registry, fixtures, migrations v82-v86 and installed Codex/Cursor
+  projections match their hashes. The runner refuses a dirty relevant tree and
+  binds all evidence to the exact commit and Git tree.
+- Negative controls and acceptance are separate mandatory phases. Every frozen
+  sentinel must be rejected, every acceptance threshold must pass, and zero
+  collection or advisory-only host evidence blocks the release.
+- The Windows lane runs real Codex/Cursor hook, identity, package/CAS,
+  continuity, restart, memory-preflight, Stop/handoff and migration tests.
+  Process crash, timeout, malformed stdout and missing stdout are recorded as
+  non-enforced. The final report is staged at `dist/adherence-1.11.8.json` and
+  published as a GitHub Release asset;
+  its `content_sha256` addresses the complete evidence object.
+
+### Fixed — Codex and Cursor host compatibility
+
+- Cursor bootstrap now emits the current always-apply
+  `.cursor/rules/tausik.mdc`, native fail-closed project hooks and converted
+  named agents. It preserves unrelated user rules, agents, hooks and legacy
+  `.cursorrules`; malformed MCP or hook JSON is reported without rewriting it.
+- Cursor hook payloads, tool names and responses are translated to the native
+  contract. Both success and failure events terminate durable preflight state.
+  Critical adapters, the selected interpreter and the complete hook config are
+  digest-attested; execution leases bind the Cursor conversation and are also
+  enforced inside direct mutating MCP calls. Doctor validates executable,
+  project-bound MCP transport instead of accepting empty objects. Same-name
+  user agents are preserved unless TAUSIK ownership is proven. Cursor cloud's
+  early read-only phase remains an
+  explicit non-enforced boundary; the first writable PreToolUse fails closed.
+- Fresh and multi-host installs initialize every generated dynamic rules file;
+  no-flag upgrades preserve the configured host set, while the live host wins
+  runtime detection. Codex PostToolUse now emits its native response shape.
+- Task rename now invalidates the embedded-slug task package instead of moving
+  a stale payload that fails later as `PACKAGE_CORRUPT`.
+
+### Fixed — trusted Codex turns cannot stop incomplete work
+
+- A durable turn record now binds the host thread, turn, execution lease, task
+  and host-derived request kind. The Codex Stop hook consumes that record once
+  and returns the exact next plan action for incomplete work; spoofed,
+  cross-thread, stale and concurrent Stop attempts fail closed.
+- Schema v89 stores trusted turns and lease-bound attempt evidence. A structured
+  blocker is terminal only when `task block` references unavailable capability
+  or authority evidence from an allowlisted structural host error code observed
+  by trusted PostToolUse, binds it to the executed blocker memory preflight, and
+  supplies a resumable action. The hook returns the trusted event ID in context.
+  Caller prose cannot mint evidence; prose-only re-blocking clears stale data.
+- Read-only work, completed tasks and evidence-backed blockers can terminate.
+  A hard-ceiling handoff additionally requires a persisted checkpoint,
+  copy-ready resume command and revoked old lease. Native crash, timeout,
+  malformed output or missing block JSON is explicitly non-enforced.
+
+### Fixed — bootstrap binds one project/profile provenance
+
+- Bootstrap no longer silently defaults an omitted host to Claude. It records a
+  primary profile, binds both CLI wrappers and doctor to it, refuses ambiguous or
+  profile-root installs, and reports profile/root/version divergence with one repair command.
+
+### Fixed — Codex composite MCP keeps trusted host identity
+
+- Codex calls routed through `functions.exec` now receive one-use authorization
+  for each exact inner TAUSIK mutation. The bounded parser accepts literal
+  arguments, direct calls, simple aliases and wrapper nesting; dynamic tool
+  names, dynamic arguments, duplicate mutations and replay fail closed.
+- Direct and composite dispatches carry a hook-injected unpredictable one-use
+  correlation. Another thread cannot consume an authorization by racing the
+  same route and arguments, and decoy `fake.tools` receivers fail closed.
+- Codex capability v5 attests the write gate, PostToolUse adapter, composite
+  parser, prompt/Stop enforcement hooks and exact bootstrap Python interpreter together. Bootstrap enables execution-lease enforcement only for that
+  complete transport; MCP startup and `doctor` verify all three deployed
+  digests plus hook registrations and return a typed bootstrap repair when the
+  installed profile is incomplete or drifted.
+- A fresh trusted Codex thread can call `tausik_session_open` before binding a
+  task package. This narrow lifecycle exception removes the `PACKAGE_STALE`
+  bootstrap loop; ordinary mutations remain package-bound.
+- Native Windows Codex acceptance used a fresh thread and the production outer
+  `exec` → inner `tausik_session_open` path. It returned the session dashboard
+  without `IDENTITY_MISSING` or `PACKAGE_STALE`.
+
+### Added — protected-action memory preflight
+
+- Protected Codex actions now require a durable, action-bound, single-use
+  memory preflight token tied to the execution lease, task package, content
+  revision, acknowledged memories, and exact payload hash.
+- Schema v86 stores preflight tokens and inspection events. Retrieval is
+  deterministic and conflict-first; active dead ends require an explicit
+  reason and exact action identifier, while replay, stale content, secret
+  payloads, and failed inspections fail closed.
+- Schema v87 upgrades execution-lease capability to v2, repairs intermediate
+  lease attestations, preserves terminal preflight attempts, revokes old
+  authority, and requires explicit owner reconciliation after mixed-state
+  upgrades.
+- Schema v88 repairs already-stamped v87 databases by requiring the immutable
+  terminal-attempt audit table and its index.
+- Codex PreToolUse reserves the token atomically with authorization and
+  PostToolUse records the terminal result. Bootstrap signs the deployed adapter
+  pair into a capability manifest; SessionStart refuses missing, stale or
+  content-drifted adapters. An independent maintenance marker blocks later
+  authority if both terminal audit and database maintenance cannot persist.
+  MCP exposes the trusted-host preflight operation; CLI intentionally has no
+  unsafe twin.
+
+### Added — durable work continuity
+
+- Strict complex-task plan steps now require an immutable task-bound evidence
+  reference. The evidence row and step transition commit atomically; duplicate
+  delivery is idempotent and a task-log claim alone cannot complete a step.
+- Schema v85 persists continuity and step evidence. Crossing the checkpoint or
+  task call-budget boundary replaces normal mutation authority with a bounded,
+  single-use recovery lease. Successful recovery revokes the lease and requires
+  a fresh task package; repeated refused actions escalate to a structured blocker.
+- Generated handoffs now carry the package fingerprint, first incomplete step,
+  last verified evidence, pending continuity requirement, and exact resume action.
+
+### Added — atomic bounded task packages
+
+- Full-profile task start and resume now build, byte-check, persist, and bind a
+  self-contained task package in the same transaction as activation. Plain CLI,
+  MCP, structured, and repeated starts share the boundary.
+- Schemas v83-v84 store canonical packages, lease fingerprints, and an explicit
+  migrated-legacy marker. Durable contract or selected-memory races retry once
+  from the winning snapshot and then return `REVISION_CONFLICT`; exact UTF-8 overflow returns
+  `PACKAGE_TOO_LARGE`; both leave task and lease unchanged. Selected memory is
+  inline with bounded content, revision, hash, and provenance.
+- A contract or selected-memory change makes the bound execution lease stale
+  before the next mutation. MCP and CLI `task start` rebuild and rebind exactly
+  that thread's live lease; task-associated mutations cannot cross bindings, so
+  co-active tasks remain isolated. Only migration-marked complex
+  legacy tasks receive compatibility defaults; new complex tasks must declare
+  the complete governance package.
+
+### Added — Codex execution leases
+
+- Full-profile Codex mutations now require a durable lease bound to the current
+  trusted host thread and TAUSIK session. SessionStart issues the lease; the
+  catch-all PreToolUse hook authorizes one exact mutation; MCP dispatch consumes
+  that authorization once. Missing, stale, replayed, mismatched, and ambiguous
+  identity fails closed.
+- Schema v82 stores leases, compatibility state, and one-use authorizations.
+  Mixed or unknown capability state enters persistent maintenance, revokes live
+  leases, and requires explicit owner reconciliation. The hard context ceiling
+  also revokes the old lease before handoff.
+- Full and memory-only profiles remain distinct, non-Codex session lifecycle is
+  unchanged, pytest 9.2.0 is pinned for the fail-fast hang guard, and owner
+  recovery is available through `tausik doctor --reconcile-execution-leases
+  revoke-and-reconcile`.
+
+### Added — executable adherence baseline
+
+- Added a versioned, deterministic adherence contract for execution leases,
+  task packages, continuity, memory preflight, dead-end repetition, completion,
+  and handoff resume. The frozen red baseline includes closed live-route
+  discovery, real service/CLI/MCP/hook probes, negative-control sentinels,
+  four-sink privacy scans, and content-addressed evidence. This baseline
+  measures the pre-enforcement state; it does not claim runtime enforcement.
+
 ## [1.11.7] — 2026-10-22
 
 ### Added — `task rename` moves a published slug with every referrer

@@ -36,6 +36,7 @@ for _sub in ("scripts", "bootstrap"):
 import bootstrap_codex  # noqa: E402
 from bootstrap_config import IDE_DIRS, SCAFFOLD_IDES  # noqa: E402
 from bootstrap_hooks import build_hooks_dict  # noqa: E402
+from hooks.codex_capability import split_hook_command  # noqa: E402
 
 CROSSCUTTING_SCOPE = ["bootstrap/"]
 
@@ -56,6 +57,10 @@ def _hook_commands(document: dict) -> list[str]:
 
 def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _codex_script(command: str) -> str:
+    return Path(split_hook_command(command.removesuffix(" 2>&1 || true"))[3]).name
 
 
 class TestОбаПрофиляЖивыОдновременно:
@@ -85,9 +90,15 @@ class TestНаборПравилУОбоихОдин:
         codex = bootstrap_codex.build_codex_hooks(str(tmp_path / ".codex"))
         assert set(codex) == set(reference)
         adapter = codex["PreToolUse"].pop()
-        assert adapter["matcher"] == "apply_patch|Bash|PowerShell"
+        assert adapter["matcher"] == ""
         assert len(adapter["hooks"]) == 1
-        assert "codex_write_gate.py" in adapter["hooks"][0]["command"]
+        assert _codex_script(adapter["hooks"][0]["command"]) == "codex_write_gate.py"
+        post_adapter = codex["PostToolUse"].pop()
+        assert post_adapter["matcher"] == ""
+        assert len(post_adapter["hooks"]) == 1
+        assert _codex_script(post_adapter["hooks"][0]["command"]) == (
+            "memory_preflight_posttool.py"
+        )
         for event in reference:
             assert [e.get("matcher") for e in codex[event]] == [
                 e.get("matcher") for e in reference[event]
@@ -99,8 +110,12 @@ class TestНаборПравилУОбоихОдин:
         if not (claude.is_file() and codex.is_file()):
             pytest.skip("оба профиля не развёрнуты в этом дереве")
         commands = _hook_commands(_read_json(codex))
-        adapters = [c for c in commands if "codex_write_gate.py" in c]
-        assert len(adapters) == 1
+        adapters = [
+            command
+            for command in commands
+            if _codex_script(command) in {"codex_write_gate.py", "memory_preflight_posttool.py"}
+        ]
+        assert len(adapters) == 2
         assert len(_hook_commands(_read_json(claude))) == len(commands) - len(adapters), (
             "у одного хоста команд больше — набор правил разошёлся между хостами"
         )

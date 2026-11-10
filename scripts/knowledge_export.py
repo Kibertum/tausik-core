@@ -218,7 +218,9 @@ def export_shared_knowledge(
                 wanted.add(name)
                 pairs: list[tuple[str, Any]] = [(f, row[f]) for f in FIELDS[table]]
                 if redacted:
-                    pairs = _redact_pairs(pairs, redaction_counts, project_names, private_url_patterns)
+                    pairs = _redact_pairs(
+                        pairs, redaction_counts, project_names, private_url_patterns
+                    )
                 _write_if_changed(os.path.join(target, name), _render(pairs))
             _prune(target, wanted)
             counts[table] = len(rows)

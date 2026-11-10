@@ -242,7 +242,37 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
             except (json.JSONDecodeError, TypeError) as e:
                 print(f"Error: invalid JSON for handoff: {e}", file=sys.stderr)
                 return
-        print(svc.session_handoff(data, getattr(args, "host_id", None)))
+        from service_execution_lease import ExecutionLeaseError, consume_mcp_authorization
+
+        try:
+            lease = consume_mcp_authorization(svc, route="cli_session_handoff", arguments={})
+        except ExecutionLeaseError as exc:
+            if exc.code != "IDENTITY_MISSING":
+                raise
+            lease = None
+        if lease is None and svc.be._q1(
+            "SELECT task_slug FROM task_continuity_state WHERE pending_requirement IS NOT NULL LIMIT 1"
+        ):
+            raise ExecutionLeaseError(
+                "IDENTITY_MISSING", "pending handoff recovery needs exact hook authorization"
+            )
+        generation = None
+        if lease is not None:
+            from work_continuity import enforce_continuity_boundary
+
+            generation = enforce_continuity_boundary(svc, lease, "cli_session_handoff", {})
+        with svc.be.transaction():
+            if generation is not None:
+                from work_continuity import require_recovery_generation
+
+                assert lease is not None
+                require_recovery_generation(svc, lease, generation)
+            handoff_result = svc.session_handoff(data, getattr(args, "host_id", None))
+            if lease is not None:
+                from work_continuity import complete_cli_recovery
+
+                complete_cli_recovery(svc, lease, "session-handoff", generation)
+        print(handoff_result)
     elif c == "last-handoff":
         ho = svc.session_last_handoff(getattr(args, "session", None))
         if ho:

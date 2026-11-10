@@ -69,6 +69,7 @@ class BackendCrudMixin:
         def _ex(self, sql: str, params: tuple[Any, ...] = ()) -> int: ...
         def _ins(self, sql: str, params: tuple[Any, ...] = ()) -> int: ...
         def task_get(self, slug: str) -> dict[str, Any] | None: ...
+        def transaction(self) -> Any: ...
 
     # --- Hierarchy counts ---
 
@@ -264,10 +265,17 @@ class BackendCrudMixin:
         )
 
     def session_end(self, sid: int, summary: str | None = None) -> None:
-        self._ex(
-            "UPDATE sessions SET ended_at=?, summary=? WHERE id=?",
-            (utcnow_iso(), summary, sid),
-        )
+        ended_at = utcnow_iso()
+        with self.transaction():
+            self._ex(
+                "UPDATE sessions SET ended_at=?, summary=? WHERE id=?",
+                (ended_at, summary, sid),
+            )
+            self._ex(
+                "UPDATE execution_leases SET revoked_at=? "
+                "WHERE session_id=? AND revoked_at IS NULL",
+                (ended_at, sid),
+            )
 
     def session_current(self, host_session_id: str | None = None) -> dict[str, Any] | None:
         """The newest open session; with a host id, the open session of THAT host.

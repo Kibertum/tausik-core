@@ -40,7 +40,7 @@ harness/overrides/myide/rules.md
 ```
 
 Этот файл **автоматически дописывается** в сгенерированный `CLAUDE.md` /
-`.cursorrules` / `QWEN.md` (в зависимости от `ide=`, переданного в
+`.cursor/rules/tausik.mdc` / `QWEN.md` (в зависимости от `ide=`, переданного в
 `bootstrap_templates.build_full_body`). Блок встаёт перед маркером
 `<!-- DYNAMIC:START -->`, поэтому doctor-drift игнорирует пользовательское
 state, но трактует override как часть канонического тела. В вашем
@@ -66,7 +66,7 @@ if os.environ.get("MYIDE_DIR"):
 | IDE | Config dir | Rules file | Hooks | Auto-detect |
 |-----|-----------|------------|-------|-------------|
 | Claude Code | `.claude` | `CLAUDE.md` | 4 hooks | default |
-| Cursor | `.cursor` | `.cursorrules` | — | `CURSOR_DIR` env |
+| Cursor | `.cursor` | `.cursor/rules/tausik.mdc` | `.cursor/hooks.json` | `CURSOR_DIR` env |
 | Windsurf | `.windsurf` | `.windsurfrules` | — | `WINDSURF_DIR` env |
 | Codex | `.codex` | `AGENTS.md` | общие PreToolUse/PostToolUse hooks | `CODEX_SANDBOX_DIR` env |
 | OpenCode | `.opencode` | `.opencode/tausik-rules.md` | QG-0 plugin | каталог `.opencode/` (+ env `OPENCODE_DIR`, не проверено на живой сборке) |

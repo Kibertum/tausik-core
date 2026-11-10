@@ -122,7 +122,7 @@ inheritance, which a per-file cap structurally cannot see. Highlights:
 | `harness/claude/mcp/project/handlers_<domain>.py` | Handlers by domain: `task`, `session`, `status`, `knowledge`, `hierarchy`, `stack`, `role`, `verification`, `cq`, `skill`, `spec`, `adapt`. Each module exports `<DOMAIN>_HANDLERS`; `handlers.py` merges them into `_DISPATCH` |
 | `harness/claude/mcp/project/handlers_render.py` | Shared list rendering (`render_list`) — an empty result must read as "nothing here", not as an empty string |
 
-Total MCP surface: **151 project tools** (optional
+Total MCP surface: **152 project tools** (optional
 `codebase-rag` adds 7 more; not part of the main count).
 
 **THAT SURFACE IS PAID FOR ON EVERY TURN, AND THE PRICE DIFFERS BY HOST.** The
@@ -196,7 +196,7 @@ TAUSIK separates *where* it runs from *which model* answers:
 | Axis | What it controls | `bootstrap --ide` target | Active-model detection |
 |------|------------------|--------------------------|------------------------|
 | **claude** | Claude Code (VSCode/CLI) | `.claude/` + `.mcp.json` | JSONL transcript (`model` field) |
-| **cursor** | Cursor | `.cursor/` + `.cursor/mcp.json` | — |
+| **cursor** | Cursor | `.cursor/` + rules, hooks, agents and `.cursor/mcp.json` | native project hooks |
 | **qwen** | Qwen Code | `.qwen/settings.json` | — |
 | **kilo** | Kilo Code (addon + CLI) | `.kilo/kilo.jsonc` **and** `.kilocode/mcp.json` | `KILO_MODEL` env / `.kilo` config |
 | **opencode** | OpenCode (SST) | `opencode.json` + `.opencode/plugins/` | — |
@@ -264,8 +264,9 @@ anyone saying so. It RUNS the real mechanism generators into a clean tree and
 compares hosts that share an extension point — Claude's hooks against Qwen's,
 plugins against plugins. There is no comparison ACROSS kinds: asking whether
 Claude is "missing" OpenCode's plugin is a question with no meaning. The gate does
-NOT demand sameness: Cursor has no extension point at all, so there is nothing for
-it to be equal to. What it demands is that a difference be NAMED, with a reason —
+NOT demand sameness: Cursor has native hooks but no documented Glob tool matcher,
+so that semantic difference is declared rather than hidden. The gate demands that
+every difference be NAMED, with a reason —
 and a declaration that no longer matches any live difference is refused as loudly
 as an undeclared difference. It fires only on host-layer edits
 (`bootstrap/`, `scripts/hooks/`, `harness/opencode/`): a gate that asks every task

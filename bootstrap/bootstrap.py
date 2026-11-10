@@ -22,7 +22,6 @@ from tausik_utils import tausik_config_path  # ruff-not-enabled: E402
 from bootstrap_config import (
     ALL_EXTENSION_SKILLS,
     IDE_DIRS,
-    SCAFFOLD_IDES,
     deployable_extension_skills,
     detect_extension_skills,
     detect_stacks,
@@ -39,6 +38,8 @@ from bootstrap_modes import (
     run_dry_run,
     run_post_bootstrap,
     run_refresh_mode,
+    resolve_bootstrap_targets,
+    validate_project_root,
 )
 from bootstrap_hooks import assert_hooks_deployed
 from bootstrap_copy import (
@@ -63,7 +64,8 @@ from bootstrap_generate import (
     generate_agents_md,
     generate_claude_md,
     generate_cursor_mcp_json,
-    generate_cursorrules,
+    generate_cursor_hooks_json,
+    generate_cursor_rule,
     generate_mcp_json,
     generate_settings_claude,
 )
@@ -116,6 +118,10 @@ def bootstrap_ide(
 ) -> None:
     """Bootstrap for a single IDE."""
     target_dir = get_ide_target(project_dir, ide)
+    resolved_project = os.path.realpath(project_dir)
+    resolved_target = os.path.realpath(target_dir)
+    if os.path.commonpath((resolved_project, resolved_target)) != resolved_project:
+        raise ValueError(f"IDE target escapes project root: {target_dir}")
     os.makedirs(target_dir, exist_ok=True)
     print(f"\n=== Bootstrapping for {ide} -> {target_dir} ===")
 
@@ -194,7 +200,7 @@ def bootstrap_ide(
         generate_settings_claude(target_dir, project_dir, lib_dir, governance_profile)
         generate_claude_md(project_dir, proj, stacks, context_tier, output_mode, governance_profile)
     elif ide == "cursor":
-        generate_cursorrules(
+        generate_cursor_rule(
             project_dir, proj, stacks, context_tier, output_mode, governance_profile
         )
     elif ide == "qwen":
@@ -231,11 +237,12 @@ def bootstrap_ide(
     # AGENTS.md for every host EXCEPT OpenCode: OpenCode merges `instructions`
     # INTO AGENTS.md (shipping both doubles the rule body — the very context
     # bloat this work fixes), and its first-match-wins would prefer the user's.
-    if ide != "opencode":
+    if ide not in {"opencode", "cursor"}:
         generate_agents_md(project_dir, proj, stacks, context_tier, output_mode, governance_profile)
 
     if ide == "cursor":
         generate_cursor_mcp_json(project_dir, target_dir, venv_python)
+        generate_cursor_hooks_json(project_dir, target_dir, governance_profile, venv_python)
 
     print("  Done!")
 
@@ -251,7 +258,11 @@ def main() -> None:
     args = build_parser().parse_args()
 
     lib_dir = args.lib_dir or os.path.dirname(_bootstrap_dir)
-    project_dir = args.project_dir or os.getcwd()
+    try:
+        project_dir = validate_project_root(args.project_dir or os.getcwd())
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     print("TAUSIK Bootstrap")
     print(f"  Library: {lib_dir}")
@@ -304,9 +315,15 @@ def main() -> None:
                 ALL_EXTENSION_SKILLS[i] for i in indices if 0 <= i < len(ALL_EXTENSION_SKILLS)
             ]
 
-    config["ide"] = args.ide
-
-    ides = list(SCAFFOLD_IDES) if args.ide == "all" else [args.ide]
+    try:
+        primary_ide, ides = resolve_bootstrap_targets(args.ide, project_dir, config)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    config["ide"] = args.ide or primary_ide
+    config["primary_ide"] = primary_ide
+    config["ides"] = ides
+    config["project_root"] = project_dir
 
     try:
         env_profile_slug = parse_strict_model_profile_env()
@@ -332,6 +349,7 @@ def main() -> None:
             _bootstrap_dir,
             get_lib_commit,
             get_ide_target,
+            primary_ide,
         )
         return
 
@@ -413,7 +431,7 @@ def main() -> None:
 
     from bootstrap_venv import install_cli_wrapper
 
-    install_cli_wrapper(_bootstrap_dir, tausik_dir)
+    install_cli_wrapper(_bootstrap_dir, tausik_dir, primary_ide)
     print("  CLI wrapper: .tausik/tausik (or .tausik/tausik.cmd on Windows)")
 
     run_post_bootstrap(args, project_dir)

@@ -46,6 +46,8 @@ import sys
 import tempfile
 from collections.abc import Callable, Iterator
 
+from hooks.cursor_command import split_cursor_command
+
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _BOOTSTRAP = os.path.join(_REPO, "bootstrap")
 if os.path.isdir(_BOOTSTRAP) and _BOOTSTRAP not in sys.path:
@@ -54,6 +56,44 @@ if os.path.isdir(_BOOTSTRAP) and _BOOTSTRAP not in sys.path:
 #: Prefixes that make a capability name say WHICH extension point carries it.
 KIND_HOOK = "hook"
 KIND_PLUGIN = "plugin"
+
+_CURSOR_SOURCE_EVENTS = {
+    "preToolUse": "PreToolUse",
+    "postToolUse": "PostToolUse",
+    "sessionStart": "SessionStart",
+    "beforeSubmitPrompt": "UserPromptSubmit",
+    "stop": "Stop",
+    "sessionEnd": "SessionEnd",
+}
+
+
+def _shared_cursor_matcher(matcher: str) -> str:
+    mapped: list[str] = []
+    reverse_mcp = {
+        "MCP:FileSystem": "mcp__windows-mcp__FileSystem",
+        "MCP:PowerShell": "mcp__windows-mcp__PowerShell",
+        "MCP:replace_symbol_body": "mcp__serena__replace_symbol_body",
+        "MCP:replace_content": "mcp__serena__replace_content",
+        "MCP:insert_after_symbol": "mcp__serena__insert_after_symbol",
+        "MCP:insert_before_symbol": "mcp__serena__insert_before_symbol",
+        "MCP:rename_symbol": "mcp__serena__rename_symbol",
+        "MCP:safe_delete_symbol": "mcp__serena__safe_delete_symbol",
+        "MCP:tausik_task_done": "mcp__tausik-project__tausik_task_done",
+    }
+    for name in matcher.split("|") if matcher else []:
+        values: tuple[str, ...]
+        if name == "Shell":
+            values = ("Bash", "PowerShell")
+        elif name == "Write":
+            values = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+        elif name == "Delete":
+            values = ()  # Cursor-only tool covered by the same write policy.
+        else:
+            values = (reverse_mcp.get(name, name),)
+        for value in values:
+            if value not in mapped:
+                mapped.append(value)
+    return "|".join(mapped)
 
 
 def _build_claude(target_dir: str, project_dir: str, lib_dir: str) -> None:
@@ -66,6 +106,12 @@ def _build_qwen(target_dir: str, project_dir: str, lib_dir: str) -> None:
     from bootstrap_qwen import generate_settings_qwen
 
     generate_settings_qwen(target_dir, project_dir, venv_python=sys.executable, lib_dir=lib_dir)
+
+
+def _build_cursor(target_dir: str, project_dir: str, lib_dir: str) -> None:
+    from bootstrap_generate import generate_cursor_hooks_json
+
+    generate_cursor_hooks_json(project_dir, target_dir)
 
 
 def _build_opencode(target_dir: str, project_dir: str, lib_dir: str) -> None:
@@ -83,11 +129,12 @@ def _build_kilo(target_dir: str, project_dir: str, lib_dir: str) -> None:
 #: Host -> the generator that writes its real-time enforcement payload.
 #:
 #: A host absent here has no such generator, which is a DECLARED position rather
-#: than an oversight: cursor gets MCP config and rules text and nothing that
-#: runs. `cross_check_against_disk` is what stops this from becoming a list of
+#: than an oversight. Cursor is present because it receives native hooks.
+#: `cross_check_against_disk` is what stops this from becoming a list of
 #: good intentions — it compares this table against the profiles on disk.
 MECHANISM_BUILDERS: dict[str, Callable[[str, str, str], None]] = {
     "claude": _build_claude,
+    "cursor": _build_cursor,
     "qwen": _build_qwen,
     "opencode": _build_opencode,
     "kilo": _build_kilo,
@@ -161,6 +208,42 @@ def _read_profile(profile_dir: str) -> dict[str, str]:
                 # update here kept only the LAST entry, which made two hosts
                 # look equal the moment both ended on the same MCP line.
                 found[cap] = _merge_matchers(found[cap], matcher) if cap in found else matcher
+    native_hooks = os.path.join(profile_dir, "hooks.json")
+    if os.path.isfile(native_hooks):
+        try:
+            with open(native_hooks, encoding="utf-8") as file:
+                payload = json.load(file)
+        except (OSError, ValueError):
+            payload = {}
+        hooks = payload.get("hooks", {}) if isinstance(payload, dict) else {}
+        if isinstance(hooks, dict):
+            for event, entries in hooks.items():
+                if not isinstance(entries, list):
+                    continue
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    command = str(entry.get("command", ""))
+                    try:
+                        parts = split_cursor_command(command)
+                    except ValueError:
+                        continue
+                    if parts[:1] == ["&"]:
+                        parts = parts[1:]
+                    try:
+                        script = parts[parts.index("--script") + 1]
+                    except (ValueError, IndexError):
+                        continue
+                    source_event = _CURSOR_SOURCE_EVENTS.get(str(event), str(event))
+                    kind = (
+                        "cursor-adapter"
+                        if os.path.basename(script)
+                        in {"codex_write_gate.py", "memory_preflight_posttool.py"}
+                        else KIND_HOOK
+                    )
+                    cap = f"{kind}:{source_event}:{os.path.basename(script)}"
+                    matcher = _shared_cursor_matcher(str(entry.get("matcher", "")))
+                    found[cap] = _merge_matchers(found[cap], matcher) if cap in found else matcher
     plugins = os.path.join(profile_dir, "plugins")
     if os.path.isdir(plugins):
         try:

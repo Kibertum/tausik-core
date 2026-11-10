@@ -1,5 +1,4 @@
 """TAUSIK shared hooks block builder.
-
 Hosts supply `_hook_cmd(script, suffix="")`; this module owns the declaration.
 """
 
@@ -29,7 +28,6 @@ def deployed_hooks_dir(target_dir: str) -> str:
     declares Rule 1 enforced by a PreToolUse hook. Measured on a live consumer
     project: 22 hook commands into `.tausik-lib`, 1 file tracked there, and 26
     byte-identical hooks tracked under the deployed tree right next to it.
-
     This function only COMPUTES the path; it does not check the deploy. The
     check lives in `assert_hooks_deployed`, called once by the orchestrator
     after `copy_scripts`. Splitting them is deliberate: a generator asked for
@@ -43,7 +41,6 @@ def deployed_hooks_dir(target_dir: str) -> str:
 
 def assert_hooks_deployed(target_dir: str) -> str:
     """Refuse to leave a config naming hooks that are not on disk.
-
     `copy_scripts` runs before every generator (bootstrap.py), so the deployed
     tree is there by the time settings are written. If it is not, that is a
     broken bootstrap, and staying silent would leave behind a settings file
@@ -131,12 +128,12 @@ MCP_COVERAGE: dict[str, str] = {
 
 
 def _script_of(hook: dict[str, Any]) -> str:
-    return os.path.basename(str(hook.get("command", "")).split()[-1]) if hook.get("command") else ""
+    command = hook["command"]
+    return getattr(command, "tausik_script", os.path.basename(str(command).split()[-1]))
 
 
 def with_mcp_registrations(hooks: dict[str, Any]) -> dict[str, Any]:
     """Append, for every script in MCP_COVERAGE, an entry on its MCP matcher.
-
     The built-in entry is left as it is: the MCP names run as regexes, and
     sharing a line would put the built-in names on that branch too.
     """
@@ -320,7 +317,7 @@ def _builtin_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
                 ],
             },
             {
-                "matcher": "Write|Edit|MultiEdit",  # MultiEdit was off this hook (PR #5)
+                "matcher": "Write|Edit|MultiEdit|NotebookEdit",
                 "hooks": [
                     {
                         "type": "command",
@@ -471,6 +468,11 @@ def _builtin_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
             {
                 "matcher": "",
                 "hooks": [
+                    {
+                        "type": "command",
+                        "command": hook_cmd("can_stop_gate.py"),
+                        "timeout": 5,
+                    },
                     {
                         "type": "command",
                         "command": hook_cmd("keyword_detector.py"),

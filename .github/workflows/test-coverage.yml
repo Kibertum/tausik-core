@@ -26,7 +26,7 @@ jobs:
         # and without the plugin pytest exits on `unrecognized arguments: -n` before
         # collecting anything. The `|| true` on the run step below would then swallow
         # that death and this job would report "no coverage data" instead of a failure.
-        run: pip install pytest pytest-xdist pytest-cov
+        run: pip install -c ci-constraints.txt pytest pytest-xdist pytest-cov
 
       # The deployed IDE profiles (.claude, .cursor, .kilo, .opencode, .qwen) and
       # .tausik/ are bootstrap OUTPUT and are gitignored, so a fresh clone has

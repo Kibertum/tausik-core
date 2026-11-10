@@ -91,6 +91,11 @@ def build_parser() -> argparse.ArgumentParser:
         "(stale after a tree move; the interpreter recreates them). Reports otherwise.",
     )
     doctor_p.add_argument(
+        "--reconcile-execution-leases",
+        metavar="CONFIRM",
+        help="Owner recovery from lease maintenance; exact value: revoke-and-reconcile",
+    )
+    doctor_p.add_argument(
         "--harness-audit",
         action="store_true",
         help="Scan the INSTALLED state instead of the health check: deployed profiles, "

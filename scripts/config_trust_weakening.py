@@ -144,7 +144,11 @@ def foreign_scoped_entries(user: dict, managed: dict, project_dir: str | None) -
         if not isinstance(section, dict):
             continue
         for spelled, entry in section.items():
-            if isinstance(spelled, str) and isinstance(entry, dict) and project_key(spelled) != wanted:
+            if (
+                isinstance(spelled, str)
+                and isinstance(entry, dict)
+                and project_key(spelled) != wanted
+            ):
                 count += 1
     return count
 

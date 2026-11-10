@@ -80,7 +80,7 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
 
     claudemd = args.claudemd or resolve_claudemd(project_dir or "")
     if not claudemd or not os.path.exists(claudemd):
-        print("Error: CLAUDE.md not found. Use --claudemd to specify path.")
+        print("Error: agent instruction file not found. Use --claudemd to specify path.")
         return
 
     dynamic_content = build_dynamic_state(svc, project_dir or os.path.dirname(claudemd))

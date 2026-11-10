@@ -175,6 +175,7 @@ NOT_PORTABLE: dict[str, str] = {
     "cost_actual_usd": "measured on the machine that did the work; the BUDGET travels instead",
     "started_tausik_version": "local runtime identity for benchmark cohorts; runtime telemetry does not travel",
     "done_tausik_version": "same local benchmark boundary; importing it elsewhere would imply telemetry travelled",
+    "task_package_legacy": "one-shot local migration marker; package validation clears it and portable task intent does not depend on it",
     "notes": "the free-text scratch field of a close; the JOURNAL is the durable record and "
     "it travels in the body of the file",
 }

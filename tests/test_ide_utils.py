@@ -94,7 +94,7 @@ class TestGetIdeConfig:
     def test_cursor_config(self):
         cfg = get_ide_config("cursor")
         assert cfg["config_dir"] == ".cursor"
-        assert cfg["rules_file"] == ".cursorrules"
+        assert cfg["rules_file"] == os.path.join(".cursor", "rules", "tausik.mdc")
 
     def test_windsurf_config(self):
         cfg = get_ide_config("windsurf")
@@ -127,7 +127,9 @@ class TestPathHelpers:
 
     def test_get_rules_file(self, tmp_path):
         assert get_rules_file(str(tmp_path), "claude").endswith("CLAUDE.md")
-        assert get_rules_file(str(tmp_path), "cursor").endswith(".cursorrules")
+        assert get_rules_file(str(tmp_path), "cursor").endswith(
+            os.path.join(".cursor", "rules", "tausik.mdc")
+        )
         assert get_rules_file(str(tmp_path), "windsurf").endswith(".windsurfrules")
         assert get_rules_file(str(tmp_path), "codex").endswith("AGENTS.md")
 

@@ -17,12 +17,30 @@ hand. The scaffolded set is the single source of truth in
 | Platform | Scaffolded | Config file | Skills location | Instructions file |
 |----------|-----------|-------------|-----------------|-------------------|
 | Claude Code | yes | `.claude/settings.json` | `.claude/skills/` | `CLAUDE.md` |
-| Cursor | yes | `.cursor/settings.json` | `.cursor/skills/` | `.cursorrules` |
+| Cursor | yes | `.cursor/mcp.json` + `.cursor/hooks.json` | `.cursor/skills/` | `.cursor/rules/tausik.mdc` |
+
+For 1.11.8, Codex and Cursor release claims are additionally checked by the
+content-addressed Windows acceptance runner. It covers Cursor Agents ownership,
+native hook payload translation, trusted identity, fresh-process restart and
+the Codex Stop fail-open matrix. The release publishes
+`adherence-1.11.8.json` as a GitHub Release asset with its content digest.
 | Qwen Code | yes | `.qwen/settings.json` | `.qwen/skills/` | `QWEN.md` |
 | Kilo Code | yes | `.kilo/` | `.kilo/skills/` | `AGENTS.md` |
 | OpenCode | yes | `opencode.json` | `.opencode/skills/` | `.opencode/tausik-rules.md` |
 | Codex | yes | `.codex/config.toml` + `.codex/hooks.json` | `.codex/skills/` | `AGENTS.md` |
 | Windsurf | no | `.windsurf/` | — | `.windsurfrules` |
+
+> **Cursor (1.11.8).** Bootstrap writes the current always-apply `.mdc` rule,
+> native project hooks, MCP transport and named agents. It preserves unrelated
+> user rules, hooks, agents and a legacy custom `.cursorrules`; malformed JSON is
+> reported and left byte-exact instead of being replaced.
+> Hooks run with the bootstrap-selected Python and a project-bound adapter. Same-name agent
+> files are refreshed only when marked as TAUSIK-owned (or recognized as the
+> legacy generated form); user collisions are preserved. Successful and failed
+> tool outcomes both terminate the durable preflight audit. Hook enforcement starts
+> only after the workspace is trusted. Cursor cloud's early read-only phase omits
+> several lifecycle events, so TAUSIK claims fail-closed protection only from the
+> first writable `preToolUse` onward.
 
 > **OpenCode (since v1.7.0).** `bootstrap.py --ide opencode` writes `opencode.json`
 > (MCP servers + the `instructions` key), puts the rules in
@@ -95,11 +113,18 @@ severity.
 
 | Contract | Mode | Disk-backed mechanism |
 |----------|------|-----------------------|
+| Protected memory preflight | hard | Trusted Codex `PreToolUse` reserves an exact lease/package/content/action-bound token and `PostToolUse` terminates it; this requires trusted project hooks and does not cover a malicious same-user shell. |
 | QG-0 Context Gate | hard | `tausik_task_start` refuses an incomplete task through MCP and CLI. |
 | QG-2 Implementation Gate / Verify-First | hard | `tausik_task_done` refuses closure without a fresh signed `tausik_verify` receipt. |
 | Rule 9.2 Session limit | signal | `tausik_task_start` prints advice above the active-time threshold and refuses nothing (1.10). |
 | Rule 1 Task before code | hard | `.codex/hooks.json` wires `task_gate.py` to Codex `PreToolUse` — **only after the user has trusted the project hooks in Codex**; an untrusted profile enforces nothing (measured live). |
 | Rule 2 Scope Boundaries | hard | `.codex/hooks.json` wires `scope_write_gate.py` and `bash_write_gate.py` to Codex `PreToolUse` — **only after the user has trusted the project hooks in Codex**; shell coverage is the declared catalogue, not a claim to interpret every program. |
+
+The same trusted `PreToolUse` identity covers direct MCP calls and bounded
+literal calls nested in Codex `functions.exec`. Capability v5 attests the
+composite parser, write/PostToolUse adapters, UserPromptSubmit/Stop adapters and exact bootstrap Python interpreter; bootstrap leaves lease enforcement
+disabled and startup/doctor names the repair when that transport is incomplete.
+Restart Codex or open a fresh thread after regenerating the profile.
 
 `tests/test_codex_support_matrix.py` reads both language tables, requires this
 complete list, and generates a Codex profile before accepting any `hard` row. A

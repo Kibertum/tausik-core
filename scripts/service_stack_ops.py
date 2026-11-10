@@ -37,9 +37,7 @@ def stack_show(name: str) -> dict[str, Any]:
     """
     reg = default_registry()
     if name not in reg.all_stacks():
-        raise KeyError(
-            f"Unknown stack: {name!r}. Available: {sorted(reg.all_stacks())}"
-        )
+        raise KeyError(f"Unknown stack: {name!r}. Available: {sorted(reg.all_stacks())}")
     return {
         "name": name,
         "source": reg.source_for(name),

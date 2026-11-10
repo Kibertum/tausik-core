@@ -28,13 +28,12 @@ setlocal EnableDelayedExpansion
 set "TAUSIK_RAW_CMDLINE=!CMDCMDLINE!"
 setlocal DisableDelayedExpansion
 
-REM Find scripts dir. IDE list injected from bootstrap_config.IDE_DIRS
-REM (single source of truth) by install_cli_wrapper.
+REM Use the profile selected and recorded by bootstrap. A stale sibling profile
+REM must never win merely because its directory sorts first.
 set "IDE_LIST=__IDE_LIST__"
-set "SCRIPTS="
-for %%I in (%IDE_LIST%) do (
-    if not defined SCRIPTS if exist "%PROJECT_DIR%\.%%I\scripts" set "SCRIPTS=%PROJECT_DIR%\.%%I\scripts"
-)
+set "PRIMARY_IDE=__PRIMARY_IDE__"
+set "SCRIPTS=%PROJECT_DIR%\__PROFILE_DIR__\scripts"
+if not exist "%SCRIPTS%\project.py" set "SCRIPTS="
 REM goto (not an inline block) so literal parens in the error text can't
 REM prematurely close the if-block and make exit unconditional. (v153 Windows fix)
 if not defined SCRIPTS goto :noscripts
@@ -50,5 +49,5 @@ if exist "%SCRIPT_DIR%venv\Scripts\python.exe" (
 exit /b %ERRORLEVEL%
 
 :noscripts
-echo Error: no scripts dir found ^(none of: %IDE_LIST% under .^<ide^>\scripts^) 1>&2
+echo Error: configured TAUSIK profile '%PRIMARY_IDE%' has no scripts\project.py; rerun bootstrap --ide %PRIMARY_IDE% 1>&2
 exit /b 1

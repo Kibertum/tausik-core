@@ -4,6 +4,16 @@
 
 <!-- doc-map: reader=user; zone=getting-started -->
 
+## Обновление Codex и Cursor в 1.11.8
+
+После обновления пересоберите настроенные профили командой
+`python bootstrap/bootstrap.py --no-detect`, затем перезапустите Codex или
+откройте новое окно Cursor, чтобы хост загрузил новые hooks и MCP transport.
+`tausik doctor` выявляет устаревший capability digest, отсутствующий transport
+identity и непривязанный путь проекта. Сопровождающий выпускает релиз только
+после того, как `python scripts/adherence_release.py` запишет зелёный
+контент-адресованный отчёт.
+
 Что bootstrap трогает, что не трогает, и как обновляться без потери своей работы.
 
 ## Два дерева
@@ -38,7 +48,7 @@
 ## Workflow обновления
 
 1. `git pull` (или обновите фреймворк тем способом, как вы его установили).
-2. `python bootstrap/bootstrap.py --no-detect` — обновляет `.claude/`, копирует новые `stacks/`, регенерирует блок `_STACKS_ENUM` в MCP.
+2. `python bootstrap/bootstrap.py --no-detect` — обновляет записанный основной профиль и настроенные targets. Legacy-установка без profile provenance один раз обязана добавить `--ide <host>` (например, `--ide cursor`).
 3. `tausik stack lint` — валидирует, что ваши override всё ещё парсятся против новой схемы.
 4. `tausik stack diff <name>` — для каждого override-стека, sanity-check, что встроенный не изменился способом, который ломает ваши предположения.
 
@@ -60,6 +70,8 @@
 | Bootstrap падает или warn'ит про `.tausik/stacks/` | Запустите `tausik stack lint`, чтобы увидеть validation-ошибки. |
 | `tausik task add --stack X` отвергает стек, который вы определили | Подтвердите, что `.tausik/stacks/X/stack.json` существует и парсится; проверьте `tausik stack list`. |
 | Gate перестал срабатывать после обновления | `tausik stack info <name>` показывает активные gates; `stack export <name>` подтверждает порядок merge. |
+| CLI или MCP использует старый соседний профиль | Запустите `tausik doctor`, затем его единственную repair-команду (`python .tausik-lib/bootstrap/bootstrap.py --ide <host>` в consumer-проекте). Wrapper привязан к записанному основному профилю и не выбирает первый каталог на диске. |
+| Проект перенесли или bootstrap запустили не из корня workspace | Запустите `tausik doctor`: расхождение profile/root/version считается ошибкой. Повторите bootstrap из правильного корня. Корень диска и путь, заканчивающийся профилем вроде `D:\.claude`, отклоняются. |
 | Хочется начать заново | `tausik stack reset <name>` удаляет один override; `rm -rf .tausik/stacks/` сносит все. |
 
 ## Disaster recovery

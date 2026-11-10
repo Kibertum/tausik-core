@@ -33,14 +33,17 @@ flowchart TD
 
 ## Claude-native sub-agents
 
-Beyond slash skills, TAUSIK ships **named sub-agents** that the Agent tool can invoke directly (`Agent(subagent_type="<name>", ...)`). They live under `harness/claude/subagents/` in the source tree and bootstrap deploys them to `.claude/agents/`. Cursor / Qwen do not have a named-subagent concept — these are Claude-only.
+Beyond slash skills, TAUSIK ships **named sub-agents** from the canonical
+`harness/claude/subagents/` source. Bootstrap deploys native Markdown agents to
+`.claude/agents/`, converts the safe frontmatter subset for `.cursor/agents/`,
+and emits Codex TOML agent definitions. Qwen has no deployed named-agent format.
 
 | Sub-agent | Invoked by | What it does |
 |-----------|------------|--------------|
 | `tausik-reviewer` | `/review lite` | Single-pass code review with the SENAR 28-item checklist + security docs. Returns structured JSON `{critical[], high[], medium[], low[]}` so the main context never sees per-file reads or per-agent prose. ~2.9KB definition; rubric loaded at runtime. Token-economy alternative to the default 6-agent fork — pick it for low-stakes diffs and skip it for security-sensitive code. |
 | `tausik-gate-fixer` | `/debug` (auto-helper after a failed `tausik verify`) | Reads the gate's stderr + project troubleshooting docs, returns a 1-3 step JSON fix plan `{gate, family, plan: [{step, action, target, change, why}], meta}`. Read-only PLAN agent — never applies edits; the invoker applies the plan and re-runs `tausik verify`. Action vocabulary is fixed (`edit`, `extract_module`, `add_test`, `move_file`, `delete_dead_code`, `re_run_gate`). |
 
-Adding a sub-agent: drop `<name>.md` (with frontmatter `name`, `description`, `tools`, `model`) into `harness/claude/subagents/`, then `python bootstrap/bootstrap.py --ide claude` re-deploys it. Tools should be minimal — read-only sub-agents (`Read, Grep, Bash`) keep the trust surface small.
+Adding a sub-agent: drop `<name>.md` (with frontmatter `name`, `description`, `tools`, `model`) into `harness/claude/subagents/`, then run bootstrap for the target host. Tools should be minimal — read-only sub-agents (`Read, Grep, Bash`) keep the trust surface small. Cursor receives only its supported `name`, `description`, and inherited-model fields; Claude-only tool restrictions are not misrepresented there.
 
 ## Where to go next
 

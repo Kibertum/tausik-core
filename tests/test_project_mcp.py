@@ -113,6 +113,8 @@ class TestTaskCRUD:
         )
         result = _handle_tool(seeded, "tausik_task_start", {"slug": "t1"})
         assert "started" in result
+        assert "Task package:" in result
+        assert seeded.be._q1("SELECT fingerprint FROM task_context_packages WHERE task_slug='t1'")
 
     def test_task_start_can_return_context_in_same_result(self, seeded):
         seeded.task_update(

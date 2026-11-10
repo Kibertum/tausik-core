@@ -56,6 +56,13 @@ residual gaps, depth, deterministic reasons, and any hard floor.
 
 ## Review execution
 
+Task closure does not call another agent by default in 1.11.8. Signed
+verification, QG-2 evidence and the applicable deterministic gates remain
+mandatory. A project that wants separation-of-duties review can opt in with
+`review.external_agents: true`; only then does the closure gate require the
+L1/L2/L3 route described below. Review records and cohort tooling remain
+available when the gate is not enabled.
+
 The task package includes `review_route` and its missing inputs. L1 runs the
 selected profile checklists and deterministic gates with zero reviewer calls.
 L2 runs one focused reviewer in a fresh context. Normal L3 runs one external

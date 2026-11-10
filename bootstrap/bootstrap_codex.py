@@ -14,15 +14,35 @@ project requires bootstrap again. See the versioned live enforcement evidence.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 from typing import Any
 
 from bootstrap_codex_mcp import register_mcp_servers
 from bootstrap_hooks import build_hooks_dict, deployed_hooks_dir
+from hooks.codex_capability import serialize_hook_argv, split_hook_command
+
+
+class _HookCommand(str):
+    """String command carrying build-time script identity for shared expansion."""
+
+    def __new__(cls, value: str, script: str):
+        instance = super().__new__(cls, value)
+        instance.tausik_script = script
+        return instance
+
 
 #: Имя файла хуков у Codex — то, что ищет сам хост (строка `.codex/hooks` в бинаре).
 HOOKS_FILE = "hooks.json"
+CODEX_WRITE_ADAPTER = "codex_write_gate.py"
+CODEX_PREFLIGHT_POSTTOOL = "memory_preflight_posttool.py"
+CODEX_COMPOSITE_ADAPTER = "codex_composite_mcp.py"
+CODEX_PROMPT_ADAPTER = "user_prompt_submit.py"
+CODEX_STOP_ADAPTER = "can_stop_gate.py"
+CODEX_WRITE_MATCHER = ""
+CODEX_CAPABILITY_VERSION = 5
+CODEX_CAPABILITY_FILE = "tausik-capability.json"
 
 #: Ключи, которые Codex мог положить в тот же файл сам и которые не наши. Всё,
 #: кроме `hooks`, переживает перезапись побайтово: генератор владеет одним ключом.
@@ -44,6 +64,10 @@ def _fallback_python() -> str:
     return "python"
 
 
+def _python_executable(venv_python: str | None) -> str:
+    return os.path.abspath(venv_python).replace("\\", "/") if venv_python else _fallback_python()
+
+
 def build_codex_hooks(
     target_dir: str,
     venv_python: str | None = None,
@@ -58,27 +82,61 @@ def build_codex_hooks(
     никто не проверял.
     """
     hooks_dir = os.path.abspath(deployed_hooks_dir(target_dir)).replace("\\", "/")
-    python_exe = (
-        os.path.abspath(venv_python).replace("\\", "/") if venv_python else _fallback_python()
-    )
+    python_exe = _python_executable(venv_python)
 
-    def _hook_cmd(script: str, suffix: str = "") -> str:
+    def _serialized_hook(script: str, *args: str, tolerate_failure: bool = False) -> str:
         # -X utf8 по той же причине, что и у остальных хостов: хук запускается
         # напрямую, а не через обёртку CLI, и не наследует её PYTHONUTF8.
-        return f"{python_exe} -X utf8 {hooks_dir}/{script}{suffix}"
+        argv = [python_exe, "-X", "utf8", f"{hooks_dir}/{script}", *args]
+        command = serialize_hook_argv(argv)
+        rendered = command + (" 2>&1 || true" if tolerate_failure else "")
+        return _HookCommand(rendered, script)
+
+    def _hook_cmd(script: str, suffix: str = "") -> str:
+        if not suffix:
+            return _serialized_hook(script)
+        if suffix == " --auto --record 2>&1 || true":
+            return _serialized_hook(script, "--auto", "--record", tolerate_failure=True)
+        raise ValueError(f"unsupported Codex hook suffix: {suffix}")
 
     hooks = build_hooks_dict(_hook_cmd, governance_profile)
+    for entry in hooks.get("SessionStart", []):
+        for hook in entry.get("hooks", []):
+            argv = split_hook_command(str(hook.get("command", "")))
+            if os.path.basename(argv[3]) == "session_start.py":
+                hook["command"] = _serialized_hook("session_start.py", "--trusted-host", "codex")
+    for event, script in (
+        ("UserPromptSubmit", "user_prompt_submit.py"),
+        ("Stop", "can_stop_gate.py"),
+    ):
+        for entry in hooks.get(event, []):
+            for hook in entry.get("hooks", []):
+                argv = split_hook_command(str(hook.get("command", "")))
+                if os.path.basename(argv[3]) == script:
+                    hook["command"] = _serialized_hook(script, "--trusted-host", "codex")
     # Live 0.153.4 payloads differ from Claude's canonical Write/PowerShell shapes.
     # Keep shared registrations intact and add one narrowly scoped adapter.
     if governance_profile == "full":
         project = os.path.dirname(os.path.abspath(target_dir)).replace("\\", "/")
         hooks["PreToolUse"].append(
             {
-                "matcher": "apply_patch|Bash|PowerShell",
+                "matcher": CODEX_WRITE_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
-                        "command": _hook_cmd("codex_write_gate.py", f' --project "{project}"'),
+                        "command": _serialized_hook(CODEX_WRITE_ADAPTER, "--project", project),
+                        "timeout": 10,
+                    }
+                ],
+            }
+        )
+        hooks["PostToolUse"].append(
+            {
+                "matcher": CODEX_WRITE_MATCHER,
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _serialized_hook(CODEX_PREFLIGHT_POSTTOOL, "--project", project),
                         "timeout": 10,
                     }
                 ],
@@ -127,6 +185,35 @@ def generate_codex_hooks(
     document[_OWNED_KEY] = build_codex_hooks(target_dir, venv_python, governance_profile)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(document, fh, indent=2, ensure_ascii=False)
+    manifest_path = os.path.join(target_dir, CODEX_CAPABILITY_FILE)
+    hooks_dir = deployed_hooks_dir(target_dir)
+    adapters = {}
+    for name in (
+        CODEX_WRITE_ADAPTER,
+        CODEX_PREFLIGHT_POSTTOOL,
+        CODEX_COMPOSITE_ADAPTER,
+        CODEX_PROMPT_ADAPTER,
+        CODEX_STOP_ADAPTER,
+    ):
+        adapter = os.path.join(hooks_dir, name)
+        if os.path.isfile(adapter):
+            with open(adapter, "rb") as fh:
+                adapters[name] = hashlib.sha256(fh.read()).hexdigest()
+    if len(adapters) == 5:
+        with open(manifest_path, "w", encoding="utf-8") as fh:
+            json.dump(
+                {
+                    "capability_version": CODEX_CAPABILITY_VERSION,
+                    "mcp_transport_modes": ["direct", "functions.exec"],
+                    "python_executable": _python_executable(venv_python),
+                    "adapters": adapters,
+                },
+                fh,
+                indent=2,
+                sort_keys=True,
+            )
+    elif os.path.exists(manifest_path):
+        os.remove(manifest_path)
     return path
 
 
@@ -151,7 +238,9 @@ def scaffold_codex(
     )
     print(f"  Codex hooks: {count} matcher(s) → {os.path.relpath(path, project_dir)}")
 
-    config_path, servers = register_mcp_servers(project_dir, target_dir, venv_python, lib_dir)
+    config_path, servers = register_mcp_servers(
+        project_dir, target_dir, venv_python, lib_dir, governance_profile
+    )
     where = os.path.relpath(config_path, project_dir)
     if servers:
         print(f"  Codex MCP: {servers} server(s) → {where}")

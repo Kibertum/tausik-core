@@ -140,4 +140,3 @@ def classify(path: Path) -> str:
     if has_main_block(path):
         return "ENTRYPOINT"
     return "INERT"
-

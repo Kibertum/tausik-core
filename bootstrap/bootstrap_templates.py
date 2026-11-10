@@ -411,8 +411,7 @@ def build_full_body(
     `ide` is supplied, the matching `harness/overrides/<ide>/rules.md`
     block (if present) is appended right before the dynamic state block —
     closing the audit gap r14-overrides-integration where these files
-    existed but were never wired into the generated CLAUDE.md/.cursorrules
-    /QWEN.md.
+    existed but were never wired into the generated host instruction files.
 
     ``context_tier`` (from ``.tausik/config.json``) selects how verbose the
     generated rules are: ``minimal`` (default and short), ``standard``, or

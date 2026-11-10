@@ -7,18 +7,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Find scripts dir. IDE list injected from bootstrap_config.IDE_DIRS
-# (single source of truth) by install_cli_wrapper.
+# Use the profile selected and recorded by bootstrap. A stale sibling profile
+# must never win merely because its directory sorts first.
 IDE_LIST="__IDE_LIST__"
-SCRIPTS=""
-for _ide in $IDE_LIST; do
-    if [ -d "$PROJECT_DIR/.$_ide/scripts" ]; then
-        SCRIPTS="$PROJECT_DIR/.$_ide/scripts"
-        break
-    fi
-done
-if [ -z "$SCRIPTS" ]; then
-    echo "Error: no scripts dir found (none of: $IDE_LIST under .<ide>/scripts)" >&2
+PRIMARY_IDE="__PRIMARY_IDE__"
+SCRIPTS="$PROJECT_DIR/__PROFILE_DIR__/scripts"
+if [ ! -f "$SCRIPTS/project.py" ]; then
+    echo "Error: configured TAUSIK profile '$PRIMARY_IDE' has no scripts/project.py; rerun bootstrap --ide $PRIMARY_IDE" >&2
     exit 1
 fi
 

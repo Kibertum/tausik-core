@@ -43,6 +43,7 @@ ENV_OUTPUT = "TAUSIK_OBSERVE_OUTPUT"
 
 _DEFAULT_OUTPUT = os.path.join(".tausik", "observed_coverage.jsonl")
 
+
 #: Never recorded as touched: the framework's own state, caches, the deployed
 #: IDE profiles (byte-copies of `scripts/`, which would double every edge) and
 #: anything from site-packages. The TEST FILE ITSELF is deliberately NOT filtered

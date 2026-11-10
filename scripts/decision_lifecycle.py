@@ -101,7 +101,7 @@ def listing(
     if status not in STATUSES:
         raise ServiceError(f"--status must be one of {', '.join(STATUSES)}")
     pool = n if status == "all" and not task and not rejected else max(n, 10_000)
-    rows = svc.be.decision_list(pool)
+    rows = list(reversed(svc.be.decisions_for_task(task))) if task else svc.be.decision_list(pool)
     superseders = _superseder_map(svc.be)
     out: list[dict[str, Any]] = []
     for r in rows:

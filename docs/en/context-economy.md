@@ -17,14 +17,16 @@ Measured in this repository on 2026-10-01:
 | Generated rules (`standard` to measured `minimal`) | 15,533 B | about 6,000 B | about -61% |
 
 The task package is loaded once when work starts rather than repeated as a
-global rule. The live 1.11 context task package is 6,007 B against an 8,192 B
-default budget. It contains goal, acceptance criteria, paths, active decisions,
-unresolved risk and verification commands. Required fields are never shortened:
-an oversized contract is returned whole with explicit overflow. Optional memory
-is admitted line by line and names the omitted range.
+global rule. It contains the goal, every acceptance criterion, numbered plan
+steps, stack, path and tool scope, rollback, call budget, assurance route, active decisions,
+unresolved risk, and selected memory. Each selected memory carries bounded
+inline content, revision, source hash, and provenance; it is never replaced by
+an identifier alone. The exact canonical UTF-8 size includes metadata and uses
+an inclusive ceiling.
 
-The task skill requests the package in the successful start result, removing a
-dependent model turn:
+Every full-profile start and resume builds and validates this package, including
+plain CLI and MCP calls. `--package` selects the structured result; it is not an
+enforcement switch:
 
 ```bash
 .tausik/tausik task start <slug> --package
@@ -33,21 +35,43 @@ dependent model turn:
 MCP uses `tausik_task_start(slug=..., package=true)`. The previous workflow was
 `task_start` followed by `task_show(package)`: two model responses and two tool
 calls on a successful start. The compound route is one response and one call.
-QG-0 still runs before activation. If the read-only projection fails after the
-activation commits, the envelope says `started=true, ok=false` and supplies the
-targeted recovery command; it never reports the partial result as success.
+QG-0, snapshot construction, revision compare-and-swap, byte validation,
+activation, package persistence, and lease binding share one transaction. A
+durable contract or selected-memory winner between snapshot and commit returns
+`REVISION_CONFLICT`; one retry rebuilds from that winner. An oversized
+package returns `PACKAGE_TOO_LARGE` with measured size, limit, and decomposition
+guidance. Neither refusal activates the task or renews its lease.
 
 For targeted recovery or a later refresh, use MCP `tausik_task_show` with
 `mode=package`, or:
 
 ```bash
-.tausik/tausik task show <slug> --package --max-bytes 8192
+.tausik/tausik task show <slug> --package --max-bytes 16384
 ```
 
-The package fingerprint changes when task intent, paths, risk, plan or active
-decisions change. Superseded decisions are excluded. Tests cover omitted
-memory, required-field overflow and superseded decisions on the shared path
-used by Codex, Claude and GLM hosts.
+The package fingerprint changes when task intent, stack, path/tool scope, risk,
+plan, active decisions, or selected-memory revisions change. It is attached
+only to the execution lease of the thread that selected the task; co-active
+threads keep independent bindings. A stale fingerprint blocks ordinary
+mutations. MCP `tausik_task_start` and CLI `task start` are the recovery routes
+that atomically rebuild the package and rebind exactly one still-live lease;
+failure to bind that lease rolls the task transition back. Task-associated MCP
+and CLI mutations must name the task bound to their thread. Renewal refuses an
+unbound lease while work is active and preserves a current binding when
+replacing an expired lease.
+Project-level pooled verification (`--tasks`, `--story`, `--epic`, and the MCP
+cohort/hierarchy routes) is not authorized by a task-bound lease; it requires a
+project-level lease so one task cannot silently authorize writes attributed to
+other tasks. CLI classification covers direct and Python entrypoints, ordinary
+shell prefixes (including valued `env` options), and both `--flag value` and
+`--flag=value` forms. Long-option abbreviations are rejected by the CLI, so the
+hook and argparse share one exact grammar. Review-cohort mutations follow the
+same project-level lease rule through CLI and MCP.
+Persisted inline content remains readable if relevance retrieval is unavailable.
+Stored metadata, byte count and fingerprint are revalidated on load.
+Superseded decisions are excluded. Only complex rows marked by migration as
+legacy receive compatibility defaults on their next governed start or resume;
+new complex tasks must declare scope, rollback, assurance and call budget.
 
 Codex native `turn_context` records observed in this environment expose no
 tool-schema field or explicit `tools_deferred` signal. Tool-schema deferral is

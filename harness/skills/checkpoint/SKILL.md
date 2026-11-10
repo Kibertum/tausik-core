@@ -46,6 +46,13 @@ not re-type what the records already say. Pass only your judgement, if any:
 
 These land on top, marked in `authored_fields`.
 
+When the checkpoint boundary has expired the normal execution lease, this call
+is the allowed single-use recovery action. A successful handoff consumes that
+lease. Continue implementation only in a fresh host thread after
+`task start <slug> --package` returns a newly validated package. If the task
+call budget itself is exhausted, checkpoint is insufficient: decompose the
+task or wait for a trusted owner planning change.
+
 ### 3. Update CLAUDE.md
 
 Use `tausik_update_claudemd` MCP tool to refresh the dynamic section.
@@ -63,3 +70,4 @@ Tell the user: "Checkpoint saved. Context preserved for session continuity."
 - **Authored JSON must be valid JSON** — unescaped quotes in values will break the command. With no authored fields, call it without arguments.
 - **Checkpoint does NOT commit** — code changes are only in working tree.
 - **Session duration** — an advisory, not a limit (decision #376): mention it, do not stop work for it.
+- **Handoff permission is mechanical.** Codex Stop allows it only after a hard ceiling, persisted checkpoint, copy-ready resume command, and revoked old lease.

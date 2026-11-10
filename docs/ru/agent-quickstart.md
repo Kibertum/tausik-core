@@ -32,7 +32,7 @@ cursor, qwen, kilo, opencode, codex** — или `all`. Выбери тот, в 
 | Ты работаешь в | `--ide` | Что появляется | Что принуждает к правилам в реальном времени |
 |---|---|---|---|
 | Claude Code / VS Code Claude Extension | `claude` | `.claude/` (навыки, хуки, MCP), `.mcp.json`, `CLAUDE.md`, `AGENTS.md` | PreToolUse-хуки (`.claude/settings.json`) |
-| Cursor / Composer | `cursor` | `.cursor/mcp.json`, `.cursorrules`, `AGENTS.md` | ничего на границе инструмента — Rule 1 исполняешь ты сам (см. §3) |
+| Cursor / Composer | `cursor` | `.cursor/mcp.json`, `.cursor/rules/tausik.mdc`, `.cursor/hooks.json`, `.cursor/agents/` | нативные project hooks после доверия workspace; критичные PreToolUse/Stop закрываются отказом |
 | Qwen Code | `qwen` | `.qwen/` (навыки, настройки), `QWEN.md`, `AGENTS.md` | хуки (подмножество хуков Claude) |
 | Kilo Code | `kilo` | `.kilo/`, `.kilocode/mcp.json`, `AGENTS.md` | ничего на границе инструмента — только гейты MCP |
 | OpenCode | `opencode` | `.opencode/` (один плагин QG-0), `opencode.json` | плагин QG-0 для Rule 1; для Rule 2 — ничего |
@@ -167,9 +167,8 @@ tausik_session_end                        .tausik/tausik session end
 * **Правила, перехватывающие ТВОЁ действие.** Rule 1 (нет записи файла без
   активной задачи), Rule 2 (нет записи вне объявленной области), shell-файрвол,
   push-гейт. Они есть только там, где хук бежит перед инструментом: Claude
-  Code, Qwen Code, Codex (после доверия), и один Rule 1 на OpenCode. На Cursor
-  и Kilo между тобой и файлом никого нет — хук это ты: стартуй задачу до первой
-  правки.
+  Code, Qwen Code, Codex и Cursor (после доверия), и один Rule 1 на OpenCode.
+  Kilo по-прежнему полагается на MCP-гейты и дисциплину агента.
 
 Там, где хук бежит, запись без активной задачи отклоняется до изменения файла:
 

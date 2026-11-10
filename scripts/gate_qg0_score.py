@@ -14,9 +14,7 @@ import re
 from typing import Any
 
 
-_FILE_RE = re.compile(
-    r"\b[\w/.-]+\.(py|js|ts|tsx|jsx|go|rs|java|kt|php|md|json|yaml|yml|sql|sh)\b"
-)
+_FILE_RE = re.compile(r"\b[\w/.-]+\.(py|js|ts|tsx|jsx|go|rs|java|kt|php|md|json|yaml|yml|sql|sh)\b")
 _MEMORY_RE = re.compile(r"\bmemory\s*#?\d+\b|\bmem_\d+\b|\b#\d+\s+\[", re.IGNORECASE)
 
 

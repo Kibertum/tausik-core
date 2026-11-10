@@ -54,7 +54,8 @@ def _make_project(tmp_path, ide_dir=".claude"):
         scripts = tmp_path / ide_dir / "scripts"
         scripts.mkdir(parents=True)
         (scripts / "project.py").write_text(_STUB)
-    install_cli_wrapper(_BOOTSTRAP, str(tausik_dir))
+    primary_ide = (ide_dir or ".claude").removeprefix(".")
+    install_cli_wrapper(_BOOTSTRAP, str(tausik_dir), primary_ide)
     return tausik_dir
 
 
@@ -93,7 +94,7 @@ class TestCmdWrapper:
             encoding="utf-8",
         )
         assert result.returncode == 1
-        assert result.stderr.count("no scripts dir found") == 1
+        assert result.stderr.count("configured TAUSIK profile") == 1
         assert "STUB_OK" not in result.stdout
 
 
@@ -133,7 +134,7 @@ class TestShWrapper:
             encoding="utf-8",
         )
         assert result.returncode == 1
-        assert result.stderr.count("no scripts dir found") == 1
+        assert result.stderr.count("configured TAUSIK profile") == 1
         assert "STUB_OK" not in result.stdout
 
 
@@ -155,3 +156,54 @@ def test_rendered_wrapper_contains_kilo(tmp_path):
         rendered = (tausik_dir / fname).read_text(encoding="utf-8")
         assert "__IDE_LIST__" not in rendered, f"{fname} placeholder not substituted"
         assert "kilo" in rendered, f"{fname} missing kilo in injected IDE list"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="cmd wrapper is Windows-only")
+def test_configured_cursor_profile_beats_stale_claude_sibling(tmp_path):
+    tausik_dir = tmp_path / ".tausik"
+    tausik_dir.mkdir()
+    for profile, marker in ((".claude", "STALE"), (".cursor", "CURRENT")):
+        scripts = tmp_path / profile / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "project.py").write_text(
+            f"import sys\nprint('{marker} ' + ' '.join(sys.argv[1:]))\n", encoding="utf-8"
+        )
+    install_cli_wrapper(_BOOTSTRAP, str(tausik_dir), "cursor")
+
+    result = subprocess.run(
+        ["cmd", "/c", str(tausik_dir / "tausik.cmd"), "status"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "CURRENT status" in result.stdout
+    assert "STALE" not in result.stdout
+
+
+@pytest.mark.skipif(
+    os.name == "nt" or shutil.which("bash") is None,
+    reason="POSIX sh wrapper; git-bash path interop on Windows is unreliable",
+)
+def test_posix_configured_cursor_profile_beats_stale_claude_sibling(tmp_path):
+    tausik_dir = tmp_path / ".tausik"
+    tausik_dir.mkdir()
+    for profile, marker in ((".claude", "STALE"), (".cursor", "CURRENT")):
+        scripts = tmp_path / profile / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "project.py").write_text(
+            f"import sys\nprint('{marker} ' + ' '.join(sys.argv[1:]))\n", encoding="utf-8"
+        )
+    install_cli_wrapper(_BOOTSTRAP, str(tausik_dir), "cursor")
+
+    result = subprocess.run(
+        ["bash", str(tausik_dir / "tausik"), "status"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "CURRENT status" in result.stdout
+    assert "STALE" not in result.stdout

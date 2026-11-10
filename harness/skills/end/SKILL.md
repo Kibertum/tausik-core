@@ -42,6 +42,12 @@ not re-type what the records already say. Pass only your judgement, if any:
 
 These land on top, marked in `authored_fields`.
 
+For active work the generated handoff also carries the bound package
+fingerprint, first incomplete step, last verified evidence, pending continuity
+requirement, and a copy-ready resume command. Do not replace those fields with
+recollection. If this handoff consumed a recovery lease, the next thread must
+reload the task package before implementation resumes.
+
 **Note:** `session end` generates the handoff itself when none was written in the session, so a session never ends without one (SENAR §7.3).
 
 ### 3. Record Decisions
@@ -77,5 +83,6 @@ Ask the user: "Commit changes? (y/n)"
 - **Decisions should be recorded before ending** — they're linked to the session.
 - **Dead ends must be documented** (SENAR Rule 9.4) — check if any failed approaches weren't recorded.
 - **Don't save framework instructions to memory** — only project-specific patterns.
+- **Do not end through a refused Stop.** Finish QG-2, record a verified blocker, or create the hard-ceiling checkpoint handoff first.
 
 **Final message:** "Session closed. Start a new session with `/start` when ready."

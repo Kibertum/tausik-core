@@ -17,12 +17,30 @@ TAUSIK не привязан к конкретной модели. Skills раб
 | Платформа | Scaffolded | Файл конфигурации | Расположение skills | Файл инструкций |
 |-----------|-----------|-------------------|---------------------|-----------------|
 | Claude Code | да | `.claude/settings.json` | `.claude/skills/` | `CLAUDE.md` |
-| Cursor | да | `.cursor/settings.json` | `.cursor/skills/` | `.cursorrules` |
+| Cursor | да | `.cursor/mcp.json` + `.cursor/hooks.json` | `.cursor/skills/` | `.cursor/rules/tausik.mdc` |
+
+В 1.11.8 заявления для Codex и Cursor дополнительно проверяет
+контент-адресованный Windows-runner приёмки. Он покрывает ownership Cursor
+Agents, перевод payload нативных hooks, доверенную identity, restart в новом
+процессе и fail-open матрицу Codex Stop. См.
+`dist/adherence-1.11.8.json`; при публикации файл прикрепляется к GitHub Release.
 | Qwen Code | да | `.qwen/settings.json` | `.qwen/skills/` | `QWEN.md` |
 | Kilo Code | да | `.kilo/` | `.kilo/skills/` | `AGENTS.md` |
 | OpenCode | да | `opencode.json` | `.opencode/skills/` | `.opencode/tausik-rules.md` |
 | Codex | да | `.codex/config.toml` + `.codex/hooks.json` | `.codex/skills/` | `AGENTS.md` |
 | Windsurf | нет | `.windsurf/` | — | `.windsurfrules` |
+
+> **Cursor (1.11.8).** Bootstrap пишет актуальное always-apply правило `.mdc`,
+> нативные project hooks, MCP-транспорт и named agents. Чужие правила, hooks,
+> agents и пользовательский legacy `.cursorrules` сохраняются; повреждённый JSON
+> остаётся байт-в-байт и получает явную ошибку. Adapter привязан к выбранному
+> bootstrap Python и проекту. Одноимённый agent обновляется только с меткой
+> владения TAUSIK или в распознанном legacy generated-формате; пользовательская
+> коллизия сохраняется. И успешный, и неуспешный исход инструмента завершают
+> долговечный preflight-аудит. Enforcement начинается только
+> после доверия workspace. В ранней read-only фазе Cursor cloud часть lifecycle
+> events отсутствует, поэтому TAUSIK заявляет fail-closed защиту начиная с первого
+> пишущего `preToolUse`.
 
 > **OpenCode (с v1.7.0).** `bootstrap.py --ide opencode` пишет `opencode.json`
 > (MCP-серверы + ключ `instructions`), кладёт правила в `.opencode/tausik-rules.md`
@@ -96,11 +114,19 @@ advisory-политика является блокировкой: наприм�
 
 | Контракт | Режим | Механизм на диске |
 |----------|-------|-------------------|
+| Protected memory preflight | hard | Codex `PreToolUse` резервирует точный токен lease/package/content/action, а `PostToolUse` завершает его, только если пользователь доверил project hooks; механизм не покрывает вредоносный shell того же пользователя. |
 | QG-0 Context Gate | hard | `tausik_task_start` отклоняет неполную задачу через MCP и CLI. |
 | QG-2 Implementation Gate / Verify-First | hard | `tausik_task_done` отказывает в закрытии без свежей подписанной квитанции `tausik_verify`. |
 | Rule 9.2 Session limit | signal | `tausik_task_start` печатает совет выше порога active-time и не отказывает (1.10). |
 | Rule 1 Task before code | hard | `.codex/hooks.json` подключает `task_gate.py` к Codex `PreToolUse` — **только после того, как пользователь доверил хуки проекта в Codex**; недоверенный профиль не принуждает ничего (замерено живьём). |
 | Rule 2 Scope Boundaries | hard | `.codex/hooks.json` подключает `scope_write_gate.py` и `bash_write_gate.py` к Codex `PreToolUse` — **только после того, как пользователь доверил хуки проекта в Codex**; покрытие shell — объявленный каталог, а не обещание истолковать любую программу. |
+
+Та же доверенная identity `PreToolUse` покрывает прямые MCP-вызовы и
+ограниченные literal-вызовы внутри Codex `functions.exec`. Capability v5
+аттестует composite parser, write/PostToolUse adapters, UserPromptSubmit/Stop adapters и точный Python-интерпретатор bootstrap; при неполном
+транспорте bootstrap не включает lease enforcement, а startup/doctor называют
+способ ремонта. После регенерации профиля перезапустите Codex или откройте
+свежий поток.
 
 `tests/test_codex_support_matrix.py` читает обе языковые таблицы, требует этот
 полный перечень и генерирует профиль Codex до принятия любой строки `hard`.

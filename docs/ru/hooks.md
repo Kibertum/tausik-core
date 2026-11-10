@@ -4,7 +4,7 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
-TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **23 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 24 шлюза (v1.4 добавил `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, `task_cost_budget_check.py`; 1.8 добавил `scope_write_gate.py` и `bash_write_gate.py`; 1.9 добавил `read_ledger_gate.py`, выключенный по умолчанию).
+TAUSIK использует хуки Claude Code для автоматического контроля качества. Хуки перехватывают действия агента **до** и **после** выполнения — это шлюзы, не инструкции. **24 Python-хука + 1 shell `pre-commit`** идут с TAUSIK — всего 25 шлюзов (1.11.8 добавил Codex-хук `can_stop_gate.py`).
 
 ## Что такое хуки
 
@@ -55,6 +55,7 @@ TAUSIK использует хуки Claude Code для автоматическ
 | Хук | Когда | Что делает |
 |------|-------|-----------|
 | `keyword_detector.py` | На остановке агента | Ловит "I'll implement"/"сейчас напишу" drift-фразы → блокирует stop |
+| `can_stop_gate.py` | На доверенной остановке Codex | Потребляет текущую durable-запись хода и блокирует незавершённую работу с точным следующим шагом плана. Ошибки runtime закрывают шлюз. |
 | `session_cleanup_check.py` | На остановке агента | Предупреждает об открытом exploration / review-задачах / session timeout |
 
 ## SessionEnd
@@ -77,8 +78,19 @@ TAUSIK использует хуки Claude Code для автоматическ
 | codex | hook | hook | SessionStart / SessionEnd из общего объявления хуков | codex 0.153.4: перечень событий содержит SessionStart и SessionEnd |
 | opencode | plugin | plugin | `session.created` / `session.deleted` в плагине `tausik-qg0.js` | opencode 1.1.42: события плагина в бинаре |
 | kilo | cli | cli | `tausik session start` / `session end` руками | событий сессии у профиля нет |
-| cursor | cli | cli | `tausik session start` / `session end` руками | профиль без хуков |
+| cursor | hook | hook | автоматически после доверия project hooks | Нативный `.cursor/hooks.json`; критичные PreToolUse и Stop используют `failClosed` |
 <!-- /host-session-table -->
+
+Cursor запускает эти адаптеры только после доверия project hooks рабочего
+пространства. Bootstrap привязывает каждый adapter к выбранному Python и проекту,
+аттестует весь сгенерированный hooks-конфиг и направляет `postToolUse` вместе с
+`postToolUseFailure` в долговечный preflight-аудит. Управляемый MCP-сервер Cursor
+также требует execution lease, привязанную к Cursor, поэтому прямой изменяющий
+MCP-вызов не обходит авторизацию `preToolUse`. Cloud agents Cursor не запускают
+`sessionStart`, `sessionEnd`,
+`beforeMCPExecution` и `afterMCPExecution` в ранней read-only фазе. Поэтому
+первый пишущий `preToolUse` закрывается отказом, если доверенная execution lease
+не выдана; TAUSIK не заявляет enforcement для предшествующей read-only фазы.
 
 Где стоит `cli`, теряется то, что делает закрытие хуком: запись метрик
 транскрипта и порождённый handoff в момент выхода. `session end` руками делает

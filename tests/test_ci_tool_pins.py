@@ -1,4 +1,4 @@
-"""Every CI install of a verdict-deciding static tool goes through the pin file.
+"""Every CI install of a verdict-deciding test/static tool goes through the pin file.
 
 mypy-and-bandit-are-unpinned-in-ci-like-ruff-was: CI installed ruff, mypy and
 bandit bare, so a lane's verdict depended on the release of the night before —
@@ -17,7 +17,7 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parents[1]
 CONSTRAINTS = _ROOT / "ci-constraints.txt"
-PINNED_TOOLS = ("ruff", "mypy", "bandit")
+PINNED_TOOLS = ("pytest", "ruff", "mypy", "bandit")
 INSTALL_SOURCES = (
     ".github/workflows/tests.yml",
     ".github/workflows/security-review.yml",

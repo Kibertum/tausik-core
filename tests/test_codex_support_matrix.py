@@ -8,6 +8,7 @@ same rule-coverage classifier used by the generated host notice.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -19,12 +20,14 @@ for _path in (str(_ROOT / "scripts"), str(_ROOT / "bootstrap")):
         sys.path.insert(0, _path)
 
 from bootstrap_codex import generate_codex_hooks  # noqa: E402
+from hooks.codex_capability import split_hook_command  # noqa: E402
 import rule_coverage as coverage  # noqa: E402
 
 
 MATRIX_HEADING = "### Codex enforcement matrix"
 RU_MATRIX_HEADING = "### Матрица принуждения Codex"
 PROMISED_RULES = (
+    "Protected memory preflight",
     "QG-0 Context Gate",
     "QG-2 Implementation Gate / Verify-First",
     "Rule 9.2 Session limit",
@@ -79,6 +82,15 @@ def test_every_hard_codex_row_has_a_mechanism_in_the_generated_profile(tmp_path)
             f"{promised} is documented hard but generated Codex has no mechanism: "
             f"{held[coverage_name]}"
         )
+    hooks = json.loads((profile / "hooks.json").read_text(encoding="utf-8"))["hooks"]
+    scripts = {
+        Path(split_hook_command(hook["command"])[3]).name
+        for entries in hooks.values()
+        for entry in entries
+        for hook in entry["hooks"]
+        if not hook["command"].endswith(" 2>&1 || true")
+    }
+    assert {"codex_write_gate.py", "memory_preflight_posttool.py"} <= scripts
 
 
 # The two rows whose mechanism is the HOST intercepting its own action. A hook
@@ -87,7 +99,11 @@ def test_every_hard_codex_row_has_a_mechanism_in_the_generated_profile(tmp_path)
 # the other half — an untrusted generated profile let the forbidden write
 # through (session #251). The profile scan above cannot see trust, so the
 # precondition must be stated on the row itself, in both languages.
-HOST_INTERCEPTION_RULES = ("Rule 1 Task before code", "Rule 2 Scope Boundaries")
+HOST_INTERCEPTION_RULES = (
+    "Protected memory preflight",
+    "Rule 1 Task before code",
+    "Rule 2 Scope Boundaries",
+)
 TRUST_MARKERS = {"en": ("trusted",), "ru": ("довери",)}
 
 

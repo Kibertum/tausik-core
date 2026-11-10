@@ -64,6 +64,11 @@ def main():
     except Exception:  # noqa: BLE001,S110 — never let stdio setup crash the server
         pass
 
+    capability_error = os.environ.get("TAUSIK_MCP_CAPABILITY_ERROR")
+    if capability_error:
+        print(f"Error: {capability_error}", file=sys.stderr)
+        sys.exit(2)
+
     # Pin the moment this process started, for the bootstrap_drift gate's
     # third link: a redeploy under a running server changes the files on disk
     # and nothing the server executes. The snapshot covers the scripts tree
@@ -102,6 +107,49 @@ def main():
             )
             sys.exit(2)
         os.chdir(args.project)
+
+    if os.environ.get("TAUSIK_ENFORCE_EXECUTION_LEASE") == "1":
+        trusted_host = os.environ.get("TAUSIK_TRUSTED_HOST", "codex").casefold()
+        if args.project is None:
+            print(
+                f"Error: CAPABILITY_MISMATCH: enforced {trusted_host} MCP requires --project; "
+                f"rerun bootstrap --ide {trusted_host}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        try:
+            if trusted_host == "cursor":
+                from hooks.cursor_capability import cursor_preflight_hooks_ready
+
+                capability_rows = (
+                    [("ok", "Cursor hooks", "attested")]
+                    if cursor_preflight_hooks_ready(args.project)
+                    else [("fail", "Cursor hooks", "Cursor hook capability is missing or stale")]
+                )
+            elif trusted_host == "codex":
+                from service_doctor_codex import check_codex_mcp_transport
+
+                capability_rows = check_codex_mcp_transport(args.project)
+            else:
+                capability_rows = [
+                    ("fail", "Trusted host", f"unsupported trusted host {trusted_host!r}")
+                ]
+        except Exception as exc:  # noqa: BLE001 - startup must fail closed on attestation errors
+            print(
+                f"Error: CAPABILITY_MISMATCH: {trusted_host} MCP attestation failed "
+                f"({type(exc).__name__}); rerun bootstrap --ide {trusted_host}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        failures = [detail for status, _name, detail in capability_rows if status == "fail"]
+        if not capability_rows:
+            failures.append(
+                f"CAPABILITY_MISMATCH: {trusted_host} MCP profile is not installed; "
+                f"rerun bootstrap --ide {trusted_host}"
+            )
+        if failures:
+            print(f"Error: {failures[0]}", file=sys.stderr)
+            sys.exit(2)
 
     try:
         from mcp.server import Server
@@ -212,6 +260,7 @@ def main():
         # property of the way any tool is called, not of any one of them. Kept
         # out of the except below so the host log does not read a refused typo as
         # a crashed tool: nothing failed, the call was turned away.
+        authorization = arguments.pop("_tausik_authorization", None)
         try:
             reject_unknown_arguments(TOOLS, name, arguments)
         except ValueError as e:
@@ -227,7 +276,7 @@ def main():
 
         def _run_tool():
             with registry.call_context(project_dir):
-                return handle_tool(call_svc, name, arguments)
+                return handle_tool(call_svc, name, arguments, authorization=authorization)
 
         try:
             result = await asyncio.to_thread(_run_tool)

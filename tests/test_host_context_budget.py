@@ -12,6 +12,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import service_host_context as policy
 from project_backend import SQLiteBackend
 from project_service import ProjectService
+from service_execution_lease import (
+    assertion_from_session_start,
+    issue_execution_lease,
+    reconcile_execution_lease_state,
+)
 from tausik_utils import ServiceError
 
 
@@ -70,6 +75,54 @@ def test_hard_ceiling_refuses_an_old_unbound_thread_and_stops_a_bound_one(svc, m
     assert refused["host_context"]["allow_continue"] is False
     assert stopped["host_context"]["allow_continue"] is False
     assert stopped["host_context"]["checkpoint_saved"] is True
+
+
+def test_hard_ceiling_revokes_live_lease_and_checkpoints_only_once(svc, monkeypatch):
+    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    project = os.path.dirname(svc.tausik_dir())
+    assertion = assertion_from_session_start(
+        {"hook_event_name": "SessionStart", "session_id": "thread-a"},
+        project,
+        trusted_host="codex",
+    )
+    reconcile_execution_lease_state(svc, assertion)
+    lease = issue_execution_lease(svc, assertion)
+
+    first = policy.open_session(
+        svc, host="codex", thread_id="thread-a", usage=measured(responses=32)
+    )
+    repeated = policy.open_session(
+        svc, host="codex", thread_id="thread-a", usage=measured(responses=32)
+    )
+
+    assert first["host_context"]["checkpoint_saved"] is True
+    assert repeated["host_context"]["checkpoint_saved"] is False
+    assert svc.be._execution_lease_by_nonce(lease["nonce"])["revoked_at"] is not None
+    assert svc.be.session_current("thread-a") is None
+
+
+def test_pretool_boundary_rejects_old_thread_after_hard_ceiling(svc, monkeypatch):
+    hooks_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks")
+    if hooks_dir not in sys.path:
+        sys.path.insert(0, hooks_dir)
+    import execution_lease_gate
+
+    project = os.path.dirname(svc.tausik_dir())
+    assertion = assertion_from_session_start(
+        {"hook_event_name": "SessionStart", "session_id": "thread-a"},
+        project,
+        trusted_host="codex",
+    )
+    reconcile_execution_lease_state(svc, assertion)
+    lease = issue_execution_lease(svc, assertion)
+    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(policy, "_usage", lambda *_args: measured(responses=32))
+
+    allowed, reason = execution_lease_gate.require_live_lease({"session_id": "thread-a"}, project)
+
+    assert allowed is False
+    assert "HOST_CONTEXT_HARD" in reason
+    assert svc.be._execution_lease_by_nonce(lease["nonce"])["revoked_at"] is not None
 
 
 def test_hard_ceiling_checkpoints_a_legacy_unbound_session_without_reopening_it(svc, monkeypatch):

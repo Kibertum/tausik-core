@@ -48,6 +48,10 @@ Large handoffs use a summary of at most 4096 UTF-8 bytes (serialized handoff sec
 
 Call `tausik_update_claudemd`. This refreshes the dynamic section AND injects compact memory tail (recent decisions + conventions + dead ends, one line each) so memory persists across sessions without a separate re-injection call.
 
+The task package fingerprint is also the protected-action memory boundary.
+After start/resume, use `tausik_memory_preflight` for the exact upcoming Codex
+protected action. A package refresh invalidates earlier preflight tokens.
+
 ### Phase 3 — Present Dashboard (under 800 tokens)
 
 > **Lite mode (`/start --lite` or `/start lite`):** skip the full dashboard render. Output ≤ 50 lines: one line per signal — Session #N, counts (active/blocked/planning), MCP Health (only if drift/siblings), one-sentence Suggested Next. Skip handoff body, skip per-task title, skip warnings rendering. Default `/start` is unchanged. Use Lite when you already know the project state and only want the cheap "session is open, nothing new" confirmation.
@@ -78,3 +82,4 @@ Narrow before you read: `Grep` with a `path`/`glob`, `Read` with `offset`/`limit
 - **Session numbering** is auto-incremented. If `session start` fails, DB might be locked — check `.tausik/tausik.db-wal`.
 - **Session duration limit** — SENAR Rule 9.2. If `compact` status flags warning, surface it prominently and suggest `/end`.
 - **MCP self_check** is bundled into `tausik_session_open` (Phase 1) — it's the only signal for stale-module hangs (#77/#79/#80). If `self_check.drift_detected=true`, do NOT trust subsequent MCP results in this session; warn the user and use `.tausik/tausik` CLI for verify/task_done until IDE restart.
+- **Trusted Stop is turn-bound on Codex.** A refused Stop is not a completed turn; continue with the exact action returned by `can_stop`.

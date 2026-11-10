@@ -69,7 +69,7 @@ All keys sit at the root of `.tausik/config.json` unless a path says otherwise.
 
 For explanation-shaped prompts, the prompt hook adds a conditional format matrix. Concise prose remains the fallback; tables serve repeated exact comparisons, Mermaid serves connected structure, and HTML requires an explicit or named interactive need. The router never selects video. Ordinary prompts do not pay for this extra instruction.
 
-**Bootstrap refreshes only rules files it can prove it still owns.** Newly generated `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `QWEN.md` and OpenCode rules carry a TAUSIK ownership stamp. When that stamp still matches, a later `context_tier`, `output_mode` or `governance_profile` change refreshes the generated static rules while preserving the current DYNAMIC state block. Any manual edit invalidates the stamp. Customized files and legacy files without a stamp are preserved, and bootstrap warns instead of overwriting them.
+**Bootstrap refreshes only rules files it can prove it still owns.** Newly generated `CLAUDE.md`, `AGENTS.md`, `.cursor/rules/tausik.mdc`, `QWEN.md` and OpenCode rules carry a TAUSIK ownership stamp. When that stamp still matches, a later `context_tier`, `output_mode` or `governance_profile` change refreshes the generated static rules while preserving the current DYNAMIC state block. Any manual edit invalidates the stamp. Customized files and legacy files without a stamp, including `.cursorrules`, are preserved, and bootstrap warns instead of overwriting them.
 
 **The MCP close returns structure.** `tausik_task_done` answers with `stage`, `gate_results` and `blocking_failures`, so an agent can fix what failed without parsing prose.
 

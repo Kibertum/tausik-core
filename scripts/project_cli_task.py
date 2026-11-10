@@ -1,11 +1,4 @@
-"""TAUSIK CLI handlers — task subcommand dispatch + task-specific helpers.
-
-Extracted from project_cli.py to keep that module under the 400-line filesize
-gate (filesize-debt-paydown-2). Pure re-org — no semantic changes. Helpers
-that are only referenced by cmd_task (_auto_slug, _print_task_detail,
-_print_with_warnings) live here; _print_table stays in project_cli.py because
-other commands (epic/story/session/decisions) still need it.
-"""
+"""TAUSIK CLI task subcommand dispatch and task-specific render helpers."""
 
 from __future__ import annotations
 
@@ -44,7 +37,7 @@ def _emit_compound(result: dict[str, Any]) -> None:
         raise SystemExit(1)
 
 
-def cmd_task(svc: ProjectService, args: Any) -> None:
+def _cmd_task(svc: ProjectService, args: Any) -> None:
     from project_cli import _print_table
 
     c = args.task_cmd
@@ -132,7 +125,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                     svc,
                     args.slug,
                     max_bytes=(
-                        8_192 if getattr(args, "max_bytes", None) is None else args.max_bytes
+                        16_384 if getattr(args, "max_bytes", None) is None else args.max_bytes
                     ),
                 )
             )
@@ -177,16 +170,39 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
             )
         )
     elif c == "start":
+        from service_execution_lease import (
+            ExecutionLeaseError,
+            consume_mcp_authorization,
+        )
+
+        try:
+            lease = consume_mcp_authorization(
+                svc, route="cli_task_start", arguments={"slug": args.slug}
+            )
+        except ExecutionLeaseError as exc:
+            if exc.code != "IDENTITY_MISSING":
+                raise
+            lease = None
+        lease_id = int(lease["id"]) if lease is not None else None
         if getattr(args, "package", False):
             from task_start_result import serialize_start_with_context
 
             print(
                 serialize_start_with_context(
-                    svc, args.slug, max_bytes=getattr(args, "max_bytes", 8192)
+                    svc,
+                    args.slug,
+                    max_bytes=getattr(args, "max_bytes", 16384),
+                    execution_lease_id=lease_id,
                 )
             )
             return
-        _print_with_warnings(svc.task_start(args.slug, force=getattr(args, "force", False)))
+        _print_with_warnings(
+            svc.task_start(
+                args.slug,
+                force=getattr(args, "force", False),
+                execution_lease_id=lease_id,
+            )
+        )
     elif c == "done":
         # Gate progress is deterministic runner state. Returning it line by
         # line makes every close larger without giving the model a decision;
@@ -209,6 +225,7 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                     args.slug,
                     compound_message,
                     compound_step,
+                    step_evidence=getattr(args, "step_evidence", None),
                     close=True,
                     verify=bool(getattr(args, "verify", False)),
                     verify_handle=getattr(args, "verify_handle", None),
@@ -268,7 +285,8 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
 
         print(close_obsolete(svc, args.slug, args.reason))
     elif c == "block":
-        print(svc.task_block(args.slug, args.reason, args.question, args.unblock_when))
+        block_fields = ("reason", "question", "unblock_when", "attempt_event_ids", "resume_action")  # fmt: skip
+        print(svc.task_block(args.slug, *(getattr(args, field) for field in block_fields)))
     elif c == "unblock":
         print(svc.task_unblock(args.slug, args.criterion_met, args.by))
     elif c == "review":
@@ -335,9 +353,17 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
         if getattr(args, "message", None) is not None:
             from task_progress_close import run_progress_close
 
-            _emit_compound(run_progress_close(svc, args.slug, args.message, args.step_num))
+            _emit_compound(
+                run_progress_close(
+                    svc,
+                    args.slug,
+                    args.message,
+                    args.step_num,
+                    step_evidence=getattr(args, "evidence", None),
+                )
+            )
             return
-        print(svc.task_step(args.slug, args.step_num))
+        print(svc.task_step(args.slug, args.step_num, getattr(args, "evidence", None)))
     elif c == "move":
         print(svc.task_move(args.slug, args.new_story_slug))
     elif c == "rename":
@@ -393,6 +419,9 @@ def cmd_task(svc: ProjectService, args: Any) -> None:
                 )
                 return
         print(f"Usage: tausik task [{subcmds}]")
+
+
+from project_cli_task_continuity import cmd_task  # noqa: E402,F401
 
 
 def _print_with_warnings(result: str) -> None:

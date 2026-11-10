@@ -128,3 +128,4 @@ When tracking the bug across files, narrow before you read: `Grep` with a `path`
 - **Don't assume the bug is where the error appears** — trace the full call chain. The real cause is often 2-3 frames up the stack.
 - **Windows-specific bugs** are common in path handling (`\` vs `/`), encoding (`cp1252` vs `utf-8`), and subprocess (`shell=True` behaves differently).
 - **Async bugs** rarely reproduce deterministically — add logging at await points to capture timing.
+- **A blocker needs evidence.** Persist real failed attempts or verified unavailable authority on the current lease; prose alone cannot satisfy `can_stop`.

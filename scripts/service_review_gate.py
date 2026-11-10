@@ -6,6 +6,14 @@ from pathlib import Path
 from typing import Any
 
 
+def external_agent_review_enabled(service: Any) -> bool:
+    """Whether this project explicitly opts into second-agent closure review."""
+    from project_config import load_config
+
+    section = load_config(service.tausik_dir()).get("review")
+    return isinstance(section, dict) and section.get("external_agents") is True
+
+
 def enforce_assurance_review(
     service: Any,
     task: dict[str, Any],
@@ -14,6 +22,9 @@ def enforce_assurance_review(
     report: dict[str, Any],
 ) -> bool:
     """Append a blocking failure when the latest review cannot satisfy the route."""
+    if not external_agent_review_enabled(service):
+        return False
+
     from stack_registry import registry_for_project
 
     stack = task.get("stack")

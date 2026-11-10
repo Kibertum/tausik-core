@@ -155,7 +155,12 @@ def task_terms(task: dict[str, Any], decisions: list[dict[str, Any]] | None = No
     add(_path_terms(task.get("scope_paths")))
     add(_words((task.get("story_slug") or task.get("story") or "").replace("-", " ")))
     for d in decisions or []:
-        add(_words(" ".join(str(t) for t in _as_list(d.get("tags"))) or str(d.get("tags") or "").replace(",", " ")))
+        add(
+            _words(
+                " ".join(str(t) for t in _as_list(d.get("tags")))
+                or str(d.get("tags") or "").replace(",", " ")
+            )
+        )
     return ordered[:MAX_TERMS]
 
 
@@ -180,14 +185,17 @@ def search_any(be: Any, terms: list[str], n: int = 24) -> list[dict[str, Any]]:
     sql = (
         "SELECT m.* FROM memory m JOIN fts_memory f ON m.id=f.rowid "
         "WHERE fts_memory MATCH ? AND m.archived_at IS NULL "
-        "ORDER BY bm25(fts_memory, 10.0, 1.0, 3.0) LIMIT ?"
+        "ORDER BY bm25(fts_memory, 10.0, 1.0, 3.0), m.id ASC LIMIT ?"
     )
     rows: list[dict[str, Any]] = be._q(sql, (" OR ".join(quoted), n))
     return rows
 
 
 def _tags_text(row: dict[str, Any]) -> str:
-    return " ".join(str(t) for t in _as_list(row.get("tags"))).lower() or str(row.get("tags") or "").lower()
+    return (
+        " ".join(str(t) for t in _as_list(row.get("tags"))).lower()
+        or str(row.get("tags") or "").lower()
+    )
 
 
 def _score(row: dict[str, Any], terms: list[str]) -> tuple[float, list[str]]:

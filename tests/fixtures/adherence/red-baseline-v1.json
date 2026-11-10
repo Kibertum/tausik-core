@@ -1,0 +1,36 @@
+{
+  "accepted": false,
+  "base_commit_sha": "d7c2ec13e02dee7d25c972dfa06901b115e5fa30",
+  "census_reconciliation": {
+    "matched": 0,
+    "passed": false,
+    "rows": [
+      {"action_id": "action-19c338471d0f0471", "event_count": 0, "matched": false, "route": "service.session_start"},
+      {"action_id": "action-2ec9d95b9d5c080b", "event_count": 0, "matched": false, "route": "service.task_start"},
+      {"action_id": "action-3bedc062c4605906", "event_count": 0, "matched": false, "route": "service.reasoning_step_add"},
+      {"action_id": "action-53babf9a5ea4ef88", "event_count": 0, "matched": false, "route": "cli.task.log"},
+      {"action_id": "action-b49c09252dc1374c", "event_count": 0, "matched": false, "route": "mcp.tausik_task_log"},
+      {"action_id": "action-90e764938710514c", "event_count": 0, "matched": false, "route": "hook.PreToolUse.git_push_gate.py.340e36342517.813d4d8eba7d"},
+      {"action_id": "action-0d3ee644de55e9ea", "event_count": 0, "matched": false, "route": "hook.Stop.session_cleanup_check.py.e3b0c44298fc.e683c91bbb2a"}
+    ],
+    "total": 7
+  },
+  "content_sha256": "b811ce59f92bf04a449b1fa7b2acdda31a0e20d92a24b88566747401cbed2edc",
+  "contract_bundle_sha256": "2eba0b5349cb60b9607aeec6175778399ce634456ca58a7251ea4a86fff4f071",
+  "counts": {"collected": 13, "deselected": 0, "failed": 13, "passed": 0},
+  "evaluator_sha256": "85d0a3cb20718c6337a6d92c66781eb163b27c2dc325cc9967375aa88288543e",
+  "fixture_sha256": "ac28c5b68a9399f2f8ea089878acb4aeb72b196ea96e8b7741356c9d007f90fd",
+  "integration_census_sha256": "fc530726ad8df439b7ef27356b67a0aad2ff3263bb33deec336e3b22e7faf91a",
+  "metrics": {
+    "active_dead_end_repeats_without_override": {"count": 1, "denominator": 1, "passed": false, "threshold": 0},
+    "complete_task_packages": {"denominator": 1, "numerator": 0, "passed": false, "threshold": "100%"},
+    "correct_hard_ceiling_handoff_resumes": {"denominator": 1, "numerator": 0, "passed": false, "threshold": "100%"},
+    "premature_stops": {"count": 1, "denominator": 1, "passed": false, "threshold": 0},
+    "protected_memory_preflights": {"denominator": 1, "numerator": 0, "passed": false, "threshold": "100%"},
+    "required_continuity": {"denominator": 2, "numerator": 0, "passed": false, "threshold": "100%"},
+    "valid_execution_leases": {"denominator": 6, "numerator": 0, "passed": false, "threshold": "100%"}
+  },
+  "phase": "acceptance",
+  "policy_sha256": "6560a8c5817aef6e6176f01f890bc57fc3f14fdf7991fefdd213c667562e5b90",
+  "registry_sha256": "0a196fd57eaf3ed2752a6d08ecadede85a1b74474dc862e839439479bccfff7c"
+}

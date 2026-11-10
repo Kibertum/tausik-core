@@ -155,7 +155,7 @@ class TestTheGeneratedFilesCarryIt:
     """Run the real generators; read what landed on disk."""
 
     def _generate(self, tmp_path: Path, ide: str) -> str:
-        from bootstrap_generate import generate_claude_md, generate_cursorrules
+        from bootstrap_generate import generate_claude_md, generate_cursor_rule
         from bootstrap_opencode import generate_opencode_rules
         from bootstrap_qwen import generate_qwen_md
 
@@ -163,7 +163,7 @@ class TestTheGeneratedFilesCarryIt:
         if ide == "claude":
             generate_claude_md(p, name, stacks)
         elif ide == "cursor":
-            generate_cursorrules(p, name, stacks)
+            generate_cursor_rule(p, name, stacks)
         elif ide == "qwen":
             generate_qwen_md(p, name, stacks)
         elif ide == "opencode":
@@ -205,28 +205,24 @@ class TestTheGeneratedFilesCarryIt:
 
 
 class TestTheBorderIsHeld:
-    """The gap is DECLARED, not closed. Closing it was never this task."""
+    """Cursor's native mechanism is measured from the generated profile."""
 
-    def test_bootstrap_writes_no_hooks_payload_for_cursor(self, tmp_path: Path):
-        from bootstrap_generate import generate_cursorrules
+    def test_bootstrap_writes_hooks_payload_for_cursor(self, tmp_path: Path):
+        from bootstrap_generate import generate_cursor_hooks_json
 
-        generate_cursorrules(str(tmp_path), "proj", ["python"])
+        generate_cursor_hooks_json(str(tmp_path), str(tmp_path / ".cursor"))
         # permissions joined the shape with Kilo's policy; cursor
         # still gets nothing — the border this test holds.
-        assert be.deployed_enforcement(str(tmp_path / ".cursor")) == {
-            "hooks": 0,
-            "plugins": 0,
-            "permissions": 0,
-        }
+        assert be.deployed_enforcement(str(tmp_path / ".cursor"))["hooks"] > 0
 
     def test_the_wrong_reason_is_gone_from_the_shipped_rules(self, tmp_path: Path):
         """The old caveat said Cursor has "no hooks API". That is a claim about
         the host, it was not ours to make, and a wrong reason closes an open
         question — worse than giving none."""
-        from bootstrap_generate import generate_cursorrules
+        from bootstrap_generate import generate_cursor_rule
 
-        generate_cursorrules(str(tmp_path), "proj", ["python"])
-        text = (tmp_path / ".cursorrules").read_text(encoding="utf-8")
+        generate_cursor_rule(str(tmp_path), "proj", ["python"])
+        text = (tmp_path / ".cursor" / "rules" / "tausik.mdc").read_text(encoding="utf-8")
         assert "no hooks API" not in text
         assert "does not expose a PreToolUse hooks API" not in text
         assert "TAUSIK does not generate a real-time payload for this host" in text
@@ -234,10 +230,10 @@ class TestTheBorderIsHeld:
     def test_no_host_is_named_as_enforced_without_being_measured(self, tmp_path: Path):
         """AC5: no imitation of parity. The rules table must not hand-list which
         hosts enforce Rule 1 — that list is what rotted."""
-        from bootstrap_generate import generate_cursorrules
+        from bootstrap_generate import generate_cursor_rule
 
-        generate_cursorrules(str(tmp_path), "proj", ["python"])
-        text = (tmp_path / ".cursorrules").read_text(encoding="utf-8")
+        generate_cursor_rule(str(tmp_path), "proj", ["python"])
+        text = (tmp_path / ".cursor" / "rules" / "tausik.mdc").read_text(encoding="utf-8")
         row = [ln for ln in text.splitlines() if "Rule 1 Task before code" in ln]
         assert row, "the Rule 1 row vanished"
         assert "Instruction-only in Cursor" not in row[0]
@@ -300,36 +296,41 @@ class TestDoctorSaysItAloud:
         assert "cursor: none" in summary
 
     def test_a_file_claiming_enforcement_without_a_mechanism_is_a_warning(self, tmp_path: Path):
-        (tmp_path / ".cursor").mkdir()
-        (tmp_path / ".cursorrules").write_text(
+        rules = tmp_path / ".cursor" / "rules"
+        rules.mkdir(parents=True)
+        (rules / "tausik.mdc").write_text(
             "Quality gates (`.tausik/tausik gates status`) enforce these automatically.\n",
             encoding="utf-8",
         )
         warns = [d for s, _, d in sde.check_enforcement_coverage(str(tmp_path)) if s == "warn"]
-        assert warns and ".cursorrules" in warns[0]
+        assert warns and "tausik.mdc" in warns[0]
 
     def test_the_legacy_wording_is_caught_and_not_only_the_new_one(self, tmp_path: Path):
         """The files still lying in the wild carry the OLD sentence. A matcher
         tuned to the new one would be blind to every single one of them."""
-        (tmp_path / ".cursor").mkdir()
+        rules = tmp_path / ".cursor" / "rules"
+        rules.mkdir(parents=True)
         legacy = "Quality gates (`.tausik/tausik gates status`) enforce these automatically."
         assert legacy != be.build_enforcement_notice(str(tmp_path / ".claude")).strip()
-        (tmp_path / ".cursorrules").write_text(legacy, encoding="utf-8")
+        (rules / "tausik.mdc").write_text(legacy, encoding="utf-8")
         assert any(s == "warn" for s, _, _ in sde.check_enforcement_coverage(str(tmp_path)))
 
     def test_a_file_denying_enforcement_that_has_it_is_also_a_warning(self, tmp_path: Path):
         """The other direction. A stale honest file understates the host, and an
         agent that believes it will skip gates that would have caught it."""
         _write_hooks(tmp_path / ".cursor", 3)
-        (tmp_path / ".cursorrules").write_text(be.NO_MECHANISM_NOTICE, encoding="utf-8")
+        rules = tmp_path / ".cursor" / "rules"
+        rules.mkdir(parents=True)
+        (rules / "tausik.mdc").write_text(be.NO_MECHANISM_NOTICE, encoding="utf-8")
         warns = [d for s, _, d in sde.check_enforcement_coverage(str(tmp_path)) if s == "warn"]
         assert warns and "instructions only" in warns[0]
 
     def test_the_declared_gap_is_not_a_warning(self, tmp_path: Path):
         """Cursor without a mechanism, and a file that says so, is the intended
         state. Warning here would train the reader to ignore this check."""
-        (tmp_path / ".cursor").mkdir()
-        (tmp_path / ".cursorrules").write_text(be.NO_MECHANISM_NOTICE, encoding="utf-8")
+        rules = tmp_path / ".cursor" / "rules"
+        rules.mkdir(parents=True)
+        (rules / "tausik.mdc").write_text(be.NO_MECHANISM_NOTICE, encoding="utf-8")
         assert not [s for s, _, _ in sde.check_enforcement_coverage(str(tmp_path)) if s == "warn"]
 
     def test_an_unscaffolded_project_says_nothing(self, tmp_path: Path):

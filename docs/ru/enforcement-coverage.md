@@ -2,6 +2,38 @@
 
 <!-- doc-map: reader=agent; zone=quality -->
 
+## Доказательство релиза 1.11.8
+
+Заявления о hard enforcement для Codex и Cursor выпускаются только через
+`python scripts/adherence_release.py`. Runner связывает точные Git commit и
+tree, policy, registry, fixtures, установленные bootstrap-проекции и хеши
+зафиксированных миграций. Crash, timeout, битый вывод и отсутствие вывода
+фиксируются как fail-open, а не hard enforcement. Контент-адресованный результат
+публикуется как ассет GitHub Release `adherence-1.11.8.json` (`content_sha256`).
+
+Memory preflight Codex использует ту же границу доверия, что write gates.
+Сгенерированный adapter распознаёт только версионированные защищённые
+identifiers, до dispatch требует точный одноразовый токен и после результата
+завершает durable state. Bootstrap записывает digest пяти адаптеров
+(write, PostToolUse, composite MCP parser, UserPromptSubmit и Stop) в Codex capability manifest.
+SessionStart проверяет точный Python-интерпретатор bootstrap, команду, привязку
+к проекту, версию и digest содержимого до выдачи capability v5. Смешанное состояние
+runtime/profile включает maintenance и отзывает незавершённые токены. Если
+PostToolUse не может сохранить ни итоговый аудит, ни maintenance в базе,
+независимый marker блокирует следующие SessionStart и PreToolUse до owner
+recovery. Недоверенные project hooks ничего не принуждают.
+TAUSIK не заявляет защиту от вредоносного shell того же пользователя.
+
+Для Codex `functions.exec` доверенная identity — это `session_id` внешнего
+PreToolUse; TAUSIK не читает identity из JavaScript или аргументов внутреннего
+MCP-вызова. Parser авторизует только точные ограниченные literal-вызовы.
+PreToolUse через Codex `updatedInput` внедряет непредсказуемую одноразовую
+dispatch correlation; вызов без неё не может израсходовать авторизацию только
+по совпадению route и arguments. Нативная Windows-приёмка в свежем потоке наблюдала outer `exec` → inner
+`tausik_session_open` без `IDENTITY_MISSING` и `PACKAGE_STALE`. Project hooks
+должны быть доверены, а после bootstrap нужен restart/свежий поток: уже открытый
+поток сохраняет загруженную конфигурацию hooks.
+
 > Вынесено из [`agent-contract.md`](agent-contract.md) при закрытии
 > `powershell-tool-bypasses-bash-firewall` — тема самостоятельная и вместе с
 > матрицей покрытия каналов перестала помещаться в контракт (filesize-гейт).
@@ -245,4 +277,3 @@ POSIX остаётся неразрешённым — правило о кавы
 Write, и через обе оболочки). Это закрывает трюк «держать одну необъявленную
 задачу активной, чтобы обойти scope». Legacy-свобода остаётся только когда scope
 не объявил НИКТО.
-

@@ -219,7 +219,7 @@ def install_requirements(tausik_dir: str, lib_dir: str) -> bool:
         return False
 
 
-def install_cli_wrapper(bootstrap_dir: str, tausik_dir: str) -> None:
+def install_cli_wrapper(bootstrap_dir: str, tausik_dir: str, primary_ide: str = "claude") -> None:
     """Render tausik CLI wrapper scripts (bash + cmd) into .tausik/ and make them executable.
 
     The wrapper's IDE-discovery loop is injected from bootstrap_config.IDE_DIRS
@@ -230,7 +230,10 @@ def install_cli_wrapper(bootstrap_dir: str, tausik_dir: str) -> None:
 
     from bootstrap_config import IDE_DIRS
 
+    if primary_ide not in IDE_DIRS:
+        raise ValueError(f"Unknown primary IDE: {primary_ide}")
     ide_list = " ".join(IDE_DIRS)
+    profile_dir = IDE_DIRS[primary_ide]
     for wrapper in ("tausik_wrapper.sh", "tausik_wrapper.cmd"):
         src = os.path.join(bootstrap_dir, wrapper)
         if not os.path.exists(src):
@@ -238,6 +241,8 @@ def install_cli_wrapper(bootstrap_dir: str, tausik_dir: str) -> None:
         with open(src, "r", encoding="utf-8") as f:
             content = f.read()
         content = content.replace("__IDE_LIST__", ide_list)
+        content = content.replace("__PROFILE_DIR__", profile_dir)
+        content = content.replace("__PRIMARY_IDE__", primary_ide)
         ext = os.path.splitext(wrapper)[1]
         dst = os.path.join(tausik_dir, f"tausik{ext}" if ext == ".cmd" else "tausik")
         # Normalize line endings per platform: .sh must stay LF even on Windows.

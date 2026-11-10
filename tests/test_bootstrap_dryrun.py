@@ -5,6 +5,7 @@ Run: pytest tests/test_bootstrap_dryrun.py -v
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -16,6 +17,7 @@ pytestmark = pytest.mark.slow
 
 
 _bootstrap_dir = os.path.join(os.path.dirname(__file__), "..", "bootstrap")
+CROSSCUTTING_SCOPE = ["bootstrap/", "harness/claude/subagents/"]
 
 
 class TestBootstrapDryRun:
@@ -114,3 +116,33 @@ class TestBootstrapDryRun:
         assert "cursor" in result.stdout
         assert not (tmp_path / ".claude").exists()
         assert not (tmp_path / ".cursor").exists()
+
+    def test_fresh_cursor_bootstrap_wires_current_native_contracts(self, tmp_path):
+        result = subprocess.run(
+            [
+                sys.executable,
+                os.path.join(_bootstrap_dir, "bootstrap.py"),
+                "--project-dir",
+                str(tmp_path),
+                "--ide",
+                "cursor",
+                "--no-detect",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
+        assert result.returncode == 0, result.stderr
+        rule = tmp_path / ".cursor" / "rules" / "tausik.mdc"
+        hooks_path = tmp_path / ".cursor" / "hooks.json"
+        mcp_path = tmp_path / ".cursor" / "mcp.json"
+        assert "alwaysApply: true" in rule.read_text(encoding="utf-8")
+        hooks = json.loads(hooks_path.read_text(encoding="utf-8"))["hooks"]
+        assert hooks["preToolUse"] and hooks["stop"]
+        assert all(entry["failClosed"] for entry in hooks["stop"])
+        mcp = json.loads(mcp_path.read_text(encoding="utf-8"))["mcpServers"]
+        assert mcp["tausik-project"]["type"] == "stdio"
+        assert list((tmp_path / ".cursor" / "agents").glob("*.md"))
+        assert not (tmp_path / ".cursorrules").exists()

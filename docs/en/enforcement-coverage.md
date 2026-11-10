@@ -2,6 +2,39 @@
 
 <!-- doc-map: reader=agent; zone=quality -->
 
+## 1.11.8 release evidence
+
+Hard-enforcement claims for Codex and Cursor are released only through
+`python scripts/adherence_release.py`. The runner binds the exact Git commit,
+tree, policy, registry, fixtures, installed bootstrap projections and frozen
+migration hashes. It records crash, timeout, malformed output and no output as
+fail-open, never as hard enforcement. The content-addressed result is
+the GitHub Release asset `adherence-1.11.8.json` (`content_sha256`).
+
+Codex memory preflight uses the same trust boundary as the write gates. The
+generated adapter recognizes only versioned protected identifiers, requires an
+exact single-use token before dispatch, and terminates the durable state after
+the tool result. Bootstrap records five adapter digests (write, PostToolUse,
+composite MCP parser, UserPromptSubmit and Stop) in the Codex capability
+manifest. SessionStart verifies the exact bootstrap Python interpreter, command,
+project binding, version and content digests before it issues capability-v5 authority. Mixed runtime/profile
+state enters maintenance and revokes outstanding tokens. If PostToolUse cannot
+persist either the terminal audit or database maintenance, an independent
+marker blocks later SessionStart and PreToolUse authority until owner recovery.
+Untrusted project hooks provide no enforcement. TAUSIK does not claim protection
+against a malicious shell running as the same user.
+
+For Codex `functions.exec`, the trusted identity is the outer PreToolUse
+`session_id`; TAUSIK never reads identity from JavaScript or inner MCP arguments.
+The parser authorizes only exact bounded literal calls. PreToolUse injects an
+unpredictable one-use dispatch correlation through Codex `updatedInput`; a call
+without that correlation cannot consume an authorization that merely has the
+same route and arguments. Native acceptance on
+Windows used a fresh thread and observed outer `exec` → inner
+`tausik_session_open` without `IDENTITY_MISSING` or `PACKAGE_STALE`. Project
+hooks must be trusted, and a host restart/fresh thread is required after
+bootstrap because an existing thread keeps its loaded hook configuration.
+
 > Split out of [`../ru/agent-contract.md`](../ru/agent-contract.md) while closing
 > `powershell-tool-bypasses-bash-firewall` — the topic stands on its own, and
 > together with the channel-coverage matrix it no longer fit inside the contract

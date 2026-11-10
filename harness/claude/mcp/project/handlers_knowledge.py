@@ -125,6 +125,24 @@ def _do_memory_search(svc: Any, args: dict) -> str:
     )
 
 
+def _do_memory_preflight(svc: Any, args: dict) -> str:
+    """Inspect applicable memory and, after exact acknowledgement, issue a token."""
+    import json
+
+    from memory_preflight import issue_preflight
+
+    result = issue_preflight(
+        svc,
+        protected_kind=args["protected_kind"],
+        tool_name=args["tool_name"],
+        tool_input=args["tool_input"],
+        acknowledged_ids=args.get("acknowledged_ids"),
+        inspection_id=args.get("inspection_id"),
+        override_reason=args.get("override_reason"),
+    )
+    return json.dumps(result, ensure_ascii=False, sort_keys=True)
+
+
 def _do_memory_block(svc: Any, args: dict) -> str:
     output = svc.memory_block(
         max_decisions=args.get("max_decisions", 5),
@@ -204,6 +222,7 @@ KNOWLEDGE_HANDLERS = {
     "tausik_memory_show": _do_memory_show,
     "tausik_memory_delete": lambda svc, args: svc.memory_delete(args["id"]),
     "tausik_memory_search": _do_memory_search,
+    "tausik_memory_preflight": _do_memory_preflight,
     "tausik_memory_block": _do_memory_block,
     "tausik_memory_compact": _do_memory_compact,
     "tausik_memory_archive": _do_memory_archive,

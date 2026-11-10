@@ -310,7 +310,7 @@ def test_privacy_opt_out_sends_nothing_and_is_explicitly_unverified(tmp_path):
     assert "unverified" in result["warning"]
 
 
-def test_hook_surfaces_a_cli_release_refusal_as_a_work_block(monkeypatch, tmp_path):
+def test_shared_hook_preserves_cli_release_refusal_for_non_codex(monkeypatch, tmp_path):
     sys.path.insert(0, os.path.join(_ROOT, "scripts", "hooks"))
     import session_start as ss
 

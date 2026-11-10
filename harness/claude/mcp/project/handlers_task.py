@@ -40,11 +40,12 @@ def _do_task_quick(svc: Any, args: dict) -> str:
 
 
 def _do_task_start(svc: Any, args: dict) -> str:
+    lease_id = args.get("_execution_lease_id")
     if args.get("package"):
         from task_start_result import serialize_start_with_context
 
-        return serialize_start_with_context(svc, args["slug"])
-    return svc.task_start(args["slug"])
+        return serialize_start_with_context(svc, args["slug"], execution_lease_id=lease_id)
+    return svc.task_start(args["slug"], execution_lease_id=lease_id)
 
 
 def _order() -> Any:
@@ -85,9 +86,9 @@ def _do_task_done(svc: Any, args: dict) -> str:
             request = json.loads(args["compound"])
         except (TypeError, ValueError) as exc:
             raise ValueError("compound must be a JSON object") from exc
-        allowed = {"message", "step", "verify"}
+        allowed = {"message", "step", "step_evidence", "verify"}
         if not isinstance(request, dict) or set(request) - allowed:
-            raise ValueError("compound permits only message, step and verify")
+            raise ValueError("compound permits only message, step, step_evidence and verify")
         from task_progress_close import run_progress_close
 
         result = run_progress_close(
@@ -95,6 +96,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
             args["slug"],
             request.get("message"),
             request.get("step"),
+            step_evidence=request.get("step_evidence"),
             close=True,
             verify=request.get("verify", False),
             verify_handle=args.get("verify_handle"),
@@ -158,10 +160,16 @@ def _handle_task_logs(svc: Any, args: dict) -> str:
 
 def _do_task_step(svc: Any, args: dict) -> str:
     if args.get("message") is None:
-        return svc.task_step(args["slug"], args["step_num"])
+        return svc.task_step(args["slug"], args["step_num"], args.get("evidence"))
     from task_progress_close import serialize_progress_close
 
-    return serialize_progress_close(svc, args["slug"], args["message"], args["step_num"])
+    return serialize_progress_close(
+        svc,
+        args["slug"],
+        args["message"],
+        args["step_num"],
+        step_evidence=args.get("evidence"),
+    )
 
 
 def _handle_task_list(svc: Any, args: dict) -> str:
@@ -200,7 +208,7 @@ def _handle_task_show(svc: Any, args: dict) -> str:
         from task_context_package import serialize_task_context_package
 
         return serialize_task_context_package(
-            svc, args["slug"], max_bytes=args.get("max_bytes", 8192)
+            svc, args["slug"], max_bytes=args.get("max_bytes", 16384)
         )
     task = svc.task_show(args["slug"])
     lines = [
@@ -270,7 +278,12 @@ TASK_HANDLERS = {
     "tausik_task_start": _do_task_start,
     "tausik_task_done": _do_task_done,
     "tausik_task_block": lambda svc, args: svc.task_block(
-        args["slug"], args.get("reason"), args.get("question"), args.get("unblock_criteria")
+        args["slug"],
+        args.get("reason"),
+        args.get("question"),
+        args.get("unblock_criteria"),
+        args.get("attempt_event_ids"),
+        args.get("resume_action"),
     ),
     "tausik_task_unblock": lambda svc, args: svc.task_unblock(
         args["slug"], args.get("criterion_met"), args.get("by")

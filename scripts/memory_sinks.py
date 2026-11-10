@@ -37,8 +37,8 @@ pattern swallows one.
 
 Precedence, stated rather than emergent: an explicit sink pattern WINS over the
 owned-tree carve-out. `.cursor/rules/**` lives inside TAUSIK-owned `.cursor/`
-and is still foreign — TAUSIK never writes there, and it is precisely where
-Cursor puts what it learned.
+and remains foreign except for the exact generated
+`.cursor/rules/tausik.mdc`. Cursor's other rule files are memory sinks.
 
 MECHANISM GENERIC, POLICY CONFIGURABLE (convention #277): the defaults below
 ship with the framework, and a project extends or exempts through
@@ -259,6 +259,11 @@ def is_foreign_sink(
         return None
     rules = tuple(sinks) if sinks is not None else DEFAULT_SINKS
     rel_tree = _tree_relative(path, project_dir)
+    # TAUSIK owns exactly one Cursor always-apply rule. Keep the rest of this
+    # subtree fenced as host-specific memory; a directory-wide exemption would
+    # reopen the route this guard exists to close.
+    if rel_tree == ".cursor/rules/tausik.mdc":
+        return None
     if allow and rel_tree is not None:
         for pattern in allow:
             if glob_match(normalize(pattern), rel_tree):

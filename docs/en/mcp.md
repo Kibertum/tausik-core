@@ -4,13 +4,55 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
-**151 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+## Protected memory preflight
 
-> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 151 count - total with it is 158 tools.
+`tausik_memory_preflight` is a trusted-host-only two-phase RPC. Give it the
+exact upcoming `tool_name`, `tool_input`, and one closed `protected_kind`:
+`framework_ui`, `release_shell`, `remote_operation`, `commit`, `push`, or
+`blocker`. The first call returns the bounded, redacted memory selection and an
+`inspection_id`. The second call returns that exact `inspection_id`, acknowledges
+exactly those IDs, and issues a five-minute token. A content change makes the
+inspection stale instead of silently rebinding acknowledgement to new text.
+
+The token binds the Codex execution lease, task-package fingerprint,
+memory-content revision, action identity, and normalized payload hash.
+PreToolUse reserves it atomically; PostToolUse records `executed` or `failed`.
+Missing, stale, conflicting, unknown, or replayed tokens fail closed. A typed
+active policy/dead-end conflict also needs an `action` reason-step containing
+the returned action ID. Inspection telemetry and hit counters do not change
+the content revision.
+Rows containing instruction-injection patterns are quarantined before
+acknowledgement and cannot contribute to token issuance. Project scope and
+archive visibility are applied by the project memory query before expansion.
+
+## Codex composite transport
+
+Codex can route an MCP call through an outer `functions.exec` tool. In a trusted
+project, TAUSIK reads the outer hook's host `session_id`, parses only bounded
+literal inner calls, and issues one-use authorization for each exact route and
+argument object. The trusted hook rewrites the dispatched input with an
+unpredictable one-use correlation; the MCP server removes it before normal
+argument validation. A competing thread with the same route and arguments is
+rejected without consuming the intended call's authorization. Direct calls,
+simple aliases and wrapper nesting are supported.
+Computed arguments, computed tool names, escaped aliases, duplicate mutations
+and replay are refused; model-supplied identity is never accepted.
+
+Run `python bootstrap/bootstrap.py --ide codex`, trust the project hooks, then
+start a fresh Codex thread. Bootstrap enables lease enforcement only when the
+installed capability-v5 manifest attests the write, PostToolUse, composite,
+UserPromptSubmit and Stop adapters plus the exact bootstrap Python interpreter. An incompatible profile fails MCP startup and `tausik doctor` with a
+typed instruction to rerun bootstrap. `tausik_session_open` and
+`tausik_session_start` are the only lifecycle routes allowed before task-package
+binding; ordinary mutations remain bound to the current package.
+
+**152 tools** for AI agents (current actual count, asserted via `len(TOOLS)`). The MCP surface covers everything an agent does day-to-day. A few CLI-only commands have no MCP equivalent — they are operator / maintenance verbs that don't belong in an agent loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. For the agent's working set, prefer MCP tools over shell calls — they are atomic, return structured data, and keep your context cleaner.
+
+> **Optional `codebase-rag` server** adds 7 tools (search_code, find_symbol, …). It is enabled separately during bootstrap and is NOT part of the main 152 count - total with it is 159 tools.
 
 Two MCP servers live in this project:
 
-- `tausik-project` — project-scoped tools (151): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
+- `tausik-project` — project-scoped tools (152): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging.
 
 There is also an optional `codebase-rag` server documented at the bottom.
 
@@ -355,7 +397,7 @@ Role storage is hybrid: SQLite metadata + `harness/roles/{role}.md` profile mark
 | `cache_web_result` | Cache web search result for reuse | `query`, `content` |
 | `search_web_cache` | Search cached web results | `query` |
 
-These are not part of the main 151 count — they belong to the optional `codebase-rag` server.
+These are not part of the main 152 count — they belong to the optional `codebase-rag` server.
 
 ## Scoped tool surface (`mcp.scope_tools_exposure`)
 
@@ -376,8 +418,8 @@ directly still passes the existing scope enforcement, and the write-gate is
 untouched. The scoped list is recomputed each time the host fetches
 `list_tools` — i.e. on every server connect with a task already active.
 
-**Measured cost.** The full authored surface is 151 tools ≈ 61.1 KB of tool
-definitions (61,097 bytes, ~15.3k estimated tokens at bytes/4; the ratchet in
+**Measured cost.** The full authored surface is 152 tools ≈ 62.0 KB of tool
+definitions (61,981 bytes, ~15.5k estimated tokens at bytes/4; the ratchet in
 `tausik/gates.json` (`mcp_surface`) pins this and refuses growth without an
 argued raise). Under Claude Code deferred loading (`ENABLE_TOOL_SEARCH`)
 only tool names load eagerly and each description is truncated to 2 KB — a ratchet
@@ -391,7 +433,7 @@ handler lost fields its CLI twin still showed (verify printing gate *names*,
 `update_claudemd` erasing the memory tail, `task_show` hiding `scope_paths`
 and `rollback_plan`) — each caught by eyes, not by a run. The pair map lives
 once, in `scripts/mcp_cli_parity.py`: every MCP tool is declared with its CLI
-twin, and the nine tools without one carry a written reason and a count.
+twin, and the eleven tools without one carry a written reason and a count.
 `tests/test_mcp_cli_surface_parity.py` drives both surfaces of the
 fifteen-command read spine on a planted project and compares normalised field
 labels — a label the CLI prints and the MCP tool drops is a loss; the MCP side

@@ -4,6 +4,23 @@
 
 <!-- doc-map: reader=user; zone=release-notes -->
 
+## 1.11.8 — Codex/Cursor correctness and automated release acceptance
+
+1.11.8 fixes framework initialization and trusted identity propagation for
+Codex and Cursor, adds durable bounded task packages, continuity, protected
+memory preflight and trusted Stop/handoff decisions, and preserves user-owned
+Cursor rules, agents and hooks. Cursor Agents receive generated TAUSIK roles
+without overwriting an unowned agent of the same name.
+
+The release no longer depends on a manual maintainer walkthrough. A Windows
+runner exercises the real child-process hooks and the service, CLI and MCP
+boundaries; it also tests restart/fresh-process recovery and every migration
+from v81 to the current schema. It refuses dirty source, accepted negative
+controls, missed thresholds, zero collection and fail-open host states. The
+evidence is staged in `dist/adherence-1.11.8.json` and published as a GitHub
+Release asset; verify its
+top-level `content_sha256` before publishing.
+
 TAUSIK 1.11 targets the cost of accepted work in Codex. It reduces repeated
 framework context and avoids deterministic model returns without weakening QG-0,
 QG-2, verification evidence or fail-open behaviour.

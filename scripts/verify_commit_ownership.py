@@ -54,9 +54,7 @@ _MAX_PARENT_SCOPE_CANDIDATES = 64
 # mistaken for one; a header that is not a hexadecimal hash is dropped.
 _COMMIT_MARK = "\x01"
 _COMMIT_HASH = re.compile(r"^[0-9a-f]{7,64}$")
-_DYNAMIC_BLOCK = re.compile(
-    r"<!-- DYNAMIC:START -->.*?<!-- DYNAMIC:END -->", re.DOTALL
-)
+_DYNAMIC_BLOCK = re.compile(r"<!-- DYNAMIC:START -->.*?<!-- DYNAMIC:END -->", re.DOTALL)
 
 
 def _git_text(
@@ -107,7 +105,7 @@ def _commits_with_paths(history: str) -> list[tuple[str, set[str]]]:
     for raw in history.splitlines():
         line = raw.strip()
         if line.startswith(_COMMIT_MARK):
-            header = line[len(_COMMIT_MARK):].strip()
+            header = line[len(_COMMIT_MARK) :].strip()
             current = None
             if _COMMIT_HASH.match(header):
                 current = set()
@@ -127,8 +125,7 @@ def _scope_path_matches(path: str, scope_paths: object) -> bool:
     if not isinstance(scope_paths, list):
         return False
     return any(
-        isinstance(pattern, str)
-        and fnmatchcase(path, _normalize_repo_path(pattern))
+        isinstance(pattern, str) and fnmatchcase(path, _normalize_repo_path(pattern))
         for pattern in scope_paths
     )
 
@@ -162,7 +159,11 @@ def _parent_scope_claimants(
         return set()
     for match in candidate_exports:
         _revision, separator, export_path = match.partition(":")
-        if not separator or not export_path.startswith(_TASK_PREFIX) or not export_path.endswith(_TASK_SUFFIX):
+        if (
+            not separator
+            or not export_path.startswith(_TASK_PREFIX)
+            or not export_path.endswith(_TASK_SUFFIX)
+        ):
             continue
         parent_metadata = _task_metadata(
             _git_text(["git", "show", f"{parent}:{export_path}"], base=base, run=run)
@@ -183,7 +184,6 @@ def _parent_scope_claimants(
         if path in {_normalize_repo_path(str(item)) for item in declared}:
             claimants.add(slug)
     return claimants
-
 
 
 def foreign_completed_paths_since(
@@ -235,7 +235,9 @@ def foreign_completed_paths_since(
             if _is_dynamic_only_change(previous_blob, current_blob):
                 projection[path].add("__dynamic_projection__")
         task_exports = sorted(
-            path for path in changed if path.startswith(_TASK_PREFIX) and path.endswith(_TASK_SUFFIX)
+            path
+            for path in changed
+            if path.startswith(_TASK_PREFIX) and path.endswith(_TASK_SUFFIX)
         )
         for export_path in task_exports:
             current = _task_metadata(
@@ -244,10 +246,7 @@ def foreign_completed_paths_since(
             if not current:
                 continue
             slug = current.get("slug")
-            if (
-                not isinstance(slug, str)
-                or slug == task_slug
-            ):
+            if not isinstance(slug, str) or slug == task_slug:
                 continue
             # These projections are framework output of the commit-local
             # ownership proof, not undeclared work by the task being verified.
@@ -267,9 +266,8 @@ def foreign_completed_paths_since(
             for path in (owned & inspected) - {export_path}:
                 same_commit[path].add(slug)
             for path in inspected - {export_path}:
-                if (
-                    current.get("status") in _PREDECLARED_STATUSES
-                    and _scope_path_matches(path, current.get("scope_paths"))
+                if current.get("status") in _PREDECLARED_STATUSES and _scope_path_matches(
+                    path, current.get("scope_paths")
                 ):
                     same_commit[path].add(slug)
         for path in inspected:

@@ -100,16 +100,19 @@ task undepends <slug> --after <slug>  # Снять объявленный пор
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
           [--full] [--top-n N] [--max-lines N]   # >25 строк — свёртка по статусу/роли; --full = полная таблица
 task show <slug>                # Полная информация: план, заметки, решения, defect_of, AC
-task show <slug> --package      # Ограниченный детерминированный контекст (8192 Б)
+task show <slug> --package      # Ограниченный детерминированный контекст (16384 Б)
 task show <slug> --package --max-bytes 4096
 task show <slug> --work-packet --query "..." [--source PATH ...] [--max-bytes N]
                                 # Один bounded JSON: task context, FTS, memory и полные
                                 # scope-checked UTF-8 источники. Каждый результат имеет адрес;
                                 # непоместившиеся/нечитаемые/out-of-scope источники перечислены
-                                # в omitted, без тихого усечения. До половины ceiling (макс. 8192 Б)
-                                # заранее выделено целому task context; лимит указан в allocations.
+                                # в omitted, без тихого усечения. Канонический task package первым
+                                # получает до 16384 Б; остаток указан для других секций в allocations.
                                 # Не более 16 --source.
-task start <slug> [--package]   # planning → active; package возвращает bounded context в этом вызове
+task start <slug> [--package]   # planning → active только после атомарной проверки package
+                                #   plain/repeated start тоже строит и привязывает его; --package выбирает JSON
+                                #   PACKAGE_TOO_LARGE / REVISION_CONFLICT не меняют задачу и lease
+                                #   в Codex CLI start поглощает точную hook-авторизацию и перепривязывает этот поток
                                 #   время сессии и ёмкость вызовов — совет в выводе, не отказ (1.10, #376)
                                 #   --force отозван: флаг отвечает отказом с причиной
 task obsolete <slug> --reason "..."   # закрыть задачу, которую решило время: запись остаётся, без QG-2,

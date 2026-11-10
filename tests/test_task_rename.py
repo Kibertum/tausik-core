@@ -64,6 +64,43 @@ class TestTaskRename:
         ]
         assert decisions
 
+    def test_rename_invalidates_embedded_slug_package(self, svc):
+        _world(svc)
+        task = svc.be.task_get_full("alpha")
+        task.update(
+            {
+                "complexity": "complex",
+                "goal": "Keep the renamed package usable.",
+                "acceptance_criteria": "The rebuilt package names the new slug.",
+                "rollback_plan": "Rename it back.",
+                "call_budget": 10,
+                "assurance_profiles": ["executable"],
+                "assurance_impact": {
+                    "level": "high",
+                    "blast_radius": "local",
+                    "reversibility": "reversible",
+                },
+            }
+        )
+        from task_context_package import (
+            build_task_context_package,
+            persist_task_context_package,
+            serialize_task_context_package,
+        )
+
+        package = build_task_context_package(svc, "alpha", task_override=task)
+        persist_task_context_package(svc, package)
+
+        from service_task_rename import task_rename
+
+        task_rename(svc, "alpha", "alpha-renamed")
+        assert (
+            svc.be._q1("SELECT 1 FROM task_context_packages WHERE task_slug='alpha-renamed'")
+            is None
+        )
+        rebuilt = serialize_task_context_package(svc, "alpha-renamed", max_bytes=16_384)
+        assert '"slug":"alpha-renamed"' in rebuilt
+
     def test_schema_derived_referrers_include_known_columns(self, svc):
         from task_slug_referrers import task_slug_referrers
 

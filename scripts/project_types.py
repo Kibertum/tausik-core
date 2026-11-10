@@ -98,11 +98,7 @@ def get_valid_stacks(cfg: dict | None = None) -> frozenset[str]:
 
 VALID_COMPLEXITIES = frozenset({"simple", "medium", "complex"})
 VALID_TIERS = frozenset({"trivial", "light", "moderate", "substantial", "deep"})
-VALID_MEMORY_TYPES = frozenset(
-    {"pattern", "gotcha", "convention", "context", "dead_end"}
-)
-VALID_EDGE_RELATIONS = frozenset(
-    {"supersedes", "caused_by", "relates_to", "contradicts"}
-)
+VALID_MEMORY_TYPES = frozenset({"pattern", "gotcha", "convention", "context", "dead_end"})
+VALID_EDGE_RELATIONS = frozenset({"supersedes", "caused_by", "relates_to", "contradicts"})
 VALID_NODE_TYPES = frozenset({"memory", "decision"})
 COMPLEXITY_SP = {"simple": 1, "medium": 3, "complex": 8}

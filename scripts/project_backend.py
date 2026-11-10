@@ -14,6 +14,7 @@ from backend_crud_knowledge import KnowledgeCrudMixin
 from backend_crud_reasoning import ReasoningCrudMixin
 from backend_crud_specs import SpecsCrudMixin
 from backend_events_chain import BackendEventsChainMixin
+from backend_execution_lease import ExecutionLeaseMixin
 from backend_graph import BackendGraphMixin
 from backend_init import init_schema
 from backend_queries import BackendQueriesMixin
@@ -75,6 +76,7 @@ _TASK_FIELDS = frozenset(
         "unblock_criteria",
         "unblocked_by",
         "unblocked_at",
+        "task_package_legacy",
     }
 )
 
@@ -87,6 +89,7 @@ class SQLiteBackend(
     BackendQueriesMixin,
     BackendGraphMixin,
     BackendCrudMixin,
+    ExecutionLeaseMixin,
     KnowledgeCrudMixin,
     ReasoningCrudMixin,
     SpecsCrudMixin,

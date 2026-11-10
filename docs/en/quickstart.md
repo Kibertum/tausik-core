@@ -75,7 +75,7 @@ Open your project in the IDE, open your AI agent (Claude Code, Cursor, Qwen Code
 
 ```
 Add https://github.com/Kibertum/tausik-core as a git submodule in .tausik-lib,
-run python .tausik-lib/bootstrap/bootstrap.py --init,
+run python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init,
 add .tausik/ to .gitignore
 ```
 
@@ -93,7 +93,7 @@ git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
 
 # Run bootstrap (one command does everything)
 # Project name is auto-derived from the directory name
-python .tausik-lib/bootstrap/bootstrap.py --init
+python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
 
 # Add working data to .gitignore
 echo ".tausik/" >> .gitignore
@@ -103,15 +103,17 @@ echo ".tausik/" >> .gitignore
 
 **After bootstrap, restart your IDE window** (Claude Code, Cursor, Qwen Code, Windsurf). Bootstrap generates project MCP configs (`.mcp.json` for Claude ecosystem and `.cursor/mcp.json` for Cursor), but IDEs load them only on startup. Without restart, the agent may fall back to CLI mode instead of using MCP tools.
 
+`--ide` records the primary profile used by the CLI wrapper and doctor. On a later upgrade you may omit it because bootstrap reuses that provenance. On a fresh or ambiguous multi-profile tree, omission stops with an actionable choice instead of selecting Claude or the first directory found.
+
 > **Qwen Code users:** Bootstrap also creates `.qwen/settings.json` with MCP config and `QWEN.md` with project instructions. Use `--ide qwen` if you only use Qwen Code, or `--ide all` for multi-IDE setups.
 
 ### What Happens After Bootstrap
 
-Regardless of which option you chose — the result is the same:
+The selected host decides which profile files appear:
 
 - A `.tausik/` folder appears — database, scripts, configuration
-- A `.claude/` folder appears — skills and settings for Claude Code
-- A `CLAUDE.md` file appears — instructions for the AI agent
+- The selected profile folder appears — for example `.cursor/` for Cursor or `.claude/` for Claude Code
+- The matching host instruction file appears — for example `.cursor/rules/tausik.mdc` or `CLAUDE.md`
 - TAUSIK detects your project's stack (Python, React, Go, etc.) and enables appropriate checks
 
 **Two directories to understand:**
@@ -119,10 +121,10 @@ Regardless of which option you chose — the result is the same:
 - **`.tausik-lib/`** — the framework source code (git submodule, tracked in version control). This is TAUSIK itself.
 - **`.tausik/`** — runtime data: database, config, virtual environment. Added to `.gitignore` — this is local working data, never committed.
 
-Team members who clone the repo just need to run `git submodule update --init` to get the framework, then `python .tausik-lib/bootstrap/bootstrap.py --init` to set up their local `.tausik/`.
+Team members who clone the repo run `git submodule update --init` to get the framework, then `python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init` (replace `cursor` with their host) to set up local `.tausik/`.
 
-`.claude/` and `CLAUDE.md` — keep these under version control. These are instructions
-for the agent, they should be in the repository.
+Keep the generated profile folder and matching host instruction file under version control.
+They contain the project's agent configuration; `.tausik/` remains local runtime data.
 
 ## Step 3. Verify Installation
 
@@ -288,8 +290,8 @@ after a `git pull`.
 - This happens if a previous process terminated incorrectly
 
 **Agent doesn't create tasks, just writes code**
-- Check that `CLAUDE.md` exists in the project root
-- Check that it contains a "Constraints" section with the "No code without a task" rule
+- Check that the selected host's generated instruction file exists in the project root
+- Check that it contains the project's "No code without a task" constraint
 
 ---
 
@@ -300,18 +302,18 @@ If you already have a project with code and want to add TAUSIK:
 1. **Navigate to your project root** and connect TAUSIK as a submodule:
    ```bash
    git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
-   python .tausik-lib/bootstrap/bootstrap.py --init
+   python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
    ```
 
 2. **Bootstrap auto-detects your environment:**
    - Recognizes your stack (Python, React, Go, etc.) and enables matching quality gates
    - Detects existing config files (`.eslintrc`, `pyproject.toml`, etc.)
-   - Preserves your existing `.gitignore`, `CLAUDE.md`, `.mcp.json`, and `.cursor/mcp.json` — merges instead of overwriting
+   - Preserves `.gitignore` and the selected host's existing instruction/MCP files — merges instead of overwriting
 
 3. **What gets tracked in git:**
    - `.tausik-lib/` — the framework itself (git submodule, tracked)
    - `.tausik/` — runtime data (database, config, venv) — added to `.gitignore`, never committed
-   - `.claude/` and `CLAUDE.md` — agent instructions, tracked
+   - The selected profile folder and matching instruction file (for Cursor, `.cursor/` and `.cursor/rules/tausik.mdc`) — tracked
 
 4. **Starting fresh vs. importing:**
    - TAUSIK starts with a clean task database. There is no automatic import from other systems.

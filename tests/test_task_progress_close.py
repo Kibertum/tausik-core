@@ -247,7 +247,7 @@ def test_mcp_unknown_compound_key_is_refused_before_mutation(tmp_path, monkeypat
     from handlers_task import _do_task_done
 
     try:
-        with pytest.raises(ValueError, match="only message, step and verify"):
+        with pytest.raises(ValueError, match="only message, step, step_evidence and verify"):
             _do_task_done(
                 svc,
                 {

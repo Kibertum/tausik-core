@@ -195,11 +195,12 @@ def resolve_claudemd(project_dir: str) -> str | None:
     попасть в чужой файл (тот же класс, что дефект mcp-config-read-paths).
     """
     try:
-        from ide_utils import detect_ide, get_ide_dir
+        from ide_utils import detect_ide, get_rules_file
 
         candidates = [
+            get_rules_file(project_dir, detect_ide(project_dir)),
             os.path.join(project_dir, "CLAUDE.md"),
-            os.path.join(get_ide_dir(project_dir, detect_ide(project_dir)), "CLAUDE.md"),
+            os.path.join(project_dir, "AGENTS.md"),
         ]
     except ImportError:
         candidates = [

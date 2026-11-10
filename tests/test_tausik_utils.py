@@ -59,5 +59,3 @@ def test_no_inline_duplicates_in_production():
         f"Inline `.tausik/config.json` rebuild found in production sources: "
         f"{offenders}. Use scripts/tausik_utils.tausik_config_path()."
     )
-
-

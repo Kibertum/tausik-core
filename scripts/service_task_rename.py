@@ -41,6 +41,11 @@ def task_rename(svc: "ProjectService", old_slug: str, new_slug: str) -> str:
     referrers = task_slug_referrers(conn)
 
     with svc.be.transaction():
+        # A task package is a signed snapshot whose payload embeds the slug.
+        # Renaming only its FK key would leave a row whose key and payload
+        # disagree, so the next ``task show --package`` would fail closed as
+        # PACKAGE_CORRUPT. Drop the derived cache and rebuild it on demand.
+        conn.execute("DELETE FROM task_context_packages WHERE task_slug=?", (old_slug,))
         # Children and parent both hold the slug; per-statement FK would refuse
         # either order. Defer to COMMIT (resets automatically at tx end).
         conn.execute("PRAGMA defer_foreign_keys=ON")

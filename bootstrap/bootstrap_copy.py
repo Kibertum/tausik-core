@@ -308,14 +308,29 @@ def _codex_subagent_toml(markdown: str, source: str) -> str:
     )
 
 
-def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
-    """Deploy canonical sub-agents for Claude or converted TOML agents for Codex.
+def _cursor_subagent_markdown(markdown: str, source: str) -> str:
+    """Convert the canonical prompt to Cursor's supported frontmatter subset."""
+    if not markdown.startswith("---\n"):
+        raise ValueError(f"{source} has no YAML frontmatter")
+    frontmatter, separator, body = markdown[4:].partition("\n---\n")
+    if not separator:
+        raise ValueError(f"{source} has unclosed YAML frontmatter")
+    fields = dict(line.split(":", 1) for line in frontmatter.splitlines() if ":" in line)
+    name = fields.get("name", "").strip()
+    description = fields.get("description", "").strip()
+    if not name or not description:
+        raise ValueError(f"{source} must declare name and description")
+    return f"---\nname: {name}\ndescription: {description}\nmodel: inherit\n---\n{body}"
 
-    The source remains ``harness/claude/subagents/*.md``. Codex files are
-    regenerated on bootstrap and intentionally overwrite changed generated files.
-    Hosts without named sub-agents still receive nothing.
+
+def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
+    """Deploy canonical sub-agents for Claude, Codex, and Cursor.
+
+    The source remains ``harness/claude/subagents/*.md``. Host-native converted
+    files are regenerated on bootstrap. Hosts without named sub-agents receive
+    nothing.
     """
-    if ide not in {"claude", "codex"}:
+    if ide not in {"claude", "codex", "cursor"}:
         return 0
     src = os.path.join(lib_dir, "harness", "claude", "subagents")
     if not os.path.isdir(src):
@@ -329,10 +344,25 @@ def copy_subagents(lib_dir: str, target_dir: str, ide: str) -> int:
         source = os.path.join(src, entry)
         if ide == "claude":
             _conditional_copy(source, os.path.join(dst, entry))
-        else:
+        elif ide == "codex":
             target = os.path.join(dst, f"{os.path.splitext(entry)[0]}.toml")
             with open(source, encoding="utf-8") as file:
                 converted = _codex_subagent_toml(file.read(), source)
+            if not os.path.isfile(target) or not _files_identical_text(target, converted):
+                with open(target, "w", encoding="utf-8", newline="\n") as file:
+                    file.write(converted)
+        else:
+            target = os.path.join(dst, entry)
+            with open(source, encoding="utf-8") as file:
+                legacy = _cursor_subagent_markdown(file.read(), source)
+            marker = "<!-- TAUSIK:MANAGED-CURSOR-AGENT -->\n"
+            converted = marker + legacy
+            if os.path.isfile(target):
+                with open(target, encoding="utf-8") as file:
+                    current = file.read()
+                if not (current.startswith(marker) or current == legacy):
+                    # Same-name user content is outside TAUSIK ownership.
+                    continue
             if not os.path.isfile(target) or not _files_identical_text(target, converted):
                 with open(target, "w", encoding="utf-8", newline="\n") as file:
                     file.write(converted)

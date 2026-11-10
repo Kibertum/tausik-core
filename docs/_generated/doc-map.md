@@ -58,6 +58,7 @@ generated from those declarations.
 | `review-cohort-contract.md` | agent | en, ru |
 | `testing-principles.md` | user | en, ru |
 | `verification-cohort-contract.md` | agent | en, ru |
+| `verification.md` | maintainer | en, ru |
 | `verify-glossary.md` | user | en, ru |
 
 ## configuration
@@ -157,4 +158,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-81 page(s), 80 carried by both languages.
+82 page(s), 81 carried by both languages.

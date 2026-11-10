@@ -76,11 +76,21 @@ summarise the cycle so far (which kinds are present, what fork is open).
 
 ## Rules
 
+Reasoning is normally advisory: zero reasoning steps do not block QG-0 or QG-2.
+The sole hard exception is a continuity route override. Recovery accepts only
+an `action` step whose JSON binds the exact route and arguments hash. Generic
+prose never grants mutation authority, and an exhausted call budget cannot be
+extended by an agent reason step.
+
+A memory-conflict override is the other explicit action-bound use. Record an
+`action` step containing the preflight `action_id`, then pass its `reason:N`
+reference to the second preflight call. It can override only a typed active
+policy/dead-end conflict; it never bypasses ACL or secret refusal.
+
 - **Append-only.** Steps are never edited or deleted — a wrong premise is
   corrected by a *new* step, not a rewrite. The trace is the audit record.
-- **Advisory, never blocking.** Recording reasoning is a discipline, not a gate.
-  A task with **zero** reasoning steps still starts and closes normally — QG-0
-  and QG-2 do not check the trace.
+- **Advisory by default.** QG-0 and QG-2 do not require a trace. Only the
+  explicitly action-bound continuity override described above is authoritative.
 - **Closed kinds.** Only `intent | premise | action | verification`. An invalid
   kind is rejected by both the service and the DB CHECK constraint.
 - **One trace per task.** Steps belong to a task slug; there is no global trace.
@@ -94,3 +104,4 @@ summarise the cycle so far (which kinds are present, what fork is open).
 - **Replayable.** `tausik task replay <slug>` interleaves reasoning steps with
   logs, events, and verification runs into one chronological timeline (and
   `--output FILE` exports it). Write steps that read well out of context.
+- **Reasoning is not Stop authority.** A reasoning step cannot forge a read-only request, attempt ID, blocker preflight, or handoff state.

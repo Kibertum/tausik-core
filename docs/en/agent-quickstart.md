@@ -32,7 +32,7 @@ deploys every profile side by side (they share one database in `.tausik/`).
 | You are running in | `--ide` | What lands | What enforces the rules in real time |
 |---|---|---|---|
 | Claude Code / VS Code Claude Extension | `claude` | `.claude/` (skills, hooks, MCP), `.mcp.json`, `CLAUDE.md`, `AGENTS.md` | PreToolUse hooks (`.claude/settings.json`) |
-| Cursor / Composer | `cursor` | `.cursor/mcp.json`, `.cursorrules`, `AGENTS.md` | nothing at the tool boundary — you self-enforce Rule 1 (see §5) |
+| Cursor / Composer | `cursor` | `.cursor/mcp.json`, `.cursor/rules/tausik.mdc`, `.cursor/hooks.json`, `.cursor/agents/` | native project hooks after the workspace is trusted; critical PreToolUse/Stop paths fail closed |
 | Qwen Code | `qwen` | `.qwen/` (skills, settings), `QWEN.md`, `AGENTS.md` | hooks (a subset of Claude's) |
 | Kilo Code | `kilo` | `.kilo/`, `.kilocode/mcp.json`, `AGENTS.md` | nothing at the tool boundary — MCP gates only |
 | OpenCode | `opencode` | `.opencode/` (one QG-0 plugin), `opencode.json` | the QG-0 plugin for Rule 1; nothing for Rule 2 |
@@ -170,8 +170,8 @@ the action, not by host:
   active task), Rule 2 (no write outside the declared scope), the shell
   firewall, the push gate. These exist only where a hook runs before the
   tool: Claude Code, Qwen Code, Codex (once trusted), and Rule 1 alone on
-  OpenCode. On Cursor and Kilo nothing stands between you and the file — you
-  are the hook: start the task before the first edit.
+  OpenCode. Cursor enforces the supported write and Stop paths after its project
+  hooks are trusted. Kilo still relies on MCP gates and agent compliance.
 
 Where the hook does run, a write without an active task is refused before the
 file changes:

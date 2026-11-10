@@ -15,7 +15,7 @@ import math
 
 logger = logging.getLogger(__name__)
 
-# --- Agent rule pack size (bootstrap templates: CLAUDE.md / AGENTS.md / .cursorrules) ---
+# --- Agent rule pack size (bootstrap templates: CLAUDE.md / AGENTS.md / Cursor .mdc) ---
 CONTEXT_TIER_VALUES = frozenset({"minimal", "standard", "full"})
 DEFAULT_CONTEXT_TIER = "minimal"
 

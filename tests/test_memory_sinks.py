@@ -196,8 +196,9 @@ class TestTausikOwnedNotBlocked:
 
     def test_cursor_rules_still_foreign_despite_owned_parent(self):
         # Precedence, stated in memory_sinks: an explicit sink pattern wins over
-        # the owned-tree carve-out. TAUSIK deploys .cursor/ but never .cursor/rules/.
+        # the owned-tree carve-out except for TAUSIK's exact managed rule.
         assert is_foreign_sink(".cursor/rules/x.mdc", "/proj") is not None
+        assert is_foreign_sink(".cursor/rules/tausik.mdc", "/proj") is None
 
     def test_tausik_memory_db_and_changelog_are_not_sinks(self):
         for legit in (".tausik/tausik.db", "CHANGELOG.md", "docs/ru/memory.md", "scripts/x.py"):

@@ -37,6 +37,8 @@ import json
 import os
 from typing import NamedTuple
 
+from hooks.codex_capability import split_hook_command
+
 #: The rule is carried by a mechanism that intercepts the HOST's own action. It
 #: holds only where such a mechanism is deployed, and nowhere else.
 NEEDS_INTERCEPTION = "needs-interception"
@@ -155,7 +157,12 @@ def deployed_artifacts(profile_dir: str | None) -> set[str]:
                 for hook in entry.get("hooks") or []:
                     if not isinstance(hook, dict):
                         continue
-                    for token in str(hook.get("command", "")).replace("\\", "/").split():
+                    command = str(hook.get("command", "")).removesuffix(" 2>&1 || true")
+                    try:
+                        tokens = split_hook_command(command)
+                    except ValueError:
+                        tokens = command.replace("\\", "/").split()
+                    for token in tokens:
                         if token.endswith(".py"):
                             found.add(f"hook:{os.path.basename(token)}")
     plugins = os.path.join(profile_dir, PLUGIN_SUBDIR)

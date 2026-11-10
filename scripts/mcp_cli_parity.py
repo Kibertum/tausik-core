@@ -98,6 +98,7 @@ PARITY: dict[str, tuple[str, ...] | None] = {
     "tausik_memory_link": ("memory", "link"),
     "tausik_memory_lint": ("memory", "lint"),
     "tausik_memory_list": ("memory", "list"),
+    "tausik_memory_preflight": None,
     "tausik_memory_related": ("memory", "related"),
     "tausik_memory_search": ("memory", "search"),
     "tausik_memory_show": ("memory", "show", "<id>"),
@@ -238,11 +239,15 @@ NO_TWIN_REASONS: dict[str, str] = {
         "Budgeted memory-only playbook RPC (do/dont + decide_vs_memory). "
         "No CLI twin: the lite skill and MCP advertise own this surface."
     ),
+    "tausik_memory_preflight": (
+        "Trusted-host action authorization: it consumes the current Codex execution lease "
+        "and exact PreToolUse payload, which a standalone CLI process cannot authenticate."
+    ),
 }
 
 # The number is part of the contract: an exception added without updating this
 # literal (and the test that reads it) fails the ratchet.
-NO_TWIN_COUNT = 10
+NO_TWIN_COUNT = 11
 
 # --- The loss ratchet: read-only pairs driven on a planted project -------------
 # (mcp_tool, cli_argv, mcp_args). SLUG/QUERY substitutions happen in the test.

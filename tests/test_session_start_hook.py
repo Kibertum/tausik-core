@@ -8,12 +8,22 @@ it has context to share.
 from __future__ import annotations
 
 import json
+import hashlib
 import importlib
 import os
+from pathlib import Path
+import shutil
 import subprocess
 import sys
 
+import pytest
+
 _HOOK_PATH = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks", "session_start.py")
+_SCRIPTS = str(Path(_HOOK_PATH).resolve().parents[1])
+if _SCRIPTS not in sys.path:
+    sys.path.insert(0, _SCRIPTS)
+
+from hooks.codex_capability import serialize_hook_argv  # noqa: E402
 
 
 def test_context_uses_one_compact_state_call_and_stays_bounded(tmp_path, monkeypatch):
@@ -48,6 +58,127 @@ def _run_hook(project_dir: str, extra_env: dict | None = None) -> subprocess.Com
         timeout=15,
         env=env,
     )
+
+
+def _install_valid_codex_profile(project_dir: Path) -> tuple[Path, Path]:
+    codex = project_dir / ".codex"
+    hooks = codex / "scripts" / "hooks"
+    hooks.mkdir(parents=True)
+    source_hooks = Path(_HOOK_PATH).resolve().parent
+    pretool = hooks / "codex_write_gate.py"
+    posttool = hooks / "memory_preflight_posttool.py"
+    composite = hooks / "codex_composite_mcp.py"
+    prompt = hooks / "user_prompt_submit.py"
+    stop = hooks / "can_stop_gate.py"
+    shutil.copy2(source_hooks / pretool.name, pretool)
+    shutil.copy2(source_hooks / posttool.name, posttool)
+    shutil.copy2(source_hooks / composite.name, composite)
+    shutil.copy2(source_hooks / prompt.name, prompt)
+    shutil.copy2(source_hooks / stop.name, stop)
+    (codex / "hooks.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": serialize_hook_argv(
+                                        [
+                                            "python",
+                                            "-X",
+                                            "utf8",
+                                            str(pretool),
+                                            "--project",
+                                            str(project_dir),
+                                        ]
+                                    ),
+                                }
+                            ],
+                        }
+                    ],
+                    "PostToolUse": [
+                        {
+                            "matcher": "",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": serialize_hook_argv(
+                                        [
+                                            "python",
+                                            "-X",
+                                            "utf8",
+                                            str(posttool),
+                                            "--project",
+                                            str(project_dir),
+                                        ]
+                                    ),
+                                }
+                            ],
+                        }
+                    ],
+                    "UserPromptSubmit": [
+                        {
+                            "matcher": "",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": serialize_hook_argv(
+                                        [
+                                            "python",
+                                            "-X",
+                                            "utf8",
+                                            str(prompt),
+                                            "--trusted-host",
+                                            "codex",
+                                        ]
+                                    ),
+                                }
+                            ],
+                        }
+                    ],
+                    "Stop": [
+                        {
+                            "matcher": "",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": serialize_hook_argv(
+                                        [
+                                            "python",
+                                            "-X",
+                                            "utf8",
+                                            str(stop),
+                                            "--trusted-host",
+                                            "codex",
+                                        ]
+                                    ),
+                                }
+                            ],
+                        }
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (codex / "tausik-capability.json").write_text(
+        json.dumps(
+            {
+                "capability_version": 5,
+                "mcp_transport_modes": ["direct", "functions.exec"],
+                "python_executable": "python",
+                "adapters": {
+                    path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                    for path in (pretool, posttool, composite, prompt, stop)
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return pretool, posttool
 
 
 class TestSessionStartHook:
@@ -265,3 +396,175 @@ class TestRagSummary:
         assert "schema error" in out
         assert "no such table: rag_chunks" in out
         assert "db unreadable" not in out
+
+
+def test_native_codex_session_start_command_issues_durable_lease(tmp_path):
+    from project_backend import SQLiteBackend
+
+    backend = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
+    backend.close()
+    _install_valid_codex_profile(tmp_path)
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"TAUSIK_SKIP_HOOKS", "TAUSIK_HOOK_FAIL_OPEN"}
+    }
+    env.update({"CLAUDE_PROJECT_DIR": str(tmp_path), "PYTHONUTF8": "1"})
+    result = subprocess.run(
+        [sys.executable, _HOOK_PATH, "--trusted-host", "codex"],
+        input=json.dumps({"hook_event_name": "SessionStart", "session_id": "native-thread"}),
+        text=True,
+        capture_output=True,
+        encoding="utf-8",
+        env=env,
+        timeout=15,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert "EXECUTION LEASE ISSUED" in payload["hookSpecificOutput"]["additionalContext"]
+    check = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
+    try:
+        assert check.session_current("native-thread") is not None
+        assert check._q1("SELECT COUNT(*) AS count FROM execution_leases")["count"] == 1
+    finally:
+        check.close()
+
+
+def test_native_codex_session_start_refuses_a_profile_without_security_adapters(tmp_path):
+    from project_backend import SQLiteBackend
+
+    backend = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
+    backend.close()
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"TAUSIK_SKIP_HOOKS", "TAUSIK_HOOK_FAIL_OPEN"}
+    }
+    env.update({"CLAUDE_PROJECT_DIR": str(tmp_path), "PYTHONUTF8": "1"})
+    result = subprocess.run(
+        [sys.executable, _HOOK_PATH, "--trusted-host", "codex"],
+        input=json.dumps({"hook_event_name": "SessionStart", "session_id": "native-thread"}),
+        text=True,
+        capture_output=True,
+        encoding="utf-8",
+        env=env,
+        timeout=15,
+    )
+    payload = json.loads(result.stdout)
+    context = payload["hookSpecificOutput"]["additionalContext"]
+    assert "CAPABILITY_MISMATCH" in context
+    assert "Do not begin project work" in context
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        [],
+        {
+            "capability_version": 5,
+            "mcp_transport_modes": [{}],
+            "python_executable": "python",
+            "adapters": {},
+        },
+    ],
+)
+def test_native_codex_session_start_types_malformed_manifest_as_capability_mismatch(
+    tmp_path, manifest
+):
+    from project_backend import SQLiteBackend
+
+    backend = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
+    backend.close()
+    _install_valid_codex_profile(tmp_path)
+    (tmp_path / ".codex" / "tausik-capability.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"TAUSIK_SKIP_HOOKS", "TAUSIK_HOOK_FAIL_OPEN"}
+    }
+    env.update({"CLAUDE_PROJECT_DIR": str(tmp_path), "PYTHONUTF8": "1"})
+
+    result = subprocess.run(
+        [sys.executable, _HOOK_PATH, "--trusted-host", "codex"],
+        input=json.dumps({"hook_event_name": "SessionStart", "session_id": "native-thread"}),
+        text=True,
+        capture_output=True,
+        encoding="utf-8",
+        env=env,
+        timeout=15,
+    )
+
+    assert result.returncode == 0, result.stderr
+    context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert "CAPABILITY_MISMATCH" in context
+    assert "LEASE_INTERNAL" not in context
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "swap_events",
+        "nonempty_matcher",
+        "wrong_path",
+        "missing_file",
+        "wrong_project",
+        "inert_argument",
+        "non_command_type",
+        "missing_composite",
+        "duplicate_project",
+        "trailing_argument",
+        "wrong_python",
+    ],
+)
+def test_codex_capability_attestation_rejects_stale_hook_profiles(tmp_path, mutation):
+    ss = _load_session_start()
+    pretool, posttool = _install_valid_codex_profile(tmp_path)
+    event_pre, event_post = "PreToolUse", "PostToolUse"
+    matcher = ""
+    pretool_command = f'python -X utf8 "{pretool}" --project "{tmp_path}"'
+    posttool_command = f'python -X utf8 "{posttool}" --project "{tmp_path}"'
+    if mutation == "swap_events":
+        event_pre, event_post = event_post, event_pre
+    elif mutation == "nonempty_matcher":
+        matcher = "Bash"
+    elif mutation == "wrong_path":
+        pretool_command = pretool_command.replace("codex_write_gate.py", "other.py")
+    elif mutation == "missing_file":
+        posttool.unlink()
+    elif mutation == "wrong_project":
+        posttool_command = posttool_command.replace(str(tmp_path), str(tmp_path / "other"))
+    elif mutation == "inert_argument":
+        pretool_command = f'echo "{pretool}" --project "{tmp_path}"'
+    elif mutation == "missing_composite":
+        (pretool.parent / "codex_composite_mcp.py").unlink()
+    elif mutation == "duplicate_project":
+        pretool_command += f' --project "{tmp_path / "other"}"'
+    elif mutation == "trailing_argument":
+        pretool_command += " --unknown"
+    elif mutation == "wrong_python":
+        pretool_command = pretool_command.replace("python -X", "python-evil.exe -X", 1)
+    hook_type = "prompt" if mutation == "non_command_type" else "command"
+    payload = {
+        "hooks": {
+            event_pre: [
+                {"matcher": matcher, "hooks": [{"type": hook_type, "command": pretool_command}]}
+            ],
+            event_post: [
+                {"matcher": matcher, "hooks": [{"type": hook_type, "command": posttool_command}]}
+            ],
+        }
+    }
+    (tmp_path / ".codex" / "hooks.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    assert ss._codex_preflight_hooks_ready(str(tmp_path)) is False
+
+
+def test_codex_capability_attestation_rejects_adapter_content_drift(tmp_path):
+    ss = _load_session_start()
+    pretool, _posttool = _install_valid_codex_profile(tmp_path)
+    pretool.write_text("# no-op replacement\n", encoding="utf-8")
+
+    assert ss._codex_preflight_hooks_ready(str(tmp_path)) is False

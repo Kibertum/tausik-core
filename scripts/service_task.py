@@ -31,6 +31,96 @@ _LIFECYCLE_STATUSES = frozenset({"done", "active", "blocked", "review"})
 
 _MISSING = object()
 
+
+def _retry_revision_conflict(action: Any) -> Any:
+    """Retry one rolled-back package CAS from a fresh snapshot."""
+    from task_context_package import TaskPackageError
+
+    for attempt in range(2):
+        try:
+            return action()
+        except TaskPackageError as exc:
+            if exc.code != "REVISION_CONFLICT" or attempt:
+                raise
+    raise AssertionError("unreachable")
+
+
+def _task_package_revision(svc: Any, task: dict[str, Any]) -> str:
+    from task_context_package import _active_decisions, task_contract_revision
+
+    return task_contract_revision(task, _active_decisions(svc, task["slug"]))
+
+
+def _bind_execution_lease(svc: Any, lease_id: int, slug: str, package_fingerprint: str) -> None:
+    """Bind exactly one live lease or roll the enclosing task transition back."""
+    from task_context_package import TaskPackageError
+
+    changed = svc.be._ex(
+        "UPDATE execution_leases SET task_slug=?, task_package_fingerprint=? "
+        "WHERE id=? AND revoked_at IS NULL AND expires_at>? "
+        "AND EXISTS(SELECT 1 FROM sessions s "
+        "WHERE s.id=execution_leases.session_id AND s.ended_at IS NULL)",
+        (slug, package_fingerprint, lease_id, utcnow_iso()),
+    )
+    if changed != 1:
+        raise TaskPackageError(
+            "LEASE_STALE", "task activation requires one live execution lease binding"
+        )
+
+
+def _package_normalization(task: dict[str, Any]) -> dict[str, Any]:
+    """Concrete defaults for legacy complex rows; never erase declarations."""
+    if task.get("complexity") != "complex" or not task.get("task_package_legacy"):
+        return {}
+    result: dict[str, Any] = {"task_package_legacy": 0}
+    budget = task.get("call_budget")
+    if isinstance(budget, bool) or not isinstance(budget, int) or budget <= 0:
+        result["call_budget"] = 80
+    try:
+        profiles = json.loads(task.get("assurance_profiles") or "[]")
+    except (TypeError, ValueError):
+        profiles = []
+    try:
+        impact = json.loads(task.get("assurance_impact") or "{}")
+    except (TypeError, ValueError):
+        impact = {}
+    if (
+        not isinstance(profiles, list)
+        or not profiles
+        or not all(isinstance(value, str) and value.strip() for value in profiles)
+    ):
+        result["assurance_profiles"] = json.dumps(["executable"])
+    if not isinstance(impact, dict) or not all(
+        isinstance(impact.get(key), str) and impact.get(key) not in ("", "unknown")
+        for key in ("level", "blast_radius", "reversibility")
+    ):
+        normalized_impact = {
+            "level": "medium",
+            "blast_radius": "bounded",
+            "reversibility": "conditional",
+            "security_boundary": False,
+            "governance_boundary": False,
+            "privileged": False,
+            "data_change": "none",
+            "owner_escalation": False,
+        }
+        if isinstance(impact, dict):
+            normalized_impact.update(impact)
+        defaults = {
+            "level": "medium",
+            "blast_radius": "bounded",
+            "reversibility": "conditional",
+        }
+        for key, default in defaults.items():
+            if not isinstance(normalized_impact.get(key), str) or normalized_impact.get(key) in (
+                "",
+                "unknown",
+            ):
+                normalized_impact[key] = default
+        result["assurance_impact"] = json.dumps(normalized_impact, sort_keys=True)
+    return result
+
+
 # The debt marker from migration v77: rows blocked before questions existed.
 # Rendering treats it as DEBT, never as an acceptable answer.
 BLOCK_QUESTION_UNSET = "не задан"
@@ -193,26 +283,94 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         force: bool = False,
         *,
         include_memory: bool = True,
+        package_max_bytes: int = 16_384,
+        execution_lease_id: int | None = None,
     ) -> str:
+        from memory_only_backlog import profile_of_dir
+
+        full_profile = profile_of_dir(self.tausik_dir()) == "full" and not _internal_force
         task = self._require_task(slug)
         if task["status"] == "done":
             raise ServiceError(f"Task '{slug}' is already done")
         if task["status"] == "active":
-            from memory_relevance import lines_for_task
             from service_delegate import resume_recognition_message
 
             messages = [f"Task '{slug}' is already active (resumed)."]
+            package = None
+            if full_profile:
+                from task_context_package import (
+                    assert_package_snapshot_current,
+                    build_task_context_package,
+                    persist_task_context_package,
+                    require_package_fits,
+                    validate_package_contract,
+                )
+
+                def resume_package() -> dict[str, Any]:
+                    nonlocal task
+                    task = self._require_task(slug)
+                    expected_revision = _task_package_revision(self, task)
+                    normalization = _package_normalization(task)
+                    probe = build_task_context_package(
+                        self, slug, max_bytes=package_max_bytes, task_override=task
+                    )
+                    with self.be.transaction():
+                        task = self._require_task(slug)
+                        if task["status"] != "active":
+                            from task_context_package import TaskPackageError
+
+                            raise TaskPackageError(
+                                "REVISION_CONFLICT",
+                                f"task status changed to {task['status']} during resume",
+                            )
+                        if _task_package_revision(self, task) != expected_revision:
+                            from task_context_package import TaskPackageError
+
+                            raise TaskPackageError(
+                                "REVISION_CONFLICT", "task contract changed before package CAS"
+                            )
+                        assert_package_snapshot_current(self, probe)
+                        if normalization:
+                            self.be.task_update(slug, **normalization)
+                            task = self._require_task(slug)
+                        candidate = build_task_context_package(
+                            self, slug, max_bytes=package_max_bytes, task_override=task
+                        )
+                        validate_package_contract(candidate)
+                        require_package_fits(candidate)
+                        assert_package_snapshot_current(self, candidate)
+                        persist_task_context_package(self, candidate)
+                        if execution_lease_id is not None:
+                            _bind_execution_lease(
+                                self, execution_lease_id, slug, candidate["fingerprint"]
+                            )
+                        return candidate
+
+                package = _retry_revision_conflict(resume_package)
             notice = resume_recognition_message(self.be, slug, task.get("complexity"))
             if notice:
                 messages.append(notice)
             if include_memory:
-                messages.extend(lines_for_task(self.be, slug))
+                if package is not None:
+                    from memory_relevance import lines_for_task
+
+                    messages.extend(lines_for_task(self.be, slug))
+                    messages.append(
+                        "Task package: "
+                        + json.dumps(
+                            package, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                        )
+                    )
+                else:
+                    from memory_relevance import lines_for_task
+
+                    messages.extend(lines_for_task(self.be, slug))
             return "\n".join(messages)
         if force:
             raise ServiceError(_FORCE_RETIRED)
         qg0_warnings: list[str] = []
         advisories: list[str] = []
-        if not _internal_force:
+        if not _internal_force and not full_profile:
             qg0_warnings = self._check_qg0_start(slug, task)
             # Signals, not gates: printed with the start, never refusals.
             advisories = start_advisories(self, slug, task)
@@ -223,9 +381,77 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         if not task.get("started_at"):
             updates["started_at"] = utcnow_iso()
             updates.update(model_start_updates(self.be))  # pin model at first activation
-        with self.be.transaction():
-            self.be.task_update(slug, **updates)
-            self._cascade_start(slug)
+        expected_status = task["status"]
+        package = None
+
+        def activate() -> dict[str, Any] | None:
+            nonlocal task, qg0_warnings, advisories
+            task = self._require_task(slug)
+            expected_revision = _task_package_revision(self, task) if full_profile else ""
+            normalization = _package_normalization(task) if full_profile else {}
+            probe = None
+            candidate = None
+            if full_profile:
+                # Preserve the canonical QG-0/Rule-6 refusal before package diagnostics.
+                self._check_qg0_start(slug, task)
+                from task_context_package import (
+                    assert_package_snapshot_current,
+                    build_task_context_package,
+                    persist_task_context_package,
+                    require_package_fits,
+                    validate_package_contract,
+                )
+
+                probe = build_task_context_package(
+                    self,
+                    slug,
+                    max_bytes=package_max_bytes,
+                    task_override=task,
+                    status_override="active",
+                )
+            with self.be.transaction():
+                task = self._require_task(slug)
+                if task["status"] != expected_status:
+                    from task_context_package import TaskPackageError
+
+                    raise TaskPackageError(
+                        "REVISION_CONFLICT", f"task status changed to {task['status']} during start"
+                    )
+                if full_profile:
+                    if _task_package_revision(self, task) != expected_revision:
+                        from task_context_package import TaskPackageError
+
+                        raise TaskPackageError(
+                            "REVISION_CONFLICT", "task contract changed before package CAS"
+                        )
+                    assert probe is not None
+                    assert_package_snapshot_current(self, probe)
+                    qg0_warnings = self._check_qg0_start(slug, task)
+                    advisories = start_advisories(self, slug, task)
+                    if normalization:
+                        self.be.task_update(slug, **normalization)
+                        task = self._require_task(slug)
+                    candidate = build_task_context_package(
+                        self,
+                        slug,
+                        max_bytes=package_max_bytes,
+                        task_override=task,
+                        status_override="active",
+                    )
+                    validate_package_contract(candidate)
+                    require_package_fits(candidate)
+                    assert_package_snapshot_current(self, candidate)
+                self.be.task_update(slug, **updates)
+                self._cascade_start(slug)
+                if candidate is not None:
+                    persist_task_context_package(self, candidate)
+                    if execution_lease_id is not None:
+                        _bind_execution_lease(
+                            self, execution_lease_id, slug, candidate["fingerprint"]
+                        )
+                return candidate
+
+        package = _retry_revision_conflict(activate)
         self._project_task(slug)
         msgs = [f"Task '{slug}' started (attempt #{updates['attempts']})."]
         rebased = on_activation(self.be, self.tausik_dir(), slug, first=not task.get("started_at"))
@@ -238,10 +464,19 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         rec_msg = start_recognition_message(self.be, slug, task.get("complexity"))
         if rec_msg:
             msgs.append(rec_msg)
-        from memory_relevance import lines_for_task
-
         if include_memory:
-            msgs.extend(lines_for_task(self.be, slug))
+            if package is not None:
+                from memory_relevance import lines_for_task
+
+                msgs.extend(lines_for_task(self.be, slug))
+                msgs.append(
+                    "Task package: "
+                    + json.dumps(package, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                )
+            else:
+                from memory_relevance import lines_for_task
+
+                msgs.extend(lines_for_task(self.be, slug))
         from service_delegate import record_task_recommendation
 
         record_task_recommendation(self.be, slug, task.get("complexity"))
@@ -306,6 +541,8 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         reason: str | None = None,
         question: str | None = None,
         unblock_criteria: str | None = None,
+        attempt_event_ids: list[int] | None = None,
+        resume_action: str | None = None,
     ) -> str:
         """Block WITH a question to the owner and a checkable criterion.
 
@@ -330,6 +567,15 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             )
         _reject_question_that_restates_title(slug, task.get("title"), q)
 
+        if (attempt_event_ids is None) != (resume_action is None):
+            raise ServiceError(
+                "structured blocker requires attempt_event_ids and resume_action together"
+            )
+        structured = attempt_event_ids is not None
+        lease = getattr(self, "_authorized_execution_lease", None)
+        if structured and (not isinstance(lease, dict) or lease.get("task_slug") != slug):
+            raise ServiceError("structured blocker requires the current task-bound execution lease")
+
         was_blocked = task["status"] == "blocked"
         updates: dict[str, Any] = {
             "status": "blocked",
@@ -340,10 +586,28 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         # blocked task does not reset when the question was first posed.
         if not was_blocked:
             updates["blocked_at"] = utcnow_iso()
-        self.be.task_update(slug, **updates)
         note = f"BLOCKED: {reason}" if reason else "BLOCKED"
         note += f"\n  Question to owner: {q}\n  Unblock when: {uc}"
-        self.be.task_append_notes(slug, note)
+        with self.be.transaction():
+            # A prose-only refresh cannot inherit evidence from an old lease.
+            self.be._ex(
+                "UPDATE task_continuity_state SET blocker_json=NULL,updated_at=? WHERE task_slug=?",
+                (utcnow_iso(), slug),
+            )
+            if structured:
+                from can_stop import persist_structured_blocker
+
+                try:
+                    persist_structured_blocker(
+                        self,
+                        lease=cast(dict[str, Any], lease),
+                        attempt_event_ids=cast(list[int], attempt_event_ids),
+                        resume_action=cast(str, resume_action),
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise ServiceError(str(exc)) from exc
+            self.be.task_update(slug, **updates)
+            self.be.task_append_notes(slug, note)
         self._project_task(slug)
         return f"Task '{slug}' blocked."
 
@@ -376,6 +640,10 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             attempts=attempts,
             unblocked_by=who,
             unblocked_at=utcnow_iso(),
+        )
+        self.be._ex(
+            "UPDATE task_continuity_state SET blocker_json=NULL,updated_at=? WHERE task_slug=?",
+            (utcnow_iso(), slug),
         )
         self.be.task_append_notes(
             slug,
@@ -534,21 +802,10 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         self._project_task(slug)
         return f"Plan set for '{slug}' ({len(steps)} steps)."
 
-    def task_step(self, slug: str, step_num: int) -> str:
-        task = self._require_task(slug)
-        if not task.get("plan"):
-            raise ServiceError(f"Task '{slug}' has no plan")
-        try:
-            steps = json.loads(task["plan"])
-        except (json.JSONDecodeError, TypeError) as e:
-            raise ServiceError(f"Corrupted plan data for task '{slug}': {e}")
-        if step_num < 1 or step_num > len(steps):
-            raise ServiceError(f"Step {step_num} out of range (1-{len(steps)})")
-        steps[step_num - 1]["done"] = True
-        self.be.task_update(slug, plan=json.dumps(steps))
-        self._project_task(slug)
-        done_count = sum(1 for s in steps if s.get("done"))
-        return f"Step {step_num} done ({done_count}/{len(steps)})."
+    def task_step(self, slug: str, step_num: int, evidence: str | None = None) -> str:
+        from work_continuity import complete_plan_step
+
+        return complete_plan_step(self, slug, step_num, evidence)
 
     # task_quick + task_next + task_claim + task_unclaim live in
     # service_task_team.TaskTeamMixin for filesize compliance — they're

@@ -101,9 +101,12 @@ task undepends <slug> --after <slug>  # Withdraw a declared order
 task list [--status STATUS] [--story STORY] [--epic EPIC] [--role ROLE] [--stack STACK] [--limit N]
           [--full] [--top-n N] [--max-lines N]   # >25 rows roll up by status/role; --full = full table
 task show <slug>                # Full info: plan, notes, decisions, defect_of, AC
-task show <slug> --package      # Bounded deterministic agent context (default 8192 B)
+task show <slug> --package      # Bounded deterministic agent context (default 16384 B)
 task show <slug> --package --max-bytes 4096
-task start <slug> [--package]   # planning -> active; package returns bounded context in this call
+task start <slug> [--package]   # planning -> active only after atomic package validation
+                                #   plain and repeated starts also build/bind it; --package selects JSON
+                                #   PACKAGE_TOO_LARGE / REVISION_CONFLICT leave task and lease unchanged
+                                #   under Codex, CLI start consumes exact hook authorization and rebinds that thread
                                 #   session time and call capacity are advice in the output, not a refusal (1.10, #376)
                                 #   --force is retired: the flag is refused with the reason
 task obsolete <slug> --reason "..."   # close a task time resolved: kept on record, no QG-2, left out of

@@ -121,8 +121,8 @@ token-метрик, пиннинга модели, среза brain и каде�
   выполняет параллельно, и отдельный закрывающий хук мог бы опередить метрики.
 - **Две сессии хоста — две сессии TAUSIK.** Закрытие одной не трогает другую;
   `session end --host-id` с неизвестным id ничего не закрывает.
-- **Без id хоста** (CLI, MCP, хосты без событий сессии — Codex, OpenCode,
-  Kilo) прежний контракт в силе: одна открытая сессия, `session start` /
+- **Без id хоста** (CLI, MCP, хосты без событий сессии — OpenCode, Kilo)
+  прежний контракт в силе: одна открытая сессия, `session start` /
   `session end` руками. Какой хост какие события даёт — задача
   `session-ceremonies-are-hooks-on-every-host-or-an-honest-gap`.
 
@@ -169,3 +169,36 @@ token-метрик, пиннинга модели, среза brain и каде�
 - [team-state-in-git.md](team-state-in-git.md) — git-проекция и её флаг.
 - [agent-contract.md](agent-contract.md) — правила SENAR 9.2/9.3/9.5.
 - [cost-telemetry.md](cost-telemetry.md) — что именно пишет usage-телеметрия.
+
+## Execution lease Codex
+
+В полном профиле Codex только доверенный hook `SessionStart` выдаёт durable
+execution lease. Lease связывает нормализованный проект, экземпляр host,
+host thread, сессию TAUSIK, nonce, срок действия, установленную сборку и
+диапазон capability. Повторный старт живого thread идемпотентен. Завершение
+сессии или достижение жёсткого потолка контекста отзывает lease.
+
+Для мутации MCP доверенный adapter `PreToolUse` проверяет host thread события и
+записывает короткоживущую одноразовую авторизацию точного route и arguments.
+MCP dispatcher поглощает её до мутации. Identity host никогда не принимается из
+аргументов tool, которыми управляет модель. Read-маршруты доступны без lease.
+Файловые мутации и мутации TAUSIK CLI проверяет тот же adapter напрямую. Host
+без доверенной identity получает статус non-enforced и не получает lease.
+Граница предполагает доверие к сгенерированным project hooks; защиты от
+вредоносного процесса того же пользователя ОС контракт не заявляет.
+
+Enforcement устанавливает только governance profile `full`. После обновления
+выполните `python bootstrap/bootstrap.py --ide codex`, затем перезапустите
+сессию Codex, чтобы новый MCP process получил enforcement environment. Shell
+adapter распознаёт сгенерированные write tools, literal filesystem writes и
+канонические формы wrapper TAUSIK/`scripts/project.py`. Это ограниченное
+синтаксическое покрытие, а не sandbox для произвольной Python-программы того же
+пользователя. Для распознанного TAUSIK CLI lease проверяется и у read, и у
+mutation вызовов.
+
+Неизвестная схема, build или несовместимый capability отзывает живые leases и
+включает maintenance. Обычный SessionStart его не снимает. Владелец сначала
+чинит или мигрирует установку, затем во внешнем terminal выполняет
+`tausik doctor --reconcile-execution-leases revoke-and-reconcile`. Recovery
+отзывает все старые bindings до признания текущего build; после него Codex надо
+перезапустить.

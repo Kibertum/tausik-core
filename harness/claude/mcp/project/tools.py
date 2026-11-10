@@ -386,6 +386,15 @@ TOOLS = [
                     "type": "string",
                     "description": "REQUIRED: what must become TRUE for the task to proceed",
                 },
+                "attempt_event_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "Structured blocker: IDs observed by the trusted failure hook",
+                },
+                "resume_action": {
+                    "type": "string",
+                    "description": "Structured blocker: copy-ready next action after unblocking",
+                },
             },
             "required": ["slug"],
         },
@@ -498,13 +507,17 @@ TOOLS = [
     },
     {
         "name": "tausik_task_step",
-        "description": "Mark a plan step as done by step number (1-based). Use task_show to see current plan steps",
+        "description": "Complete plan step with evidence",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "slug": {"type": "string"},
-                "step_num": {"type": "integer", "description": "Step number (1-based)"},
-                "message": {"type": "string", "description": "Progress log"},
+                "step_num": {"type": "integer", "description": "1-based step"},
+                "message": {"type": "string"},
+                "evidence": {
+                    "type": "string",
+                    "description": "Evidence ref for strict complex tasks",
+                },
             },
             "required": ["slug", "step_num"],
         },
@@ -875,6 +888,42 @@ TOOLS = [
                 },
             },
             "required": ["query"],
+        },
+    },
+    {
+        "name": "tausik_memory_preflight",
+        "description": (
+            "Inspect applicable project memory for one exact protected action. "
+            "Call once to receive selected rows and inspection_id, then repeat with that "
+            "inspection_id and every acknowledge_ids value to issue the single-use action token."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "protected_kind": {
+                    "type": "string",
+                    "enum": [
+                        "framework_ui",
+                        "release_shell",
+                        "remote_operation",
+                        "commit",
+                        "push",
+                        "blocker",
+                    ],
+                },
+                "tool_name": {"type": "string"},
+                "tool_input": {"type": "object"},
+                "acknowledged_ids": {"type": "array", "items": {"type": "integer"}},
+                "inspection_id": {
+                    "type": "integer",
+                    "description": "Exact snapshot identifier returned by the inspection phase.",
+                },
+                "override_reason": {
+                    "type": "string",
+                    "description": "Required when selected active policy/dead-end memory conflicts.",
+                },
+            },
+            "required": ["protected_kind", "tool_name", "tool_input"],
         },
     },
     {

@@ -11,6 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "bootstrap"))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from bootstrap_codex import build_codex_hooks, generate_codex_hooks  # noqa: E402
 from bootstrap_config import resolve_governance_profile  # noqa: E402
@@ -20,15 +21,21 @@ from bootstrap_opencode import scaffold_opencode  # noqa: E402
 from bootstrap_opencode_assets import PLUGIN_FILE, PLUGINS_SUBDIR  # noqa: E402
 from bootstrap_qwen import generate_settings_qwen  # noqa: E402
 from bootstrap_templates import build_full_body  # noqa: E402
+from hooks.codex_capability import split_hook_command  # noqa: E402
 
 
 def _scripts(hooks: dict) -> set[str]:
-    return {
-        os.path.basename(hook["command"].split()[3 if "-X utf8" in hook["command"] else -1])
-        for entries in hooks.values()
-        for entry in entries
-        for hook in entry["hooks"]
-    }
+    scripts = set()
+    for entries in hooks.values():
+        for entry in entries:
+            for hook in entry["hooks"]:
+                command = hook["command"]
+                try:
+                    scripts.add(os.path.basename(split_hook_command(command)[3]))
+                except ValueError:
+                    parts = command.split()
+                    scripts.add(os.path.basename(parts[3 if "-X utf8" in command else -1]))
+    return scripts
 
 
 def test_profile_is_explicit_fail_safe_and_never_inferred_from_stack():

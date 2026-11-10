@@ -141,7 +141,7 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         "--max-bytes",
         type=int,
         default=None,
-        help="Serialized UTF-8 ceiling (package: 8192; work packet: 16384)",
+        help="Serialized UTF-8 ceiling (package/work packet: 16384)",
     )
 
     tdelegate = task_sub.add_parser(
@@ -183,7 +183,7 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Start and return the bounded task context in one result",
     )
-    tstart.add_argument("--max-bytes", type=int, default=8192)
+    tstart.add_argument("--max-bytes", type=int, default=16384)
     tstart.add_argument(
         "--force",
         action="store_true",
@@ -214,6 +214,11 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         default=None,
         dest="compound_step",
         help="With --message, include the final plan step in this closure call",
+    )
+    tdone.add_argument(
+        "--step-evidence",
+        default=None,
+        help="Immutable evidence reference for the final strict-task plan step",
     )
     tdone.add_argument(
         "--ac-verified",
@@ -321,6 +326,8 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         help="REQUIRED: what must become TRUE for the task to proceed — a "
         "checkable statement, not a date.",
     )
+    tblock.add_argument("--attempt-event-id", action="append", type=int, dest="attempt_event_ids")
+    tblock.add_argument("--resume-action")
 
     tunblock = task_sub.add_parser("unblock")
     tunblock.add_argument("slug")
@@ -420,6 +427,11 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     tstep = task_sub.add_parser("step")
     tstep.add_argument("slug")
     tstep.add_argument("step_num", type=int)
+    tstep.add_argument(
+        "--evidence",
+        default=None,
+        help="Immutable evidence: reason:<seq>, verify:<id>, decision:<id>, or artifact:sha256:<digest>",
+    )
     tstep.add_argument(
         "--message",
         default=None,

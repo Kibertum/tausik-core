@@ -25,6 +25,9 @@ BOOTSTRAP = REPO / "bootstrap"
 # Cross-cutting: guards claude/qwen hook parity across the bootstrap generators.
 CROSSCUTTING_SCOPE = ["bootstrap/"]
 sys.path.insert(0, str(BOOTSTRAP))
+sys.path.insert(0, str(REPO / "scripts"))
+
+from hooks.codex_capability import split_hook_command  # noqa: E402
 
 
 def _collect_hook_scripts(settings: dict) -> set[str]:
@@ -213,8 +216,15 @@ def test_every_host_registers_the_one_declared_set(host, request):
     live_hooks = live.get("hooks", live) if host != "codex_hooks" else live
     if host == "codex_hooks":
         adapter = live_hooks["PreToolUse"].pop()
-        assert adapter["matcher"] == "apply_patch|Bash|PowerShell"
+        assert adapter["matcher"] == ""
         assert len(adapter["hooks"]) == 1
-        assert "codex_write_gate.py" in adapter["hooks"][0]["command"]
+        adapter_argv = split_hook_command(adapter["hooks"][0]["command"])
+        assert Path(adapter_argv[3]).name == "codex_write_gate.py"
+        completion = live_hooks["PostToolUse"].pop()
+        assert completion["matcher"] == ""
+        assert len(completion["hooks"]) == 1
+        completion_argv = split_hook_command(completion["hooks"][0]["command"])
+        assert Path(completion_argv[3]).name == "memory_preflight_posttool.py"
+        assert "--project" in completion_argv
     reference = build_hooks_dict(lambda script, suffix="": f"X/{script}{suffix}")
     assert _shape(live_hooks) == _shape(reference)

@@ -6,9 +6,12 @@ import json
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bootstrap"))
 
 from bootstrap_paths import portable_path
+from bootstrap_modes import load_bootstrap_config, resolve_bootstrap_targets, validate_project_root
 
 
 def _abs(*parts: str) -> str:
@@ -57,6 +60,66 @@ def test_no_backslashes_in_output():
     inside = os.path.join(proj, "scripts", "hooks", "x.py")
     out = portable_path(inside, proj, "${CLAUDE_PROJECT_DIR}")
     assert "\\" not in out
+
+
+def test_bootstrap_omitted_host_detects_only_cursor_profile(tmp_path, monkeypatch):
+    monkeypatch.delenv("TAUSIK_IDE", raising=False)
+    (tmp_path / ".cursor").mkdir()
+    assert resolve_bootstrap_targets(None, str(tmp_path), {}) == ("cursor", ["cursor"])
+
+
+def test_bootstrap_omitted_host_uses_recorded_primary_over_stale_sibling(tmp_path, monkeypatch):
+    monkeypatch.delenv("TAUSIK_IDE", raising=False)
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".cursor").mkdir()
+    assert resolve_bootstrap_targets(
+        None, str(tmp_path), {"primary_ide": "cursor", "ides": ["cursor"]}
+    ) == ("cursor", ["cursor"])
+
+
+@pytest.mark.parametrize("profiles", [[], [".claude", ".cursor"]])
+def test_bootstrap_omitted_host_refuses_absent_or_ambiguous_profiles(
+    tmp_path, monkeypatch, profiles
+):
+    monkeypatch.delenv("TAUSIK_IDE", raising=False)
+    for profile in profiles:
+        (tmp_path / profile).mkdir()
+    with pytest.raises(ValueError, match="pass --ide"):
+        resolve_bootstrap_targets(None, str(tmp_path), {})
+
+
+def test_fresh_production_config_has_no_legacy_claude_provenance(tmp_path, monkeypatch):
+    for name in (
+        "TAUSIK_IDE",
+        "CURSOR_DIR",
+        "CURSOR_TRACE_DIR",
+        "OPENCODE_DIR",
+        "OPENCODE_BIN_PATH",
+        "CODEX_SANDBOX_DIR",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    config, full_config = load_bootstrap_config(
+        str(tmp_path), lambda root, _ide: os.path.join(root, ".claude")
+    )
+
+    assert full_config == {}
+    assert "ide" not in config
+    with pytest.raises(ValueError, match="pass --ide"):
+        resolve_bootstrap_targets(None, str(tmp_path), config)
+
+
+def test_bootstrap_does_not_treat_discovery_only_windsurf_as_scaffold_host(tmp_path, monkeypatch):
+    monkeypatch.delenv("TAUSIK_IDE", raising=False)
+    monkeypatch.setenv("WINDSURF_SESSION", "1")
+    with pytest.raises(ValueError, match="pass --ide"):
+        resolve_bootstrap_targets(None, str(tmp_path), {})
+
+
+def test_bootstrap_rejects_profile_directory_as_project_root(tmp_path):
+    profile = tmp_path / ".claude"
+    profile.mkdir()
+    with pytest.raises(ValueError, match="parent workspace"):
+        validate_project_root(str(profile))
 
 
 def _touch(p):

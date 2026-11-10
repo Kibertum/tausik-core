@@ -186,17 +186,41 @@ def test_copy_subagents_for_codex_preserves_all_canonical_agents_and_instruction
     assert tomllib.loads(changed.read_text(encoding="utf-8"))["name"] == source_names[0]
 
 
-def test_copy_subagents_skips_hosts_without_named_agents(lib_dir_with_subagent, tmp_path):
+def test_copy_subagents_supports_cursor_and_skips_hosts_without_named_agents(
+    lib_dir_with_subagent, tmp_path
+):
     sys.path.insert(0, BOOTSTRAP_DIR)
     from bootstrap_copy import copy_subagents
 
-    for ide in ("cursor", "qwen", "windsurf"):
+    cursor = tmp_path / "target_cursor"
+    cursor.mkdir()
+    assert copy_subagents(lib_dir_with_subagent, str(cursor), "cursor") == 1
+    body = (cursor / "agents" / "tausik-reviewer.md").read_text(encoding="utf-8")
+    assert body.startswith("<!-- TAUSIK:MANAGED-CURSOR-AGENT -->")
+    assert "name: tausik-reviewer" in body
+    assert "description: Test reviewer" in body
+    assert "model: inherit" in body
+    assert "tools:" not in body
+
+    for ide in ("qwen", "windsurf"):
         target = tmp_path / f"target_{ide}"
         target.mkdir()
         n = copy_subagents(lib_dir_with_subagent, str(target), ide)
-        assert n == 0, f"copy_subagents must be a no-op for {ide!r} (Claude-only feature)"
+        assert n == 0, f"copy_subagents must be a no-op for {ide!r}"
         # And no agents/ dir should be created for non-claude IDEs.
         assert not (target / "agents").exists()
+
+
+def test_cursor_subagent_preserves_same_name_user_file(lib_dir_with_subagent, tmp_path):
+    sys.path.insert(0, BOOTSTRAP_DIR)
+    from bootstrap_copy import copy_subagents
+
+    target = tmp_path / "cursor"
+    agent = target / "agents" / "tausik-reviewer.md"
+    agent.parent.mkdir(parents=True)
+    agent.write_text("user-owned agent\n", encoding="utf-8")
+    assert copy_subagents(lib_dir_with_subagent, str(target), "cursor") == 0
+    assert agent.read_text(encoding="utf-8") == "user-owned agent\n"
 
 
 def test_copy_subagents_no_source_dir_returns_zero(tmp_path):

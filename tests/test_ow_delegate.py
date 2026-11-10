@@ -206,7 +206,12 @@ class TestTaskDelegate:
         ]
         assert [row["outcome"] for row in rows] == ["selected"]
 
-        svc.be.task_update("feat-codex", status="active")
+        svc.be.task_update(
+            "feat-codex",
+            status="active",
+            goal="apply the selected route when the worker starts",
+            acceptance_criteria="AC-1 route is applied. Negative: abandoned spawn stays selected.",
+        )
         notice = svc.task_start("feat-codex")
         assert notice and "Worker mode" in notice
         assert svc.task_delegation("feat-codex")["applied"] is True

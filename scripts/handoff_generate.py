@@ -102,6 +102,8 @@ def _resume_task(be: Any, task: dict[str, Any]) -> dict[str, Any]:
                 if not step.get("done")
             ],
         }
+    from work_continuity import continuity_projection
+
     return {
         "slug": task["slug"],
         "last_log": _last_log(be, task["slug"]),
@@ -115,6 +117,7 @@ def _resume_task(be: Any, task: dict[str, Any]) -> dict[str, Any]:
             "risk": task.get("risk_json"),
         },
         "relevant_files": _json_list(task.get("relevant_files")),
+        "continuity": continuity_projection(be, task["slug"]),
     }
 
 

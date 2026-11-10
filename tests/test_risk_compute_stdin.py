@@ -16,6 +16,8 @@ import pathlib
 import subprocess
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 import risk_compute
@@ -69,7 +71,7 @@ _SUBPROCESS_FUNCS = {"run", "check_output", "check_call", "call", "Popen"}
 
 
 def _unguarded_subprocess_calls(path: pathlib.Path) -> list[int]:
-    """Lines of subprocess.<run/check_output/Popen/...> calls lacking a stdin kwarg."""
+    """Subprocess calls that can inherit stdin instead of supplying a stream."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     bad: list[int] = []
     for node in ast.walk(tree):
@@ -82,7 +84,8 @@ def _unguarded_subprocess_calls(path: pathlib.Path) -> list[int]:
             and isinstance(func.value, ast.Name)
             and func.value.id == "subprocess"
         ):
-            if "stdin" not in {kw.arg for kw in node.keywords}:
+            keywords = {kw.arg for kw in node.keywords}
+            if not keywords.intersection({"stdin", "input"}):
                 bad.append(node.lineno)
     return bad
 
@@ -90,8 +93,22 @@ def _unguarded_subprocess_calls(path: pathlib.Path) -> list[int]:
 class TestNoUnguardedSubprocessInMcpPath:
     """Class-guard: every subprocess call in scripts/ top-level (all MCP-reachable
     via the project server) must set stdin — else it can inherit the JSON-RPC
-    pipe and hang. scripts/hooks/ run as standalone harness processes and are
-    excluded. This is the anti-regression net for this defect class."""
+    pipe and hang. ``input=`` is also safe because subprocess creates a PIPE.
+    scripts/hooks/ run as standalone harness processes and are excluded. This
+    is the anti-regression net for this defect class."""
+
+    @pytest.mark.parametrize(
+        ("call", "expected"),
+        [
+            ("subprocess.run(['x'], stdin=subprocess.DEVNULL)", []),
+            ("subprocess.run(['x'], input='payload', text=True)", []),
+            ("subprocess.run(['x'])", [2]),
+        ],
+    )
+    def test_scanner_accepts_explicit_input_streams(self, tmp_path, call, expected):
+        module = tmp_path / "probe.py"
+        module.write_text(f"import subprocess\n{call}\n", encoding="utf-8")
+        assert _unguarded_subprocess_calls(module) == expected
 
     def test_all_top_level_subprocess_calls_set_stdin(self):
         offenders: list[str] = []
@@ -99,6 +116,6 @@ class TestNoUnguardedSubprocessInMcpPath:
             for lineno in _unguarded_subprocess_calls(py):
                 offenders.append(f"{py.name}:{lineno}")
         assert not offenders, (
-            "subprocess calls without stdin=DEVNULL in MCP-reachable modules "
+            "subprocess calls without stdin= or input= in MCP-reachable modules "
             f"(stdin-hang risk): {offenders}"
         )

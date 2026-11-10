@@ -34,9 +34,7 @@ def _load_config(project_dir: str) -> dict:
 
 
 def _load_cursor_config(project_dir: str) -> dict:
-    with open(
-        os.path.join(project_dir, ".cursor", "mcp.json"), encoding="utf-8"
-    ) as f:
+    with open(os.path.join(project_dir, ".cursor", "mcp.json"), encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -47,9 +45,7 @@ def test_preserves_user_added_servers(ide_layout):
             "my-custom": {"command": "node", "args": ["custom.js"]},
         }
     }
-    with open(
-        os.path.join(ide_layout["project_dir"], ".mcp.json"), "w", encoding="utf-8"
-    ) as f:
+    with open(os.path.join(ide_layout["project_dir"], ".mcp.json"), "w", encoding="utf-8") as f:
         json.dump(existing, f)
 
     bootstrap_generate.generate_mcp_json(
@@ -68,9 +64,7 @@ def test_updates_managed_server_entries(ide_layout):
             "tausik-project": {"command": "stale-python", "args": ["old.py"]},
         }
     }
-    with open(
-        os.path.join(ide_layout["project_dir"], ".mcp.json"), "w", encoding="utf-8"
-    ) as f:
+    with open(os.path.join(ide_layout["project_dir"], ".mcp.json"), "w", encoding="utf-8") as f:
         json.dump(existing, f)
 
     bootstrap_generate.generate_mcp_json(
@@ -108,6 +102,10 @@ def test_generates_cursor_project_mcp_json(ide_layout):
     assert "tausik-brain" not in cfg["mcpServers"]
     assert cfg["mcpServers"]["tausik-project"]["type"] == "stdio"
     assert cfg["mcpServers"]["tausik-project"]["command"] == "C:/py/python.exe"
+    assert cfg["mcpServers"]["tausik-project"]["env"] == {
+        "TAUSIK_ENFORCE_EXECUTION_LEASE": "1",
+        "TAUSIK_TRUSTED_HOST": "cursor",
+    }
 
 
 def test_cursor_mcp_json_preserves_user_servers(ide_layout):
@@ -152,3 +150,36 @@ def test_a_retired_managed_server_is_removed_while_user_servers_survive(ide_layo
     assert "tausik-brain" not in cfg["mcpServers"]
     assert "my-custom" in cfg["mcpServers"]
     assert "tausik-project" in cfg["mcpServers"]
+
+
+@pytest.mark.parametrize("cursor", [False, True])
+def test_malformed_existing_mcp_is_preserved_byte_exact(ide_layout, cursor):
+    project = ide_layout["project_dir"]
+    target = (
+        os.path.join(project, ".cursor", "mcp.json")
+        if cursor
+        else os.path.join(project, ".mcp.json")
+    )
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    original = b'{"mcpServers": {"private": '
+    with open(target, "wb") as file:
+        file.write(original)
+    with pytest.raises(RuntimeError, match="refusing to overwrite"):
+        if cursor:
+            bootstrap_generate.generate_cursor_mcp_json(project, os.path.join(project, ".cursor"))
+        else:
+            bootstrap_generate.generate_mcp_json(project, ide_layout["ide_dir"])
+    with open(target, "rb") as file:
+        assert file.read() == original
+
+
+@pytest.mark.parametrize("value", [[], {"mcpServers": []}])
+def test_invalid_existing_mcp_shape_is_preserved(ide_layout, value):
+    target = os.path.join(ide_layout["project_dir"], ".mcp.json")
+    original = json.dumps(value).encode()
+    with open(target, "wb") as file:
+        file.write(original)
+    with pytest.raises(RuntimeError, match="refusing to overwrite"):
+        bootstrap_generate.generate_mcp_json(ide_layout["project_dir"], ide_layout["ide_dir"])
+    with open(target, "rb") as file:
+        assert file.read() == original

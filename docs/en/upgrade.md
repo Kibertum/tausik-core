@@ -4,6 +4,15 @@
 
 <!-- doc-map: reader=user; zone=getting-started -->
 
+## 1.11.8 Codex and Cursor refresh
+
+After upgrading, regenerate the configured host profiles with
+`python bootstrap/bootstrap.py --no-detect`, then restart Codex or open a fresh
+Cursor window so the host loads the new hooks and MCP transport. Run
+`tausik doctor` to detect a stale capability digest, missing identity transport
+or an unbound project path. Maintainers cut the release only after
+`python scripts/adherence_release.py` writes a green content-addressed report.
+
 What bootstrap touches, what it leaves alone, and how to upgrade without losing your work.
 
 ## The two trees
@@ -38,7 +47,7 @@ The `tests/test_bootstrap_non_destructive.py` suite enforces this contract. Ever
 ## Upgrade workflow
 
 1. `git pull` (or update the framework however you installed it).
-2. `python bootstrap/bootstrap.py --no-detect` — refreshes `.claude/`, copies new `stacks/`, regenerates the MCP `_STACKS_ENUM` block.
+2. `python bootstrap/bootstrap.py --no-detect` — refreshes the recorded primary profile and its configured targets. A legacy install without profile provenance must run this once with `--ide <host>` (for example `--ide cursor`).
 3. `tausik stack lint` — validate that your overrides still parse against the new schema.
 4. `tausik stack diff <name>` — for each stack you've overridden, sanity-check that the built-in didn't change in a way that breaks your assumptions.
 
@@ -60,6 +69,8 @@ The framework prefers additive changes; breaking changes ship in a major version
 | Bootstrap fails or warns about `.tausik/stacks/` | Run `tausik stack lint` to spot validation errors. |
 | `tausik task add --stack X` rejects a stack you defined | Confirm `.tausik/stacks/X/stack.json` exists and parses; check `tausik stack list`. |
 | A gate stops firing after upgrade | `tausik stack info <name>` to see active gates; `stack export <name>` to confirm merge order. |
+| CLI or MCP uses a stale sibling profile | Run `tausik doctor`, then its single repair command (`python .tausik-lib/bootstrap/bootstrap.py --ide <host>` in a consumer project). The wrapper is bound to the recorded primary profile and never selects the first directory on disk. |
+| Project was moved or the workspace root was wrong | Run `tausik doctor`; profile/root/version divergence is a failure. Rerun bootstrap from the intended project root. Filesystem roots and paths ending in an IDE profile such as `D:\.claude` are refused. |
 | You want to start over | `tausik stack reset <name>` removes a single override; `rm -rf .tausik/stacks/` blows them all away. |
 
 ## Disaster recovery

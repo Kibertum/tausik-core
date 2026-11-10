@@ -190,7 +190,9 @@ def build_work_packet(
         raise ValueError("source addresses must be unique")
 
     task = svc.task_show(slug)
-    context_budget = max(MIN_MAX_BYTES, min(max_bytes // 2, 8_192))
+    # The canonical package is decision-critical, so it gets first claim on
+    # the packet ceiling. Search/source units consume only what remains.
+    context_budget = max(MIN_MAX_BYTES, min(max_bytes, 16_384))
     context = build_task_context_package(svc, slug, max_bytes=context_budget)
     if context["bytes"] > context_budget:
         raise ValueError("byte ceiling cannot hold the required task context")

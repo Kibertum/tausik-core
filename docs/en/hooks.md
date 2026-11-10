@@ -4,7 +4,7 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
-TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **23 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 24 gates in total (v1.4 introduced `secret_scan.py`, `posttool_usage.py`, `tool_output_truncation_nudge.py`, and `task_cost_budget_check.py`; 1.8 added `scope_write_gate.py` and `bash_write_gate.py`; 1.9 added `read_ledger_gate.py`, off by default).
+TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **24 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 25 gates in total (1.11.8 added the Codex `can_stop_gate.py`).
 
 The default `governance_profile: "full"` deploys the table below. An explicit project-level `"memory-only"` profile deploys only `memory_pretool_block.py` and `memory_posttool_audit.py` on hook-capable hosts, removes the OpenCode QG-0 plugin, and retains TAUSIK MCP/RAG/data. The same profile keeps a light backlog: task records stay usable, and session, verify, and gated close are not the default. Use it where project memory and work accounting are useful but TAUSIK task/verify ceremony is not. It is never inferred from an infrastructure stack. See [configuration](configuration.md#governance-footprint) for the guarantees deliberately lost.
 
@@ -55,6 +55,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | Hook | When | What It Does |
 |------|------|-------------|
 | `keyword_detector.py` | On agent stop | Catches "I'll implement"/"сейчас напишу" drift phrases → blocks stop |
+| `can_stop_gate.py` | On trusted Codex stop | Consumes the current durable turn and blocks incomplete work with the exact next plan action. Runtime errors fail closed. |
 | `session_cleanup_check.py` | On agent stop | Warns about open exploration / review tasks / session timeout |
 
 ## SessionEnd
@@ -77,8 +78,19 @@ documentation, session #266.
 | codex | hook | hook | SessionStart / SessionEnd from the shared hook declaration | codex 0.153.4: the hook event list carries SessionStart and SessionEnd |
 | opencode | plugin | plugin | `session.created` / `session.deleted` in the `tausik-qg0.js` plugin | opencode 1.1.42: plugin events in the binary |
 | kilo | cli | cli | `tausik session start` / `session end` by hand | the profile has no session events |
-| cursor | cli | cli | `tausik session start` / `session end` by hand | the profile carries no hooks |
+| cursor | hook | hook | automatic after project-hook trust | Native `.cursor/hooks.json`; critical PreToolUse and Stop entries use `failClosed` |
 <!-- /host-session-table -->
+
+Cursor runs these adapters only after the workspace project hooks are trusted.
+Bootstrap binds every adapter to the selected Python interpreter and project,
+attests the complete generated hook configuration, and routes both
+`postToolUse` and `postToolUseFailure` through the durable preflight audit.
+The managed Cursor MCP server also requires a Cursor-bound execution lease, so
+a direct mutating MCP call cannot bypass the `preToolUse` authorization path.
+Cursor cloud agents do not run `sessionStart`, `sessionEnd`, `beforeMCPExecution`
+or `afterMCPExecution` during the early read-only phase. TAUSIK therefore makes
+the first writable `preToolUse` fail closed when no trusted execution lease was
+minted; it does not claim enforcement for the preceding read-only cloud phase.
 
 Where it says `cli`, what closing by a hook does is lost: recording the
 transcript's metrics and the generated handoff at exit. `session end` by hand

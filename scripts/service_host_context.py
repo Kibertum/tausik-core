@@ -102,6 +102,16 @@ def _fresh_window_prompt(session_id: int | None, thread_id: str | None) -> str:
     )
 
 
+def enforce_hard_ceiling(svc: Any, *, host: str, thread_id: str) -> dict[str, Any] | None:
+    """Checkpoint/revoke an over-budget thread before any lease-protected mutation."""
+
+    config = load_config(svc.tausik_dir())
+    observed = _usage(os.path.dirname(svc.tausik_dir()), host, thread_id)
+    if _level(observed, _budget(config)) != "hard":
+        return None
+    return open_session(svc, host=host, thread_id=thread_id, usage=observed)
+
+
 def open_session(
     svc: Any,
     *,
@@ -124,8 +134,30 @@ def open_session(
     prompt: str | None
     if legacy and legacy.get("host_session_id") is not None:
         legacy = None
-    if level == "hard" and existing is None:
-        checkpoint_session = legacy
+    if level == "hard":
+        checkpoint_session = existing or legacy
+        if checkpoint_session is None and thread_id:
+            recent = svc.be._q1(
+                "SELECT * FROM sessions WHERE host_session_id=? ORDER BY id DESC LIMIT 1",
+                (thread_id,),
+            )
+            prior_handoff = str((recent or {}).get("handoff") or "")
+            if recent is not None and recent.get("ended_at") and '"level": "hard"' in prior_handoff:
+                prompt = _fresh_window_prompt(recent["id"], thread_id)
+                return {
+                    "session": recent,
+                    "host_context": {
+                        "host": host,
+                        "reopened": False,
+                        "fresh_context": False,
+                        "level": level,
+                        "usage": observed,
+                        "budget": budget,
+                        "allow_continue": False,
+                        "checkpoint_saved": False,
+                        "fresh_window_prompt": prompt,
+                    },
+                }
         if checkpoint_session is None:
             svc.session_start(thread_id)
             checkpoint_session = svc.be.session_current(thread_id)

@@ -4,13 +4,54 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
-**151 инструментов** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+## Memory preflight для защищённых действий
 
-> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 151 — итого с ним 158 инструментов.
+`tausik_memory_preflight` — двухфазный RPC только для доверенного хоста. Ему
+передают точные будущие `tool_name`, `tool_input` и закрытый `protected_kind`:
+`framework_ui`, `release_shell`, `remote_operation`, `commit`, `push` или
+`blocker`. Первый вызов возвращает ограниченную редактированную выборку памяти и
+`inspection_id`. Второй передаёт тот же `inspection_id`, подтверждает ровно эти
+ID и выдаёт токен на пять минут. Изменение содержимого делает inspection
+устаревшим и не перепривязывает подтверждение к новому тексту.
+
+Токен связывает execution lease Codex, fingerprint task package, ревизию
+содержимого памяти, identity действия и хеш нормализованного payload.
+PreToolUse атомарно резервирует его, PostToolUse фиксирует `executed` или
+`failed`. Отсутствующий, устаревший, конфликтующий, неизвестный или повторный
+токен закрывает действие. Конфликт с активной typed policy/dead-end требует
+`action` reason-step с возвращённым action ID. Телеметрия просмотра и hit
+counters не меняют ревизию содержимого.
+Строки с признаками instruction injection помещаются в карантин до
+подтверждения и не участвуют в выдаче токена. Проектная область и видимость
+архива применяются запросом памяти до expansion.
+
+## Composite-транспорт Codex
+
+Codex может провести MCP-вызов через внешний инструмент `functions.exec`. В
+доверенном проекте TAUSIK берёт host `session_id` из внешнего hook, разбирает
+только ограниченные literal-вызовы внутри и выдаёт одноразовую авторизацию для
+каждой точной пары route/arguments. Доверенный hook переписывает исполняемый
+input, добавляя непредсказуемую одноразовую correlation; MCP-сервер удаляет её до
+обычной проверки аргументов. Конкурирующий поток с теми же route и arguments
+получает отказ и не расходует авторизацию исходного вызова. Поддерживаются прямые
+вызовы, простые alias и вложенность wrapper. Вычисляемые аргументы и имена инструментов, escaped alias,
+дубли мутаций и replay отклоняются; model-supplied identity не принимается.
+
+Запустите `python bootstrap/bootstrap.py --ide codex`, доверьте project hooks и
+откройте свежий поток Codex. Bootstrap включает lease enforcement только когда
+manifest capability v5 аттестует write-, PostToolUse-, composite-, UserPromptSubmit- и Stop-adapters и
+точный Python-интерпретатор bootstrap. Несовместимый профиль останавливает MCP startup и даёт в `tausik doctor` typed-
+инструкцию повторить bootstrap. Только `tausik_session_open` и
+`tausik_session_start` разрешены до привязки task package; обычные мутации
+остаются привязанными к текущему package.
+
+**152 инструментов** для ИИ-агентов (актуальный счёт, проверено `len(TOOLS)`). MCP-surface покрывает всё, что агент делает день за днём. Несколько CLI-only команд намеренно не имеют MCP-аналога — это оператор/maintenance verbs, которым не место в agent-loop: `skill rebuild`, `skill bundle`, `fts optimize`, `db prune`, `audit vendors`/`research`, `config set`/`show`, `push-ok`, `run`, `doc extract`/`constants`, `hud`, `suggest-model`, `hygiene archive --confirm`. Для рабочего набора агента предпочитайте MCP-инструменты shell-вызовам — они атомарны, возвращают структурированные данные и держат контекст чище.
+
+> **Опциональный сервер `codebase-rag`** добавляет 7 инструментов (search_code, find_symbol, etc.). Он включается отдельно через bootstrap и НЕ входит в основной счёт 152 — итого с ним 159 инструментов.
 
 В проекте живут два MCP-сервера:
 
-- `tausik-project` — project-scoped инструменты (151): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
+- `tausik-project` — project-scoped инструменты (152): tasks, sessions, knowledge, stacks, roles, gates, skills, exploration, audit, doctor, verify, usage logging, RENAR substrate (specs + adapts).
 
 Опционально доступен `codebase-rag` сервер (документирован в конце).
 
@@ -353,7 +394,7 @@ DEFAULT_STACKS: 25 записей (python, fastapi, django, flask, react, next, 
 | `cache_web_result` | Кешировать web-результат | `query`, `content` |
 | `search_web_cache` | Поиск кешированных web-результатов | `query` |
 
-Эти не входят в основной счёт 151 — принадлежат опциональному `codebase-rag` серверу.
+Эти не входят в основной счёт 152 — принадлежат опциональному `codebase-rag` серверу.
 
 ## Область tool-поверхности (`mcp.scope_tools_exposure`)
 
@@ -374,8 +415,8 @@ Rule 2) и всегда-безопасного ядра — целиком се�
 write-гейт не тронут. Область пересчитывается каждый раз, когда хост запрашивает
 `list_tools` — то есть при каждом подключении к серверу с уже активной задачей.
 
-**Замер стоимости.** Полная авторская поверхность — 151 тул ~ 61,1 КБ определений
-(61 097 байт, ~15.3k оценочных токенов при байтах/4; храповик в
+**Замер стоимости.** Полная авторская поверхность — 152 тула ~ 62,0 КБ определений
+(61 981 байт, ~15.5k оценочных токенов при байтах/4; храповик в
 `tausik/gates.json` (`mcp_surface`) фиксирует это и отказывает росту без
 обоснованного повышения). При отложенной загрузке Claude Code (`ENABLE_TOOL_SEARCH`)
 эагерно грузятся только имена, а каждое описание обрезается до 2 КБ — храповой

@@ -247,6 +247,11 @@ class TestTaskStartIntegration:
             goal="g",
             acceptance_criteria="ac1. negative: x",
             complexity=complexity,
+            call_budget=10,
+            assurance_profiles='["executable"]',
+            assurance_impact=(
+                '{"level":"high","blast_radius":"local","reversibility":"reversible"}'
+            ),
             rollback_plan="git revert",
             scope="x.py",  # satisfy the Rule 2 hard gate (v15-scope-rule2-hardgate)
         )

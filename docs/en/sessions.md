@@ -126,8 +126,8 @@ at 76 active minutes. Now the unit "session" is the host session:
   of one event in parallel, and a separate closing hook could beat the metrics.
 - **Two host sessions are two TAUSIK sessions.** Closing one does not touch the
   other; `session end --host-id` with an unknown id closes nothing.
-- **Without a host id** (CLI, MCP, hosts without session events — Codex,
-  OpenCode, Kilo) the old contract holds: one open session, `session start` /
+- **Without a host id** (CLI, MCP, hosts without session events — OpenCode,
+  Kilo) the old contract holds: one open session, `session start` /
   `session end` by hand. Which host gives which events is the task
   `session-ceremonies-are-hooks-on-every-host-or-an-honest-gap`.
 
@@ -177,3 +177,36 @@ coupling, not the data.
 - [../ru/agent-contract.md](../ru/agent-contract.md) — SENAR rules 9.2/9.3/9.5
   (Russian only; no English mirror exists yet).
 - [cost-telemetry.md](cost-telemetry.md) — what usage telemetry actually writes.
+
+## Codex execution lease
+
+In the full Codex profile, the trusted `SessionStart` hook is the only issuer
+of a durable execution lease. The lease binds the normalized project,
+host instance, host thread, TAUSIK session, nonce, expiry, installed build and
+capability range. Repeated starts for the same live thread are idempotent;
+ending the session or reaching the hard context ceiling revokes its lease.
+
+For MCP mutations, the trusted `PreToolUse` adapter validates the event's host
+thread and writes a short-lived, single-use authorization for the exact route
+and arguments. The MCP dispatcher consumes it before mutation. Host identity
+is never accepted from model-controlled tool arguments. Read routes remain
+lease-free. Filesystem and TAUSIK CLI mutations are checked directly by the
+same adapter. An untrusted or identity-less host is reported as non-enforced
+and receives no lease. This boundary assumes trusted generated project hooks;
+it does not claim protection from a malicious process running as the same OS
+user.
+
+This enforcement is installed only by the `full` governance profile. Run
+`python bootstrap/bootstrap.py --ide codex` after upgrading, then restart the
+Codex session so the MCP process receives its enforcement environment. The
+shell adapter recognizes generated write tools, literal filesystem writes and
+the canonical TAUSIK wrapper/`scripts/project.py` spellings; it is bounded
+syntax coverage, not a claim to sandbox arbitrary same-user Python programs.
+Recognized TAUSIK CLI reads and mutations are both lease-checked.
+
+An unknown schema, build or capability mismatch revokes live leases and enters
+maintenance. A normal SessionStart cannot clear it. The owner first repairs or
+migrates the installation, then runs
+`tausik doctor --reconcile-execution-leases revoke-and-reconcile` in an external
+terminal. Recovery revokes every old binding before acknowledging the current
+build; restart Codex afterward.

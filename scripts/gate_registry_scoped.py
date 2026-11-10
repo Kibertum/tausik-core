@@ -469,8 +469,8 @@ _SCOPED: tuple[GateSpec, ...] = (
             # cross-host parity is a tax, and a tax gets switched off; this one only
             # has an opinion when bootstrap/ or scripts/hooks/ changed.
             #
-            # It does NOT require sameness — Cursor has no extension point to be
-            # equal to. It requires a difference to be NAMED, with a reason, and it
+            # It does NOT require sameness: Cursor's native hooks have no
+            # documented Glob matcher. It requires a difference to be NAMED, with a reason, and it
             # refuses a declaration that no longer matches anything live (decision
             # #335 both ways).
             #

@@ -332,4 +332,7 @@ def run_class_surface_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests
     from cli_entrypoint import refuse_direct_run
 
-    refuse_direct_run(__file__, '.tausik/tausik gates status      # this gate runs from the gate runner, not by hand')
+    refuse_direct_run(
+        __file__,
+        ".tausik/tausik gates status      # this gate runs from the gate runner, not by hand",
+    )

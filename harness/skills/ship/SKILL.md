@@ -243,3 +243,4 @@ Show:
 - **AC evidence format matters.** QG-2 parses notes for "✓" and test counts; commits without evidence in task_log will be blocked by the task_done gate.
 - **Multiple active tasks create scope ambiguity.** If the diff spans two tasks' scope, ask the user which task this ship belongs to — do not guess.
 - **Don't amend the ship commit after push.** Pushing then amending forces the user to force-push; create a follow-up commit instead.
+- **A refused Stop means ship is unfinished.** Follow its exact next action; do not summarize the task as delivered.

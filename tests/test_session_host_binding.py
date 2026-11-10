@@ -14,10 +14,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import shutil
 import sqlite3
 import sys
-from types import SimpleNamespace
-
 import pytest
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -129,30 +128,43 @@ class TestTheService:
 class TestTheHooks:
     def test_session_start_hook_opens_the_host_session(self, monkeypatch, tmp_path):
         import session_start as hook
+        from project_backend import SQLiteBackend
 
-        calls: list[list[str]] = []
-        monkeypatch.setattr(hook, "_tausik_path", lambda _d: "tausik")
+        backend = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
+        backend.close()
+        monkeypatch.syspath_prepend(os.path.join(_ROOT, "bootstrap"))
+        from bootstrap_codex import generate_codex_hooks
 
-        def run(argv, **_kwargs):
-            calls.append(argv)
-            return SimpleNamespace(returncode=0, stdout="Session started", stderr="")
-
-        monkeypatch.setattr(hook.subprocess, "run", run)
+        deployed = tmp_path / ".codex" / "scripts" / "hooks"
+        deployed.mkdir(parents=True)
+        for script in (
+            "codex_write_gate.py",
+            "memory_preflight_posttool.py",
+            "codex_composite_mcp.py",
+            "user_prompt_submit.py",
+            "can_stop_gate.py",
+        ):
+            shutil.copy2(os.path.join(_ROOT, "scripts", "hooks", script), deployed / script)
+        generate_codex_hooks(str(tmp_path), str(tmp_path / ".codex"))
         blocker = hook._open_host_session(
-            str(tmp_path), {"session_id": "abc-123", "source": "startup"}
+            str(tmp_path),
+            {
+                "hook_event_name": "SessionStart",
+                "session_id": "abc-123",
+                "source": "startup",
+            },
+            trusted_host="codex",
         )
-        assert blocker is None
-        assert calls == [["tausik", "session", "start", "--host-id", "abc-123"]]
+        assert "EXECUTION LEASE ISSUED" in blocker
+        check = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
+        try:
+            assert check.session_current("abc-123") is not None
+            assert check._q1("SELECT COUNT(*) AS count FROM execution_leases")["count"] == 1
+        finally:
+            check.close()
 
-    @pytest.mark.parametrize(
-        "warning",
-        [
-            "WARNING: installed version is unverified because release check failed",
-            "WARNING: installed version is unverified because update checks are disabled",
-        ],
-    )
-    def test_successful_session_start_surfaces_version_warning(
-        self, monkeypatch, tmp_path, warning
+    def test_session_start_without_codex_provenance_reports_non_enforcement(
+        self, monkeypatch, tmp_path
     ):
         import session_start as hook
 
@@ -160,14 +172,10 @@ class TestTheHooks:
         monkeypatch.setattr(
             hook.subprocess,
             "run",
-            lambda *_a, **_k: SimpleNamespace(
-                returncode=0, stdout="Session started", stderr=warning
-            ),
+            lambda *_a, **_k: type("Result", (), {"returncode": 0, "stderr": "", "stdout": ""})(),
         )
-
         notice = hook._open_host_session(str(tmp_path), {"session_id": "host-warning"})
-
-        assert notice == f"TAUSIK SESSION OPENED WITH WARNING. {warning}"
+        assert notice is None
 
     def test_success_warning_is_combined_with_normal_additional_context(
         self, monkeypatch, tmp_path, capsys
@@ -180,7 +188,7 @@ class TestTheHooks:
         warning = "TAUSIK SESSION OPENED WITH WARNING. installed version is unverified"
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"session_id": "host"})))
-        monkeypatch.setattr(hook, "_open_host_session", lambda *_a: warning)
+        monkeypatch.setattr(hook, "_open_host_session", lambda *_a, **_k: warning)
         monkeypatch.setattr(hook, "_auto_rebuild_skills", lambda *_a: None)
         monkeypatch.setattr(hook, "build_context", lambda *_a: "normal project context")
 

@@ -242,6 +242,84 @@ class TestFullMigrationPath:
         tasks = conn.execute("SELECT * FROM tasks").fetchall()
         assert len(tasks) == 2
 
+    def test_v87_preserves_terminal_preflight_attempts(self, monkeypatch):
+        import backend_migrations
+
+        conn = _create_v1_db()
+        all_migrations = backend_migrations.MIGRATIONS
+        monkeypatch.setattr(
+            backend_migrations,
+            "MIGRATIONS",
+            {version: sql for version, sql in all_migrations.items() if version <= 86},
+        )
+        assert backend_migrations.run_migrations(conn, 1) == 86
+        conn.execute("INSERT INTO sessions(started_at) VALUES('2026-11-09T00:00:00Z')")
+        session_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.execute(
+            "INSERT INTO execution_leases(session_id,project_identity,host_instance,thread_id,"
+            "assertion_nonce,assertion_issued_at,assertion_expires_at,nonce,issued_at,expires_at,"
+            "projection_build,capability_min,capability_max) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                session_id,
+                "project",
+                "codex",
+                "thread",
+                "assertion",
+                "2026-11-09T00:00:00Z",
+                "2026-11-09T01:00:00Z",
+                "lease",
+                "2026-11-09T00:00:00Z",
+                "2026-11-09T01:00:00Z",
+                "build",
+                1,
+                1,
+            ),
+        )
+        lease_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.executemany(
+            "INSERT INTO memory_preflight_tokens(token,lease_id,package_fingerprint,"
+            "content_revision,acknowledged_ids,protected_kind,action_id,payload_hash,status,"
+            "issued_at,expires_at,reserved_at,completed_at,failure_code) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                (
+                    f"token-{status}",
+                    lease_id,
+                    "package",
+                    "revision",
+                    "[]",
+                    "commit",
+                    f"action-{status}",
+                    f"payload-{status}",
+                    status,
+                    "2026-11-09T00:00:00Z",
+                    "2026-11-09T01:00:00Z",
+                    "2026-11-09T00:10:00Z",
+                    "2026-11-09T00:11:00Z",
+                    "TOOL_FAILED" if status == "failed" else None,
+                )
+                for status in ("executed", "failed", "expired")
+            ],
+        )
+        conn.commit()
+
+        monkeypatch.setattr(backend_migrations, "MIGRATIONS", all_migrations)
+        assert backend_migrations.run_migrations(conn, 86) == SCHEMA_VERSION
+
+        attempts = [
+            tuple(row)
+            for row in conn.execute(
+                "SELECT token,status,failure_code FROM memory_preflight_attempt_audit ORDER BY token"
+            ).fetchall()
+        ]
+        assert attempts == [
+            ("token-executed", "executed", None),
+            ("token-expired", "expired", None),
+            ("token-failed", "failed", "TOOL_FAILED"),
+        ]
+        assert conn.execute("SELECT COUNT(*) FROM memory_preflight_tokens").fetchone()[0] == 0
+        conn.close()
+
     def test_new_db_no_migration_needed(self):
         """Fresh DB starts at latest version — no migrations applied."""
         conn = sqlite3.connect(":memory:")
@@ -530,6 +608,32 @@ class TestSchemaMigrationParity:
         check_schema_migration_parity(2, {1: [], 2: []})  # must not raise
 
 
+def test_v84_legacy_marker_is_one_shot_and_does_not_weaken_new_complex_tasks():
+    from backend_migrations_v84 import mark_legacy_task_packages_v84
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+    conn.execute(
+        "CREATE TABLE tasks(slug TEXT PRIMARY KEY,complexity TEXT,call_budget INTEGER,"
+        "assurance_profiles TEXT,assurance_impact TEXT,task_package_legacy INTEGER DEFAULT 0)"
+    )
+    conn.execute("INSERT INTO tasks(slug,complexity) VALUES('legacy','complex')")
+    conn.execute(
+        "INSERT INTO tasks VALUES('complete','complex',80,'[\"executable\"]',"
+        '\'{"level":"medium","blast_radius":"bounded","reversibility":"conditional"}\',0)'
+    )
+    conn.execute(
+        "INSERT INTO tasks VALUES('partial','complex',80,'[\"executable\"]',"
+        '\'{"level":"medium"}\',0)'
+    )
+    conn.execute("INSERT INTO tasks VALUES('zero','complex',0,'not-json','not-json',0)")
+    mark_legacy_task_packages_v84(conn)
+    conn.execute("INSERT INTO tasks(slug,complexity) VALUES('new','complex')")
+    mark_legacy_task_packages_v84(conn)
+    rows = dict(conn.execute("SELECT slug,task_package_legacy FROM tasks").fetchall())
+    assert rows == {"legacy": 1, "complete": 0, "partial": 1, "zero": 1, "new": 0}
+
+
 class TestDbBackupPruning:
     """One `.bak.v<N>` snapshot is written per migration and none were ever
     removed — a long-lived project carried 10 backups (~150 MB) beside a 24 MB
@@ -639,9 +743,9 @@ class TestV48UsageEventsRebuildGuard:
         run_migrations(conn, 1)
         # Первый проход уже отработал внутри run_migrations.
         assert maybe_rebuild_usage_events_v48(conn) == 0
-        notnull = {
-            r[1]: r[3] for r in conn.execute("PRAGMA table_info(usage_events)")
-        }["session_id"]
+        notnull = {r[1]: r[3] for r in conn.execute("PRAGMA table_info(usage_events)")}[
+            "session_id"
+        ]
         assert notnull == 0, "session_id обязан быть необязательным после v48"
         conn.close()
 
@@ -656,9 +760,7 @@ class TestV48UsageEventsRebuildGuard:
         conn = _create_v1_db()
         conn.isolation_level = None
         run_migrations(conn, 1)
-        conn.execute(
-            "INSERT INTO sessions(started_at) VALUES('2026-08-31T10:00:00Z')"
-        )
+        conn.execute("INSERT INTO sessions(started_at) VALUES('2026-08-31T10:00:00Z')")
         conn.execute(
             "INSERT INTO usage_events(id,session_id,task_slug,tokens_input,tokens_output,"
             "tokens_total,cost_usd,tool_calls,source,recorded_at) "

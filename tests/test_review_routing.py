@@ -24,6 +24,40 @@ LOW = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _explicit_external_review_policy(monkeypatch, request):
+    """Legacy routing assertions opt in; production default is deterministic-only."""
+    if request.node.name.startswith(("test_external_agent_review_", "test_default_policy_")):
+        return
+    monkeypatch.setattr("service_review_gate.external_agent_review_enabled", lambda _service: True)
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({}, False),
+        ({"review": {}}, False),
+        ({"review": {"external_agents": False}}, False),
+        ({"review": {"external_agents": True}}, True),
+    ],
+)
+def test_external_agent_review_is_explicit_opt_in(monkeypatch, config, expected):
+    from service_review_gate import external_agent_review_enabled
+
+    monkeypatch.setattr("project_config.load_config", lambda _path: config)
+    service = type("Service", (), {"tausik_dir": lambda self: ".tausik"})()
+    assert external_agent_review_enabled(service) is expected
+
+
+def test_default_policy_does_not_add_a_second_agent_blocker(monkeypatch):
+    from service_review_gate import enforce_assurance_review
+
+    monkeypatch.setattr("service_review_gate.external_agent_review_enabled", lambda _service: False)
+    report = {"blocking_failures": []}
+    assert not enforce_assurance_review(object(), {}, "task", None, report)
+    assert report["blocking_failures"] == []
+
+
 @pytest.mark.parametrize(
     "assurance, expected_depth, calls, same_family",
     [

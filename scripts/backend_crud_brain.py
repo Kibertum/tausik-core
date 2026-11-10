@@ -28,9 +28,7 @@ def brain_event_record(
     if event_type not in _VALID_TYPES:
         raise ValueError(f"unknown brain event type: {event_type}")
     if session_id is None:
-        cur = be._q1(
-            "SELECT id FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
-        )
+        cur = be._q1("SELECT id FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1")
         session_id = (cur or {}).get("id")
     return cast(
         int,
@@ -44,16 +42,13 @@ def brain_event_record(
 
 def brain_event_metrics(be: Any, session_id: int | None = None) -> dict[str, Any]:
     if session_id is None:
-        cur = be._q1(
-            "SELECT id FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
-        )
+        cur = be._q1("SELECT id FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1")
         session_id = (cur or {}).get("id")
 
     def _count(et: str, scope: str) -> int:
         if scope == "session" and session_id is not None:
             row = be._q1(
-                "SELECT COUNT(*) AS c FROM brain_events "
-                "WHERE session_id=? AND event_type=?",
+                "SELECT COUNT(*) AS c FROM brain_events WHERE session_id=? AND event_type=?",
                 (session_id, et),
             )
         else:
@@ -77,16 +72,12 @@ def brain_event_metrics(be: Any, session_id: int | None = None) -> dict[str, Any
             "hits": sess_hits,
             "writes": sess_writes,
             "ignored": sess_ignored,
-            "hit_rate_pct": (
-                round(sess_hits / sess_searches * 100, 1) if sess_searches else 0.0
-            ),
+            "hit_rate_pct": (round(sess_hits / sess_searches * 100, 1) if sess_searches else 0.0),
         },
         "all_time": {
             "searches": all_searches,
             "hits": all_hits,
             "writes": all_writes,
-            "hit_rate_pct": (
-                round(all_hits / all_searches * 100, 1) if all_searches else 0.0
-            ),
+            "hit_rate_pct": (round(all_hits / all_searches * 100, 1) if all_searches else 0.0),
         },
     }

@@ -49,6 +49,14 @@ def run_optional_checks(
     # Cursor MCP surface tax — only when `.cursor/mcp.json` exists. Extra
     # (non-TAUSIK) servers share the same Cursor plan budget; we do not meter them.
     try:
+        from service_doctor_codex import check_codex_mcp_transport
+
+        drain(check_codex_mcp_transport(project_dir))
+    except Exception as e:  # noqa: BLE001 - a doctor adapter must not crash doctor
+        print_warn("Codex MCP authorization", f"could not validate: {e}")
+        warnings += 1
+
+    try:
         from service_doctor_cursor import check_cursor_mcp_surface
 
         drain(check_cursor_mcp_surface(project_dir))

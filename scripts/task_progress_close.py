@@ -16,6 +16,7 @@ def _validate(
     message: str | None,
     step_num: int | None,
     *,
+    step_evidence: str | None,
     close: bool,
     verify: bool,
     verify_handle: str | None,
@@ -32,6 +33,8 @@ def _validate(
         raise ValueError("message must be non-empty")
     if type(step_num) is not int or step_num < 1:
         raise ValueError("step_num must be a positive integer")
+    if step_evidence is not None and not isinstance(step_evidence, str):
+        raise ValueError("step_evidence must be a string")
     for name, value in (
         ("close", close),
         ("verify", verify),
@@ -140,6 +143,7 @@ def run_progress_close(
     message: str | None,
     step_num: int | None,
     *,
+    step_evidence: str | None = None,
     close: bool = False,
     verify: bool = False,
     verify_handle: str | None = None,
@@ -158,6 +162,7 @@ def run_progress_close(
     message, step_num = _validate(
         message,
         step_num,
+        step_evidence=step_evidence,
         close=close,
         verify=verify,
         verify_handle=verify_handle,
@@ -182,7 +187,7 @@ def run_progress_close(
     except Exception as exc:  # noqa: BLE001 - envelope preserves the producer's diagnostic
         return _failure(svc, slug, result, "task_log", str(exc))
     try:
-        result["step"] = svc.task_step(slug, step_num)
+        result["step"] = svc.task_step(slug, step_num, step_evidence)
         result["completed"].append("task_step")
     except Exception as exc:  # noqa: BLE001 - earlier log is intentionally durable
         return _failure(svc, slug, result, "task_step", str(exc))

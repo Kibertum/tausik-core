@@ -46,16 +46,21 @@ def test_each_claim_matches_the_profile(lang):
     plugin = _read("harness", "opencode", "plugins", "tausik-qg0.js")
     qwen = _read("bootstrap", "bootstrap_qwen.py")
     codex = _read("bootstrap", "bootstrap_codex.py")
+    cursor = _read("bootstrap", "bootstrap_generate.py")
     for host, (opens, closes) in _table(lang).items():
         if opens == "hook":
             # Claude, Codex and (since qwen-hooks-are-a-second-copy-of-the-
             # declaration) Qwen all build from the one shared declaration.
-            assert host in ("claude", "codex", "qwen"), host
+            assert host in ("claude", "codex", "cursor", "qwen"), host
             assert {"SessionStart", "SessionEnd"} <= set(shared), host
             if host == "codex":
                 assert "build_hooks_dict" in codex
             if host == "qwen":
                 assert "build_hooks_dict" in qwen
+            if host == "cursor":
+                assert "generate_cursor_hooks_json" in cursor
+                assert '"SessionStart": "sessionStart"' in cursor
+                assert '"SessionEnd": "sessionEnd"' in cursor
         elif opens == "plugin":
             assert host == "opencode"
             assert '"session.created"' in plugin and '"session.deleted"' in plugin

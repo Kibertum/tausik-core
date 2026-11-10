@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from project_backend import SQLiteBackend
 from project_service import ProjectService
 from task_start_result import start_with_context
@@ -38,18 +40,17 @@ def test_start_with_context_returns_active_contract_in_one_result(tmp_path):
         svc.be.close()
 
 
-def test_context_failure_reports_committed_partial_state(tmp_path, monkeypatch):
+def test_context_failure_rolls_back_activation(tmp_path, monkeypatch):
     svc = _service(tmp_path)
     monkeypatch.setattr(
-        "task_start_result.build_task_context_package",
+        "task_context_package.build_task_context_package",
         lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("projection failed")),
     )
     try:
-        result = start_with_context(svc, "work")
-        assert result["ok"] is False
-        assert result["started"] is True
-        assert svc.task_show("work")["status"] == "active"
-        assert result["context"]["error"] == "RuntimeError"
-        assert result["context"]["recovery"].endswith("task show work --package")
+        with pytest.raises(RuntimeError, match="projection failed"):
+            start_with_context(svc, "work")
+        assert svc.task_show("work")["status"] == "planning"
+        row = svc.be._q1("SELECT 1 FROM task_context_packages WHERE task_slug='work'")
+        assert row is None
     finally:
         svc.be.close()

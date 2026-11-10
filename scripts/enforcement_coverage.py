@@ -12,9 +12,9 @@ what we meant to deploy and drift from what we did — the same drift, one level
 up. So the notice counts the artifacts bootstrap actually left in the host's
 profile directory (decision #335).
 
-WHAT THIS MODULE REFUSES TO DO is close the gap. Cursor and kilo get an honest
-sentence, not a generated hooks payload: shipping one would be a different task
-and a much larger claim. Declaring the gap is the whole deliverable.
+Current coverage is derived from disk rather than frozen at that historical
+measurement. Cursor now contributes native `.cursor/hooks.json`; Kilo still gets
+an honest instruction-only notice where no real-time mechanism is deployed.
 """
 
 from __future__ import annotations
@@ -101,6 +101,22 @@ def deployed_enforcement(profile_dir: str | None) -> dict[str, int]:
             for entry in entries:
                 if isinstance(entry, dict) and isinstance(entry.get("hooks"), list):
                     found["hooks"] += len(entry["hooks"])
+    native_path = os.path.join(profile_dir, "hooks.json")
+    if os.path.isfile(native_path):
+        try:
+            with open(native_path, encoding="utf-8") as file:
+                native = json.load(file)
+        except (OSError, ValueError):
+            native = {}
+        hooks = native.get("hooks") if isinstance(native, dict) else None
+        if isinstance(hooks, dict):
+            found["hooks"] += sum(
+                1
+                for entries in hooks.values()
+                if isinstance(entries, list)
+                for entry in entries
+                if isinstance(entry, dict) and isinstance(entry.get("command"), str)
+            )
     plugins = os.path.join(profile_dir, PLUGIN_SUBDIR)
     if os.path.isdir(plugins):
         try:

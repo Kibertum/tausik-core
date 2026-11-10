@@ -79,15 +79,6 @@ def auto_verify_acknowledged_reason(cfg: dict) -> str | None:
     return reason.strip() if isinstance(reason, str) and reason.strip() else None
 
 
-def session_status_detail(svc: Any) -> str:
-    """Render session age without treating a rounded zero as no session."""
-    if not svc.session_current():
-        return "no active session"
-    active = svc.session_active_minutes()
-    wall = svc.session_wall_minutes()
-    return f"{active}m active / {wall}m wall"
-
-
 def _user_tier_location_line() -> None:
     """Where the user tier is read from — and when the legacy place shadows or is shadowed."""
     from config_trust import (
@@ -149,6 +140,13 @@ from service_doctor_external import run_optional_checks  # noqa: E402
 
 
 def cmd_doctor(svc: ProjectService, args: Any) -> None:
+    recovery = getattr(args, "reconcile_execution_leases", None)
+    if recovery is not None:
+        from service_execution_lease import recover_execution_lease_state
+
+        recover_execution_lease_state(svc, recovery)
+        print("Execution leases reconciled: all prior bindings revoked; current build ready.")
+        return
     if getattr(args, "harness_audit", False):
         # A different QUESTION, not a longer doctor: the health check judges the
         # install's moving parts, the audit re-reads the installed STATE (what an
@@ -205,6 +203,11 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
     from ide_utils import missing_profile_hint, resolve_profile
 
     ide, ide_rel = resolve_profile(project_dir)
+    provenance_level, provenance_detail = _profile_provenance_line(project_dir)
+    (_print_ok if provenance_level == "ok" else _print_fail)(
+        "Profile provenance", provenance_detail
+    )
+    failures += provenance_level != "ok"
     mcp_project = os.path.join(project_dir, ide_rel, "mcp", "project", "server.py")
     if os.path.isfile(mcp_project):
         _print_ok("MCP server (project)", f"{ide_rel}/mcp/project/server.py")
@@ -254,15 +257,12 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
 
     fix_pyc = getattr(args, "fix_bytecode", False)  # tests call cmd_doctor with bare namespaces
     warnings += doctor_section(project_dir, fix_pyc, _print_ok, _print_warn)
-    if not _claudemd_drift_applicable(project_dir):
-        _print_ok("CLAUDE.md drift", "not applicable to the selected IDE profile")
+    md_is_warn, md_detail = _format_claudemd_drift_line(_claudemd_drift_report(project_dir))
+    if md_is_warn:
+        _print_warn("CLAUDE.md drift", md_detail)
+        warnings += 1
     else:
-        md_is_warn, md_detail = _format_claudemd_drift_line(_claudemd_drift_report(project_dir))
-        if md_is_warn:
-            _print_warn("CLAUDE.md drift", md_detail)
-            warnings += 1
-        else:
-            _print_ok("CLAUDE.md drift", md_detail)
+        _print_ok("CLAUDE.md drift", md_detail)
 
     try:
         from project_config import (
@@ -347,7 +347,12 @@ def cmd_doctor(svc: ProjectService, args: Any) -> None:
         warnings += 1
 
     try:
-        _print_ok("Session", session_status_detail(svc))
+        active = svc.session_active_minutes()
+        wall = svc.session_wall_minutes()
+        if wall > 0:
+            _print_ok("Session", f"{active}m active / {wall}m wall")
+        else:
+            _print_ok("Session", "no active session")
     except Exception as e:  # noqa: BLE001 — best-effort: non-fatal, keeps the surrounding flow alive
         _print_warn("Session", f"could not read: {e}")
         warnings += 1
@@ -465,10 +470,10 @@ def _print_fail(label: str, detail: str) -> None:
 from service_doctor_drift import (  # noqa: E402,F401
     check_claudemd_drift as _check_claudemd_drift,
     check_scripts_drift as _check_scripts_drift,
-    claudemd_drift_applicable as _claudemd_drift_applicable,
     claudemd_drift_report as _claudemd_drift_report,
     format_claudemd_drift_line as _format_claudemd_drift_line,
     format_scripts_drift_line as _format_scripts_drift_line,
+    profile_provenance_line as _profile_provenance_line,
     scripts_drift_names as _scripts_drift_names,
 )
 

@@ -1,0 +1,11 @@
+{
+  "base_commit_sha": "d7c2ec13e02dee7d25c972dfa06901b115e5fa30",
+  "baseline_sha256": "f088c9276053238ae58d08be28d041a99dbf5ed59035dfc418da7c392bcd736c",
+  "change_rule": "version-bump-and-L3-review",
+  "evaluator_sha256": "85d0a3cb20718c6337a6d92c66781eb163b27c2dc325cc9967375aa88288543e",
+  "integration_census_sha256": "fc530726ad8df439b7ef27356b67a0aad2ff3263bb33deec336e3b22e7faf91a",
+  "policy_sha256": "6560a8c5817aef6e6176f01f890bc57fc3f14fdf7991fefdd213c667562e5b90",
+  "red_fixture_sha256": "ac28c5b68a9399f2f8ea089878acb4aeb72b196ea96e8b7741356c9d007f90fd",
+  "registry_sha256": "0a196fd57eaf3ed2752a6d08ecadede85a1b74474dc862e839439479bccfff7c",
+  "valid_fixture_sha256": "a5fac555a705cd2aa7b04309627ee5eb0ce8f69d35dcde2f0a1e8f234ef67e6a"
+}

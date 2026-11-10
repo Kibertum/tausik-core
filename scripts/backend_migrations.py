@@ -53,6 +53,14 @@ from backend_migrations_v78 import MIGRATION_V78
 from backend_migrations_v79 import MIGRATION_V79
 from backend_migrations_v80 import MIGRATION_V80
 from backend_migrations_v81 import MIGRATION_V81
+from backend_migrations_v82 import MIGRATION_V82
+from backend_migrations_v83 import MIGRATION_V83
+from backend_migrations_v84 import MIGRATION_V84
+from backend_migrations_v85 import MIGRATION_V85
+from backend_migrations_v86 import MIGRATION_V86
+from backend_migrations_v87 import MIGRATION_V87
+from backend_migrations_v88 import MIGRATION_V88
+from backend_migrations_v89 import MIGRATION_V89
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -475,6 +483,19 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     # v81: review_cohort_rounds.reviewer_context admits 'external' (one-family
     # rule, 1.11.6); guarded rebuild runs from run_post_migrations.
     81: MIGRATION_V81,
+    # v82: durable host-thread execution leases (1.11.8).
+    82: MIGRATION_V82,
+    # v83: atomic bounded task packages and lease fingerprints (1.11.8).
+    83: MIGRATION_V83,
+    # v84: explicit legacy marker for complex package normalization (1.11.8).
+    84: MIGRATION_V84,
+    # v85: evidence-bound steps and durable recovery leases (1.11.8).
+    85: MIGRATION_V85,
+    # v86: action-bound memory inspection tokens (1.11.8).
+    86: MIGRATION_V86,
+    87: MIGRATION_V87,
+    88: MIGRATION_V88,
+    89: MIGRATION_V89,
 }
 
 # Merged: legacy + current

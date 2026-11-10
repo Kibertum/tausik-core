@@ -18,6 +18,7 @@ Always exits 0 (non-blocking). Skipped via TAUSIK_SKIP_HOOKS=1.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -88,6 +89,54 @@ def _read_prompt() -> str:
     return value if isinstance(value, str) else ""
 
 
+def _record_trusted_turn(project_dir: str, prompt: str, trusted_host: str | None) -> str | None:
+    if trusted_host not in {"codex", "cursor"}:
+        return None
+    thread_id = _PAYLOAD.get("session_id") or _PAYLOAD.get("thread_id")
+    turn_id = _PAYLOAD.get("turn_id") or _PAYLOAD.get("request_id")
+    if not isinstance(turn_id, str) or not turn_id:
+        turn_id = None
+    if not isinstance(thread_id, str) or not thread_id:
+        return (
+            f"[TAUSIK can_stop] Trusted {trusted_host} thread identity is missing; "
+            "Stop requires the exact current turn and will fail closed."
+        )
+    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    try:
+        from can_stop import record_trusted_turn
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+        from tausik_utils import utcnow_iso
+
+        backend = SQLiteBackend(os.path.join(project_dir, ".tausik", "tausik.db"))
+        try:
+            # Commit invalidation separately: if recording the new turn fails,
+            # Stop must not fall back to an older unconsumed request.
+            with backend.transaction():
+                backend._ex(
+                    "UPDATE can_stop_turns SET consumed_at=COALESCE(consumed_at,?),"
+                    "decision=COALESCE(decision,'superseded') WHERE host_instance=? "
+                    "AND thread_id=? AND consumed_at IS NULL",
+                    (utcnow_iso(), trusted_host, thread_id),
+                )
+            record_trusted_turn(
+                ProjectService(backend),
+                project_dir=project_dir,
+                host_instance=trusted_host,
+                thread_id=thread_id,
+                turn_id=turn_id,
+                prompt=prompt,
+                payload=_PAYLOAD,
+            )
+        finally:
+            backend.close()
+    except Exception as exc:  # noqa: BLE001 - trusted Stop will refuse this turn
+        return f"[TAUSIK can_stop] Turn record failed closed: {type(exc).__name__}."
+    return None
+
+
 def _answer_budget_nudge(project_dir: str) -> str | None:
     """terse-answers-enforced-by-mechanism: score the answer the human just read.
 
@@ -141,6 +190,10 @@ def main() -> int:
 
     force_utf8_io()
 
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--trusted-host")
+    args, _ = parser.parse_known_args()
+
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
 
@@ -150,10 +203,11 @@ def main() -> int:
         return 0
 
     prompt = _read_prompt()
-    if _is_machine_prompt(prompt):
+    turn_notice = _record_trusted_turn(project_dir, prompt, args.trusted_host)
+    if _is_machine_prompt(prompt) and turn_notice is None:
         return 0
 
-    nudges = []
+    nudges = [turn_notice] if turn_notice else []
 
     if _has_coding_intent(prompt) and not _has_active_task(project_dir):
         nudges.append(

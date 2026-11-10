@@ -26,6 +26,8 @@ bootstrap его не создавал, потому что `codex` отсутс
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -38,6 +40,11 @@ for _sub in ("scripts", "bootstrap"):
 
 import bootstrap_codex  # noqa: E402
 from bootstrap_config import IDE_DIRS, SCAFFOLD_IDES  # noqa: E402
+from hooks.codex_capability import (  # noqa: E402
+    exact_hook_command,
+    serialize_hook_argv,
+    split_hook_command,
+)
 
 CROSSCUTTING_SCOPE = ["bootstrap/"]
 
@@ -63,8 +70,8 @@ def _script_of(command: str) -> str:
     оболочечный хвост (`--auto --record 2>&1 || true`), и «последний токен»
     указал бы на слово `true`.
     """
-    parts = command.split()
-    return parts[parts.index("utf8") + 1] if "utf8" in parts else parts[-1]
+    clean = command.removesuffix(" 2>&1 || true")
+    return split_hook_command(clean)[3]
 
 
 @pytest.fixture(scope="module")
@@ -111,6 +118,67 @@ class TestНиОднойНераскрываемойПеременной:
         built = bootstrap_codex.build_codex_hooks(str(tmp_path / ".codex"))
         assert not [c for c in _commands({"hooks": built}) if "${" in c]
 
+    def test_paths_with_spaces_and_shell_metacharacters_launch_and_validate(self, tmp_path):
+        project = tmp_path / "Codex %TAUSIK_EXPANSION% $() `x` & O'Brien (Project)"
+        target = project / ".codex"
+        runner = Path(sys.executable)
+        deployed = target / "scripts" / "hooks"
+        deployed.mkdir(parents=True)
+        for script_name in (
+            "can_stop_gate.py",
+            "user_prompt_submit.py",
+            "codex_write_gate.py",
+            "memory_preflight_posttool.py",
+        ):
+            (deployed / script_name).write_text(
+                "import sys\nprint('launched ' + ' '.join(sys.argv[1:]))\n", encoding="utf-8"
+            )
+
+        hooks = bootstrap_codex.build_codex_hooks(str(target), str(runner))
+        cases = [
+            ("Stop", "can_stop_gate.py", False),
+            ("UserPromptSubmit", "user_prompt_submit.py", False),
+            ("PreToolUse", "codex_write_gate.py", True),
+            ("PostToolUse", "memory_preflight_posttool.py", True),
+        ]
+        for event, script_name, expects_project in cases:
+            command = next(
+                hook["command"]
+                for entry in hooks[event]
+                for hook in entry["hooks"]
+                if Path(split_hook_command(hook["command"])[3]).name == script_name
+            )
+            script = target / "scripts" / "hooks" / script_name
+            assert exact_hook_command(command, str(script), str(project), str(runner))
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=10,
+                env={**os.environ, "TAUSIK_EXPANSION": "EXPANDED"},
+            )
+            assert result.returncode == 0
+            assert "launched" in result.stdout
+            assert "EXPANDED" not in result.stdout
+            if expects_project:
+                assert str(project).replace("\\", "/") in result.stdout.replace("\\", "/")
+
+    @pytest.mark.parametrize("platform", ["nt", "posix"])
+    def test_serializer_and_attestation_share_platform_grammar(self, platform, tmp_path):
+        argv = [
+            str(tmp_path / "Runtime With Spaces" / "python"),
+            "-X",
+            "utf8",
+            str(tmp_path / "O'Brien & Hooks" / "gate.py"),
+            "--project",
+            str(tmp_path / "Project %NAME% $() `x` & O'Brien (One)"),
+        ]
+        command = serialize_hook_argv(argv, platform=platform)
+        assert split_hook_command(command, platform=platform) == argv
+        assert exact_hook_command(command, argv[3], argv[5], argv[0], platform=platform)
+
     def test_проверка_поймала_бы_сломанный_файл(self):
         """Отрицательная половина: та же проверка на ТОМ САМОМ содержимом,
         которое лежало на диске. Без неё зелёный тест ничего не значит."""
@@ -156,13 +224,20 @@ class TestНаборОдинНаДваХоста:
         codex = bootstrap_codex.build_codex_hooks(str(tmp_path / ".codex"))
         assert set(codex) == set(reference), "у codex не тот набор СОБЫТИЙ, что у claude"
         for event in reference:
-            shared = codex[event][:-1] if event == "PreToolUse" else codex[event]
+            shared = codex[event][:-1] if event in {"PreToolUse", "PostToolUse"} else codex[event]
             assert [e.get("matcher") for e in shared] == [
                 e.get("matcher") for e in reference[event]
             ], f"событие {event}: набор матчеров разошёлся"
         adapter = codex["PreToolUse"][-1]
-        assert adapter["matcher"] == "apply_patch|Bash|PowerShell"
-        assert "codex_write_gate.py" in adapter["hooks"][0]["command"]
+        assert adapter["matcher"] == ""
+        assert Path(split_hook_command(adapter["hooks"][0]["command"])[3]).name == (
+            "codex_write_gate.py"
+        )
+        post_adapter = codex["PostToolUse"][-1]
+        assert post_adapter["matcher"] == ""
+        post_argv = split_hook_command(post_adapter["hooks"][0]["command"])
+        assert Path(post_argv[3]).name == "memory_preflight_posttool.py"
+        assert "--project" in post_argv
 
     def test_каждое_событие_поддержано_хостом(self, live):
         """Хук на событие, которого у хоста нет, — не ложь, но и не гейт.

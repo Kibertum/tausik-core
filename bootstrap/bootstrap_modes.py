@@ -14,6 +14,7 @@ import sys
 from typing import Any, Callable
 
 from bootstrap_config import (
+    IDE_DIRS,
     SCAFFOLD_IDES,
     TAUSIK_MODEL_PROFILE_ENV,
     save_tausik_config,
@@ -30,9 +31,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-dir", default=None, help="Project root (default: cwd)")
     parser.add_argument(
         "--ide",
-        default="claude",
+        default=None,
         choices=[*SCAFFOLD_IDES, "all"],
-        help="Target IDE (default: claude)",
+        help="Target IDE (default: detect one unambiguous host/profile)",
     )
     parser.add_argument(
         "--smart",
@@ -95,6 +96,85 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def resolve_bootstrap_targets(
+    requested_ide: str | None, project_dir: str, config: dict[str, Any]
+) -> tuple[str, list[str]]:
+    """Return the primary profile and deployment targets without silent fallback."""
+    if requested_ide:
+        primary = (
+            str(config.get("primary_ide", "")).strip().lower()
+            if requested_ide == "all"
+            else requested_ide
+        )
+        if primary not in SCAFFOLD_IDES:
+            primary = "claude"  # explicit ``all`` has a documented compatibility primary
+        targets = list(SCAFFOLD_IDES) if requested_ide == "all" else [requested_ide]
+        return primary, targets
+
+    explicit = os.environ.get("TAUSIK_IDE", "").strip().lower()
+    if explicit:
+        if explicit not in SCAFFOLD_IDES:
+            raise ValueError(
+                f"TAUSIK_IDE={explicit!r} is unsupported; choose one of {list(SCAFFOLD_IDES)}"
+            )
+        return explicit, [explicit]
+
+    configured = str(config.get("primary_ide") or config.get("ide") or "").strip().lower()
+    if configured in SCAFFOLD_IDES:
+        configured_targets = config.get("ides")
+        targets = (
+            [name for name in configured_targets if name in SCAFFOLD_IDES]
+            if isinstance(configured_targets, list)
+            else [configured]
+        )
+        return configured, targets or [configured]
+
+    # Ambient host variables select a fresh install only. They must not shrink
+    # an existing multi-host deployment during an ordinary no-flag upgrade.
+    env_candidates = [
+        name
+        for name, present in (
+            ("cursor", os.environ.get("CURSOR_DIR") or os.environ.get("CURSOR_TRACE_DIR")),
+            ("windsurf", os.environ.get("WINDSURF_DIR") or os.environ.get("WINDSURF_SESSION")),
+            ("opencode", os.environ.get("OPENCODE_DIR") or os.environ.get("OPENCODE_BIN_PATH")),
+            ("codex", os.environ.get("CODEX_SANDBOX_DIR")),
+        )
+        if present and name in SCAFFOLD_IDES
+    ]
+    if len(env_candidates) == 1:
+        return env_candidates[0], [env_candidates[0]]
+    if len(env_candidates) > 1:
+        raise ValueError(
+            "multiple host environments detected; pass --ide explicitly: "
+            + ", ".join(env_candidates)
+        )
+
+    present = [
+        name for name in SCAFFOLD_IDES if os.path.isdir(os.path.join(project_dir, IDE_DIRS[name]))
+    ]
+    if len(present) == 1:
+        return present[0], present
+    detail = "none" if not present else ", ".join(present)
+    raise ValueError(
+        f"cannot choose a TAUSIK host profile unambiguously ({detail} found); "
+        f"pass --ide <{'|'.join(SCAFFOLD_IDES)}>"
+    )
+
+
+def validate_project_root(project_dir: str) -> str:
+    """Reject filesystem/profile roots that would deploy outside the intended project."""
+    resolved = os.path.realpath(os.path.abspath(project_dir))
+    if not os.path.isdir(resolved):
+        raise ValueError(f"project directory does not exist: {resolved}")
+    if os.path.dirname(resolved) == resolved:
+        raise ValueError(f"refusing to bootstrap a filesystem root: {resolved}")
+    if os.path.basename(resolved).lower() in {value.lower() for value in IDE_DIRS.values()}:
+        raise ValueError(
+            f"project root points at an IDE profile ({resolved}); pass its parent workspace"
+        )
+    return resolved
+
+
 def run_dry_run(
     config: dict,
     stacks: list[str],
@@ -115,7 +195,7 @@ def run_dry_run(
         print("  Will copy: skills/, scripts/, mcp/, references/, roles/, stacks/")
         _generate_map = {
             "claude": "settings.json, CLAUDE.md, .mcp.json",
-            "cursor": ".cursorrules, .mcp.json",
+            "cursor": ".cursor/rules/tausik.mdc, .cursor/hooks.json, .cursor/mcp.json",
             "qwen": "settings.json, QWEN.md, .mcp.json",
         }
         if ide in _generate_map:
@@ -168,6 +248,7 @@ def run_refresh_mode(
     bootstrap_dir: str,
     get_lib_commit: Callable[[str], str | None],
     get_ide_target: Callable[[str, str], str],
+    primary_ide: str,
 ) -> None:
     """Rewrite .tausik/config.json from bootstrap state without copying skills/scripts."""
     tausik_dir = os.path.join(project_dir, ".tausik")
@@ -192,7 +273,7 @@ def run_refresh_mode(
         sys.exit(1)
     from bootstrap_venv import install_cli_wrapper
 
-    install_cli_wrapper(bootstrap_dir, tausik_dir)
+    install_cli_wrapper(bootstrap_dir, tausik_dir, primary_ide)
     print("\n=== Refresh complete ===")
     print("  Updated .tausik/config.json only (no skills/scripts/MCP copy).")
     print("  CLI wrapper: .tausik/tausik (or .tausik/tausik.cmd on Windows)")
@@ -234,13 +315,25 @@ def run_post_bootstrap(
             # usable project, and failing bootstrap over a generated file would
             # be the worse trade.
             try:
-                subprocess.run(
-                    [tausik_wrapper, "update-claudemd"],
-                    cwd=project_dir,
-                    check=False,
-                    timeout=30,
-                    capture_output=True,
+                instruction_candidates = (
+                    os.path.join(project_dir, "CLAUDE.md"),
+                    os.path.join(project_dir, ".cursor", "rules", "tausik.mdc"),
+                    os.path.join(project_dir, "AGENTS.md"),
+                    os.path.join(project_dir, "QWEN.md"),
                 )
+                instructions = [path for path in instruction_candidates if os.path.isfile(path)]
+                refresh_targets = instructions or [None]
+                for instruction in refresh_targets:
+                    refresh = [tausik_wrapper, "update-claudemd"]
+                    if instruction:
+                        refresh.extend(["--claudemd", instruction])
+                    subprocess.run(
+                        refresh,
+                        cwd=project_dir,
+                        check=False,
+                        timeout=30,
+                        capture_output=True,
+                    )
             except (OSError, subprocess.SubprocessError):
                 pass
             print(f"\nProject '{init_name}' initialized and ready!")

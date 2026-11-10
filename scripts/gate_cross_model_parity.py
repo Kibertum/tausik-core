@@ -13,8 +13,9 @@ false differences on the day it landed. Whether a host has an extension point AT
 ALL is a separate statement, already made by the enforcement notice each host's
 rules file opens with and by `doctor` — this gate does not restate it.
 
-WHAT IT REFUSES TO DO is demand sameness. Cursor has no extension point; there is
-nothing to be equal to. The subject is whether a difference is NAMED.
+WHAT IT REFUSES TO DO is demand sameness. Cursor has native hooks but no
+documented Glob tool matcher. The subject is whether each semantic difference
+is NAMED.
 
 FOUND BY BUILDING IT, and the reason it exists: the parity test that already
 guarded claude against qwen compared SCRIPT BASENAMES, so the two looked
@@ -59,6 +60,18 @@ _ALL_TOOLS_SPELLINGS = frozenset({"", "*"})
 #: Both directions rot (decision #335): an entry naming a difference that no
 #: longer exists fails just as loudly as a difference nobody declared.
 DECLARED_DIFFERENCES: dict[str, str] = {
+    "matcher:hook:PostToolUse:activity_event.py": (
+        "Cursor documents no Glob tool matcher; its native activity hook covers every "
+        "documented read/search/write/shell channel, while Claude and Qwen also name Glob."
+    ),
+    "matcher:hook:PostToolUse:rag_grep_context.py": (
+        "Cursor documents no Glob tool matcher; Read, Grep and Shell remain covered, "
+        "so the difference reflects host vocabulary rather than a reachable bypass."
+    ),
+    "matcher:hook:PostToolUse:tool_output_truncation_nudge.py": (
+        "Cursor documents no Glob tool matcher; Read, Grep and Shell remain covered, "
+        "so the difference reflects host vocabulary rather than a reachable bypass."
+    ),
     # Empty since 1.10 (decision #389): the four PostToolUse matcher
     # differences between Claude and Qwen were a hand-kept Qwen hook list,
     # which now builds from the shared declaration like Claude and Codex.

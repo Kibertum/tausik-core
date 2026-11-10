@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 81
+SCHEMA_VERSION = 89
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -103,7 +103,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     blocked_question TEXT,
     unblock_criteria TEXT,
     unblocked_by TEXT,
-    unblocked_at TEXT
+    unblocked_at TEXT,
+    -- v84: only migrated incomplete complex rows may receive compatibility
+    -- defaults on their next start/resume. New tasks must declare the fields.
+    task_package_legacy INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -121,6 +124,85 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- migration appends the column, so fresh and migrated tables converge on
     -- one column order and a positional INSERT means the same thing on both.
     model_source TEXT
+);
+
+CREATE TABLE IF NOT EXISTS execution_leases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    project_identity TEXT NOT NULL,
+    host_instance TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    assertion_nonce TEXT NOT NULL UNIQUE,
+    assertion_issued_at TEXT NOT NULL,
+    assertion_expires_at TEXT NOT NULL,
+    nonce TEXT NOT NULL UNIQUE,
+    issued_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    projection_build TEXT NOT NULL,
+    capability_min INTEGER NOT NULL,
+    capability_max INTEGER NOT NULL,
+    task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    task_package_fingerprint TEXT,
+    CHECK(capability_min > 0),
+    CHECK(capability_max >= capability_min)
+);
+
+CREATE TABLE IF NOT EXISTS execution_lease_state (
+    singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+    mode TEXT NOT NULL CHECK(mode IN ('ready', 'maintenance')),
+    reason TEXT,
+    projection_build TEXT NOT NULL,
+    capability_version INTEGER NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS execution_authorizations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lease_id INTEGER NOT NULL REFERENCES execution_leases(id) ON DELETE CASCADE,
+    route TEXT NOT NULL,
+    arguments_hash TEXT NOT NULL,
+    issued_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    consumed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS task_context_packages (
+    task_slug TEXT PRIMARY KEY REFERENCES tasks(slug) ON DELETE CASCADE,
+    fingerprint TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    bytes INTEGER NOT NULL CHECK(bytes >= 0),
+    max_bytes INTEGER NOT NULL CHECK(max_bytes > 0),
+    task_revision TEXT NOT NULL,
+    selected_memory_revisions TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS task_step_evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    step_num INTEGER NOT NULL CHECK(step_num > 0),
+    evidence_ref TEXT NOT NULL,
+    evidence_hash TEXT NOT NULL,
+    package_fingerprint TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(task_slug, step_num, evidence_hash)
+);
+
+CREATE TABLE IF NOT EXISTS task_continuity_state (
+    task_slug TEXT PRIMARY KEY REFERENCES tasks(slug) ON DELETE CASCADE,
+    package_fingerprint TEXT NOT NULL,
+    first_incomplete_step INTEGER,
+    last_evidence_ref TEXT,
+    pending_requirement TEXT,
+    recovery_lease_id INTEGER REFERENCES execution_leases(id) ON DELETE SET NULL,
+    recovery_issued_at TEXT,
+    recovery_consumed_at TEXT,
+    refusal_hash TEXT,
+    refusal_count INTEGER NOT NULL DEFAULT 0 CHECK(refusal_count >= 0),
+    blocker_json TEXT,
+    updated_at TEXT NOT NULL,
+    recovery_action TEXT CHECK(recovery_action IS NULL OR recovery_action IN ('checkpoint','block','decompose'))
 );
 
 CREATE TABLE IF NOT EXISTS decisions (
@@ -164,6 +246,82 @@ CREATE TABLE IF NOT EXISTS memory_hygiene_snapshots (
     memory_id INTEGER NOT NULL REFERENCES memory(id) ON DELETE CASCADE,
     prev_layer TEXT,
     applied_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_preflight_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT NOT NULL UNIQUE,
+    lease_id INTEGER NOT NULL REFERENCES execution_leases(id) ON DELETE CASCADE,
+    package_fingerprint TEXT NOT NULL,
+    content_revision TEXT NOT NULL,
+    acknowledged_ids TEXT NOT NULL,
+    protected_kind TEXT NOT NULL CHECK(protected_kind IN
+        ('framework_ui','release_shell','remote_operation','commit','push','blocker')),
+    action_id TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    override_reason TEXT,
+    status TEXT NOT NULL CHECK(status IN
+        ('issued','reserved','executed','failed','expired')),
+    issued_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    reserved_at TEXT,
+    completed_at TEXT,
+    failure_code TEXT
+);
+
+CREATE TABLE IF NOT EXISTS memory_inspection_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lease_id INTEGER REFERENCES execution_leases(id) ON DELETE SET NULL,
+    action_id TEXT NOT NULL,
+    content_revision TEXT NOT NULL,
+    selected_ids TEXT NOT NULL,
+    inspected_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS memory_preflight_attempt_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_token_id INTEGER NOT NULL UNIQUE,
+    source_lease_id INTEGER NOT NULL,
+    token TEXT NOT NULL,
+    package_fingerprint TEXT NOT NULL,
+    content_revision TEXT NOT NULL,
+    acknowledged_ids TEXT NOT NULL,
+    protected_kind TEXT NOT NULL,
+    action_id TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    override_reason TEXT,
+    status TEXT NOT NULL CHECK(status IN ('executed','failed','expired')),
+    issued_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    reserved_at TEXT,
+    completed_at TEXT,
+    failure_code TEXT
+);
+
+CREATE TABLE IF NOT EXISTS can_stop_turns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_identity TEXT NOT NULL,
+    host_instance TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    lease_id INTEGER NOT NULL REFERENCES execution_leases(id) ON DELETE CASCADE,
+    task_slug TEXT REFERENCES tasks(slug) ON DELETE SET NULL,
+    request_kind TEXT NOT NULL CHECK(request_kind IN ('read_only','work')),
+    payload_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    consumed_at TEXT,
+    decision TEXT,
+    UNIQUE(host_instance, thread_id, turn_id)
+);
+
+CREATE TABLE IF NOT EXISTS task_attempt_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_slug TEXT NOT NULL REFERENCES tasks(slug) ON DELETE CASCADE,
+    lease_id INTEGER NOT NULL REFERENCES execution_leases(id) ON DELETE CASCADE,
+    event_kind TEXT NOT NULL CHECK(event_kind IN ('attempt','capability','authority')),
+    status TEXT NOT NULL CHECK(status IN ('failed','unavailable','verified')),
+    detail_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS explorations (

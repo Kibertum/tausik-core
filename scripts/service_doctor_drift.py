@@ -6,11 +6,84 @@ project_cli_doctor stays under the 400-line filesize gate.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from typing import TypedDict
 
-from tausik_utils import library_source
+from tausik_utils import library_source, tausik_config_path
+
+
+def _bootstrap_repair_command(project_dir: str, host: str) -> str:
+    """Render one bootstrap repair command that parses in every supported shell."""
+    consumer_bootstrap = ".tausik-lib/bootstrap/bootstrap.py"
+    core_bootstrap = "bootstrap/bootstrap.py"
+    if os.path.isfile(os.path.join(project_dir, consumer_bootstrap)):
+        return f"python {consumer_bootstrap} --ide {host}"
+    if os.path.isfile(os.path.join(project_dir, core_bootstrap)):
+        return f"python {core_bootstrap} --ide {host}"
+    return (
+        'python -c "import subprocess,sys;'
+        "subprocess.run(['git','submodule','update','--init','.tausik-lib'],check=True);"
+        "subprocess.run([sys.executable,'.tausik-lib/bootstrap/bootstrap.py',"
+        f"'--ide','{host}'],check=True)\""
+    )
+
+
+def profile_provenance_line(project_dir: str) -> tuple[str, str]:
+    """Judge configured profile/root/version provenance with one repair command."""
+    repair = _bootstrap_repair_command(project_dir, "<host>")
+    config_path = tausik_config_path(project_dir)
+    try:
+        with open(config_path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, ValueError, TypeError):
+        return "fail", f"profile provenance is missing; repair: {repair}"
+    bootstrap = payload.get("bootstrap")
+    if not isinstance(bootstrap, dict):
+        return "fail", f"profile provenance is missing; repair: {repair}"
+    primary = bootstrap.get("primary_ide")
+    targets = bootstrap.get("ides")
+    recorded_root = bootstrap.get("project_root")
+    if not isinstance(primary, str) or not primary or not isinstance(targets, list):
+        chosen = bootstrap.get("ide")
+        hint = chosen if isinstance(chosen, str) and chosen != "all" else "<host>"
+        return "fail", (
+            "legacy profile provenance cannot bind the CLI wrapper; repair: "
+            f"{_bootstrap_repair_command(project_dir, hint)}"
+        )
+    try:
+        from ide_utils import IDE_REGISTRY
+
+        profile_dir = IDE_REGISTRY[primary]["config_dir"]
+    except (ImportError, KeyError, TypeError):
+        return "fail", f"configured primary profile {primary!r} is unsupported; repair: {repair}"
+    command = _bootstrap_repair_command(project_dir, primary)
+    if primary not in targets:
+        return "fail", f"primary profile is absent from deployment targets; repair: {command}"
+    if not isinstance(recorded_root, str) or (
+        os.path.normcase(os.path.realpath(recorded_root))
+        != os.path.normcase(os.path.realpath(project_dir))
+    ):
+        return "fail", f"project root diverged from bootstrap provenance; repair: {command}"
+    deployed = os.path.join(project_dir, profile_dir, "scripts", "project.py")
+    if not os.path.isfile(deployed):
+        return "fail", f"configured {primary} profile is not deployed; repair: {command}"
+    source = library_source(project_dir, "scripts")
+    if not source:
+        return "fail", f"framework source is unavailable for version comparison; repair: {command}"
+    source_version = os.path.join(source, "tausik_version.py")
+    deployed_version = os.path.join(project_dir, profile_dir, "scripts", "tausik_version.py")
+    try:
+        with open(source_version, "rb") as left, open(deployed_version, "rb") as right:
+            if left.read().replace(b"\r\n", b"\n") != right.read().replace(b"\r\n", b"\n"):
+                return (
+                    "fail",
+                    f"configured {primary} profile version diverged; repair: {command}",
+                )
+    except OSError:
+        return "fail", f"configured {primary} profile version is unreadable; repair: {command}"
+    return "ok", f"primary={primary}, root and deployed version agree"
 
 
 class ClaudemdDriftReport(TypedDict):
@@ -41,19 +114,6 @@ class ClaudemdDriftReport(TypedDict):
 # Majority rather than a tuned threshold: it is the weakest claim that still
 # means "this is recognisably the template's document".
 _TEMPLATE_SHAPED_MIN_RATIO = 0.5
-
-
-def claudemd_drift_applicable(project_dir: str) -> bool:
-    """Whether this project's bootstrap profile is expected to own CLAUDE.md."""
-    try:
-        from project_config import load_project_config  # ruff-not-enabled: PLC0415
-
-        cfg = load_project_config(os.path.join(project_dir, ".tausik")) or {}
-    except Exception:  # noqa: BLE001 — an unreadable config must not hide a real drift warning
-        return True
-    bootstrap = cfg.get("bootstrap") if isinstance(cfg, dict) else None
-    ide = bootstrap.get("ide") if isinstance(bootstrap, dict) else None
-    return not isinstance(ide, str) or ide.strip().lower() in ("", "all", "claude")
 
 
 def _resolve_output_mode_for_drift(cfg: dict) -> str:

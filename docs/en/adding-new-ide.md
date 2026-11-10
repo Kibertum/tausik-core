@@ -40,7 +40,7 @@ harness/overrides/myide/rules.md
 ```
 
 This file is **automatically appended** to the generated `CLAUDE.md` /
-`.cursorrules` / `QWEN.md` (whichever matches the `ide=` argument passed
+`.cursor/rules/tausik.mdc` / `QWEN.md` (whichever matches the `ide=` argument passed
 to `bootstrap_templates.build_full_body`). The block lands right before
 the `<!-- DYNAMIC:START -->` marker, so the doctor's drift checker still
 ignores user-side state but treats the override as canonical body. Pass
@@ -66,7 +66,7 @@ In `tests/test_ide_utils.py` add tests for the new IDE.
 | IDE | Config dir | Rules file | Hooks | Auto-detect |
 |-----|-----------|------------|-------|-------------|
 | Claude Code | `.claude` | `CLAUDE.md` | 4 hooks | default |
-| Cursor | `.cursor` | `.cursorrules` | — | `CURSOR_DIR` env |
+| Cursor | `.cursor` | `.cursor/rules/tausik.mdc` | `.cursor/hooks.json` | `CURSOR_DIR` env |
 | Qwen Code | `.qwen` | `QWEN.md` | 4 hooks | `--ide qwen` |
 | Windsurf | `.windsurf` | `.windsurfrules` | — | `WINDSURF_DIR` env |
 | Codex | `.codex` | `AGENTS.md` | shared PreToolUse/PostToolUse hooks | `CODEX_SANDBOX_DIR` env |

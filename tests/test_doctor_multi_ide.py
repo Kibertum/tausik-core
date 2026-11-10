@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -31,6 +33,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 import ide_utils
+from service_doctor_drift import profile_provenance_line
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SCRIPTS = _REPO_ROOT / "scripts"
@@ -59,6 +62,18 @@ class TestProfileResolution:
         (tmp_path / ".claude").mkdir()
         assert ide_utils.resolve_profile(str(tmp_path)) == ("claude", ".claude")
 
+    def test_recorded_primary_profile_beats_stale_sibling(self, tmp_path, monkeypatch):
+        import json
+
+        monkeypatch.delenv("TAUSIK_IDE", raising=False)
+        (tmp_path / ".claude").mkdir()
+        (tmp_path / ".cursor").mkdir()
+        (tmp_path / ".tausik").mkdir()
+        (tmp_path / ".tausik" / "config.json").write_text(
+            json.dumps({"bootstrap": {"primary_ide": "claude"}}), encoding="utf-8"
+        )
+        assert ide_utils.resolve_profile(str(tmp_path)) == ("claude", ".claude")
+
     def test_mcp_path_follows_the_detected_profile(self, cursor_project):
         _, config_dir = ide_utils.resolve_profile(str(cursor_project))
         server = os.path.join(str(cursor_project), config_dir, "mcp", "project", "server.py")
@@ -69,6 +84,131 @@ class TestProfileResolution:
         skills = ide_utils.get_skills_dir(str(cursor_project), "cursor")
         assert os.path.isdir(skills)
         assert ".claude" not in skills
+
+
+class TestProfileProvenance:
+    def _write_config(self, root, *, primary="cursor", project_root=None, targets=None):
+        import json
+
+        tausik = root / ".tausik"
+        tausik.mkdir(exist_ok=True)
+        (tausik / "config.json").write_text(
+            json.dumps(
+                {
+                    "bootstrap": {
+                        "primary_ide": primary,
+                        "ides": targets or [primary],
+                        "project_root": str(project_root or root),
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_configured_profile_and_root_are_accepted(self, tmp_path, monkeypatch):
+        source = tmp_path / ".tausik-lib" / "scripts"
+        source.mkdir(parents=True)
+        (source / "tausik_version.py").write_text('VERSION = "1.11.7"\n', encoding="utf-8")
+        scripts = tmp_path / ".cursor" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "project.py").write_text("# project", encoding="utf-8")
+        (scripts / "tausik_version.py").write_text('VERSION = "1.11.7"\n', encoding="utf-8")
+        self._write_config(tmp_path)
+        monkeypatch.setattr("service_doctor_drift.library_source", lambda *_: str(source))
+        assert profile_provenance_line(str(tmp_path))[0] == "ok"
+
+    def test_missing_framework_source_is_not_reported_as_version_agreement(
+        self, tmp_path, monkeypatch
+    ):
+        scripts = tmp_path / ".cursor" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "project.py").write_text("# project", encoding="utf-8")
+        self._write_config(tmp_path)
+        monkeypatch.setattr("service_doctor_drift.library_source", lambda *_: None)
+
+        level, detail = profile_provenance_line(str(tmp_path))
+
+        assert level == "fail"
+        assert "source is unavailable" in detail
+        assert "version agree" not in detail
+        assert detail.count("git','submodule','update','--init','.tausik-lib") == 1
+        assert detail.count(".tausik-lib/bootstrap/bootstrap.py") == 1
+        assert "&&" not in detail
+
+    @pytest.mark.skipif(shutil.which("powershell") is None, reason="PowerShell unavailable")
+    def test_missing_source_repair_parses_in_windows_powershell_51(self, tmp_path, monkeypatch):
+        powershell = shutil.which("powershell")
+        assert powershell is not None
+        scripts = tmp_path / ".cursor" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "project.py").write_text("# project", encoding="utf-8")
+        self._write_config(tmp_path)
+        monkeypatch.setattr("service_doctor_drift.library_source", lambda *_: None)
+        _, detail = profile_provenance_line(str(tmp_path))
+        repair = detail.split("repair: ", 1)[1]
+        env = os.environ.copy()
+        env["TAUSIK_REPAIR_COMMAND"] = repair
+
+        result = subprocess.run(
+            [
+                powershell,
+                "-NoProfile",
+                "-Command",
+                "[scriptblock]::Create($env:TAUSIK_REPAIR_COMMAND) | Out-Null",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+
+        assert result.returncode == 0, result.stderr
+
+    @pytest.mark.parametrize("mutation", ["moved_root", "missing_profile", "primary_not_deployed"])
+    def test_divergence_fails_with_one_repair_command(self, tmp_path, monkeypatch, mutation):
+        scripts = tmp_path / ".cursor" / "scripts"
+        if mutation != "missing_profile":
+            scripts.mkdir(parents=True)
+            (scripts / "project.py").write_text("# project", encoding="utf-8")
+        recorded = tmp_path / "old-location" if mutation == "moved_root" else tmp_path
+        targets = ["claude"] if mutation == "primary_not_deployed" else None
+        self._write_config(tmp_path, project_root=recorded, targets=targets)
+        bootstrap = tmp_path / ".tausik-lib" / "bootstrap"
+        bootstrap.mkdir(parents=True)
+        (bootstrap / "bootstrap.py").write_text("# bootstrap", encoding="utf-8")
+        monkeypatch.setattr("service_doctor_drift.library_source", lambda *_: None)
+
+        level, detail = profile_provenance_line(str(tmp_path))
+
+        assert level == "fail"
+        assert detail.count("python .tausik-lib/bootstrap/bootstrap.py --ide cursor") == 1
+
+    def test_configured_profile_version_cannot_be_masked_by_newer_sibling(
+        self, tmp_path, monkeypatch
+    ):
+        source = tmp_path / ".tausik-lib" / "scripts"
+        source.mkdir(parents=True)
+        (source / "tausik_version.py").write_text('VERSION = "1.11.7"\n', encoding="utf-8")
+        bootstrap = tmp_path / ".tausik-lib" / "bootstrap"
+        bootstrap.mkdir()
+        (bootstrap / "bootstrap.py").write_text("# bootstrap", encoding="utf-8")
+        cursor = tmp_path / ".cursor" / "scripts"
+        cursor.mkdir(parents=True)
+        (cursor / "project.py").write_text("# project", encoding="utf-8")
+        (cursor / "tausik_version.py").write_text('VERSION = "1.11.6"\n', encoding="utf-8")
+        claude = tmp_path / ".claude" / "scripts"
+        claude.mkdir(parents=True)
+        (claude / "project.py").write_text("# sibling", encoding="utf-8")
+        (claude / "tausik_version.py").write_text('VERSION = "1.11.7"\n', encoding="utf-8")
+        self._write_config(tmp_path)
+        monkeypatch.setattr("service_doctor_drift.library_source", lambda *_: str(source))
+
+        level, detail = profile_provenance_line(str(tmp_path))
+
+        assert level == "fail"
+        assert "cursor profile version diverged" in detail
+        assert detail.count("python .tausik-lib/bootstrap/bootstrap.py --ide cursor") == 1
 
 
 class TestMissingProfileHint:

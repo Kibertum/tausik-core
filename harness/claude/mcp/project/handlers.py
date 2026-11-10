@@ -115,9 +115,12 @@ def _increment_tool_counter(svc: Any) -> str:
 _DISPATCH_LOCK = threading.RLock()
 
 
-def handle_tool(svc: Any, name: str, args: dict) -> str:
+def handle_tool(svc: Any, name: str, args: dict, *, authorization: str | None = None) -> str:
     """Dispatch tool call to service method. Returns text result."""
     with _DISPATCH_LOCK:
+        lease = _require_codex_execution_lease(svc, name, args, authorization=authorization)
+        if lease is not None and name == "tausik_task_start":
+            args = {**args, "_execution_lease_id": lease["id"]}
         from memory_only_backlog import deferred_reply
 
         refused = deferred_reply(svc, name, args)
@@ -125,8 +128,55 @@ def handle_tool(svc: Any, name: str, args: dict) -> str:
             return refused
         # SENAR Rule 9.3: track tool call count for checkpoint reminder
         checkpoint_warning = _increment_tool_counter(svc)
-        result = _dispatch_tool(svc, name, args)
+        previous_lease = getattr(svc, "_authorized_execution_lease", None)
+        svc._authorized_execution_lease = lease
+        try:
+            if lease is not None:
+                from work_continuity import (
+                    complete_recovery,
+                    require_recovery_generation,
+                )
+
+                generation = lease.pop("_continuity_generation", None)
+                if generation is not None:
+                    with svc.be.transaction():
+                        require_recovery_generation(svc, lease, generation)
+                        result = _dispatch_tool(svc, name, args)
+                        complete_recovery(svc, lease, name, args, generation)
+                else:
+                    result = _dispatch_tool(svc, name, args)
+                    complete_recovery(svc, lease, name, args)
+            else:
+                result = _dispatch_tool(svc, name, args)
+        finally:
+            svc._authorized_execution_lease = previous_lease
         return result + checkpoint_warning if checkpoint_warning else result
+
+
+def _require_codex_execution_lease(
+    svc: Any, name: str, args: dict, *, authorization: str | None = None
+) -> dict[str, Any] | None:
+    """Enforce only in the Codex MCP process; read routes stay lease-free."""
+
+    if os.environ.get("TAUSIK_ENFORCE_EXECUTION_LEASE") != "1":
+        return None
+    from adherence_registry import _READ_ROUTES
+
+    if f"mcp.{name}" in _READ_ROUTES:
+        return None
+    from service_execution_lease import consume_mcp_authorization
+
+    lease = consume_mcp_authorization(
+        svc,
+        route=name,
+        arguments=args,
+        authorization=authorization,
+        require_correlation=True,
+    )
+    from work_continuity import enforce_continuity_boundary
+
+    lease["_continuity_generation"] = enforce_continuity_boundary(svc, lease, name, args)
+    return lease
 
 
 # ---------------------------------------------------------------------------

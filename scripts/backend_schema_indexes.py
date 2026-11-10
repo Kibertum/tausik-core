@@ -83,6 +83,33 @@ CREATE INDEX IF NOT EXISTS idx_gate_runs_outcome ON gate_runs(outcome);
 -- table per done row (5.04 s of status's 5.3 s on 1504 done tasks).
 CREATE INDEX IF NOT EXISTS idx_tasks_defect_of ON tasks(defect_of);
 CREATE INDEX IF NOT EXISTS idx_sessions_host ON sessions(host_session_id);
+CREATE INDEX IF NOT EXISTS idx_execution_leases_thread
+    ON execution_leases(project_identity, host_instance, thread_id, revoked_at);
+CREATE INDEX IF NOT EXISTS idx_execution_leases_session
+    ON execution_leases(session_id, revoked_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_execution_leases_one_live_thread
+    ON execution_leases(project_identity, host_instance, thread_id)
+    WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_execution_authorizations_pending
+    ON execution_authorizations(route, arguments_hash, consumed_at, expires_at);
+CREATE INDEX IF NOT EXISTS idx_task_context_packages_fingerprint
+ON task_context_packages(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_task_step_evidence_task
+ON task_step_evidence(task_slug,step_num,id);
+CREATE INDEX IF NOT EXISTS idx_task_continuity_pending
+ON task_continuity_state(pending_requirement,recovery_consumed_at);
+CREATE INDEX IF NOT EXISTS idx_memory_preflight_action
+ON memory_preflight_tokens(lease_id,action_id,payload_hash,status);
+CREATE INDEX IF NOT EXISTS idx_memory_preflight_expiry
+ON memory_preflight_tokens(status,expires_at);
+CREATE INDEX IF NOT EXISTS idx_memory_preflight_audit_action
+ON memory_preflight_attempt_audit(action_id,payload_hash,status);
+CREATE INDEX IF NOT EXISTS idx_memory_inspection_lease
+ON memory_inspection_events(lease_id,inspected_at);
+CREATE INDEX IF NOT EXISTS idx_can_stop_turn_current
+ON can_stop_turns(host_instance,thread_id,consumed_at,id);
+CREATE INDEX IF NOT EXISTS idx_task_attempt_events_task
+ON task_attempt_events(task_slug,lease_id,id);
 -- schema-index-drift-fresh-vs-migrated (1.10): these twelve were created only
 -- inside their migrations, so every fresh database lacked them. This block is
 -- the CURRENT index set; tests/test_schema_index_parity.py compares both paths

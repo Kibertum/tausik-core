@@ -117,8 +117,6 @@ def parse_plan(text: str) -> Plan:
 
     for task in plan.tasks:
         if not task.goal:
-            raise ValueError(
-                f"Task {task.number} '{task.title}' has no goal. Add **Goal:** line."
-            )
+            raise ValueError(f"Task {task.number} '{task.title}' has no goal. Add **Goal:** line.")
 
     return plan

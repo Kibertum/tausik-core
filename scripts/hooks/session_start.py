@@ -8,15 +8,19 @@ Exit code 0 always (graceful degradation). Output: Claude Code hookSpecificOutpu
 Skipped via TAUSIK_SKIP_HOOKS=1 env var.
 """
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path[:0] = [_HOOKS_DIR, os.path.dirname(_HOOKS_DIR)]
 
-from _common import profile_dir as _common_profile_dir
-from _common import tausik_path as _tausik_path
+from _common import profile_dir as _common_profile_dir  # noqa: E402
+from _common import tausik_path as _tausik_path  # noqa: E402
+from codex_capability import exact_hook_command, manifest_error  # noqa: E402
+from cursor_capability import cursor_preflight_hooks_ready  # noqa: E402
 
 MAX_CONTEXT_BYTES = 2_048
 
@@ -228,7 +232,9 @@ def build_context(project_dir: str) -> str:
     return required + "OMITTED: optional RAG status exceeded the context budget.\n"
 
 
-def _open_host_session(project_dir: str, payload: object) -> str | None:
+def _open_host_session(
+    project_dir: str, payload: object, *, trusted_host: str | None = None
+) -> str | None:
     """The TAUSIK session IS the host session (decision #376): open it here.
 
     Idempotent per host session id — SessionStart fires again on resume and
@@ -238,6 +244,14 @@ def _open_host_session(project_dir: str, payload: object) -> str | None:
     A release refusal becomes additional context so the host does not treat a
     missing TAUSIK session as permission to work outside governance.
     """
+    if trusted_host not in {"codex", "cursor"}:
+        return _open_legacy_host_session(project_dir, payload)
+    return _issue_execution_lease(project_dir, payload, trusted_host=trusted_host)
+
+
+def _open_legacy_host_session(project_dir: str, payload: object) -> str | None:
+    """Preserve the shared Claude/Qwen lifecycle; it does not mint Codex authority."""
+
     host_id = payload.get("session_id") if isinstance(payload, dict) else None
     if not isinstance(host_id, str) or not host_id.strip():
         return None
@@ -256,11 +270,142 @@ def _open_host_session(project_dir: str, payload: object) -> str | None:
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
         return f"TAUSIK SESSION NOT OPENED: version check could not finish ({type(exc).__name__})."
-    if result.returncode == 0:
-        warning = result.stderr.strip()
-        return f"TAUSIK SESSION OPENED WITH WARNING. {warning}" if warning else None
-    detail = result.stderr.strip() or result.stdout.strip() or "session start refused"
-    return f"TAUSIK SESSION START REFUSED. {detail} Do not begin project work."
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "session start refused"
+        return f"TAUSIK SESSION START REFUSED. {detail} Do not begin project work."
+    warning = result.stderr.strip()
+    return f"TAUSIK SESSION OPENED WITH WARNING. {warning}" if warning else None
+
+
+def _codex_preflight_hooks_ready(project_dir: str) -> bool:
+    """Attest that the profile which requests authority has both security adapters."""
+    path = os.path.join(project_dir, ".codex", "hooks.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, ValueError, TypeError):
+        return False
+    manifest_path = os.path.join(project_dir, ".codex", "tausik-capability.json")
+    try:
+        with open(manifest_path, encoding="utf-8") as fh:
+            manifest = json.load(fh)
+    except (OSError, ValueError, TypeError):
+        return False
+    if not isinstance(manifest, dict) or manifest_error(manifest) is not None:
+        return False
+    hooks_root = os.path.realpath(os.path.join(project_dir, ".codex", "scripts", "hooks"))
+
+    def ready(event: str, script: str) -> bool:
+        expected = os.path.join(hooks_root, script)
+        if not os.path.isfile(expected):
+            return False
+        try:
+            with open(expected, "rb") as fh:
+                digest = hashlib.sha256(fh.read()).hexdigest()
+        except OSError:
+            return False
+        if manifest["adapters"].get(script) != digest:
+            return False
+        commands = [
+            str(hook.get("command", ""))
+            for entry in payload.get("hooks", {}).get(event, [])
+            if isinstance(entry, dict) and entry.get("matcher") == ""
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and hook.get("type") == "command"
+        ]
+        for command in commands:
+            if exact_hook_command(command, expected, project_dir, manifest["python_executable"]):
+                return True
+        return False
+
+    parser = os.path.join(hooks_root, "codex_composite_mcp.py")
+    try:
+        with open(parser, "rb") as fh:
+            parser_digest = hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        return False
+    return (
+        manifest["adapters"].get("codex_composite_mcp.py") == parser_digest
+        and ready("PreToolUse", "codex_write_gate.py")
+        and ready("PostToolUse", "memory_preflight_posttool.py")
+        and ready("UserPromptSubmit", "user_prompt_submit.py")
+        and ready("Stop", "can_stop_gate.py")
+    )
+
+
+def _issue_execution_lease(project_dir: str, payload: object, *, trusted_host: str) -> str | None:
+    """Issue only from this trusted SessionStart boundary; never from MCP/CLI."""
+
+    if not isinstance(payload, dict):
+        return "TAUSIK EXECUTION LEASE REFUSED. IDENTITY_MISSING: invalid hook payload."
+    db_path = os.path.join(project_dir, ".tausik", "tausik.db")
+    if not os.path.isfile(db_path):
+        return None
+    if os.path.isfile(os.path.join(project_dir, ".tausik", "execution-lease-maintenance")):
+        return (
+            "TAUSIK EXECUTION LEASE REFUSED. LEASE_MAINTENANCE: a prior PostToolUse "
+            "audit could not persist; owner recovery is required. Do not begin project work."
+        )
+    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    try:
+        from project_backend import SQLiteBackend
+        from project_service import ProjectService
+        from service_execution_lease import (
+            assertion_from_session_start,
+            enter_execution_lease_maintenance,
+            issue_execution_lease,
+            reconcile_execution_lease_state,
+        )
+        from service_host_context import enforce_hard_ceiling
+
+        assertion_payload = dict(payload)
+        backend = SQLiteBackend(db_path)
+        try:
+            assertion = assertion_from_session_start(
+                assertion_payload, project_dir, trusted_host=trusted_host
+            )
+            svc = ProjectService(backend)
+            ready = (
+                _codex_preflight_hooks_ready(project_dir)
+                if trusted_host == "codex"
+                else cursor_preflight_hooks_ready(project_dir)
+            )
+            if not ready:
+                enter_execution_lease_maintenance(
+                    svc, f"{trusted_host} protected-action hook capability is missing or stale"
+                )
+                return (
+                    "TAUSIK EXECUTION LEASE REFUSED. CAPABILITY_MISMATCH: "
+                    f"{trusted_host} protected-action hooks are missing or stale. "
+                    "Do not begin project work."
+                )
+            ceiling = enforce_hard_ceiling(svc, host=trusted_host, thread_id=assertion.thread_id)
+            if ceiling is not None:
+                return (
+                    "TAUSIK EXECUTION LEASE REFUSED. HOST_CONTEXT_HARD: "
+                    "checkpoint saved; continue in a fresh host thread."
+                )
+            reconcile_execution_lease_state(svc, assertion)
+            lease = issue_execution_lease(
+                svc,
+                assertion,
+            )
+        finally:
+            backend.close()
+    except Exception as exc:  # noqa: BLE001 - trusted boundary fails closed with a typed notice
+        if hasattr(exc, "code"):
+            return f"TAUSIK EXECUTION LEASE REFUSED. {exc} Do not begin project work."
+        return (
+            "TAUSIK EXECUTION LEASE REFUSED. LEASE_INTERNAL: "
+            f"{type(exc).__name__}. Do not begin project work."
+        )
+    return (
+        "TAUSIK EXECUTION LEASE ISSUED. "
+        f"thread_id={lease['thread_id']} expires_at={lease['expires_at']}. "
+        "The trusted PreToolUse adapter binds mutations; no bearer token is exposed."
+    )
 
 
 def main() -> int:
@@ -274,6 +419,11 @@ def main() -> int:
     if os.environ.get("TAUSIK_SKIP_HOOKS"):
         return 0
 
+    import argparse
+
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--trusted-host")
+    args, _ = parser.parse_known_args()
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
     tausik_db = os.path.join(project_dir, ".tausik", "tausik.db")
 
@@ -284,8 +434,8 @@ def main() -> int:
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError, ValueError):
         payload = {}
-    session_notice = _open_host_session(project_dir, payload)
-    if session_notice and not session_notice.startswith("TAUSIK SESSION OPENED WITH WARNING."):
+    session_notice = _open_host_session(project_dir, payload, trusted_host=args.trusted_host)
+    if session_notice and "REFUSED" in session_notice:
         print(
             json.dumps(
                 {

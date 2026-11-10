@@ -10,9 +10,7 @@ from typing import Any
 
 def build_role_subparsers(sub: Any) -> None:
     """Attach `role` subparser tree."""
-    role_p = sub.add_parser(
-        "role", help="Role registry — list/show/create/update/delete"
-    )
+    role_p = sub.add_parser("role", help="Role registry — list/show/create/update/delete")
     role_sub = role_p.add_subparsers(dest="role_cmd")
     role_sub.add_parser("list")
     rs = role_sub.add_parser("show")
