@@ -75,12 +75,10 @@ class TestEventCountWindow:
 
     def test_counts_events_in_window(self, svc):
         _seed_active_task(svc)
-        # task_start already produced status_changed event(s); add a few more
+        baseline = svc.be.task_event_count_in_window("t1")
         svc.be.event_add("task", "t1", "log_added", "irrelevant")
         svc.be.event_add("task", "t1", "log_added", "irrelevant 2")
-        cnt = svc.be.task_event_count_in_window("t1")
-        # at minimum: created + status_changed (planning→active) + 2 manual = 4
-        assert cnt >= 4
+        assert svc.be.task_event_count_in_window("t1") == baseline + 2
 
     def test_active_window_counts_event_stamped_at_or_after_now(self, svc):
         """Regression for the windows-3.13 CI flake (assert 3 >= 4).

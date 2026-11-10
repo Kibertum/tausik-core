@@ -237,7 +237,7 @@ def test_generated_cursor_adapter_executes_read_gate_in_space_path(tmp_path: Pat
     assert json.loads(result.stdout) == {"permission": "allow"}
 
 
-def test_cursor_hook_command_quotes_external_python_with_spaces(tmp_path: Path):
+def test_cursor_hook_command_quotes_external_python_with_spaces_for_host_shell(tmp_path: Path):
     profile = tmp_path / ".cursor"
     profile.mkdir()
     generate_cursor_hooks_json(
@@ -247,7 +247,10 @@ def test_cursor_hook_command_quotes_external_python_with_spaces(tmp_path: Path):
         "preToolUse"
     ][-1]["command"]
     parts = split_cursor_command(command)
-    assert parts[:2] == ["&", "C:/Python With Spaces/python.exe"]
+    if os.name == "nt":
+        assert parts[:2] == ["&", "C:/Python With Spaces/python.exe"]
+    else:
+        assert parts[:2] == ["C:/Python With Spaces/python.exe", "-X"]
 
 
 @pytest.mark.skipif(os.name != "nt", reason="PowerShell hook contract is Windows-specific")

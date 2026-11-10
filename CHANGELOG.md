@@ -33,6 +33,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   published as a GitHub Release asset;
   its `content_sha256` addresses the complete evidence object.
 
+### Fixed — public release portability
+
+- Detached acceptance worktrees force canonical LF checkout semantics, so
+  byte-level contract hashes do not depend on a Windows `core.autocrlf`
+  setting. Cursor command tests now validate the host's actual PowerShell or
+  POSIX shell contract, and event-window tests assert deterministic deltas
+  instead of relying on lifecycle-event timing.
+
 ### Fixed — Codex and Cursor host compatibility
 
 - Cursor bootstrap now emits the current always-apply
