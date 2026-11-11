@@ -170,7 +170,27 @@ def test_stop_cannot_select_a_turn_from_another_thread_or_replay_one(bound_servi
 
     assert spoof.code == "CONTINUE"
     assert first.code == replay.code == "CONTINUE"
-    assert replay.action == "duplicate Stop"
+    assert replay.action == "complete plan step 1: run the negative matrix"
+
+
+def test_repeated_stop_allows_a_task_completed_after_continue(bound_service):
+    service, project, _lease = bound_service
+    _record(service, project)
+    first = decide_persisted_stop(
+        service, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
+    )
+    service.be._ex("UPDATE tasks SET status='done' WHERE slug='stop-work'")
+    service.be._execution_lease_unbind_task("stop-work", utcnow_iso())
+
+    repeated = decide_persisted_stop(
+        service, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
+    )
+
+    assert first.code == "CONTINUE"
+    assert repeated.code == "ALLOW_DONE"
+    assert repeated.action == "task is complete"
+    row = service.be._q1("SELECT consumed_at,decision FROM can_stop_turns WHERE turn_id='turn-1'")
+    assert row["consumed_at"] and row["decision"] == "CONTINUE"
 
 
 def test_concurrent_stop_consumers_are_idempotent(bound_service):
@@ -600,6 +620,9 @@ def test_unblock_clears_structured_evidence_and_cannot_allow_stop(bound_service)
 def test_only_real_lease_bound_unavailable_authority_allows_blocker(bound_service):
     service, project, lease = bound_service
     _record(service, project)
+    first = decide_persisted_stop(
+        service, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
+    )
     event_id = record_attempt_event(
         service,
         lease=lease,
@@ -613,6 +636,7 @@ def test_only_real_lease_bound_unavailable_authority_allows_blocker(bound_servic
         service, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
     )
 
+    assert first.code == "CONTINUE"
     assert decision.code == "ALLOW_BLOCKED"
     assert decision.action == "retry after the owner grants repository access"
 
@@ -651,12 +675,16 @@ def _persist_ceiling_checkpoint(service, lease, handoff):
 def test_hard_ceiling_requires_copy_ready_checkpoint_handoff(bound_service, handoff, expected):
     service, project, lease = bound_service
     _record(service, project)
+    first = decide_persisted_stop(
+        service, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
+    )
     _persist_ceiling_checkpoint(service, lease, handoff)
 
     decision = decide_persisted_stop(
         service, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
     )
 
+    assert first.code == "CONTINUE"
     assert decision.code == expected
     if expected == "ALLOW_HANDOFF":
         assert decision.action == ".tausik/tausik task start stop-work --package"

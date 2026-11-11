@@ -169,6 +169,27 @@ minutes: Windows is nightly, not per-push.
 
 - [Exact 1.11.7 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.7/CHANGELOG.md)
 
+## 1.11.13 — verified tasks close at the context ceiling
+
+Codex no longer traps a fully verified task in `active` state when the current
+host thread reaches `HOST_CONTEXT_HARD`. An exact `tausik_task_done` call with
+`ac_verified=true` now reaches the ordinary execution-lease and QG-2 checks,
+so the task can close and the persisted Stop policy can return `ALLOW_DONE`.
+If Stop already returned `CONTINUE` earlier in the turn, a retry re-evaluates
+durable state instead of replaying the stale refusal.
+
+The exception is terminal and narrow. Implementation writes and every other
+protected mutation still checkpoint the exhausted thread, revoke its lease,
+and require a fresh host thread. A task that lacks QG-2 evidence still fails
+the normal closure gate.
+
+From the consumer project root, update `.tausik-lib`, then run
+`python .tausik-lib/bootstrap/bootstrap.py --project-dir . --ide codex` and
+`.tausik/tausik doctor`. Restart Codex or open a fresh trusted Codex thread so
+the hook capability digest uses 1.11.13. See the [upgrade guide](upgrade.md).
+
+- [Exact 1.11.13 changelog](https://github.com/Kibertum/tausik-core/blob/v1.11.13/CHANGELOG.md)
+
 ## 1.11.12 — rejected commands no longer stop Cursor work
 
 Cursor no longer puts the whole project into `LEASE_MAINTENANCE` when

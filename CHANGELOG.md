@@ -9,6 +9,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.13] — 2026-11-11
+
+### Fixed — task closure at the host-context ceiling
+
+- A verified `tausik_task_done` call can now reach its normal QG-2 checks after
+  the Codex thread reaches `HOST_CONTEXT_HARD`. Other protected mutations stay
+  blocked, checkpoint the exhausted thread and require a fresh host thread.
+- A repeated Stop now re-evaluates durable state after an earlier `CONTINUE`:
+  it allows a task that has since completed and keeps returning an actionable
+  `CONTINUE` while the task remains unfinished.
+
 ## [1.11.12] — 2026-11-10
 
 ### Fixed — recoverable Cursor audit refusals

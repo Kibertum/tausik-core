@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 
@@ -123,6 +124,117 @@ def test_pretool_boundary_rejects_old_thread_after_hard_ceiling(svc, monkeypatch
     assert allowed is False
     assert "HOST_CONTEXT_HARD" in reason
     assert svc.be._execution_lease_by_nonce(lease["nonce"])["revoked_at"] is not None
+
+
+def test_pretool_boundary_allows_only_task_done_after_hard_ceiling(svc, monkeypatch):
+    hooks_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks")
+    if hooks_dir not in sys.path:
+        sys.path.insert(0, hooks_dir)
+    import execution_lease_gate
+    from can_stop import decide_persisted_stop, record_trusted_turn
+
+    mcp_dir = os.path.join(os.path.dirname(__file__), "..", "harness", "claude", "mcp", "project")
+    if mcp_dir not in sys.path:
+        sys.path.insert(0, mcp_dir)
+    from handlers import handle_tool
+
+    project = os.path.dirname(svc.tausik_dir())
+    assertion = assertion_from_session_start(
+        {"hook_event_name": "SessionStart", "session_id": "thread-a"},
+        project,
+        trusted_host="codex",
+    )
+    reconcile_execution_lease_state(svc, assertion)
+    lease = issue_execution_lease(svc, assertion)
+    svc.task_add(None, "stop-work", "Stop work", complexity="simple")
+    svc.task_update(
+        "stop-work",
+        goal="Close verified work",
+        acceptance_criteria="Closure succeeds. Negative: unfinished work stays active.",
+    )
+    svc.task_plan("stop-work", ["finish the verified work"])
+    svc.task_start("stop-work", include_memory=False, execution_lease_id=lease["id"])
+    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(policy, "_usage", lambda *_args: measured(responses=32))
+    monkeypatch.setenv("TAUSIK_ENFORCE_EXECUTION_LEASE", "1")
+
+    event = {"hook_event_name": "PreToolUse", "session_id": "thread-a"}
+    record_trusted_turn(
+        svc,
+        project_dir=project,
+        host_instance="codex",
+        thread_id="thread-a",
+        turn_id="turn-1",
+        prompt="close the verified task",
+        payload={"session_id": "thread-a", "turn_id": "turn-1"},
+    )
+    first_stop = decide_persisted_stop(
+        svc, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
+    )
+    assert first_stop.code == "CONTINUE"
+    incomplete_args = {"slug": "stop-work", "ac_verified": True, "full_path": True}
+    incomplete_authorizations = []
+    incomplete_allowed, incomplete_reason = execution_lease_gate.require_live_lease(
+        event,
+        project,
+        route="tausik_task_done",
+        arguments=incomplete_args,
+        authorization_tokens=incomplete_authorizations,
+        correlate_authorizations=True,
+    )
+    assert incomplete_allowed, incomplete_reason
+    incomplete = json.loads(
+        handle_tool(
+            svc,
+            "tausik_task_done",
+            incomplete_args,
+            authorization=incomplete_authorizations[0],
+        )
+    )
+    assert incomplete["ok"] is False
+    assert incomplete["blocking_failures"][0]["stage"] == "ac"
+    assert svc.task_show("stop-work")["status"] == "active"
+    svc.task_step("stop-work", 1, "verified work finished")
+    svc.task_start("stop-work", include_memory=False, execution_lease_id=lease["id"])
+
+    close_args = {
+        "slug": "stop-work",
+        "ac_verified": True,
+        "full_path": True,
+        "evidence": "AC-1: ✓ closure succeeds. AC-2: ✓ unfinished work is refused.",
+    }
+    authorizations = []
+    close_allowed, close_reason = execution_lease_gate.require_live_lease(
+        event,
+        project,
+        route="tausik_task_done",
+        arguments=close_args,
+        authorization_tokens=authorizations,
+        correlate_authorizations=True,
+    )
+    assert close_allowed, close_reason
+    assert len(authorizations) == 1
+    handle_tool(
+        svc,
+        "tausik_task_done",
+        close_args,
+        authorization=authorizations[0],
+    )
+    repeated_stop = decide_persisted_stop(
+        svc, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
+    )
+    write_allowed, write_reason = execution_lease_gate.require_live_lease(
+        event,
+        project,
+        route="codex_implementation_write",
+        arguments={"tool": "Write", "payload_sha256": "x"},
+        authorize=False,
+    )
+
+    assert svc.task_show("stop-work")["status"] == "done"
+    assert repeated_stop.code == "ALLOW_DONE"
+    assert write_allowed is False
+    assert "HOST_CONTEXT_HARD" in write_reason
 
 
 def test_hard_ceiling_checkpoints_a_legacy_unbound_session_without_reopening_it(svc, monkeypatch):

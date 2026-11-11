@@ -63,8 +63,14 @@ def require_live_lease(
         backend = SQLiteBackend(os.path.join(project_dir, ".tausik", "tausik.db"))
         try:
             svc = ProjectService(backend)
+            request_items = list(requests) if requests is not None else [(route, arguments or {})]
+            closing_verified_task = bool(request_items) and all(
+                item_route == "tausik_task_done" and item_arguments.get("ac_verified") is True
+                for item_route, item_arguments in request_items
+            )
             if (
-                enforce_hard_ceiling(svc, host=trusted_host, thread_id=thread_id.strip())
+                not closing_verified_task
+                and enforce_hard_ceiling(svc, host=trusted_host, thread_id=thread_id.strip())
                 is not None
             ):
                 return False, "HOST_CONTEXT_HARD: continue in a fresh host thread"
@@ -120,7 +126,6 @@ def require_live_lease(
                 )
                 reconcile_execution_lease_state(svc, assertion)
                 current = issue_execution_lease(svc, assertion)
-            request_items = list(requests) if requests is not None else [(route, arguments or {})]
             from execution_lease_package import route_allows_package_bypass
 
             lease = require_execution_lease(

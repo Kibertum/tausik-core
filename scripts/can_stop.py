@@ -354,12 +354,20 @@ def decide_persisted_stop(
             turn = None
         if turn is None:
             return StopDecision("CONTINUE", "trusted turn record is missing; continue safely")
-        if turn.get("consumed_at") is not None:
+        retrying_continue = turn.get("consumed_at") is not None
+        if retrying_continue:
             code = str(turn.get("decision") or "CONTINUE")
-            return StopDecision(code if code in DECISIONS else "CONTINUE", "duplicate Stop")
+            if code != "CONTINUE":
+                return StopDecision(code if code in DECISIONS else "CONTINUE", "duplicate Stop")
         lease = svc.be._q1("SELECT * FROM execution_leases WHERE id=?", (turn["lease_id"],))
         current_slug = lease.get("task_slug") if lease else None
         task = svc.be.task_get(current_slug) if current_slug else None
+        if task is None and not current_slug:
+            closed_slug = turn.get("task_slug")
+            closed_task = svc.be.task_get(closed_slug) if closed_slug else None
+            if closed_task and closed_task.get("status") == "done":
+                current_slug = str(closed_slug)
+                task = closed_task
         continuity = (
             svc.be._q1("SELECT * FROM task_continuity_state WHERE task_slug=?", (current_slug,))
             if current_slug
@@ -407,6 +415,8 @@ def decide_persisted_stop(
             )
         )
         now = utcnow_iso()
+        if retrying_continue:
+            return decision
         changed = svc.be._ex(
             "UPDATE can_stop_turns SET consumed_at=?,decision=? WHERE id=? AND consumed_at IS NULL",
             (now, decision.code, turn["id"]),
