@@ -383,14 +383,22 @@ def decide_persisted_stop(
             and task.get("call_budget") is not None
             and int(task.get("call_actual") or 0) >= int(task["call_budget"])
         )
+        hard_context_checkpoint = bool(
+            lease and svc.be.meta_get(f"host_context_hard_lease:{lease['id']}") == resume_command
+        )
         handoff_ready = bool(
-            budget_exhausted
-            and continuity.get("recovery_consumed_at")
-            and continuity.get("recovery_action") == "checkpoint"
-            and lease
+            lease
             and lease.get("revoked_at")
             and session
             and resume_command in str(session.get("handoff") or "")
+            and (
+                hard_context_checkpoint
+                or (
+                    budget_exhausted
+                    and continuity.get("recovery_consumed_at")
+                    and continuity.get("recovery_action") == "checkpoint"
+                )
+            )
         )
         blocker_action = (
             _verified_blocker_action(svc, turn, continuity, current_slug)

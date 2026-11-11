@@ -798,12 +798,22 @@ def test_native_process_block_json_counts_as_enforcement():
     assert verdict.reason == "continue"
 
 
-def test_fresh_process_reads_persisted_handoff_and_returns_exact_resume_action(bound_service):
+@pytest.mark.parametrize("checkpoint_kind", ["call_budget", "host_context"])
+def test_fresh_process_reads_persisted_handoff_and_returns_exact_resume_action(
+    bound_service, checkpoint_kind
+):
     service, project, lease = bound_service
     _record(service, project)
-    _persist_ceiling_checkpoint(
-        service, lease, "Resume: .tausik/tausik task start stop-work --package"
-    )
+    resume = ".tausik/tausik task start stop-work --package"
+    if checkpoint_kind == "call_budget":
+        _persist_ceiling_checkpoint(service, lease, f"Resume: {resume}")
+    else:
+        now = utcnow_iso()
+        service.be._ex("UPDATE execution_leases SET revoked_at=? WHERE id=?", (now, lease["id"]))
+        service.be._ex(
+            "UPDATE sessions SET handoff=? WHERE id=?", (f"Resume: {resume}", lease["session_id"])
+        )
+        service.be.meta_set(f"host_context_hard_lease:{lease['id']}", resume)
     code = """
 import json, sys
 from can_stop import decide_persisted_stop, decision_json

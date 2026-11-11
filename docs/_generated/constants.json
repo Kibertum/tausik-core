@@ -53,6 +53,6 @@
   "schema_version": 1,
   "skills_core_count": 14,
   "stacks_count": 25,
-  "tausik_version": "1.11.13",
-  "test_count": 14179
+  "tausik_version": "1.12.0",
+  "test_count": 14189
 }

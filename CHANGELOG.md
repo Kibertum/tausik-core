@@ -9,6 +9,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-11-11
+
+### Fixed — recoverable host-context handoff
+
+- `HOST_CONTEXT_HARD` now writes a trusted copy-ready task checkpoint before it
+  closes the exhausted host thread. A repeated Stop returns `ALLOW_HANDOFF`
+  with the exact fresh-thread `task start <slug> --package` command instead of
+  trapping unfinished work in a `CONTINUE` loop.
+- Explicit handoff and unrelated protected mutations remain blocked in the
+  exhausted thread; the recovery path does not renew its execution lease.
+
 ## [1.11.13] — 2026-11-11
 
 ### Fixed — task closure at the host-context ceiling

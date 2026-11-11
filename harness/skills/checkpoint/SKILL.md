@@ -46,12 +46,14 @@ not re-type what the records already say. Pass only your judgement, if any:
 
 These land on top, marked in `authored_fields`.
 
-When the checkpoint boundary has expired the normal execution lease, this call
-is the allowed single-use recovery action. A successful handoff consumes that
-lease. Continue implementation only in a fresh host thread after
-`task start <slug> --package` returns a newly validated package. If the task
-call budget itself is exhausted, checkpoint is insufficient: decompose the
-task or wait for a trusted owner planning change.
+When the task-call checkpoint boundary has expired the normal execution lease,
+this call is the allowed single-use recovery action. A successful handoff
+consumes that lease. `HOST_CONTEXT_HARD` is different: the trusted boundary
+automatically writes a copy-ready checkpoint and closes the exhausted host
+thread, so do not retry MCP or CLI handoff there. Continue implementation only
+in a fresh host thread after `task start <slug> --package` returns a newly
+validated package. If the task call budget itself is exhausted, checkpoint is
+insufficient: decompose the task or wait for a trusted owner planning change.
 
 ### 3. Update CLAUDE.md
 
@@ -70,4 +72,4 @@ Tell the user: "Checkpoint saved. Context preserved for session continuity."
 - **Authored JSON must be valid JSON** — unescaped quotes in values will break the command. With no authored fields, call it without arguments.
 - **Checkpoint does NOT commit** — code changes are only in working tree.
 - **Session duration** — an advisory, not a limit (decision #376): mention it, do not stop work for it.
-- **Handoff permission is mechanical.** Codex Stop allows it only after a hard ceiling, persisted checkpoint, copy-ready resume command, and revoked old lease.
+- **Handoff permission is mechanical.** For a task-call ceiling, Codex Stop requires a persisted checkpoint, copy-ready resume command and revoked old lease. For `HOST_CONTEXT_HARD`, TAUSIK records those facts automatically and explicit handoff remains blocked in the exhausted thread.

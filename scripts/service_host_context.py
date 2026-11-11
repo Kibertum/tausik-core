@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from project_config import load_config
 from tausik_utils import ServiceError
@@ -92,14 +92,44 @@ def _level(usage: Mapping[str, Any], budget: Mapping[str, Mapping[str, int]]) ->
     return "ok"
 
 
-def _fresh_window_prompt(session_id: int | None, thread_id: str | None) -> str:
+def _fresh_window_prompt(
+    session_id: int | None, thread_id: str | None, task_slug: str | None = None
+) -> str:
     identity = f"; previous host thread {thread_id}" if thread_id else ""
     checkpoint = f"session #{session_id}" if session_id is not None else "the latest handoff"
-    return (
+    guidance = (
         f"Continue TAUSIK from checkpoint {checkpoint}{identity}. "
         "Run /start, load the handoff and active task in package mode, and continue from the "
         "first incomplete plan step. Do not reread the full host history."
     )
+    if not task_slug:
+        return guidance
+    return f"Resume: .tausik/tausik task start {task_slug} --package. {guidance}"
+
+
+def _bound_task_lease(
+    svc: Any, *, session_id: int, host: str | None, thread_id: str | None
+) -> dict[str, Any] | None:
+    if not host or not thread_id:
+        return None
+    from execution_lease_package import normalize_project_identity
+
+    leases = svc.be._q(
+        "SELECT * FROM execution_leases WHERE session_id=? AND project_identity=? "
+        "AND host_instance=? AND thread_id=? AND revoked_at IS NULL AND task_slug IS NOT NULL "
+        "ORDER BY id DESC",
+        (
+            session_id,
+            normalize_project_identity(os.path.dirname(svc.tausik_dir())),
+            host.casefold(),
+            thread_id.strip(),
+        ),
+    )
+    if len(leases) > 1:
+        raise ServiceError("IDENTITY_AMBIGUOUS: multiple task-bound leases for host session")
+    if not leases:
+        return None
+    return cast(dict[str, Any], leases[0])
 
 
 def enforce_hard_ceiling(svc: Any, *, host: str, thread_id: str) -> dict[str, Any] | None:
@@ -162,7 +192,14 @@ def open_session(
             svc.session_start(thread_id)
             checkpoint_session = svc.be.session_current(thread_id)
         assert checkpoint_session is not None
-        prompt = _fresh_window_prompt(checkpoint_session["id"], thread_id)
+        bound_lease = _bound_task_lease(
+            svc,
+            session_id=int(checkpoint_session["id"]),
+            host=host,
+            thread_id=thread_id,
+        )
+        task_slug = str(bound_lease["task_slug"]) if bound_lease else None
+        prompt = _fresh_window_prompt(checkpoint_session["id"], thread_id, task_slug)
         checkpoint_saved = False
         marker = {
             "level": level,
@@ -171,7 +208,7 @@ def open_session(
             "usage": observed,
             "fresh_window_prompt": prompt,
         }
-        if thread_id and thread_id not in str(checkpoint_session.get("handoff") or ""):
+        if '"level": "hard"' not in str(checkpoint_session.get("handoff") or ""):
             svc.session_handoff(
                 {
                     "warnings": ["Host context budget reached; continue in a fresh host window."],
@@ -181,6 +218,9 @@ def open_session(
                 host_session_id=thread_id if checkpoint_session.get("host_session_id") else None,
             )
             checkpoint_saved = True
+        if bound_lease and task_slug:
+            resume_command = f".tausik/tausik task start {task_slug} --package"
+            svc.be.meta_set(f"host_context_hard_lease:{bound_lease['id']}", resume_command)
         if checkpoint_session.get("host_session_id"):
             svc.be.session_end(
                 checkpoint_session["id"], "Host context hard ceiling; checkpoint only"
