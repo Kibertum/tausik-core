@@ -9,6 +9,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-11-11
+
+### Fixed — interactive context continuity
+
+- Interactive work no longer turns `call_budget` or `checkpoint_calls` into a
+  hard continuity refusal. Those call counts remain calibration and checkpoint
+  advice; only native host-context telemetry can require a fresh host thread.
+- Upgrading clears persisted call-count recovery state at the next protected
+  action. `task start <slug> --package` can therefore refresh a stale package
+  in the same thread instead of deadlocking `CONTINUITY_BLOCKED` against
+  `PACKAGE_STALE`.
+- Explicit unattended runs keep their separate `2×` between-task budget check
+  through `TAUSIK_AUTONOMOUS_BUDGET_BLOCK`; it no longer freezes a live task
+  at the estimate boundary.
+
 ## [1.12.0] — 2026-11-11
 
 ### Fixed — recoverable host-context handoff

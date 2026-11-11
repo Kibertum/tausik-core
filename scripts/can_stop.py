@@ -187,14 +187,6 @@ def _next_action(
 ) -> str | None:
     if not task:
         return "create and start a TAUSIK task for this work"
-    pending = str((continuity or {}).get("pending_requirement") or "").strip()
-    if pending:
-        recoveries = (
-            "reason-step, then block or decompose"
-            if pending == "call_budget_exhausted"
-            else "reason-step, then checkpoint, block, or decompose"
-        )
-        return f"resolve continuity requirement {pending}: {recoveries}"
     try:
         plan = json.loads(task.get("plan") or "[]")
     except (TypeError, ValueError):

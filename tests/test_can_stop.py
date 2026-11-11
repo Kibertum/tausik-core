@@ -690,8 +690,15 @@ def test_hard_ceiling_requires_copy_ready_checkpoint_handoff(bound_service, hand
         assert decision.action == ".tausik/tausik task start stop-work --package"
 
 
-def test_pending_continuity_requirement_is_the_exact_next_action(bound_service):
+@pytest.mark.parametrize("armed", [True, False])
+def test_legacy_call_count_requirement_never_replaces_the_next_action(
+    bound_service, monkeypatch, armed
+):
     service, project, _lease = bound_service
+    if armed:
+        monkeypatch.setenv("TAUSIK_AUTONOMOUS_BUDGET_BLOCK", "1")
+    else:
+        monkeypatch.delenv("TAUSIK_AUTONOMOUS_BUDGET_BLOCK", raising=False)
     _record(service, project)
     service.be._ex(
         "INSERT INTO task_continuity_state(task_slug,package_fingerprint,pending_requirement,updated_at) "
@@ -704,9 +711,7 @@ def test_pending_continuity_requirement_is_the_exact_next_action(bound_service):
     )
 
     assert decision.code == "CONTINUE"
-    assert decision.action == (
-        "resolve continuity requirement call_budget_exhausted: reason-step, then block or decompose"
-    )
+    assert decision.action == "complete plan step 1: run the negative matrix"
 
 
 def _run_hook(project, payload):

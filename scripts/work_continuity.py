@@ -8,7 +8,6 @@ from typing import Any, Mapping
 
 from tausik_utils import ServiceError, utcnow_iso
 
-CHECKPOINT_CALL_THRESHOLD = 40
 REFUSAL_LIMIT = 3
 
 
@@ -166,30 +165,8 @@ def complete_plan_step(svc: Any, slug: str, step_num: int, evidence_ref: str | N
     return f"Step {step_num} done with {canonical} ({sum(bool(s.get('done')) for s in current)}/{len(current)})."
 
 
-def _task_calls(svc: Any, task: Mapping[str, Any]) -> int:
-    values = [int(task.get("call_actual") or 0)]
-    try:
-        values.append(int(svc.be.meta_get(f"tool_calls:{task['slug']}") or 0))
-    except (TypeError, ValueError):
-        pass
-    return max(values)
-
-
-def _requirement(svc: Any, task: Mapping[str, Any]) -> str | None:
-    budget = task.get("call_budget")
-    if isinstance(budget, int) and budget > 0 and _task_calls(svc, task) >= budget:
-        return "call_budget_exhausted"
-    try:
-        from checkpoint_signal import calls_since_checkpoint
-        from project_config import load_config
-
-        threshold = int(
-            load_config(svc.tausik_dir()).get("checkpoint_calls", CHECKPOINT_CALL_THRESHOLD)
-        )
-        if threshold > 0 and (calls_since_checkpoint(svc.be) or 0) >= threshold:
-            return "checkpoint_required"
-    except Exception:  # noqa: BLE001 - absence of usage telemetry is explicit exemption
-        return None
+def _requirement(_svc: Any, _task: Mapping[str, Any]) -> str | None:
+    """Call counts are advisory; native host-context telemetry owns hard stops."""
     return None
 
 
@@ -237,102 +214,22 @@ def _has_action_override(svc: Any, slug: str, route: str, arguments: Mapping[str
 def enforce_continuity_boundary(
     svc: Any, lease: Mapping[str, Any], route: str, arguments: Mapping[str, object]
 ) -> dict[str, Any] | None:
-    """Enter recovery at a hard boundary and authorize only bounded actions."""
+    """Retire call-count recovery state; host context owns live-task stops."""
     slug = lease.get("task_slug")
     if not isinstance(slug, str) or not slug:
         return None
-    now = utcnow_iso()
-    refusal: tuple[str, str] | None = None
-    with svc.be.transaction():
-        task = svc.be.task_get(slug)
-        if task is None or not _strict(task):
-            return None
-        state = svc.be._q1("SELECT * FROM task_continuity_state WHERE task_slug=?", (slug,))
-        computed = _requirement(svc, task)
-        pending = state.get("pending_requirement") if state else None
-        if pending == "checkpoint_required" and computed == "call_budget_exhausted":
-            svc.be._ex(
-                "UPDATE task_continuity_state SET pending_requirement=?,updated_at=? WHERE task_slug=?",
-                (computed, now, slug),
-            )
-            pending = computed
-            state = {**state, "pending_requirement": computed}
-        requirement = pending or computed
-        if not requirement:
-            return None
-        fingerprint = _fingerprint(svc, slug)
-        live = svc.be._q1("SELECT * FROM execution_leases WHERE id=?", (int(lease["id"]),))
-        if (
-            live is None
-            or live.get("revoked_at") is not None
-            or live.get("task_slug") != slug
-            or live.get("task_package_fingerprint") != fingerprint
-        ):
-            raise ContinuityError(
-                "RECOVERY_LEASE_STALE", "continuity boundary requires the current package lease"
-            )
-        if not pending:
-            svc.be._ex(
-                "INSERT INTO task_continuity_state(task_slug,package_fingerprint,pending_requirement,recovery_lease_id,recovery_issued_at,updated_at) VALUES(?,?,?,?,?,?) "
-                "ON CONFLICT(task_slug) DO UPDATE SET package_fingerprint=excluded.package_fingerprint,pending_requirement=excluded.pending_requirement,recovery_lease_id=excluded.recovery_lease_id,recovery_issued_at=excluded.recovery_issued_at,recovery_consumed_at=NULL,refusal_hash=NULL,refusal_count=0,blocker_json=NULL,updated_at=excluded.updated_at "
-                "WHERE task_continuity_state.pending_requirement IS NULL",
-                (slug, fingerprint, requirement, int(lease["id"]), now, now),
-            )
-            state = svc.be._q1("SELECT * FROM task_continuity_state WHERE task_slug=?", (slug,))
-        if state is None or state.get("pending_requirement") is None:
-            raise ContinuityError("CONTINUITY_CAS_MISS", "continuity state changed concurrently")
-        if int(state.get("recovery_lease_id") or 0) != int(lease["id"]):
-            raise ContinuityError(
-                "RECOVERY_LEASE_MISMATCH", "continuity belongs to a different execution lease"
-            )
-        requirement = str(state["pending_requirement"])
-        recovery = _recovery_class(route, arguments)
-        allowed = recovery is not None
-        if requirement == "call_budget_exhausted" and recovery == "checkpoint":
-            allowed = False
-        overridden = False
-        if not allowed and requirement != "call_budget_exhausted":
-            overridden = _has_action_override(svc, slug, route, arguments)
-            allowed = overridden
-        if allowed:
-            if recovery not in {None, "reason"} or overridden:
-                keys = (
-                    "task_slug",
-                    "pending_requirement",
-                    "recovery_lease_id",
-                    "recovery_issued_at",
-                )
-                return {key: state.get(key) for key in keys}
-            return None
-        action_digest = _action_hash(route, arguments)
-        count = (
-            int(state.get("refusal_count") or 0) + 1
-            if state.get("refusal_hash") == action_digest
-            else 1
-        )
-        blocker = None
-        if count >= REFUSAL_LIMIT:
-            blocker = json.dumps(
-                {
-                    "code": "CONTINUITY_BLOCKED",
-                    "task": slug,
-                    "requirement": requirement,
-                    "refused_action_hash": action_digest,
-                    "attempts": count,
-                },
-                sort_keys=True,
-            )
-        svc.be._ex(
-            "UPDATE task_continuity_state SET refusal_hash=?,refusal_count=?,blocker_json=?,updated_at=? WHERE task_slug=?",
-            (action_digest, count, blocker, now, slug),
-        )
-        code = "CONTINUITY_BLOCKED" if count >= REFUSAL_LIMIT else "CONTINUITY_RECOVERY_REQUIRED"
-        refusal = (
-            code,
-            f"{requirement}; allowed recovery: reason-step then checkpoint/block/decompose",
-        )
-    assert refusal is not None
-    raise ContinuityError(*refusal)
+    # These requirements came from estimated tool-call counts. They are advisory
+    # in every host mode, including unattended runs. The autonomous 2x refusal
+    # lives in call_budget_guard and is evaluated only between tasks.
+    svc.be._ex(
+        "UPDATE task_continuity_state SET pending_requirement=NULL,"
+        "recovery_lease_id=NULL,recovery_issued_at=NULL,recovery_consumed_at=NULL,"
+        "recovery_action=NULL,refusal_hash=NULL,refusal_count=0,blocker_json=NULL,updated_at=? "
+        "WHERE task_slug=? AND pending_requirement IN "
+        "('call_budget_exhausted','checkpoint_required')",
+        (utcnow_iso(), slug),
+    )
+    return None
 
 
 def complete_recovery(

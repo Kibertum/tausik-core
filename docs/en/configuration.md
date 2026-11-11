@@ -39,6 +39,12 @@ nor an MCP process that expects those hooks to mint a lease.
 
 Codex supplies native thread identity and usage from its local journal. A host without those signals returns `level=unavailable` and a reason, then fails open to the existing time/call advice. Ending and reopening a TAUSIK session in the same host thread never makes `fresh_context` true.
 
+`call_budget` and `checkpoint_calls` do not substitute for this telemetry. They
+remain estimates and advice and never freeze a live task. An explicitly armed
+unattended run (`TAUSIK_AUTONOMOUS_BUDGET_BLOCK=1`) applies its separate `2×`
+budget check between tasks. Normal work continues until the native host-context
+hard ceiling is reached.
+
 ## Code search (RAG) languages
 
 | Key | Default | Meaning |
