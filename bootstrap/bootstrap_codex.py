@@ -21,7 +21,13 @@ from typing import Any
 
 from bootstrap_codex_mcp import register_mcp_servers
 from bootstrap_hooks import build_hooks_dict, deployed_hooks_dir
-from hooks.codex_capability import serialize_hook_argv, split_hook_command
+from hooks.codex_capability import (
+    CAPABILITY_VERSION,
+    CODEX_ADAPTERS_BY_ROLE,
+    CODEX_SECURITY_ADAPTERS,
+    serialize_hook_argv,
+    split_hook_command,
+)
 
 
 class _HookCommand(str):
@@ -35,13 +41,10 @@ class _HookCommand(str):
 
 #: Имя файла хуков у Codex — то, что ищет сам хост (строка `.codex/hooks` в бинаре).
 HOOKS_FILE = "hooks.json"
-CODEX_WRITE_ADAPTER = "codex_write_gate.py"
-CODEX_PREFLIGHT_POSTTOOL = "memory_preflight_posttool.py"
-CODEX_COMPOSITE_ADAPTER = "codex_composite_mcp.py"
-CODEX_PROMPT_ADAPTER = "user_prompt_submit.py"
-CODEX_STOP_ADAPTER = "can_stop_gate.py"
+CODEX_WRITE_ADAPTER = CODEX_ADAPTERS_BY_ROLE["write"]
+CODEX_PREFLIGHT_POSTTOOL = CODEX_ADAPTERS_BY_ROLE["posttool"]
 CODEX_WRITE_MATCHER = ""
-CODEX_CAPABILITY_VERSION = 5
+CODEX_CAPABILITY_VERSION = CAPABILITY_VERSION
 CODEX_CAPABILITY_FILE = "tausik-capability.json"
 
 #: Ключи, которые Codex мог положить в тот же файл сам и которые не наши. Всё,
@@ -188,18 +191,12 @@ def generate_codex_hooks(
     manifest_path = os.path.join(target_dir, CODEX_CAPABILITY_FILE)
     hooks_dir = deployed_hooks_dir(target_dir)
     adapters = {}
-    for name in (
-        CODEX_WRITE_ADAPTER,
-        CODEX_PREFLIGHT_POSTTOOL,
-        CODEX_COMPOSITE_ADAPTER,
-        CODEX_PROMPT_ADAPTER,
-        CODEX_STOP_ADAPTER,
-    ):
+    for name in CODEX_SECURITY_ADAPTERS:
         adapter = os.path.join(hooks_dir, name)
         if os.path.isfile(adapter):
             with open(adapter, "rb") as fh:
                 adapters[name] = hashlib.sha256(fh.read()).hexdigest()
-    if len(adapters) == 5:
+    if set(adapters) == set(CODEX_SECURITY_ADAPTERS):
         with open(manifest_path, "w", encoding="utf-8") as fh:
             json.dump(
                 {

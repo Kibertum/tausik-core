@@ -4,6 +4,29 @@
 
 <!-- doc-map: reader=user; zone=release-notes -->
 
+## 1.13.1 — 2026-11-15
+
+TAUSIK 1.13.1 is a stabilization release for existing Cursor and Codex projects.
+It adds a published-version upgrade matrix beginning at v1.11.7, preserves task,
+dependency, session, lease, turn, Stop, and continuity state across the schema
+boundaries that own those records, and executes the commands installed in each
+host's real SessionStart-to-Stop lifecycle.
+
+Bootstrap refresh now fails closed with a bounded diagnostic. It updates every
+existing host projection and removes legacy `.cursorrules` only when its
+ownership digest proves that TAUSIK generated it and the replacement MDC rule
+exists. The upgrade guide now uses a SQLite online backup so committed WAL
+frames are part of the recoverable set.
+
+Once the protected activation dry run succeeds, official publication will
+require exact-SHA release qualification. Linux produces isolated trusted
+evidence, native Windows is a mandatory Cursor/Codex compatibility canary, and
+the protected verifier binds the successful Windows job identity without
+trusting candidate-writable JUnit as signed evidence.
+
+- [Exact 1.13.1 changelog](https://github.com/Kibertum/tausik-core/blob/v1.13.1/CHANGELOG.md)
+- [Upgrade guide](upgrade.md)
+
 ## 1.13.0 — 2026-11-11
 
 TAUSIK 1.13.0 stops treating estimated tool-call counts as a reason to freeze a

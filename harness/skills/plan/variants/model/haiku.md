@@ -17,18 +17,18 @@ Plan a task. Follow steps in order. No improvisation.
 
 4. **Detect stack.** From package.json / requirements.txt / go.mod. Default role = `developer`.
 
-5. **Create task.** MCP-first:
-   - Auto-slug: `tausik_task_quick(title=..., goal=..., role="developer", stack=...)`
-   - Explicit: `tausik_task_add(slug=..., title=..., goal=..., role=..., stack=..., complexity=...)`
+5. **Create the complete task atomically.** Call `tausik_task_add` once with
+   `slug`, `title`, `goal`, `acceptance_criteria`, `scope`, `scope_paths`,
+   `rollback_plan`, `call_budget`, `plan_steps`, `rationale`, and optional
+   `depends_on`. Create graphs in topological order.
 
-6. **Set call budget.** `tausik_task_update(slug=..., call_budget=N)`. Tiers:
+6. **Set call budget in that task-add call.** Tiers:
    - trivial ≤10, light ≤25, moderate ≤60, substantial ≤150, deep ≤400
 
-7. **Set acceptance criteria (MANDATORY — QG-0 blocks without it).**
-   `tausik_task_update(slug=..., acceptance_criteria="1. ... 2. ... 3. ...")`
+7. **Set acceptance criteria in that task-add call (MANDATORY — QG-0 blocks without it).**
    Each criterion testable. Include at least one negative scenario. No vague text.
 
-8. **Set plan steps.** `tausik_task_plan(slug=..., steps=[...])`
+8. **Set `plan_steps` in that task-add call.**
 
 9. **Present.** Show: slug, title, complexity, role, goal, plan steps, AC. Suggest: "Run `/task {slug}` to start."
 
@@ -49,10 +49,7 @@ Skipping budget is allowed but flag it — calibration breaks without `call_budg
 ## CLI fallback (if MCP unavailable)
 
 ```
-.tausik/tausik task quick "Title" --role developer --stack python --goal "..."
-.tausik/tausik task add "Title" --slug my-task --complexity medium --role developer --stack python --goal "..."
-.tausik/tausik task update <slug> --acceptance-criteria "1. ... 2. ..."
-.tausik/tausik task plan <slug> "Step 1" "Step 2"
+.tausik/tausik task add "Title" --slug my-task --complexity medium --role developer --stack python --goal "..." --acceptance-criteria "AC-1 succeeds. Negative: invalid input fails." --call-budget 25 --step "Step 1" --step "Step 2"
 ```
 
 ## Rules
@@ -63,3 +60,4 @@ Skipping budget is allowed but flag it — calibration breaks without `call_budg
 - Defect: add `--defect-of <parent-slug>`.
 - Without goal + AC, `task start` will fail QG-0 (no bypass).
 - Unfamiliar domain → suggest `.tausik/tausik explore start "..."` before planning.
+- Never work around `TASK_BINDING_MISMATCH`; use the atomic task-add fields.

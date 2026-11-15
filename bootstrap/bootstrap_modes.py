@@ -279,6 +279,47 @@ def run_refresh_mode(
     print("  CLI wrapper: .tausik/tausik (or .tausik/tausik.cmd on Windows)")
 
 
+def _refresh_dynamic_state(project_dir: str, tausik_wrapper: str) -> None:
+    """Refresh every primary instruction file or fail after trying all of them."""
+
+    import subprocess
+
+    primary_candidates = (
+        os.path.join(project_dir, "CLAUDE.md"),
+        os.path.join(project_dir, ".cursor", "rules", "tausik.mdc"),
+        os.path.join(project_dir, "AGENTS.md"),
+        os.path.join(project_dir, "QWEN.md"),
+    )
+    instructions = [path for path in primary_candidates if os.path.isfile(path)]
+    failures: list[str] = []
+    refresh_targets: list[str | None] = instructions or [None]
+    for instruction in refresh_targets:
+        refresh = [tausik_wrapper, "update-claudemd"]
+        if instruction:
+            refresh.extend(["--claudemd", instruction])
+        try:
+            result = subprocess.run(
+                refresh,
+                cwd=project_dir,
+                check=False,
+                timeout=30,
+                capture_output=True,
+            )
+            if result.returncode != 0:
+                failures.append(instruction or "default instruction file")
+        except (OSError, subprocess.SubprocessError):
+            failures.append(instruction or "default instruction file")
+    if failures:
+        raise RuntimeError("dynamic-state refresh failed: " + ", ".join(failures))
+
+
+def _refuse_post_bootstrap(error: BaseException) -> None:
+    """Expose one bounded nonzero contract for every mandatory refresh failure."""
+
+    print(f"REFUSED: post-bootstrap {error}", file=sys.stderr)
+    raise SystemExit(1)
+
+
 def run_post_bootstrap(
     args: Any,
     project_dir: str,
@@ -311,37 +352,21 @@ def run_post_bootstrap(
             # something to compare against and the fresh block carried none of
             # it.
             #
-            # Best-effort: a project that cannot render its block is still a
-            # usable project, and failing bootstrap over a generated file would
-            # be the worse trade.
-            try:
-                instruction_candidates = (
-                    os.path.join(project_dir, "CLAUDE.md"),
-                    os.path.join(project_dir, ".cursor", "rules", "tausik.mdc"),
-                    os.path.join(project_dir, "AGENTS.md"),
-                    os.path.join(project_dir, "QWEN.md"),
-                )
-                instructions = [path for path in instruction_candidates if os.path.isfile(path)]
-                refresh_targets = instructions or [None]
-                for instruction in refresh_targets:
-                    refresh = [tausik_wrapper, "update-claudemd"]
-                    if instruction:
-                        refresh.extend(["--claudemd", instruction])
-                    subprocess.run(
-                        refresh,
-                        cwd=project_dir,
-                        check=False,
-                        timeout=30,
-                        capture_output=True,
-                    )
-            except (OSError, subprocess.SubprocessError):
-                pass
+            # Mandatory: try every recorded primary target, aggregate failures,
+            # and withhold the ready message if any refresh fails.
+            _refresh_dynamic_state(project_dir, tausik_wrapper)
             print(f"\nProject '{init_name}' initialized and ready!")
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            print(f"\nBootstrap complete but init failed: {e}\n  Run manually: .tausik/tausik init")
+        except (subprocess.CalledProcessError, FileNotFoundError, RuntimeError) as exc:
+            _refuse_post_bootstrap(exc)
     else:
         already_init = os.path.isfile(os.path.join(project_dir, ".tausik", "tausik.db"))
         if already_init:
+            wrapper_name = "tausik.cmd" if sys.platform == "win32" else "tausik"
+            tausik_wrapper = os.path.join(project_dir, ".tausik", wrapper_name)
+            try:
+                _refresh_dynamic_state(project_dir, tausik_wrapper)
+            except RuntimeError as exc:
+                _refuse_post_bootstrap(exc)
             print(
                 "\nBootstrap complete — project DB already exists. "
                 "Try: `.tausik/tausik status` / `.tausik/tausik doctor`"

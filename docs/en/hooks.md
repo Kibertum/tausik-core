@@ -30,6 +30,7 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 |------|------|-------------|
 | `auto_format.py` | After every write tool (MultiEdit was off this hook before PR #5) | Auto-formats with ruff/prettier/gofmt + logs "Modified: X" to task |
 | `memory_posttool_audit.py` | After every write tool into auto-memory | Audits cross-project leakage (uses `memory_markers.py` regex library) and warns |
+| `memory_preflight_posttool.py` | After a protected Codex/Cursor tool succeeds or reports `PostToolUseFailure` | Completes the reserved host-bound preflight token. Structural authority/capability failures are recorded without mutating the task or lease; malformed or inconsistent observations fail closed into lease maintenance. |
 | `task_done_verify.py` | After `mcp__tausik-project__tausik_task_done`, or a `tausik task done` run in the shell | Audits AC evidence via 5 rule-based checks (Ralph-mode-lite). |
 | `task_call_counter.py` | After any tool call | Increments per-task `call_actual` counter; warns at 1.5×budget |
 | `posttool_usage.py` (v1.4) | After any tool call | Records token-usage events to `usage_events` for per-task cost rollup |
@@ -50,6 +51,12 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 |------|------|-------------|
 | `user_prompt_submit.py` | On user prompt | Detects coding-intent (EN+RU) → nudges if no active task; scores the answer just read and, over `answer_budget_words` or without a verdict first, adds one line with the numbers. The code-discovery nudge toward `search_code` was removed in 1.10 (decision #390: 0 search_code calls with it in a paired replay). Ignores slash-command bodies and hook-generated text |
 
+`user_prompt_submit.py` records the request kind from a bounded, full-string
+grammar. On Codex, direct EN/RU requests to show or list open tasks are
+read-only; appended mutation clauses and unknown suffixes remain work. This
+Codex addition does not change Cursor classification. A read-only answer never
+closes or unbinds an active task.
+
 ## Stop
 
 | Hook | When | What It Does |
@@ -57,6 +64,10 @@ Hooks are scripts that run automatically with every agent action. They decide wh
 | `keyword_detector.py` | On agent stop | Catches "I'll implement"/"сейчас напишу" drift phrases → blocks stop |
 | `can_stop_gate.py` | On trusted Codex stop | Consumes the current durable turn and blocks incomplete work with the exact next plan action. Runtime errors fail closed. |
 | `session_cleanup_check.py` | On agent stop | Warns about open exploration / review tasks / session timeout |
+
+For an unchanged unfinished work turn, repeated `can_stop_gate.py` calls keep
+returning the same canonical action and re-evaluate later durable done,
+blocked, or handoff state.
 
 ## SessionEnd
 

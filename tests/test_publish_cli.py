@@ -10,6 +10,8 @@ test. Refusals here are exit codes and printed lines, never exceptions.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -24,8 +26,59 @@ import project_cli_publish as cli  # noqa: E402
 import project_parser_publish as parser_publish  # noqa: E402
 import publication_snapshot as snap  # noqa: E402
 import ci_lane_status  # noqa: E402
+import release_qualification_v2 as qualification  # noqa: E402
+import crypto_ed25519 as ed25519  # noqa: E402
 
 CROSSCUTTING_SCOPE = ["scripts/project_cli_publish.py", "scripts/project_parser_publish.py"]
+
+
+@pytest.fixture(autouse=True)
+def pinned_release_key(monkeypatch):
+    monkeypatch.setattr(
+        qualification, "PINNED_PUBLIC_KEY_HEX", ed25519.public_from_seed(b"k" * 32).hex()
+    )
+    monkeypatch.setattr(
+        qualification,
+        "PINNED_SCENARIO_HARNESS_SHA256",
+        hashlib.sha256(b"trusted harness\n").hexdigest(),
+    )
+    monkeypatch.setattr(
+        qualification,
+        "PINNED_SCENARIO_MANIFEST_SHA256",
+        hashlib.sha256(json.dumps(_qualification_manifest()).encode()).hexdigest(),
+    )
+
+
+def _qualification_manifest() -> dict[str, object]:
+    historical = [name for name in qualification.REQUIRED_SCENARIOS if name != "clean-current"]
+    tags = (
+        "v1.11.7",
+        "v1.11.8",
+        "v1.11.9",
+        "v1.11.10",
+        "v1.11.11",
+        "v1.11.12",
+        "v1.11.13",
+        "v1.11.14",
+        "v1.11.15",
+    )
+    return {
+        "schema": 1,
+        "publication": {
+            "observed_at": "2026-11-12T16:38:00Z",
+            "anonymous_url": "https://github.com/Kibertum/tausik-core.git",
+        },
+        "current": {"boundary": "clean-current"},
+        "published": [
+            {
+                "boundary": name,
+                "tag": tag,
+                "commit": f"{index + 1:040x}",
+                "tree": f"{index + 101:040x}",
+            }
+            for index, (name, tag) in enumerate(zip(historical, tags, strict=True))
+        ],
+    }
 
 
 def _git(cwd, *args) -> subprocess.CompletedProcess[str]:
@@ -56,6 +109,17 @@ def repo(tmp_path):
     _git(root, "config", "user.email", "test@example.invalid")
     _git(root, "config", "user.name", "Test")
     _git(root, "remote", "add", "github", "https://github.com/o/r.git")
+    for rel in qualification.PROJECTION_PATHS:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"projection:{rel}\n", encoding="utf-8")
+    manifest = root / qualification.SCENARIO_MANIFEST_PATH
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(json.dumps(_qualification_manifest()), encoding="utf-8")
+    harness = root / qualification.SCENARIO_HARNESS_PATH
+    harness.write_text("trusted harness\n", encoding="utf-8")
+    (root / "pyproject.toml").write_text('[project]\nversion = "1.0.0"\n', encoding="utf-8")
+    (root / "scripts" / "tausik_version.py").write_text('__version__ = "1.0.0"\n', encoding="utf-8")
     (root / "README.md").write_text("# p\n", encoding="utf-8")
     (root / "tausik" / "tasks").mkdir(parents=True)
     (root / "tausik" / "tasks" / "t.md").write_text("t\n", encoding="utf-8")
@@ -75,6 +139,8 @@ def _ns(**kw) -> argparse.Namespace:
         "parent": None,
         "message": None,
         "dry_run": False,
+        "qualification_candidate": "dist/release-qualification-v2.json",
+        "qualification_attestation": "dist/release-qualification-v2.attestation.json",
     }
     base.update(kw)
     return argparse.Namespace(**base)
@@ -177,7 +243,7 @@ class TestTheHappyPathReportsAndWritesNoRef:
         before = _git(root, "rev-list", "--all", "--count").stdout.strip()
         code, out = _run(root, _ns(parent=head, dry_run=True))
         assert code == 0
-        assert "published: 1 file(s)" in out and "excluded:  1 file(s)" in out
+        assert "published:" in out and "excluded:" in out
         assert "DRY RUN" in out and "filtered tree:" in out
         assert _git(root, "rev-list", "--all", "--count").stdout.strip() == before
 
@@ -268,10 +334,69 @@ class TestTagIsUnreachableUntilExactCandidateCIIsGreen:
         _git(root, "tag", "-a", "v1.0.0", "-m", "release", "HEAD")
         code, out = _run(root, _ns(source="v1.0.0", parent=head))
         assert code == 0, out
+        ordered = (
+            "git push github",
+            "gh workflow run release-qualification.yml",
+            "approve the release-qualification environment",
+            "gh run download <run-id> -n release-qualification-v2-attestation -D dist",
+            "tausik publish ci-check",
+        )
+        positions = [out.index(item) for item in ordered]
+        assert positions == sorted(positions)
         line = next(ln for ln in out.splitlines() if "snapshot commit:" in ln)
         return line.split()[-1], out
 
+    def _write_qualification(self, root, commit, monkeypatch):
+        report_sha256 = "2" * 64
+        lanes = {
+            lane: {
+                "conclusion": "success",
+                "sha": commit,
+                "run_id": 7,
+                "report_sha256": "2" * 64,
+            }
+            for lane in qualification.REQUIRED_LANES
+        }
+        scenarios = {
+            scenario: {
+                "status": "passed",
+                "report_sha256": report_sha256,
+                "evidence_sha256": qualification.scenario_evidence_hash(
+                    root, commit, scenario, report_sha256
+                ),
+            }
+            for scenario in qualification.REQUIRED_SCENARIOS
+        }
+        candidate = qualification.build_candidate(
+            root,
+            version="1.0.0",
+            development_ref="v1.0.0",
+            public_snapshot_ref=commit,
+            verifier_ref=commit,
+            lane_results=lanes,
+            platform_checks=qualification.native_windows_platform_checks(
+                commit,
+                conclusion="success",
+                run_id=7,
+                run_attempt=1,
+                workflow_sha=commit,
+            ),
+            scenario_results=scenarios,
+        )
+        key = b"k" * 32
+        attestation = qualification.issue_attestation(root, candidate, signing_seed=key)
+        dist = root / "dist"
+        dist.mkdir(exist_ok=True)
+        (dist / "release-qualification-v2.json").write_bytes(
+            qualification.canonical_bytes(candidate) + b"\n"
+        )
+        (dist / "release-qualification-v2.attestation.json").write_bytes(
+            qualification.canonical_bytes(attestation) + b"\n"
+        )
+        return candidate, attestation, key
+
     def _ci_check(self, root, commit, monkeypatch, *, green=True):
+        self._write_qualification(root, commit, monkeypatch)
         monkeypatch.setattr(
             ci_lane_status,
             "wait_for_exact",
@@ -325,10 +450,85 @@ class TestTagIsUnreachableUntilExactCandidateCIIsGreen:
         assert code == 1 and "REFUSED" in out
         assert ":refs/tags/" not in out
 
+    def test_missing_qualification_refuses_and_prints_no_tag_act(self, repo, monkeypatch):
+        root, head = repo
+        commit, _ = self._snapshot_from_tag(root, head)
+        monkeypatch.setattr(
+            ci_lane_status, "wait_for_exact", lambda *_args, **_kwargs: (True, "GREEN")
+        )
+        code, out = _run(
+            root,
+            _ns(
+                publish_cmd="ci-check",
+                snapshot=commit,
+                source="v1.0.0",
+                tag="v1.0.0",
+                timeout=10,
+                poll_interval=1,
+            ),
+        )
+        assert code == 1 and "qualification" in out
+        assert ":refs/tags/" not in out
+
+    def test_replayed_qualification_refuses_the_second_tag_act(self, repo, monkeypatch):
+        root, head = repo
+        commit, _ = self._snapshot_from_tag(root, head)
+        first_code, first_out = self._ci_check(root, commit, monkeypatch)
+        second_code, second_out = _run(
+            root,
+            _ns(
+                publish_cmd="ci-check",
+                snapshot=commit,
+                source="v1.0.0",
+                tag="v1.0.0",
+                timeout=10,
+                poll_interval=1,
+            ),
+        )
+        assert first_code == 0 and ":refs/tags/v1.0.0" in first_out
+        assert second_code == 1 and "replayed" in second_out
+        assert ":refs/tags/" not in second_out
+
+    @pytest.mark.parametrize("failure", ["stale", "mismatched"])
+    def test_invalid_qualification_never_prints_the_tag_refspec(self, repo, monkeypatch, failure):
+        root, head = repo
+        commit, _ = self._snapshot_from_tag(root, head)
+        candidate, _attestation, key = self._write_qualification(root, commit, monkeypatch)
+        dist = root / "dist"
+        if failure == "stale":
+            stale = qualification.issue_attestation(
+                root, candidate, signing_seed=key, now="2020-01-01T00:00:00Z"
+            )
+            (dist / "release-qualification-v2.attestation.json").write_bytes(
+                qualification.canonical_bytes(stale) + b"\n"
+            )
+        else:
+            candidate["version"] = "1.0.1"
+            (dist / "release-qualification-v2.json").write_bytes(
+                qualification.canonical_bytes(candidate) + b"\n"
+            )
+        monkeypatch.setattr(
+            ci_lane_status, "wait_for_exact", lambda *_args, **_kwargs: (True, "GREEN")
+        )
+        code, out = _run(
+            root,
+            _ns(
+                publish_cmd="ci-check",
+                snapshot=commit,
+                source="v1.0.0",
+                tag="v1.0.0",
+                timeout=10,
+                poll_interval=1,
+            ),
+        )
+        assert code == 1 and "qualification" in out
+        assert ":refs/tags/" not in out
+
     def test_ci_check_uses_the_named_release_remote_not_a_fork(self, repo, monkeypatch):
         root, head = repo
         commit, _ = self._snapshot_from_tag(root, head)
         _git(root, "remote", "add", "fork", "https://github.com/attacker/fork.git")
+        self._write_qualification(root, commit, monkeypatch)
         seen = []
         monkeypatch.setattr(
             ci_lane_status,

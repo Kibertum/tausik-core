@@ -36,19 +36,18 @@ Read `.tausik/config.json` — use `bootstrap.stacks[0]` as default stack, `deve
 
 ### 4. Create task
 
-Epic/story are **optional**. For standalone tasks, use `task quick` or `task add` without `--group`.
+Epic/story are **optional**. Use one atomic `task add` for executable work.
 
-**MCP-first:**
-- Auto-slug: `tausik_task_quick(title="Task title", goal="What success looks like", role="developer", stack="python")`
-- Explicit: `tausik_task_add(slug="my-task", title="Task title", goal="...", role="developer", stack="python", complexity="medium")`
+**MCP-first:** `tausik_task_add(slug="my-task", title="Task title",
+goal="...", acceptance_criteria="...", scope="...", scope_paths=[...],
+rollback_plan="...", call_budget=25, plan_steps=[...], rationale="...",
+depends_on=[...])`. Omit `depends_on` for a root task. Create graphs in
+topological order.
 
 **CLI fallback:**
 ```bash
-# Quick (auto-slug):
-.tausik/tausik task quick "Task title" --role developer --stack python --goal "What success looks like"
-
-# Full (explicit slug):
-.tausik/tausik task add "Task title" --slug my-task --complexity medium --role developer --stack python --goal "..."
+# Full atomic contract:
+.tausik/tausik task add "Task title" --slug my-task --complexity medium --role developer --stack python --goal "..." --acceptance-criteria "AC-1 succeeds. Negative: invalid input is refused." --call-budget 25 --scope-paths scripts/ tests/ --rollback-plan "git revert" --step "Implement" --step "Verify" --rationale "Why this task exists"
 
 # With epic/story grouping (optional):
 .tausik/tausik task add "Task title" --group my-story --slug my-task --complexity medium --role developer --stack python --goal "..."
@@ -72,13 +71,7 @@ Set tool-call budget — **NOT human hours**. Pick `--call-budget` (auto-derives
 | substantial | ≤150 |
 | deep | ≤400 |
 
-**MCP-first:** `tausik_task_update(slug="{slug}", call_budget=25)`.
-
-**CLI fallback:**
-```bash
-.tausik/tausik task update <slug> --call-budget 25
-.tausik/tausik task update <slug> --tier light
-```
+Put `call_budget=25` in the atomic task-add call.
 
 Skipping is allowed but flag explicitly — closing without budget data hurts future tier calibration. `call_actual` records on `task_done`; if `actual > 1.5×budget`, TAUSIK warns for re-calibration.
 
@@ -86,9 +79,7 @@ Skipping is allowed but flag explicitly — closing without budget data hurts fu
 
 **Without AC, `task start` is blocked by QG-0.**
 
-**MCP-first:** `tausik_task_update(slug="{slug}", acceptance_criteria="1. POST /login returns JWT on valid creds. 2. Returns 401 on invalid password. 3. Returns 422 on missing email.")`
-
-**CLI fallback:** `.tausik/tausik task update <slug> --acceptance-criteria "1. ... 2. ... 3. ..."`
+Put `acceptance_criteria` in the atomic task-add call.
 
 **AC quality rules:**
 - Each criterion independently testable
@@ -97,9 +88,7 @@ Skipping is allowed but flag explicitly — closing without budget data hurts fu
 
 ### 6. Set plan steps
 
-**MCP-first:** `tausik_task_plan(slug="{slug}", steps=["Step 1", "Step 2", "Step 3"])`
-
-**CLI fallback:** `.tausik/tausik task plan <slug> "Step 1" "Step 2" "Step 3"`
+Put `plan_steps=["Step 1", "Step 2", "Step 3"]` in the atomic task-add call.
 
 ### 7. Present plan
 
@@ -114,3 +103,4 @@ Ask: "Proceed with `/task <slug>`?"
 - **Epic/story optional.**
 - **QG-0 blocks without goal + AC** — set both during planning.
 - **Defect tasks:** use `--defect-of <parent-slug>`.
+- **Never work around `TASK_BINDING_MISMATCH`:** task creation carries its whole contract atomically.

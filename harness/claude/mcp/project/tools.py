@@ -262,6 +262,15 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                 },
+                "depends_on": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "plan_steps": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "rationale": {"type": "string"},
                 "assurance_profiles": {
                     "type": "array",
                     "items": {
@@ -286,7 +295,15 @@ TOOLS = [
                 "call_budget": {
                     "type": "integer",
                     "minimum": 0,
-                    "description": "Planned tool-call budget (in TOOL CALLS, not hours). Auto-derives tier — trivial≤10, light≤25, moderate≤60, substantial≤150, deep≤400. Values >400 still record as 'deep' tier; the budget itself is preserved (warn-at-1.5×budget continues to work). Overrides explicit tier when both given.",
+                    "description": "Tool calls; >400 stays deep; overrides tier",
+                },
+                "cost_budget_usd": {
+                    "type": "number",
+                    "minimum": 0,
+                },
+                "token_budget": {
+                    "type": "integer",
+                    "minimum": 0,
                 },
                 "tier": {
                     "type": "string",

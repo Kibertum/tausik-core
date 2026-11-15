@@ -39,8 +39,15 @@ for _sub in ("scripts", "bootstrap"):
         sys.path.insert(0, str(_REPO / _sub))
 
 import bootstrap_codex  # noqa: E402
+import gate_doc_coverage  # noqa: E402
+import release_qualification_v2  # noqa: E402
+import hooks.codex_capability as codex_capability  # noqa: E402
 from bootstrap_config import IDE_DIRS, SCAFFOLD_IDES  # noqa: E402
 from hooks.codex_capability import (  # noqa: E402
+    CAPABILITY_VERSION,
+    CODEX_ADAPTERS_BY_ROLE,
+    CODEX_HOOK_EVENTS_BY_ROLE,
+    CODEX_SECURITY_ADAPTERS,
     exact_hook_command,
     serialize_hook_argv,
     split_hook_command,
@@ -52,6 +59,58 @@ CROSSCUTTING_SCOPE = ["bootstrap/"]
 #: генератор пишет плохо, а в том, что на диске лежал файл, который никто не
 #: генерировал и никто не проверял.
 _LIVE = _REPO / ".codex" / "hooks.json"
+
+
+def test_security_projection_has_one_capability_contract():
+    expected = set(CODEX_SECURITY_ADAPTERS)
+    assert set(CODEX_HOOK_EVENTS_BY_ROLE) == set(CODEX_ADAPTERS_BY_ROLE) - {"composite"}
+    assert bootstrap_codex.CODEX_CAPABILITY_VERSION == CAPABILITY_VERSION
+    assert gate_doc_coverage._CODEX_PROJECTION_ADAPTERS == expected
+    assert {
+        path.removeprefix("scripts/hooks/") for path in release_qualification_v2.PROJECTION_PATHS
+    } == expected
+
+
+def test_capability_manifest_follows_a_changed_adapter_contract(monkeypatch):
+    base = {
+        "capability_version": CAPABILITY_VERSION,
+        "mcp_transport_modes": ["direct", "functions.exec"],
+        "python_executable": sys.executable,
+        "adapters": {name: "0" * 64 for name in CODEX_SECURITY_ADAPTERS},
+    }
+    assert codex_capability.manifest_error(base) is None
+
+    extended = (*CODEX_SECURITY_ADAPTERS, "synthetic_security_gate.py")
+    monkeypatch.setattr(codex_capability, "CODEX_SECURITY_ADAPTERS", extended)
+    assert codex_capability.manifest_error(base) == "adapter manifest is invalid"
+    base["adapters"]["synthetic_security_gate.py"] = "0" * 64
+    assert codex_capability.manifest_error(base) is None
+
+    del base["adapters"][CODEX_SECURITY_ADAPTERS[0]]
+    assert codex_capability.manifest_error(base) == "adapter manifest is invalid"
+
+
+def test_capability_writer_requires_every_adapter_in_a_changed_contract(tmp_path, monkeypatch):
+    target = tmp_path / ".codex"
+    hooks = target / "scripts" / "hooks"
+    hooks.mkdir(parents=True)
+    for name in CODEX_SECURITY_ADAPTERS:
+        (hooks / name).write_text(name, encoding="utf-8")
+
+    synthetic = "synthetic_security_gate.py"
+    monkeypatch.setattr(
+        bootstrap_codex, "CODEX_SECURITY_ADAPTERS", (*CODEX_SECURITY_ADAPTERS, synthetic)
+    )
+    bootstrap_codex.generate_codex_hooks(str(tmp_path), str(target), sys.executable)
+    manifest = target / "tausik-capability.json"
+    assert not manifest.exists()
+
+    (hooks / synthetic).write_text(synthetic, encoding="utf-8")
+    bootstrap_codex.generate_codex_hooks(str(tmp_path), str(target), sys.executable)
+    assert set(json.loads(manifest.read_text(encoding="utf-8"))["adapters"]) == {
+        *CODEX_SECURITY_ADAPTERS,
+        synthetic,
+    }
 
 
 def _commands(document: dict) -> list[str]:

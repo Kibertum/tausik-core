@@ -9,6 +9,22 @@ import shlex
 import subprocess
 
 CAPABILITY_VERSION = 5
+CODEX_ROLE_CONTRACTS = {
+    "stop": ("can_stop_gate.py", "Stop", "trusted-host"),
+    "composite": ("codex_composite_mcp.py", None, None),
+    "write": ("codex_write_gate.py", "PreToolUse", "project"),
+    "posttool": ("memory_preflight_posttool.py", "PostToolUse", "project"),
+    "prompt": ("user_prompt_submit.py", "UserPromptSubmit", "trusted-host"),
+}
+CODEX_ADAPTERS_BY_ROLE = {
+    role: adapter for role, (adapter, _event, _argument) in CODEX_ROLE_CONTRACTS.items()
+}
+CODEX_SECURITY_ADAPTERS = tuple(CODEX_ADAPTERS_BY_ROLE.values())
+CODEX_HOOK_EVENTS_BY_ROLE = {
+    role: event
+    for role, (_adapter, event, _argument) in CODEX_ROLE_CONTRACTS.items()
+    if event is not None
+}
 TRANSPORT_MODES = frozenset({"direct", "functions.exec"})
 
 
@@ -71,7 +87,9 @@ def manifest_error(manifest: object) -> str | None:
         return "transport modes are invalid"
     if not TRANSPORT_MODES.issubset(set(modes)):
         return "composite transport is absent"
-    if not isinstance(manifest.get("adapters"), dict):
+    if not isinstance(manifest.get("adapters"), dict) or set(manifest["adapters"]) != set(
+        CODEX_SECURITY_ADAPTERS
+    ):
         return "adapter manifest is invalid"
     if (
         not isinstance(manifest.get("python_executable"), str)
@@ -104,10 +122,20 @@ def exact_hook_command(
         return False
     actual_script = os.path.normcase(os.path.realpath(tokens[3]))
     expected_script = os.path.normcase(os.path.realpath(script_path))
-    if tokens[4] == "--trusted-host":
-        return actual_script == expected_script and tokens[5] == "codex"
-    if tokens[4] != "--project":
+    if actual_script != expected_script:
+        return False
+    basename = os.path.basename(os.path.normpath(script_path))
+    security_contract = next(
+        (contract for contract in CODEX_ROLE_CONTRACTS.values() if contract[0] == basename),
+        None,
+    )
+    required_argument = security_contract[2] if security_contract is not None else None
+    if required_argument == "trusted-host":
+        return tokens[4:] == ["--trusted-host", "codex"]
+    if required_argument is None and tokens[4] == "--trusted-host":
+        return tokens[5] == "codex"
+    if required_argument not in (None, "project") or tokens[4] != "--project":
         return False
     actual_project = os.path.normcase(os.path.realpath(tokens[5]))
     expected_project = os.path.normcase(os.path.realpath(project_dir))
-    return actual_script == expected_script and actual_project == expected_project
+    return actual_project == expected_project

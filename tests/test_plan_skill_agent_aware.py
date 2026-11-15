@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+import pytest
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
@@ -26,6 +28,45 @@ class TestPlanSkill:
         text = _read("harness", "skills", "plan", "SKILL.md").lower()
         for label in ("trivial", "light", "moderate", "substantial", "deep"):
             assert label in text, f"missing tier label: {label}"
+
+    def test_creates_the_complete_contract_in_one_lease_safe_call(self):
+        text = _read("harness", "skills", "plan", "SKILL.md")
+        for field in (
+            "tausik_task_add",
+            "acceptance_criteria",
+            "scope_paths",
+            "rollback_plan",
+            "call_budget",
+            "plan_steps",
+            "rationale",
+            "depends_on",
+            "TASK_BINDING_MISMATCH",
+        ):
+            assert field in text
+
+    @pytest.mark.parametrize(
+        "model",
+        ["gpt-4.md", "gpt-5.md", "gpt-5-5.md", "haiku.md", "sonnet.md"],
+    )
+    def test_model_overlay_never_prescribes_cross_task_followups(self, model):
+        text = _read("harness", "skills", "plan", "variants", "model", model)
+        assert "tausik_task_add" in text
+        assert "task_quick` + `task_update" not in text
+
+    def test_deployed_plan_skill_keeps_the_atomic_contract(self):
+        text = _read(".claude", "skills", "plan", "SKILL.md")
+        for field in (
+            "tausik_task_add",
+            "acceptance_criteria",
+            "scope_paths",
+            "rollback_plan",
+            "call_budget",
+            "plan_steps",
+            "rationale",
+            "depends_on",
+        ):
+            assert field in text
+        assert "task_quick` + `task_update" not in text
 
 
 class TestClaudeMd:
@@ -57,7 +98,39 @@ class TestMcpToolsDescription:
         for label in ("trivial", "light", "moderate", "substantial", "deep"):
             assert label in text, f"missing tier label in tools.py: {label}"
 
+    def test_task_add_advertises_atomic_plan_and_dependency_fields(self):
+        text = _read("harness", "claude", "mcp", "project", "tools.py")
+        start = text.index('"name": "tausik_task_add"')
+        end = text.index('"name": "tausik_task_start"', start)
+        block = text[start:end]
+        for field in ('"depends_on"', '"plan_steps"', '"rationale"'):
+            assert field in block
+
     def test_mirror_in_sync(self):
         src = _read("harness", "claude", "mcp", "project", "tools.py")
         mirror = _read(".claude", "mcp", "project", "tools.py")
         assert src == mirror, "harness/claude/mcp tools.py and .claude/mcp mirror diverged"
+
+    @pytest.mark.parametrize(
+        ("source", "deployed"),
+        [
+            (
+                ("harness", "claude", "mcp", "project", "handlers_task.py"),
+                (".claude", "mcp", "project", "handlers_task.py"),
+            ),
+            (
+                ("scripts", "project_cli_task.py"),
+                (".claude", "scripts", "project_cli_task.py"),
+            ),
+            (
+                ("scripts", "project_parser_task.py"),
+                (".claude", "scripts", "project_parser_task.py"),
+            ),
+            (
+                ("scripts", "service_task_create.py"),
+                (".claude", "scripts", "service_task_create.py"),
+            ),
+        ],
+    )
+    def test_changed_execution_surface_mirrors_are_exact(self, source, deployed):
+        assert _read(*source) == _read(*deployed)

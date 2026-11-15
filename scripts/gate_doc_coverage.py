@@ -27,6 +27,8 @@ be intentional. A gate firing on 821 legitimate places is a gate switched off.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import sys
@@ -34,6 +36,12 @@ import sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
+
+from hooks.codex_capability import (  # noqa: E402
+    CAPABILITY_VERSION,
+    CODEX_SECURITY_ADAPTERS,
+)
+from hooks.cursor_capability import cursor_preflight_hooks_ready  # noqa: E402
 
 #: Doctor labels that are not user-facing checks.
 _NOT_A_CHECK = {"caveman interop"}
@@ -177,6 +185,7 @@ def find_gaps(repo_root: str) -> list[tuple[str, str]]:
             # Absence, not zero: a registry we could not read says nothing about
             # the documentation, and reporting "no gaps" would be a lie of the
             # kind this gate exists to catch (decision #334).
+            gaps.append(("<the registry itself>", source))
             continue
         for entry in documents:
             group = (entry,) if isinstance(entry, str) else entry
@@ -241,6 +250,43 @@ def check(repo_root: str) -> tuple[bool, str]:
     return False, "\n".join(lines)
 
 
+_CODEX_PROJECTION_ADAPTERS = set(CODEX_SECURITY_ADAPTERS)
+
+
+def _is_codex_consumer_projection(root: str) -> bool:
+    """Verify the capability manifest and every adapter byte it attests."""
+    try:
+        with open(os.path.join(root, "tausik-capability.json"), encoding="utf-8") as file:
+            manifest = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(manifest, dict) or manifest.get("capability_version") != CAPABILITY_VERSION:
+        return False
+    adapters = manifest.get("adapters")
+    if not isinstance(adapters, dict) or set(adapters) != _CODEX_PROJECTION_ADAPTERS:
+        return False
+    hooks = os.path.join(root, "scripts", "hooks")
+    for name in _CODEX_PROJECTION_ADAPTERS:
+        expected = adapters.get(name)
+        if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+            return False
+        try:
+            with open(os.path.join(hooks, name), "rb") as file:
+                observed = hashlib.sha256(file.read()).hexdigest()
+        except OSError:
+            return False
+        if observed != expected:
+            return False
+    return True
+
+
+def _is_cursor_consumer_projection(root: str) -> bool:
+    """Trust only a complete Cursor capability attestation, never a directory name."""
+    if os.path.basename(os.path.normpath(root)).lower() != ".cursor":
+        return False
+    return cursor_preflight_hooks_ready(os.path.dirname(os.path.normpath(root)))
+
+
 def run_doc_coverage_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     """Registry-uniform `(gate, files)` entrypoint.
 
@@ -249,6 +295,15 @@ def run_doc_coverage_gate(gate: dict, files: list[str]) -> tuple[bool, str]:
     a command nobody documented is exactly the kind nobody declares either.
     """
     root = os.path.dirname(_HERE)
+    projection = None
+    if _is_codex_consumer_projection(root):
+        projection = "Codex"
+    elif _is_cursor_consumer_projection(root):
+        projection = "Cursor"
+    if projection and not os.path.isdir(os.path.join(root, "docs")):
+        return True, (
+            f"framework documentation gate is not applicable in a consumer {projection} projection"
+        )
     return check(root)
 
 

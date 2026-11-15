@@ -101,6 +101,7 @@ class TestTaskCRUD:
         assert "created" in result
 
     def test_task_add_persists_complete_qg0_contract_in_one_call(self, svc):
+        svc.task_add(None, "predecessor", "Predecessor")
         result = _handle_tool(
             svc,
             "tausik_task_add",
@@ -114,6 +115,9 @@ class TestTaskCRUD:
                 "rollback_plan": "git revert",
                 "scope_paths": ["scripts/ready.py"],
                 "scope_tools": ["Edit"],
+                "depends_on": ["predecessor"],
+                "plan_steps": ["Implement", "Verify"],
+                "rationale": "One atomic planning mutation avoids a cross-task lease mismatch.",
                 "complexity": "medium",
             },
         )
@@ -126,7 +130,183 @@ class TestTaskCRUD:
         assert task["rollback_plan"] == "git revert"
         assert json.loads(task["scope_paths"]) == ["scripts/ready.py"]
         assert json.loads(task["scope_tools"]) == ["Edit"]
+        assert json.loads(task["plan"])[0]["step"] == "Implement"
+        assert svc.be._task_deps_of("ready-now") == ["predecessor"]
+        assert "atomic planning mutation" in svc.task_logs("ready-now")[0]["message"]
         assert "started" in _handle_tool(svc, "tausik_task_start", {"slug": "ready-now"})
+
+    def test_task_add_rolls_back_every_planning_field_when_dependency_is_missing(self, svc):
+        with pytest.raises(Exception, match="not found"):
+            _handle_tool(
+                svc,
+                "tausik_task_add",
+                {
+                    "slug": "must-rollback",
+                    "title": "Must rollback",
+                    "goal": "Prove atomicity",
+                    "acceptance_criteria": "Task is absent after failure. Negative: missing edge fails.",
+                    "plan_steps": ["Never persist"],
+                    "rationale": "This log must roll back too.",
+                    "depends_on": ["missing-predecessor"],
+                },
+            )
+
+        assert svc.be.task_get("must-rollback") is None
+
+    @pytest.mark.parametrize("field", ["depends_on", "plan_steps"])
+    @pytest.mark.parametrize("malformed", ["", 0, False, {}])
+    def test_task_add_refuses_falsy_malformed_atomic_fields(self, svc, field, malformed):
+        with pytest.raises(ValueError, match=f"{field} must be a list"):
+            _handle_tool(
+                svc,
+                "tausik_task_add",
+                {
+                    "slug": f"bad-{field}-{type(malformed).__name__}",
+                    "title": "Bad",
+                    field: malformed,
+                },
+            )
+
+        assert not svc.task_list(status="planning")
+
+    def test_cli_and_mcp_persist_the_same_complete_atomic_contract(self, svc, capsys):
+        import argparse
+
+        from project_cli_task import _cmd_task
+        from project_parser_task import add_task
+
+        for predecessor in ("mcp-predecessor", "cli-predecessor"):
+            svc.task_add(None, predecessor, predecessor)
+        common = {
+            "goal": "Prove surface parity",
+            "acceptance_criteria": "Both surfaces match. Negative: missing edge rolls back.",
+            "scope": "scripts/ tests/",
+            "scope_exclude": "dist/",
+            "rollback_plan": "git revert",
+            "scope_paths": ["scripts/", "tests/"],
+            "scope_tools": ["Edit"],
+            "complexity": "medium",
+            "call_budget": 25,
+            "cost_budget_usd": 2.5,
+            "token_budget": 5000,
+            "plan_steps": ["Implement", "Verify"],
+            "rationale": "Atomic parity regression.",
+        }
+        assurance_profiles = ["executable"]
+        assurance_impact = {
+            "level": "high",
+            "blast_radius": "local",
+            "reversibility": "reversible",
+        }
+        _handle_tool(
+            svc,
+            "tausik_task_add",
+            {
+                "slug": "mcp-complete",
+                "title": "Complete",
+                "depends_on": ["mcp-predecessor"],
+                "assurance_profiles": assurance_profiles,
+                "assurance_impact": assurance_impact,
+                **common,
+            },
+        )
+        parser = argparse.ArgumentParser()
+        add_task(parser.add_subparsers(dest="command"))
+        cli_args = parser.parse_args(
+            [
+                "task",
+                "add",
+                "Complete",
+                "--slug",
+                "cli-complete",
+                "--goal",
+                common["goal"],
+                "--acceptance-criteria",
+                common["acceptance_criteria"],
+                "--scope",
+                common["scope"],
+                "--scope-exclude",
+                common["scope_exclude"],
+                "--rollback-plan",
+                common["rollback_plan"],
+                "--scope-paths",
+                *common["scope_paths"],
+                "--scope-tools",
+                *common["scope_tools"],
+                "--complexity",
+                common["complexity"],
+                "--call-budget",
+                str(common["call_budget"]),
+                "--cost-budget",
+                str(common["cost_budget_usd"]),
+                "--token-budget",
+                str(common["token_budget"]),
+                "--assurance-profiles",
+                json.dumps(assurance_profiles),
+                "--assurance-impact",
+                json.dumps(assurance_impact),
+                "--step",
+                common["plan_steps"][0],
+                "--step",
+                common["plan_steps"][1],
+                "--rationale",
+                common["rationale"],
+                "--after",
+                "cli-predecessor",
+            ]
+        )
+        _cmd_task(svc, cli_args)
+        capsys.readouterr()
+
+        mcp_task = svc.task_show("mcp-complete")
+        cli_task = svc.task_show("cli-complete")
+        for field in (
+            "goal",
+            "acceptance_criteria",
+            "scope",
+            "scope_exclude",
+            "rollback_plan",
+            "scope_paths",
+            "scope_tools",
+            "complexity",
+            "call_budget",
+            "cost_budget_usd",
+            "token_budget",
+            "assurance_profiles",
+            "assurance_impact",
+            "plan",
+        ):
+            assert cli_task[field] == mcp_task[field]
+        assert svc.be._task_deps_of("mcp-complete") == ["mcp-predecessor"]
+        assert svc.be._task_deps_of("cli-complete") == ["cli-predecessor"]
+        assert (
+            svc.task_logs("cli-complete")[0]["message"]
+            == svc.task_logs("mcp-complete")[0]["message"]
+        )
+
+        rollback_args = parser.parse_args(
+            [
+                "task",
+                "add",
+                "Rollback",
+                "--slug",
+                "cli-must-rollback",
+                "--goal",
+                "Rollback",
+                "--acceptance-criteria",
+                "Nothing persists. Negative: missing predecessor fails.",
+                "--step",
+                "Never persist",
+                "--rationale",
+                "Never persist this log",
+                "--after",
+                "missing-predecessor",
+            ]
+        )
+        with pytest.raises(Exception, match="not found"):
+            _cmd_task(svc, rollback_args)
+        assert svc.be.task_get("cli-must-rollback") is None
+        assert svc.be._task_deps_of("cli-must-rollback") == []
 
     def test_task_add_makes_complex_work_startable_in_one_call(self, svc):
         result = _handle_tool(

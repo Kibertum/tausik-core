@@ -160,12 +160,18 @@ def _snapshot(root: str, args: Any) -> None:
     if not (ok_match and ok_base):
         sys.exit(1)
     tag = _tag_named_by(root, source) or "v<version>"
+    version = tag.removeprefix("v")
     source_commit = scope._git(root, "rev-parse", "--verify", f"{source}^{{commit}}")
     print(
         "Next (the owner's acts, by hand, after reading the above). The push is\n"
         "fast-forward only: if github/main moved since it was fetched, git refuses\n"
         "here and the snapshot is rebuilt on the new tip — never --force.\n"
         f"  git push github {commit}:refs/heads/main\n"
+        "  gh workflow run release-qualification.yml "
+        f"-f version={version} -f development_sha={source_commit.stdout.strip()} "
+        f"-f public_snapshot_sha={commit}\n"
+        "  approve the release-qualification environment for that exact run\n"
+        "  gh run download <run-id> -n release-qualification-v2-attestation -D dist\n"
         f"  tausik publish ci-check --snapshot {commit} "
         f"--from {source_commit.stdout.strip()} --tag {tag}\n"
         "Do not push the tag or create the GitHub Release until `ci-check` succeeds\n"
@@ -202,8 +208,9 @@ def _verify(root: str, args: Any) -> None:
 
 
 def _ci_check(root: str, args: Any) -> None:
-    """Unlock the tag act only after GitHub Tests succeeds for the exact SHA."""
+    """Unlock the tag act only after exact CI and protected v2 attestation."""
     import ci_lane_status
+    import release_qualification_v2 as qualification
 
     ok, why = snap.snapshot_candidate_is_public(root, args.snapshot, args.source)
     if not ok:
@@ -239,6 +246,26 @@ def _ci_check(root: str, args: Any) -> None:
     )
     if not passed:
         print("REFUSED: " + verdict)
+        sys.exit(1)
+    try:
+        candidate = qualification.load_document(os.path.join(root, args.qualification_candidate))
+        attestation = qualification.load_document(
+            os.path.join(
+                root,
+                args.qualification_attestation,
+            )
+        )
+        qualification.consume_attestation(
+            root,
+            candidate,
+            attestation,
+            version=tag.removeprefix("v"),
+            development_ref=source.stdout.strip(),
+            public_snapshot_ref=snapshot.stdout.strip(),
+            ledger_path=os.path.join(root, ".tausik/release-qualification-v2-used"),
+        )
+    except qualification.QualificationError as exc:
+        print("REFUSED: release qualification v2: " + str(exc))
         sys.exit(1)
     print("OK  " + verdict)
     print(

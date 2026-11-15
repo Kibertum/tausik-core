@@ -5,6 +5,11 @@ from __future__ import annotations
 
 _DYNAMIC_START = b"<!-- DYNAMIC:START -->"
 
+
+class LegacyCursorRuleMigrationError(RuntimeError):
+    """A proven framework-owned legacy rule could not be retired safely."""
+
+
 TEST_DISCIPLINE = """## Test discipline
 
 File changes alone do not require tests. Reuse behavioral coverage; remove redundant existence, wording/count, import-only and mock-only checks. Preserve security and public contracts. Details: `docs/en/testing-principles.md`.
@@ -91,3 +96,30 @@ def _separator(before: bytes, newline: bytes) -> bytes:
     if before.endswith(newline):
         return newline
     return newline * 2
+
+
+def retire_generated_legacy_cursor_rule(project_dir: str) -> bool:
+    """Remove only TAUSIK-owned ``.cursorrules`` once its mdc replacement exists."""
+    import os
+
+    from bootstrap_governance import is_pristine_generated
+
+    legacy = os.path.join(project_dir, ".cursorrules")
+    current = os.path.join(project_dir, ".cursor", "rules", "tausik.mdc")
+    try:
+        if not os.path.isfile(current):
+            return False
+        with open(legacy, encoding="utf-8") as stream:
+            content = stream.read()
+        if not is_pristine_generated(content):
+            return False
+        os.unlink(legacy)
+        return True
+    except FileNotFoundError:
+        return False
+    except UnicodeError:
+        return False
+    except OSError as exc:
+        raise LegacyCursorRuleMigrationError(
+            "legacy .cursorrules migration failed; close processes using the file and retry"
+        ) from exc

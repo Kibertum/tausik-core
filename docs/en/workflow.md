@@ -154,7 +154,9 @@ that rule.
 
 The issued packet is immutable and digest-bound. Record round 1 before repair;
 after repair and fresh deterministic verification, `cohort-status` issues the
-round-2 packet. The external reviewer has Read/Grep-only capabilities.
+round-2 packet. The external reviewer has Read/Grep-only capabilities. A result
+with `dependency_map_complete=false` is red even when it reports no critical or
+high findings; incomplete validation cannot create a close receipt.
 
 `/review` is a forced L3-deep audit outside that automatic budget. Its
 multi-agent fan-out is used only when
@@ -238,5 +240,7 @@ No special setup is needed. Just run multiple agent sessions in the same project
 ## Trusted Codex Stop boundary (1.11.8)
 
 `UserPromptSubmit` binds the host thread, exact current turn ID, execution lease, active task, and host-derived request kind in one durable record. `Stop` requires and consumes that exact turn ID; it never selects the newest row by inference. Read-only recognition uses a closed grammar. Answer prose, suffix text, punctuation, and model-supplied Stop fields cannot reclassify a work request as read-only.
+
+The bounded read-only grammar includes direct status and explanation requests. Its Codex branch also accepts complete EN/RU forms that ask to show or list open tasks; Cursor retains its previous classification. A mutation clause or any unknown suffix keeps the whole request classified as work. A read-only turn during an active task ends only that answer: it does not close the task or detach its execution lease. The next work turn resumes governance for the same task. Repeated Stop calls for an unchanged unfinished work turn return the same canonical `CONTINUE` action; a durable done, blocked, or handoff transition is re-evaluated instead of replaying a stale block.
 
 Incomplete work returns `CONTINUE` with the first safe plan or continuity-recovery action. The two hard ceilings have different recovery paths. A hard task call ceiling allows one authorized handoff only after a persisted checkpoint, a copy-ready `task start <slug> --package` command, and revocation of the old lease. At `HOST_CONTEXT_HARD`, the trusted boundary writes that copy-ready checkpoint automatically, closes the exhausted host thread, and repeated Stop returns `ALLOW_HANDOFF`; do not retry MCP or CLI handoff in that thread. A blocker must reference unavailable capability or authority events observed by the trusted PostToolUse hook from an allowlisted structural host error code, never stdout/stderr text, plus an executed blocker memory preflight. The hook injects the trusted `attempt_event_id` into PostToolUse context. Supply that ID and `resume_action` together to `tausik_task_block` (CLI: repeat `--attempt-event-id` and add `--resume-action`); caller prose cannot create Stop evidence. Timeout, crash, malformed output, or no native block verdict is recorded as non-enforced.

@@ -74,14 +74,18 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
         print(
             "Error: cannot tell which project this database describes "
             "(no db_path, or it does not live in .tausik/). Use --claudemd to "
-            "specify the file explicitly."
+            "specify the file explicitly.",
+            file=sys.stderr,
         )
-        return
+        raise SystemExit(1)
 
     claudemd = args.claudemd or resolve_claudemd(project_dir or "")
     if not claudemd or not os.path.exists(claudemd):
-        print("Error: agent instruction file not found. Use --claudemd to specify path.")
-        return
+        print(
+            "Error: agent instruction file not found. Use --claudemd to specify path.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     dynamic_content = build_dynamic_state(svc, project_dir or os.path.dirname(claudemd))
 
@@ -91,14 +95,18 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
 
     dry_run = getattr(args, "dry_run", False)
     any_change = False
+    failures: list[str] = []
     for path, content in plan_dynamic_writes(claudemd, dynamic_content):
         msg, changed = apply_dynamic_section(path, content, dry_run)
         print(msg)
         any_change = any_change or changed
+        if msg.startswith("Error reading ") or msg.startswith("Warning: "):
+            failures.append(msg)
+    if failures:
+        print("Error: dynamic-state refresh did not update every target.", file=sys.stderr)
+        raise SystemExit(1)
     if dry_run and any_change:
-        import sys
-
-        sys.exit(1)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised via subprocess in tests

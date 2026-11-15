@@ -11,6 +11,91 @@
 
 ## [Unreleased]
 
+## [1.13.1] — 2026-11-15
+
+- Legacy `.cursorrules` удаляется только когда ownership digest TAUSIK
+  доказывает неизменность статического содержимого и существует replacement
+  MDC rule. Устаревший, malformed, дублированный или изменённый пользователем
+  marker сохраняет файл байт-в-байт. Backup обновления теперь использует SQLite
+  online backup, включает зафиксированные WAL-кадры и legacy rule.
+- Опубликованная квалификация обновления начинается с v1.11.7 для Cursor и
+  Codex. Граница v1.11.7 доказывает absence-to-migration pre-lease таблиц;
+  следующие границы сохраняют lease, turn, Stop, continuity и связанные строки
+  сессий. Нативный Windows canary покрывает пути с буквой диска и пробелами,
+  CRLF-вход hooks, пользовательский CRLF rule, PowerShell и новый reload-процесс.
+
+### Исправлено — планирование задач больше не упирается в binding execution lease
+
+- Skill `/plan` больше не предлагает Codex и Cursor создать частичную задачу,
+  а затем отправить cross-task команды `update`, `plan`, `log` и `depends`,
+  которые привязанный execution lease обязан отклонить с
+  `TASK_BINDING_MISMATCH`. `tausik_task_add` и CLI `task add` теперь атомарно
+  принимают полный контракт, шаги плана, rationale и существующих
+  предшественников. Ошибка зависимости откатывает создание целиком, а защита
+  от cross-task mutations остаётся прежней.
+
+### Исправлено — ошибки bootstrap refresh получили единый CLI-контракт
+
+- Ошибка post-bootstrap refresh теперь завершает процесс ненулевым кодом и
+  одним ограниченным сообщением `REFUSED:` как для нового, так и для существующего
+  проекта. Traceback не утекает, а последующие host refresh больше не продолжаются
+  так, будто установка готова.
+
+### Добавлено — официальная квалификация релиза v2
+
+- После успешного защищённого activation dry-run официальный путь к тегу будет
+  требовать свежую защищённую аттестацию. Её nonce
+  локально одноразов через `.tausik/release-qualification-v2-used/<nonce>`;
+  cross-machine защита от replay остаётся внешним релизным контролем. Аттестация
+  связана с точными объектами разработки и публичного снимка, подписанной
+  ревизией верификатора (она обязана совпадать с workflow-ревизией публичного снимка),
+  доверенным ratchet сценариев Codex, хэшами проекций и независимо доказанными
+  lint/Linux lanes и успешным GitHub-owned результатом native-Windows job. macOS остаётся обязательным неподписанным compatibility
+  smoke через топологию workflow.
+  Отсутствующее, просроченное, несовпадающее, поддельное или повторно
+  использованное доказательство не может выдать refspec тега.
+- Непривилегированные lane jobs не имеют signing/release-environment секретов и
+  не сохраняют Git credential; checkout использует только job token. Защищённый верификатор получает точный
+  development object из его authoritative store, независимо строит candidate,
+  проверяет точный Linux JUnit matrix из 38 тестов и все десять обязательных
+  journeys, связывает успешный GitHub-owned результат native-Windows job и
+  подписывает candidate Ed25519. Этот Windows job валидирует диагностический
+  compatibility matrix из 39 тестов через pinned trusted harness с отключённым
+  candidate `conftest.py` и лимитом evidence 32 MiB. Его диагностический JUnit
+  не считается trusted evidence; подписанный platform check связывает успешный
+  GitHub job result, run identity, workflow SHA и candidate SHA. Consumer доверяет только version-pinned public key;
+  замороженный adherence v1 остаётся байт-в-байт прежним.
+- В Linux matrix и full-suite lanes bootstrap, плагины и тесты кандидата выполняются в одноразовом
+  непривилегированном read-only контейнере без сети. Зависимости готовит
+  отдельный одноразовый сетевой build-stage без секретов, host mounts и Docker
+  socket; в runtime переходят только каталог зависимостей и offline wheelhouse.
+  Закреплённый хэшами внешний контроллер проверяет фактический Docker inspect,
+  а probe внутри контейнера сверяет kernel boundary через `/proc`. Нативный
+  Windows использует pinned harness и bounded Windows evidence controller;
+  macOS остаётся unsigned native compatibility smoke и использует offline
+  hash-locked wheelhouse. Linux-контроллер использует
+  ограниченный tmpfs-handshake с тем же живым контейнером, валидирует JUnit и
+  пишет только проверенный lane JUnit; защищённый верификатор затем
+  создаёт артефакты candidate и attestation.
+- Docker boundary теперь проверяет фактические top-level mounts из
+  `docker inspect`, а не одноимённую конфигурацию запроса, и сверяет собственный
+  exit status контейнера после evidence release handshake. Для oversized
+  evidence, ошибок cleanup и каждой границы full-suite ratchet добавлены
+  поведенческие регрессии.
+- Контроллер держит проверенный lane evidence в памяти до подтверждения
+  итогового завершения контейнера Docker, а затем публикует его атомарно без
+  перезаписи. Ошибка release handshake, malformed container state, частичная
+  запись или ошибка fsync не оставляет авторитетный host artifact.
+- В source tree фреймворка гейт покрытия документации теперь fail-closed, если
+  любой registry команд нельзя прочитать; пустой registry больше не
+  сертифицирует все shipped names. Для deployed Codex consumer projection без
+  framework docs гейт неприменим только тогда, когда capability-v5 manifest
+  называет точные пять adapters и совпадает каждый записанный SHA-256.
+  Отсутствующий, malformed, неполный или поддельный manifest остаётся красным.
+- Руководство по публикации фиксирует настоящую границу: локальный код не может
+  запретить владельцу обход процедуры, поэтому защищённые ветки, approval
+  environment, узкие секреты и server-side ruleset тегов остаются обязательными.
+
 ## [1.13.0] — 2026-11-11
 
 ### Исправлено — непрерывность интерактивного контекста

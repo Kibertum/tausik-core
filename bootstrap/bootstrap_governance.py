@@ -123,6 +123,11 @@ def _is_pristine_generated(content: str) -> bool:
     return recorded == actual
 
 
+def is_pristine_generated(content: str) -> bool:
+    """Return whether the ownership stamp proves the generated text is unchanged."""
+    return _is_pristine_generated(content)
+
+
 def _preserve_dynamic_state(generated: str, existing: str) -> str:
     """Carry mutable generated state across a pristine static refresh."""
     generated_start = generated.find(DYNAMIC_START)

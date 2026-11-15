@@ -73,6 +73,10 @@ from bootstrap_kilo import generate_kilo_commands, generate_kilo_config, generat
 from bootstrap_codex import scaffold_codex
 from bootstrap_opencode import scaffold_opencode
 from bootstrap_qwen import generate_qwen_md, generate_settings_qwen
+from bootstrap_rules_upgrade import (
+    LegacyCursorRuleMigrationError,
+    retire_generated_legacy_cursor_rule,
+)
 
 
 def get_lib_commit(lib_dir: str) -> str | None:
@@ -203,6 +207,7 @@ def bootstrap_ide(
         generate_cursor_rule(
             project_dir, proj, stacks, context_tier, output_mode, governance_profile
         )
+        retire_generated_legacy_cursor_rule(project_dir)
     elif ide == "qwen":
         generate_settings_qwen(target_dir, project_dir, venv_python, lib_dir, governance_profile)
         generate_qwen_md(project_dir, proj, stacks, context_tier, output_mode, governance_profile)
@@ -381,20 +386,24 @@ def main() -> None:
 
     context_tier = resolve_context_tier_or_exit(config_path)
 
-    for ide in ides:
-        bootstrap_ide(
-            lib_dir,
-            project_dir,
-            ide,
-            config,
-            stacks,
-            vendor_skills,
-            venv_python,
-            context_tier,
-            full_cfg=full_cfg,
-            include_official_stubs=include_official_stubs,
-            governance_profile=governance_profile,
-        )
+    try:
+        for ide in ides:
+            bootstrap_ide(
+                lib_dir,
+                project_dir,
+                ide,
+                config,
+                stacks,
+                vendor_skills,
+                venv_python,
+                context_tier,
+                full_cfg=full_cfg,
+                include_official_stubs=include_official_stubs,
+                governance_profile=governance_profile,
+            )
+    except LegacyCursorRuleMigrationError as exc:
+        print(f"REFUSED: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
 
     if "claude" in ides:
         generate_mcp_json(project_dir, get_ide_target(project_dir, "claude"), venv_python)

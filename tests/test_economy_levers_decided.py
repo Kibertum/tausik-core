@@ -21,18 +21,16 @@ and a lever the code gained that nobody decided on fails.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
-import pytest
-
-from conftest import DORMANT_ON_PUBLIC_SNAPSHOT, IS_PUBLIC_SNAPSHOT
-
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "scripts"))
+sys.path.insert(0, str(_REPO / "bootstrap"))
 
 import economy_levers as el  # noqa: E402
+from bootstrap_config import resolve_output_mode  # noqa: E402
+from project_config import resolve_context_tier  # noqa: E402
 
 CROSSCUTTING_SCOPE = [
     "scripts/economy_levers.py",
@@ -112,26 +110,14 @@ class TestTheDetectorGoesRedWhenItShould:
         assert el.load_config(str(tmp_path)) is None
 
 
-@pytest.mark.skipif(IS_PUBLIC_SNAPSHOT, reason=DORMANT_ON_PUBLIC_SNAPSHOT)
-class TestOurOwnConfigMatchesWhatWeDecided:
-    def test_context_tier_is_present_but_recorded_as_inert(self):
-        """Deleting it does not stick — bootstrap writes it back, and correctly.
+class TestCommittedDefaultsMatchOurDecisions:
+    def test_context_tier_default_is_recorded_as_inert(self):
+        """The release invariant must not depend on this machine's ignored config."""
+        assert resolve_context_tier({}) == "minimal"
+        reason = el.DELIBERATELY_UNSET["context_tier"]
+        assert "INERT" in reason
+        assert "`context_tier: standard`" in reason
 
-        The first attempt here removed the key from our config as a "silent
-        no-op". The next bootstrap put it straight back, which is right: the
-        lever IS live for projects whose rules file the generator writes. So the
-        honest state is not absence but an explicit note that the value is inert
-        HERE, and the registry carries it.
-        """
-        cfg = json.loads((_REPO / ".tausik" / "config.json").read_text(encoding="utf-8"))
-        assert cfg.get("context_tier") == "standard"
-        assert "context_tier" in el.DELIBERATELY_UNSET
-        assert "INERT" in el.DELIBERATELY_UNSET["context_tier"]
-
-    def test_output_mode_is_not_quietly_enabled(self):
-        cfg = json.loads((_REPO / ".tausik" / "config.json").read_text(encoding="utf-8"))
-        assert cfg.get("output_mode") in (None, "off"), (
-            "output_mode was enabled without moving it out of DELIBERATELY_UNSET — the "
-            "decision and the config would then disagree, which is the state this file "
-            "exists to make impossible"
-        )
+    def test_output_mode_default_is_recorded_as_off(self):
+        assert resolve_output_mode({}) == "off"
+        assert el.DELIBERATELY_UNSET["output_mode"].startswith("OFF, measured.")

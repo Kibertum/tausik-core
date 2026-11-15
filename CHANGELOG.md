@@ -9,6 +9,89 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.1] — 2026-11-15
+
+- Legacy `.cursorrules` is retired only when its TAUSIK ownership digest proves
+  the static content is unchanged and the replacement MDC rule exists; stale,
+  malformed, duplicated, or user-modified ownership markers preserve the file
+  byte-for-byte. Upgrade backup now uses SQLite online backup so committed WAL
+  frames are recoverable and includes the legacy rule in the matching set.
+- Published upgrade qualification starts at v1.11.7 for Cursor and Codex. The
+  v1.11.7 boundary proves absence-to-migration of pre-lease tables; later
+  boundaries preserve lease, turn, Stop, continuity, and referenced session
+  rows. The native Windows canary covers drive-letter paths with spaces, CRLF
+  hook input, a user-owned CRLF rule, PowerShell, and a fresh reload process.
+
+### Fixed — task planning no longer deadlocks against execution-lease binding
+
+- The `/plan` skill no longer tells Codex or Cursor to create a partial task
+  and then issue cross-task `update`, `plan`, `log`, and `depends` mutations
+  that the bound execution lease must reject with `TASK_BINDING_MISMATCH`.
+  `tausik_task_add` and CLI `task add` now atomically accept the full contract,
+  plan steps, rationale, and existing predecessors. A failed dependency rolls
+  the entire creation back, while cross-task mutation protection stays intact.
+
+### Fixed — bootstrap refresh failures now have one CLI contract
+
+- A post-bootstrap refresh failure now exits nonzero with one bounded `REFUSED:`
+  diagnostic for both a fresh project and an existing project. It no longer
+  leaks a traceback or continues into later host refreshes as if setup were ready.
+
+### Added — official release qualification v2
+
+- Once the protected activation dry run succeeds, the official tag path will
+  require a fresh protected attestation. Its nonce
+  is locally single-use through `.tausik/release-qualification-v2-used/<nonce>`;
+  cross-machine replay prevention remains an external release control. It is
+  bound to the exact development and public snapshot objects, the signed
+  verifier revision (which must equal the public snapshot workflow revision), trusted Codex
+  scenario ratchet, projection hashes, independently evidenced lint/Linux
+  lanes, and the GitHub-owned successful native-Windows job result. macOS remains a required unsigned compatibility smoke through workflow
+  topology. Missing, stale,
+  mismatched, forged, or replayed evidence cannot produce a tag refspec.
+- The unprivileged lane jobs have no signing or release-environment secret and
+  persist no Git credential; checkout uses only its job token. A protected verifier fetches the exact
+  development object from its authoritative store, independently builds the
+  candidate, validates the exact 38-test Linux matrix and all ten required
+  journeys, and binds GitHub's successful native-Windows job result before
+  signing with Ed25519. That Windows job validates the exact diagnostic 39-test
+  compatibility matrix through the pinned trusted harness with candidate
+  `conftest.py` disabled and a 32 MiB evidence limit. Its diagnostic JUnit is not
+  trusted evidence; the signed platform check instead binds GitHub's successful
+  job result, run identity, workflow SHA, and candidate SHA. The consumer trusts only a version-pinned
+  public key; frozen adherence v1 remains byte-identical.
+- In the Linux matrix and full-suite lanes, candidate bootstrap, plugins, and
+  tests run in a disposable unprivileged,
+  networkless, read-only container. Candidate dependencies are prepared in a
+  separate disposable networked build stage with no secret, host mount, or
+  Docker socket; only its dependency tree and offline wheelhouse enter runtime.
+  A hash-locked outer controller validates the effective Docker inspection,
+  while an in-container `/proc` probe verifies the kernel boundary. Native
+  Windows uses the pinned harness and bounded Windows evidence controller;
+  macOS remains the unsigned native compatibility smoke and consumes an offline
+  hash-locked wheelhouse. The Linux controller
+  uses a bounded same-container tmpfs handshake and writes only validated lane
+  JUnit; the protected verifier later creates the
+  candidate and attestation artifacts.
+- The Docker boundary now validates effective top-level mounts from
+  `docker inspect`, not the similarly named request configuration, and verifies
+  the container's own exit status after the evidence release handshake.
+  Oversized evidence, cleanup failures, and each full-suite ratchet boundary
+  have behavioral regressions.
+- The controller keeps validated lane evidence in memory until Docker confirms
+  the final container exit, then publishes it through a no-overwrite atomic
+  path. Failed release handshakes, malformed container state, partial writes,
+  and fsync failures leave no authoritative host artifact.
+- In the framework source tree, documentation coverage now fails closed when
+  either command registry cannot be read; an empty registry can no longer
+  certify every shipped name as documented. A deployed Codex consumer
+  projection without framework docs is not applicable only when its
+  capability-v5 manifest names the exact five adapters and every recorded
+  SHA-256 matches. Missing, malformed, incomplete, or forged manifests remain red.
+- The publishing guide now states the real boundary: local code cannot prevent
+  an owner from bypassing the procedure, so protected branches, environment
+  approval, scoped secrets, and a server-side tag ruleset remain mandatory.
+
 ## [1.13.0] — 2026-11-11
 
 ### Fixed — interactive context continuity

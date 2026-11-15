@@ -1,0 +1,305 @@
+name: Release qualification v2
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without v
+        required: true
+        type: string
+      development_sha:
+        description: Exact development commit
+        required: true
+        type: string
+      public_snapshot_sha:
+        description: Exact filtered public snapshot commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate-inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Refuse non-canonical release identities
+        env:
+          VERSION: ${{ inputs.version }}
+          DEVELOPMENT_SHA: ${{ inputs.development_sha }}
+          PUBLIC_SHA: ${{ inputs.public_snapshot_sha }}
+        run: |
+          python - <<'PY'
+          import os, re
+          sha = re.compile(r'[0-9a-f]{40}')
+          version = re.compile(r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)')
+          if not version.fullmatch(os.environ['VERSION']):
+              raise SystemExit('REFUSED: version is not canonical')
+          for name in ('DEVELOPMENT_SHA', 'PUBLIC_SHA'):
+              if not sha.fullmatch(os.environ[name]):
+                  raise SystemExit(f'REFUSED: {name} is not an exact lowercase SHA')
+          PY
+
+  lint:
+    needs: validate-inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.public_snapshot_sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - run: >-
+          python -m pip install --require-hashes
+          -r trusted/.github/release-qualification-lint.txt
+      - working-directory: candidate
+        run: >-
+          ruff check --config ../trusted/.github/release-qualification-ruff.toml
+          --output-format json scripts/ tests/ bootstrap/ > ../lint-results.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-qualification-v2-lint
+          path: lint-results.json
+
+  qualification-matrix:
+    needs: validate-inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.public_snapshot_sha }}
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Run the matrix behind the immutable outer controller
+        run: >-
+          python trusted/scripts/release_qualification_container.py run
+          --candidate candidate --trusted trusted --lane matrix
+          --output "$RUNNER_TEMP/qualification-matrix.xml"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-qualification-v2-matrix
+          path: ${{ runner.temp }}/qualification-matrix.xml
+
+  qualification-windows:
+    needs: validate-inputs
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.public_snapshot_sha }}
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install only trusted locked test dependencies
+        run: >-
+          python -m pip install --require-hashes
+          -r trusted/.github/release-qualification-controller.txt
+          -r trusted/.github/release-qualification-runtime.txt
+      - name: Run native Windows Cursor and Codex upgrade qualification
+        run: >-
+          python trusted/scripts/release_qualification_windows.py
+          --candidate candidate --trusted trusted
+          --output "${{ runner.temp }}\qualification-windows.xml"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-qualification-v2-windows
+          path: ${{ runner.temp }}\qualification-windows.xml
+
+  test-full:
+    needs: validate-inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.public_snapshot_sha }}
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Run the full suite behind the immutable outer controller
+        run: >-
+          python trusted/scripts/release_qualification_container.py run
+          --candidate candidate --trusted trusted --lane full
+          --output "$RUNNER_TEMP/test-full.xml"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-qualification-v2-test-full
+          path: ${{ runner.temp }}/test-full.xml
+
+  test-macos:
+    needs: validate-inputs
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.public_snapshot_sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - run: |
+          pip install --require-hashes -r trusted/.github/release-qualification-controller.txt
+          pip install --require-hashes -r trusted/.github/release-qualification-runtime.txt
+      - name: Build the trusted macOS bootstrap wheelhouse
+        run: >-
+          python -m pip download --require-hashes
+          --dest "$RUNNER_TEMP/runtime-wheelhouse"
+          -r trusted/.github/release-qualification-runtime.txt
+      - working-directory: candidate
+        env:
+          PIP_NO_INDEX: '1'
+          PIP_FIND_LINKS: ${{ runner.temp }}/runtime-wheelhouse
+        run: python bootstrap/bootstrap.py --no-detect --ide all
+      - name: Run macOS compatibility tests without candidate pytest configuration
+        working-directory: candidate
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: >-
+          python -I -m pytest -c /dev/null --override-ini addopts=''
+          --override-ini faulthandler_timeout=300
+          --override-ini faulthandler_exit_on_timeout=true
+          -p xdist.plugin -n auto
+          tests/ --tb=short
+
+  protected-verifier:
+    needs: [validate-inputs, lint, qualification-matrix, qualification-windows, test-full, test-macos]
+    if: ${{ success() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release-qualification
+    steps:
+      - name: Checkout the immutable workflow revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          path: trusted
+          persist-credentials: false
+      - name: Fetch exact objects from their authoritative stores
+        env:
+          DEVELOPMENT_REPOSITORY_URL: ${{ secrets.DEVELOPMENT_REPOSITORY_URL }}
+          DEVELOPMENT_SHA: ${{ inputs.development_sha }}
+          PUBLIC_SHA: ${{ inputs.public_snapshot_sha }}
+        run: |
+          git -C trusted fetch --no-tags "$DEVELOPMENT_REPOSITORY_URL" "$DEVELOPMENT_SHA"
+          git -C trusted fetch --no-tags origin "$PUBLIC_SHA"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-qualification-v2-lint
+          path: reports/lint
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-qualification-v2-matrix
+          path: reports/matrix
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-qualification-v2-test-full
+          path: reports/full
+      - name: Validate real lane executions
+        env:
+          PUBLIC_SHA: ${{ inputs.public_snapshot_sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python trusted/scripts/release_qualification_v2.py --root trusted lanes-from-junit \
+            --public-snapshot-ref "$PUBLIC_SHA" \
+            --run-id "$RUN_ID" \
+            --lint-report reports/lint/lint-results.json \
+            --matrix-junit reports/matrix/qualification-matrix.xml \
+            --full-junit reports/full/test-full.xml \
+            --output lane-results.json
+      - name: Bind the mandatory native Windows compatibility canary
+        env:
+          PUBLIC_SHA: ${{ inputs.public_snapshot_sha }}
+          WINDOWS_RESULT: ${{ needs.qualification-windows.result }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          python trusted/scripts/release_qualification_v2.py --root trusted platform-checks \
+            --public-snapshot-ref "$PUBLIC_SHA" \
+            --conclusion "$WINDOWS_RESULT" \
+            --run-id "$RUN_ID" \
+            --run-attempt "$RUN_ATTEMPT" \
+            --workflow-sha "$WORKFLOW_SHA" \
+            --output platform-checks.json
+      - name: Validate real scenario executions against the trusted ratchet
+        env:
+          PUBLIC_SHA: ${{ inputs.public_snapshot_sha }}
+        run: |
+          python trusted/scripts/release_qualification_v2.py --root trusted scenarios-from-junit \
+            --public-snapshot-ref "$PUBLIC_SHA" \
+            --junit reports/matrix/qualification-matrix.xml \
+            --output scenario-results.json
+      - name: Independently build the canonical candidate
+        env:
+          VERSION: ${{ inputs.version }}
+          DEVELOPMENT_SHA: ${{ inputs.development_sha }}
+          PUBLIC_SHA: ${{ inputs.public_snapshot_sha }}
+          VERIFIER_SHA: ${{ github.workflow_sha }}
+        run: |
+          python trusted/scripts/release_qualification_v2.py --root trusted candidate \
+            --version "$VERSION" \
+            --development-ref "$DEVELOPMENT_SHA" \
+            --public-snapshot-ref "$PUBLIC_SHA" \
+            --verifier-ref "$VERIFIER_SHA" \
+            --lane-results lane-results.json \
+            --platform-checks platform-checks.json \
+            --scenario-results scenario-results.json \
+            --output release-qualification-v2.json
+      - name: Independently recompute and attest
+        env:
+          TAUSIK_RELEASE_QUALIFICATION_SIGNING_SEED: ${{ secrets.RELEASE_QUALIFICATION_SIGNING_SEED }}
+        run: |
+          python trusted/scripts/release_qualification_v2.py --root trusted attest \
+            --candidate release-qualification-v2.json \
+            --output release-qualification-v2.attestation.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-qualification-v2-attestation
+          path: |
+            release-qualification-v2.json
+            release-qualification-v2.attestation.json

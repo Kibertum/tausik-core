@@ -16,21 +16,6 @@ if TYPE_CHECKING:
     from project_service import ProjectService
 
 
-def _apply_tickets(svc: ProjectService, slug: str, tickets: list[str] | None) -> None:
-    """Привязка к тикету, записанная СРАЗУ при заведении задачи.
-
-    Отдельной функцией, потому что `task add` создаёт задачу одним вызовом
-    сервиса и дописывает необязательные поля следом — как это уже делают
-    rollback_plan и ACL области. Отказ разбора поднимается наверх: молча
-    проглоченная ссылка означала бы задачу, которая ДУМАЕТ, что помнит тикет.
-    """
-    if tickets is None:
-        return
-    import tracker_ref
-
-    svc.task_update(slug, tracker_refs=tracker_ref.dumps(tracker_ref.normalise_all(tickets)))
-
-
 def _emit_compound(result: dict[str, Any]) -> None:
     print(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
     if not result.get("ok"):
@@ -45,37 +30,36 @@ def _cmd_task(svc: ProjectService, args: Any) -> None:
         slug = args.slug or _auto_slug(args.title)
         story_slug = getattr(args, "story_slug", None)
         defect_of = getattr(args, "defect_of", None)
-        print(
-            svc.task_add(
-                story_slug,
-                slug,
-                args.title,
-                args.stack,
-                args.complexity,
-                args.goal,
-                args.role,
-                defect_of,
-                getattr(args, "call_budget", None),
-                getattr(args, "tier", None),
-                cost_budget_usd=getattr(args, "cost_budget_usd", None),
-                token_budget=getattr(args, "token_budget", None),
-            )
+        from service_task_create import task_add_complete
+
+        result = task_add_complete(
+            svc,
+            story_slug=story_slug,
+            slug=slug,
+            title=args.title,
+            stack=args.stack,
+            complexity=args.complexity,
+            goal=args.goal,
+            role=args.role,
+            defect_of=defect_of,
+            call_budget=getattr(args, "call_budget", None),
+            tier=getattr(args, "tier", None),
+            cost_budget_usd=getattr(args, "cost_budget_usd", None),
+            token_budget=getattr(args, "token_budget", None),
+            acceptance_criteria=getattr(args, "acceptance_criteria", None),
+            scope=getattr(args, "scope", None),
+            scope_exclude=getattr(args, "scope_exclude", None),
+            scope_paths=getattr(args, "scope_paths", None),
+            scope_tools=getattr(args, "scope_tools", None),
+            rollback_plan=getattr(args, "rollback_plan", None),
+            assurance_profiles=getattr(args, "assurance_profiles", None),
+            assurance_impact=getattr(args, "assurance_impact", None),
+            plan_steps=getattr(args, "plan_steps", None),
+            rationale=getattr(args, "rationale", None),
+            depends_on=getattr(args, "depends_on", None),
+            tickets=getattr(args, "add_tickets", None),
         )
-        rb = getattr(args, "rollback_plan", None)
-        ac = getattr(args, "acceptance_criteria", None)
-        if rb or ac:
-            svc.task_update(
-                slug,
-                **{k: v for k, v in (("rollback_plan", rb), ("acceptance_criteria", ac)) if v},
-            )
-        acl = {
-            f: getattr(args, f, None)
-            for f in ("scope_paths", "scope_tools")
-            if getattr(args, f, None) is not None
-        }
-        if acl:
-            svc.task_update(slug, **acl)
-        _apply_tickets(svc, slug, getattr(args, "add_tickets", None))
+        print(result)
     elif c == "list":
         tasks = svc.task_list(
             args.status,

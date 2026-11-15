@@ -52,7 +52,9 @@ def add_publish(sub: argparse._SubParsersAction) -> None:
     vf = ps.add_parser("verify", help="Snapshot tree equals the filtered tree of --from")
     vf.add_argument("--snapshot", required=True, help="Snapshot commit to check")
     vf.add_argument("--from", dest="source", default="HEAD", help="Source revision (default HEAD)")
-    ci = ps.add_parser("ci-check", help="Wait for Tests success on the exact public SHA")
+    ci = ps.add_parser(
+        "ci-check", help="Require exact-SHA Tests and a fresh qualification v2 attestation"
+    )
     ci.add_argument("--snapshot", required=True, help="Public snapshot commit to check")
     ci.add_argument("--from", dest="source", default="HEAD", help="Development source revision")
     ci.add_argument("--tag", required=True, help="Existing local release tag")
@@ -61,4 +63,14 @@ def add_publish(sub: argparse._SubParsersAction) -> None:
     )
     ci.add_argument(
         "--poll-interval", type=_positive_int, default=15, help="Polling interval in seconds"
+    )
+    ci.add_argument(
+        "--qualification-candidate",
+        default="dist/release-qualification-v2.json",
+        help="Canonical qualification v2 candidate JSON",
+    )
+    ci.add_argument(
+        "--qualification-attestation",
+        default="dist/release-qualification-v2.attestation.json",
+        help="Protected qualification v2 attestation JSON",
     )

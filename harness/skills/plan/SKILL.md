@@ -59,19 +59,21 @@ Determine stack from project structure (package.json, requirements.txt, go.mod).
 
 ### 4. Create task
 
-Epic/story are **optional**. For standalone tasks, use `task quick` or `task add` without `--group`.
+Epic/story are **optional**. Create executable work with one atomic `task add`.
+Do not create it with `task quick` and then call `task update`, `task plan`, or
+`task depends`: an execution lease bound to another active task must reject
+those cross-task follow-up mutations with `TASK_BINDING_MISMATCH`.
 
-**MCP-first (preferred):**
-- Auto-slug: `tausik_task_quick` with `title="Task title"`, `goal="What success looks like"`, `role="developer"`, `stack="python"`
-- Explicit slug: `tausik_task_add` with `slug="my-task"`, `title="Task title"`, `goal="..."`, `role="developer"`, `stack="python"`, `complexity="medium"`
+**MCP-first (preferred):** call `tausik_task_add` once with `slug`, `title`,
+`goal`, `acceptance_criteria`, `scope`, `scope_paths`, `rollback_plan`,
+`call_budget`, `plan_steps`, and `rationale`. When the task follows existing
+work, also pass `depends_on`. For a task graph, create tasks in topological
+order so every predecessor exists before its dependent.
 
 **CLI fallback:**
 ```bash
-# Quick (auto-slug):
-.tausik/tausik task quick "Task title" --role developer --stack python --goal "What success looks like"
-
-# Full (with explicit slug):
-.tausik/tausik task add "Task title" --slug my-task --complexity medium --role developer --stack python --goal "What success looks like"
+# Full atomic task contract:
+.tausik/tausik task add "Task title" --slug my-task --complexity medium --role developer --stack python --goal "What success looks like" --acceptance-criteria "AC-1 succeeds. Negative: invalid input is refused." --call-budget 25 --scope-paths scripts/ tests/ --rollback-plan "git revert" --step "Implement" --step "Verify" --rationale "Why this task exists"
 
 # With epic/story grouping (optional):
 .tausik/tausik task add "Task title" --group my-story --slug my-task --complexity medium --role developer --stack python --goal "What success looks like"
@@ -85,7 +87,7 @@ If the work is part of a larger initiative, create or reuse an epic/story:
 
 ### 4b. Estimate tier (agent-native sizing)
 
-After the task exists, set a tool-call budget — **NOT human hours**. Agents are
+Set a tool-call budget during the atomic task-add call — **NOT human hours**. Agents are
 measured in tool calls, not wall-clock time. Pick `--call-budget` (preferred,
 auto-derives `--tier`) or `--tier` directly.
 
@@ -97,14 +99,8 @@ auto-derives `--tier`) or `--tier` directly.
 | `substantial` | ≤150 | CLI + service + MCP + mirror + tests across many files |
 | `deep` | ≤400 | full vertical (new stack support, end-to-end feature) |
 
-**MCP-first:** `tausik_task_update` with `slug="{slug}"`, `call_budget=25`.
-
-**CLI fallback:**
-```bash
-.tausik/tausik task update <slug> --call-budget 25
-# or, if you prefer the tier directly:
-.tausik/tausik task update <slug> --tier light
-```
+Use `call_budget=25` on `tausik_task_add`, or `--call-budget 25` on CLI
+`task add`. Do not schedule a follow-up update for a newly created task.
 
 Skipping estimation is allowed but flag it explicitly — the task closes
 without `call_budget`/`call_actual` data, hurting future tier calibration.
@@ -115,12 +111,8 @@ without `call_budget`/`call_actual` data, hurting future tier calibration.
 
 Write clear, verifiable acceptance criteria. Each criterion must be independently testable.
 
-**MCP-first:** `tausik_task_update` with `slug="{slug}"`, `acceptance_criteria="1. POST /login returns JWT on valid creds. 2. Returns 401 on invalid password. 3. Returns 422 on missing email."`
-
-**CLI fallback:**
-```bash
-.tausik/tausik task update <slug> --acceptance-criteria "1. POST /login returns JWT on valid creds. 2. Returns 401 on invalid password. 3. Returns 422 on missing email."
-```
+Pass `acceptance_criteria` to the same `tausik_task_add` call, or
+`--acceptance-criteria` to CLI `task add`.
 
 **AC quality rules (SENAR):**
 - Each criterion independently testable
@@ -129,12 +121,8 @@ Write clear, verifiable acceptance criteria. Each criterion must be independentl
 
 ### 6. Set plan steps
 
-**MCP-first:** `tausik_task_plan` with `slug="{slug}"`, `steps=["Step 1", "Step 2", "Step 3"]`
-
-**CLI fallback:**
-```bash
-.tausik/tausik task plan <slug> "Step 1" "Step 2" "Step 3"
-```
+Pass `plan_steps=["Step 1", "Step 2", "Step 3"]` to the same MCP task-add
+call, or repeat `--step` on CLI `task add`.
 
 ### 7. Present plan
 
@@ -151,3 +139,4 @@ Ask: "Proceed with `/task <slug>`?"
 - **Epic/story are optional** — tasks can exist without grouping.
 - **QG-0 blocks without goal + AC** — always set both during planning.
 - **Defect tasks** — use `--defect-of <parent-slug>` when creating a fix for a bug found in an existing task.
+- **Cross-task binding is intentional** — never work around `TASK_BINDING_MISMATCH`; use the atomic creation fields above.

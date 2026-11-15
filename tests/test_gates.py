@@ -26,6 +26,7 @@ from gate_runner import (  # noqa: E402
     run_filesize_gate,
     run_gates,
 )
+from gate_filesize import is_exempt  # noqa: E402
 
 
 class TestLoadGates:
@@ -1122,6 +1123,13 @@ class TestFilesizeGateExemptFiles:
         passed, output = run_filesize_gate(gate, [str(big)])
         assert passed is False
         assert "700 lines" in output
+
+    def test_committed_runtime_lock_exemption_is_exact(self, monkeypatch):
+        repo = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        monkeypatch.chdir(repo)
+
+        assert is_exempt(".github/release-qualification-runtime.txt")
+        assert not is_exempt(".github/release-qualification-other.txt")
 
 
 class TestDefaultGatesHaveFileExtensions:

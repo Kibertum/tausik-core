@@ -60,7 +60,7 @@ EXCLUDED_FROM_PUBLIC_SNAPSHOT: tuple[str, ...] = (
     "tests/test_ci_lane_dev.py",
 )
 
-SANITIZED_PUBLIC_FILES: tuple[str, ...] = ("AGENTS.md", "CLAUDE.md")
+SANITIZED_PUBLIC_FILES: tuple[str, ...] = ("AGENTS.md", "CLAUDE.md", "QWEN.md")
 _DYNAMIC_BLOCK = re.compile(
     r"^<!-- DYNAMIC:START -->.*?^<!-- DYNAMIC:END -->", re.MULTILINE | re.DOTALL
 )
@@ -68,7 +68,16 @@ _DYNAMIC_BLOCK = re.compile(
 
 def public_text(text: str) -> str:
     """Keep stable agent guidance but remove development-session state."""
-    return _DYNAMIC_BLOCK.sub("<!-- DYNAMIC:START -->\n<!-- DYNAMIC:END -->", text)
+
+    if text.count("<!-- DYNAMIC:START -->") != 1 or text.count("<!-- DYNAMIC:END -->") != 1:
+        raise PublicationError("sanitized instruction file has malformed DYNAMIC markers")
+    match = _DYNAMIC_BLOCK.search(text)
+    if match is None:
+        raise PublicationError("sanitized instruction file has unordered DYNAMIC markers")
+    sanitized = _DYNAMIC_BLOCK.sub("<!-- DYNAMIC:START -->\n<!-- DYNAMIC:END -->", text)
+    if _DYNAMIC_BLOCK.search(sanitized) is None:
+        raise PublicationError("sanitized instruction file could not be verified")
+    return sanitized
 
 
 #: A file that DESCRIBES a leak class is not an occurrence of it — the same

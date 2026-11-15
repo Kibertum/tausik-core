@@ -74,6 +74,20 @@ def add_task(sub: argparse._SubParsersAction) -> None:
     ta.add_argument("--goal", default=None)
     ta.add_argument("--role", default=None)
     ta.add_argument("--defect-of", default=None, help="Parent task slug (defect fix)")
+    ta.add_argument("--scope", default=None)
+    ta.add_argument("--scope-exclude", default=None, dest="scope_exclude")
+    ta.add_argument(
+        "--assurance-profiles",
+        default=None,
+        dest="assurance_profiles",
+        help='JSON list of composable profiles, e.g. ["executable"]',
+    )
+    ta.add_argument(
+        "--assurance-impact",
+        default=None,
+        dest="assurance_impact",
+        help="JSON impact object; task values override stack defaults",
+    )
     ta.add_argument(
         "--rollback-plan",
         default=None,
@@ -91,6 +105,25 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         dest="acceptance_criteria",
         help="QG-0: what must be true for this task to close. Settable here so a task is "
         "startable after one command.",
+    )
+    ta.add_argument(
+        "--after",
+        action="append",
+        default=None,
+        dest="depends_on",
+        help="Existing predecessor task slug; repeat for multiple dependencies.",
+    )
+    ta.add_argument(
+        "--step",
+        action="append",
+        default=None,
+        dest="plan_steps",
+        help="Plan step stored atomically with task creation; repeat in execution order.",
+    )
+    ta.add_argument(
+        "--rationale",
+        default=None,
+        help="Planning rationale logged atomically with task creation.",
     )
     ta.add_argument(
         "--ticket",

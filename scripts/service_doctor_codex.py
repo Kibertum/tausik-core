@@ -7,7 +7,13 @@ import hashlib
 import os
 import tomllib
 
-from hooks.codex_capability import exact_hook_command, manifest_error
+from hooks.codex_capability import (
+    CODEX_ADAPTERS_BY_ROLE,
+    CODEX_HOOK_EVENTS_BY_ROLE,
+    CODEX_SECURITY_ADAPTERS,
+    exact_hook_command,
+    manifest_error,
+)
 
 
 def _hook_registered(
@@ -78,13 +84,7 @@ def check_codex_mcp_transport(project_dir: str) -> list[tuple[str, str, str]]:
         else:
             adapters = manifest.get("adapters")
             transport_error = None
-            for name in (
-                "codex_write_gate.py",
-                "memory_preflight_posttool.py",
-                "codex_composite_mcp.py",
-                "user_prompt_submit.py",
-                "can_stop_gate.py",
-            ):
+            for name in CODEX_SECURITY_ADAPTERS:
                 path = os.path.join(target_dir, "scripts", "hooks", name)
                 try:
                     with open(path, "rb") as fh:
@@ -115,11 +115,8 @@ def check_codex_mcp_transport(project_dir: str) -> list[tuple[str, str, str]]:
             hooks = json.load(fh)
     except (OSError, ValueError, TypeError, AttributeError):
         hooks = None
-    registrations = (
-        ("PreToolUse", "codex_write_gate.py"),
-        ("PostToolUse", "memory_preflight_posttool.py"),
-        ("UserPromptSubmit", "user_prompt_submit.py"),
-        ("Stop", "can_stop_gate.py"),
+    registrations = tuple(
+        (event, CODEX_ADAPTERS_BY_ROLE[role]) for role, event in CODEX_HOOK_EVENTS_BY_ROLE.items()
     )
     if not all(
         _hook_registered(

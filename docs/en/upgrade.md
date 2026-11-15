@@ -4,88 +4,161 @@
 
 <!-- doc-map: reader=user; zone=getting-started -->
 
-## 1.11.8 Codex and Cursor refresh
+Use this procedure for a project that installs TAUSIK in `.tausik-lib`. Run it
+from the project root. Before backup, close Cursor, VSCode, every agent turn,
+and every TAUSIK CLI or MCP process that can write the project database.
 
-After upgrading, regenerate the configured host profiles with
-`python bootstrap/bootstrap.py --no-detect`, then restart Codex or open a fresh
-Cursor window so the host loads the new hooks and MCP transport. Run
-`tausik doctor` to detect a stale capability digest, missing identity transport
-or an unbound project path. Maintainers cut the release only after
-`python scripts/adherence_release.py` writes a green content-addressed report.
+## What an upgrade changes
 
-What bootstrap touches, what it leaves alone, and how to upgrade without losing your work.
-
-## The two trees
-
-```
-<repo>/
-├── stacks/                ← framework-owned. Bootstrap rewrites this.
-├── scripts/               ← framework-owned.
-├── bootstrap/             ← framework-owned.
-├── harness/                ← framework-owned.
-├── .claude/               ← bootstrap output (ignore-able; regenerable).
-└── .tausik/               ← YOUR data. Bootstrap NEVER touches this.
-    ├── tausik.db
-    ├── config.json
-    ├── stacks/            ← your stack overrides
-    └── venv/
-```
-
-## Bootstrap-owned vs user-owned
-
-| Path | Owner | Survives upgrade? |
+| Path | Ownership | Upgrade behaviour |
 |---|---|---|
-| `stacks/<name>/stack.json` | Framework | No — overwritten on every bootstrap. |
-| `harness/stacks/*.md` (legacy) | Framework | Replaced on bootstrap; legacy fallback only. |
-| `.claude/` | Bootstrap output | Regenerated each run. |
-| `.tausik/stacks/<name>/stack.json` | **You** | **Yes — bootstrap never touches it.** |
-| `.tausik/config.json` | **You** | **Yes.** |
-| `.tausik/tausik.db` | **You** | **Yes.** |
+| `.tausik-lib/` | Framework | Checked out at the selected release tag. |
+| `.cursor/`, `.codex/` | Mixed | TAUSIK-managed scripts, hooks, MCP configuration and rules are regenerated. Supported user entries are preserved. |
+| `AGENTS.md`, `CLAUDE.md`, `QWEN.md`, `.cursor/rules/tausik.mdc` | Mixed | The marked dynamic block is refreshed. Bootstrap refuses when a required target cannot be updated. |
+| `.tausik/tausik.db` | User data | Preserved, but opening it with a newer release may run forward schema migrations. |
+| `.tausik/config.json` | User configuration | Read and may be rewritten with current framework/profile provenance. |
+| `.tausik/venv/`, `.tausik/tausik`, `.tausik/tausik.cmd` | Bootstrap output | Created or refreshed by bootstrap. |
+| `.tausik/stacks/` | User overrides | Preserved; validate them after the upgrade. |
+| `.cursorrules` | Legacy mixed ownership | Removed only when its TAUSIK ownership hash still matches its static content and `.cursor/rules/tausik.mdc` exists. Customized or unrecognized files remain byte-identical. |
 
-The `tests/test_bootstrap_non_destructive.py` suite enforces this contract. Every bootstrap path is checked to make sure it never writes inside `.tausik/`.
+Bootstrap therefore does write inside `.tausik/`. The database and stack
+overrides are not disposable bootstrap output.
 
-## Upgrade workflow
+## Back up before changing the tag
 
-1. `git pull` (or update the framework however you installed it).
-2. `python bootstrap/bootstrap.py --no-detect` — refreshes the recorded primary profile and its configured targets. A legacy install without profile provenance must run this once with `--ide <host>` (for example `--ide cursor`).
-3. `tausik stack lint` — validate that your overrides still parse against the new schema.
-4. `tausik stack diff <name>` — for each stack you've overridden, sanity-check that the built-in didn't change in a way that breaks your assumptions.
+The backup must contain one matching set: database, configuration, framework
+tag and every host profile in use. Store it outside `.tausik`.
+The commands below use SQLite's online backup API, so committed WAL frames are
+included in the standalone backup database. Keep all writer processes closed
+until the copy and integrity check finish.
 
-## What can break a stack override
+POSIX shell:
 
-A non-trivial framework upgrade *can* invalidate an override even though the file isn't touched:
+```sh
+backup="../tausik-backup-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$backup"
+python -c 'import sqlite3,sys; s=sqlite3.connect("file:.tausik/tausik.db?mode=ro",uri=True); d=sqlite3.connect(sys.argv[1]); s.backup(d); assert d.execute("PRAGMA integrity_check").fetchone()==("ok",); d.close(); s.close()' "$backup/tausik.db"
+cp -a .tausik/config.json "$backup/"
+[ ! -d .tausik/stacks ] || cp -a .tausik/stacks "$backup/"
+for path in .cursor .codex .cursorrules AGENTS.md CLAUDE.md QWEN.md; do
+  [ ! -e "$path" ] || cp -a "$path" "$backup/"
+done
+git -C .tausik-lib describe --tags --always > "$backup/framework-version.txt"
+```
 
-- The schema gained a required field. `tausik stack lint` will report it.
-- A field was renamed (e.g. `detect[].kind` → `detect[].type`). `lint` will report unknown-field errors.
-- An `extends: "builtin:NAME"` target was renamed or removed. `lint` will surface "extends target not found".
-- A gate name moved between stacks. Your override referencing it via `null` (to disable) becomes a no-op silently — review with `stack export`.
+PowerShell:
 
-The framework prefers additive changes; breaking changes ship in a major version with a migration note in the changelog.
+```powershell
+$backup = Join-Path .. ("tausik-backup-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+New-Item -ItemType Directory -Path $backup | Out-Null
+py -c 'import sqlite3,sys; s=sqlite3.connect("file:.tausik/tausik.db?mode=ro",uri=True); d=sqlite3.connect(sys.argv[1]); s.backup(d); assert d.execute("PRAGMA integrity_check").fetchone()==("ok",); d.close(); s.close()' (Join-Path $backup 'tausik.db')
+Copy-Item -LiteralPath .tausik\config.json -Destination $backup
+if (Test-Path .tausik\stacks) { Copy-Item -Recurse -LiteralPath .tausik\stacks -Destination $backup }
+foreach ($path in '.cursor','.codex','.cursorrules','AGENTS.md','CLAUDE.md','QWEN.md') {
+  if (Test-Path $path) { Copy-Item -Recurse -LiteralPath $path -Destination $backup }
+}
+git -C .tausik-lib describe --tags --always | Set-Content (Join-Path $backup 'framework-version.txt')
+```
 
-## When something goes wrong
+## Upgrade Cursor and Codex
 
-| Symptom | What to do |
-|---|---|
-| Bootstrap fails or warns about `.tausik/stacks/` | Run `tausik stack lint` to spot validation errors. |
-| `tausik task add --stack X` rejects a stack you defined | Confirm `.tausik/stacks/X/stack.json` exists and parses; check `tausik stack list`. |
-| A gate stops firing after upgrade | `tausik stack info <name>` to see active gates; `stack export <name>` to confirm merge order. |
-| CLI or MCP uses a stale sibling profile | Run `tausik doctor`, then its single repair command (`python .tausik-lib/bootstrap/bootstrap.py --ide <host>` in a consumer project). The wrapper is bound to the recorded primary profile and never selects the first directory on disk. |
-| Project was moved or the workspace root was wrong | Run `tausik doctor`; profile/root/version divergence is a failure. Rerun bootstrap from the intended project root. Filesystem roots and paths ending in an IDE profile such as `D:\.claude` are refused. |
-| You want to start over | `tausik stack reset <name>` removes a single override; `rm -rf .tausik/stacks/` blows them all away. |
+Replace `<release-tag>` with the exact published tag. Bootstrap each host that
+the project uses; do not rely on host auto-detection during an upgrade.
 
-## Disaster recovery
+POSIX shell:
 
-If `.tausik/` itself is corrupted or you want to nuke local state, only the database (`.tausik/tausik.db`) is irreplaceable — everything else can be regenerated by re-running bootstrap. Back up `.tausik/tausik.db` and `.tausik/stacks/` before doing anything destructive.
+```sh
+git -C .tausik-lib fetch --tags
+git -C .tausik-lib checkout <release-tag>
+python .tausik-lib/bootstrap/bootstrap.py --project-dir . --ide cursor --no-detect
+python .tausik-lib/bootstrap/bootstrap.py --project-dir . --ide codex --no-detect
+./.tausik/tausik doctor
+./.tausik/tausik stack lint
+```
 
-## Version Policy
+PowerShell:
 
-- **Patch (x.y.Z)** — bug fixes, no API or schema changes.
-- **Minor (x.Y.0)** — new features, additive DB migrations, API extends without breaking changes.
-- **Major (X.0.0)** — breaking API/schema changes; a migration note in `CHANGELOG.md` is mandatory.
+```powershell
+git -C .tausik-lib fetch --tags
+git -C .tausik-lib checkout <release-tag>
+py .tausik-lib\bootstrap\bootstrap.py --project-dir . --ide cursor --no-detect
+py .tausik-lib\bootstrap\bootstrap.py --project-dir . --ide codex --no-detect
+.\.tausik\tausik.cmd doctor
+.\.tausik\tausik.cmd stack lint
+```
 
-`tausik doctor` after an upgrade reports drift or config issues.
+Run only the host-specific bootstrap command when the project uses one host.
+After bootstrap succeeds, use **Developer: Reload Window** in Cursor and in the
+VSCode window that runs Codex. Open a new agent thread and verify that
+SessionStart, one read-only turn and one task lifecycle complete.
 
-## See Also
+Published qualification begins at v1.11.7 for both Cursor and Codex. At the
+v1.11.7 boundary it proves the pre-lease tables are absent before upgrade and
+created by migration. At later boundaries it preserves existing lease, turn,
+Stop, continuity, task, dependency, log, and referenced host-session rows. The
+native Windows canary covers drive-letter paths with spaces, CRLF hook input,
+byte preservation of a user-owned CRLF rule, PowerShell, and a fresh process
+after Reload Window.
 
-- [Customization](customization.md) — how to override without touching framework files.
-- [Architecture](architecture.md) — layer and ownership model.
+## Failure and rollback
+
+Do not continue working after a failed bootstrap, doctor or smoke test. Keep the
+failed project intact for diagnosis.
+
+A checkout of the previous tag alone is **not** a rollback after the newer code
+has opened the database. TAUSIK does not promise down migrations. Choose one:
+
+- restore the complete matching backup while Cursor, VSCode and agent processes
+  are closed; or
+- keep the migrated data and install a newer patch that explicitly supports it.
+
+To restore, keep every writer closed and preserve the failed paths. Then restore
+the matching set and bootstrap only the host profiles present in the backup.
+
+POSIX shell:
+
+```sh
+stamp=$(date +%Y%m%d-%H%M%S)
+for path in .tausik .cursor .codex .cursorrules AGENTS.md CLAUDE.md QWEN.md; do [ ! -e "$path" ] || mv "$path" "$path.failed-$stamp"; done
+git -C .tausik-lib checkout "$(cat "$backup/framework-version.txt")"
+mkdir .tausik
+cp -a "$backup/tausik.db" "$backup/config.json" .tausik/
+[ ! -d "$backup/stacks" ] || cp -a "$backup/stacks" .tausik/
+for path in .cursor .codex .cursorrules AGENTS.md CLAUDE.md QWEN.md; do [ ! -e "$backup/$path" ] || cp -a "$backup/$path" .; done
+[ ! -d "$backup/.cursor" ] || python .tausik-lib/bootstrap/bootstrap.py --project-dir . --ide cursor --no-detect
+[ ! -d "$backup/.codex" ] || python .tausik-lib/bootstrap/bootstrap.py --project-dir . --ide codex --no-detect
+./.tausik/tausik doctor
+```
+
+PowerShell:
+
+```powershell
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+foreach ($path in '.tausik','.cursor','.codex','.cursorrules','AGENTS.md','CLAUDE.md','QWEN.md') { if (Test-Path $path) { Move-Item -LiteralPath $path -Destination ($path + '.failed-' + $stamp) } }
+$tag = (Get-Content (Join-Path $backup 'framework-version.txt') -Raw).Trim()
+git -C .tausik-lib checkout $tag
+New-Item -ItemType Directory -Path .tausik | Out-Null
+Copy-Item -LiteralPath (Join-Path $backup 'tausik.db'),(Join-Path $backup 'config.json') -Destination .tausik
+if (Test-Path (Join-Path $backup 'stacks')) { Copy-Item -Recurse -LiteralPath (Join-Path $backup 'stacks') -Destination .tausik }
+foreach ($path in '.cursor','.codex','.cursorrules','AGENTS.md','CLAUDE.md','QWEN.md') { $source = Join-Path $backup $path; if (Test-Path $source) { Copy-Item -Recurse -LiteralPath $source -Destination . } }
+if (Test-Path (Join-Path $backup '.cursor')) { py .tausik-lib\bootstrap\bootstrap.py --project-dir . --ide cursor --no-detect }
+if (Test-Path (Join-Path $backup '.codex')) { py .tausik-lib\bootstrap\bootstrap.py --project-dir . --ide codex --no-detect }
+.\.tausik\tausik.cmd doctor
+```
+
+Never combine an old framework checkout with a database already migrated by a
+newer release.
+
+## Version policy
+
+Patch releases may contain additive forward database migrations when a bug fix
+requires them. Every migration must be documented and covered by the published
+upgrade qualification. Incompatible API or schema changes require a major
+release. The changelog, not the version number alone, is the source of truth for
+migration and rollback requirements.
+
+## See also
+
+- [Customization](customization.md)
+- [Architecture](architecture.md)
+- [Doctor](doctor.md)

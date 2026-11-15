@@ -1,0 +1,29 @@
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "BLE001",
+    "PLE2515",
+    "PLE2502",
+    "PLR0124",
+    "B017",
+    "PYI036",
+    "RUF100",
+    "S110",
+    "S112",
+    "SIM115",
+]
+
+[lint.per-file-ignores]
+"bootstrap/bootstrap.py" = ["E402"]
+"tests/test_bootstrap_frontmatter.py" = ["E402"]
+"tests/test_mcp_windows.py" = ["E402"]
+"tests/test_migrations.py" = ["E402"]
+"tests/test_rag.py" = ["E402"]
+"tests/test_rag_benchmark.py" = ["E402"]
+"tests/test_rag_edge.py" = ["E402"]

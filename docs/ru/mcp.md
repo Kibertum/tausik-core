@@ -87,7 +87,7 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 
 | Инструмент | Описание | Обязательные параметры |
 |---|---|---|
-| `tausik_task_add` | Создать задачу с полями QG-0 одним вызовом (опционально в стори) | `slug`, `title`; опционально `goal`, `acceptance_criteria`, `scope`, `scope_exclude`, `rollback_plan`, `assurance_profiles`, `assurance_impact` |
+| `tausik_task_add` | Атомарно создать задачу с контрактом QG-0, планом, rationale и существующими предшественниками (опционально в стори) | `slug`, `title`; опционально `story_slug`, `role`, `stack`, `complexity`, `goal`, `defect_of`, `tier`, `acceptance_criteria`, `scope`, `scope_exclude`, `scope_paths`, `scope_tools`, `rollback_plan`, `call_budget`, `cost_budget_usd`, `token_budget`, `plan_steps`, `rationale`, `depends_on`, `assurance_profiles`, `assurance_impact` |
 | `tausik_task_quick` | Быстрое создание с auto-slug | `title` |
 | `tausik_task_start` | Начать работу; опционально вернуть bounded context тем же результатом | `slug`, опционально `package` |
 | `tausik_task_done` | Завершить (QG-2: `ac_verified=true`, scoped pytest, verify cache). Возвращает structured JSON: `blocking_failures`, per-gate results, cache status. | `slug` |

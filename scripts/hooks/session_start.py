@@ -19,7 +19,12 @@ sys.path[:0] = [_HOOKS_DIR, os.path.dirname(_HOOKS_DIR)]
 
 from _common import profile_dir as _common_profile_dir  # noqa: E402
 from _common import tausik_path as _tausik_path  # noqa: E402
-from codex_capability import exact_hook_command, manifest_error  # noqa: E402
+from codex_capability import (  # noqa: E402
+    CODEX_ADAPTERS_BY_ROLE,
+    CODEX_HOOK_EVENTS_BY_ROLE,
+    exact_hook_command,
+    manifest_error,
+)
 from cursor_capability import cursor_preflight_hooks_ready  # noqa: E402
 
 MAX_CONTEXT_BYTES = 2_048
@@ -318,18 +323,16 @@ def _codex_preflight_hooks_ready(project_dir: str) -> bool:
                 return True
         return False
 
-    parser = os.path.join(hooks_root, "codex_composite_mcp.py")
+    parser_name = CODEX_ADAPTERS_BY_ROLE["composite"]
+    parser = os.path.join(hooks_root, parser_name)
     try:
         with open(parser, "rb") as fh:
             parser_digest = hashlib.sha256(fh.read()).hexdigest()
     except OSError:
         return False
-    return (
-        manifest["adapters"].get("codex_composite_mcp.py") == parser_digest
-        and ready("PreToolUse", "codex_write_gate.py")
-        and ready("PostToolUse", "memory_preflight_posttool.py")
-        and ready("UserPromptSubmit", "user_prompt_submit.py")
-        and ready("Stop", "can_stop_gate.py")
+    return manifest["adapters"].get(parser_name) == parser_digest and all(
+        ready(event, CODEX_ADAPTERS_BY_ROLE[role])
+        for role, event in CODEX_HOOK_EVENTS_BY_ROLE.items()
     )
 
 

@@ -836,7 +836,10 @@ def test_unattested_dependency_mapping_widens_round_two(cohort_project):
     opened = open_review_cohort(service, tasks=["a", "b"])
     uncertain = _result("b")
     uncertain["dependency_map_complete"] = False
-    _record(service, opened["cohort_id"], 1, [_result("a", high=1), uncertain])
+    recorded = _record(service, opened["cohort_id"], 1, [_result("a"), uncertain])
+
+    assert recorded["state"] == "round1_red"
+    assert recorded["red"] == 1
     status = cohort_status(service, opened["cohort_id"])
     assert [item["slug"] for item in status["packet"]["tasks"]] == ["a", "b"]
 

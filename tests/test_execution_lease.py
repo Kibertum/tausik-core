@@ -930,6 +930,17 @@ def test_task_scoped_authorization_must_match_bound_slug(service):
     with pytest.raises(ExecutionLeaseError, match="TASK_BINDING_MISMATCH"):
         authorize_mcp_mutation(svc, lease=bound, route="tausik_task_log", arguments={"slug": "b"})
 
+    # Planning new work remains possible, but its whole contract must travel
+    # through this one atomic creation route rather than cross-task follow-ups.
+    authorization = authorize_mcp_mutation(
+        svc,
+        lease=bound,
+        route="tausik_task_add",
+        arguments={"slug": "b", "depends_on": ["a"], "plan_steps": ["Implement"]},
+        correlated=True,
+    )
+    assert authorization
+
     for route, arguments in (
         ("tausik_decide", {"task_slug": "b"}),
         ("tausik_dead_end", {"task_slug": "b"}),

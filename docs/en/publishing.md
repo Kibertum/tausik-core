@@ -58,20 +58,57 @@ byte for byte, and a machine checks that equality, not a memory.
    zero, when `--parent` is not a commit, when that parent shares development
    ancestry or contains an excluded path anywhere in reachable history, or
    when the snapshot does not equal the filter. What it cannot know is the REMOTE's tip: a stale local
-   `github/main` is caught by git's fast-forward-only push in step 3, and the
+   `github/main` is caught by git's fast-forward-only push in step 4, and the
    answer to that refusal is to fetch and rebuild the snapshot on the new tip.
    Force is not a flag the command has — and the firewall forbids it anyway.
 3. The claimed SENAR edition is public: `tausik publish senar-check` asks GitHub Kibertum/SENAR for the tag of the edition TAUSIK claims. It exits 1 when the tag is missing and 2 when it could not ask; either way the TAUSIK release is not tagged. It prints both versions and the SENAR releases link.
 4. Push `main` as the owner's act, by hand, after reading what the command
    printed: `git push github <sha>:refs/heads/main` (fast-forward only). Do not
    push the tag yet.
-5. Wait for GitHub's `Tests` workflow on that exact public snapshot SHA:
+5. Dispatch `Release qualification v2` with the version, exact development
+   commit, and exact public snapshot commit. Its unprivileged lane jobs have no
+   signing or release-environment secret and no persisted Git credential;
+   checkout receives only GitHub's job token with `persist-credentials: false`.
+   After the exact-snapshot lint,
+   full Linux, macOS compatibility smoke, Linux upgrade-matrix, and native
+   Windows Cursor/Codex upgrade lanes pass,
+   a separate job in the
+   protected `release-qualification` environment checks out the immutable
+   workflow revision, fetches the development object through the protected
+   read-only `DEVELOPMENT_REPOSITORY_URL`, independently builds the canonical
+   candidate, refuses unless `github.workflow_sha` is the exact public snapshot
+   SHA, verifies that the Linux matrix JUnit contains exactly 38 passing tests
+   and covers all ten required journeys, verifies an empty Ruff JSON report
+   against the trusted lint configuration, and ratchets the Linux full-suite JUnit
+   report at 13,880 collected, 13,800 passed, and at most 120 skipped tests.
+   It then emits its Ed25519 attestation for the independently evidenced lint,
+   Linux full, and isolated upgrade-matrix lanes. Native Windows remains an
+   obligatory exact-SHA compatibility canary: the attestation binds GitHub's
+   successful `qualification-windows` job result, run ID, attempt, workflow SHA,
+   and candidate SHA, but does not treat its candidate-writable 39-test JUnit as
+   trusted evidence. The Windows job still validates that diagnostic JUnit with
+   the pinned harness, disabled candidate `conftest.py`, and a bounded outer
+   controller. macOS remains a required unsigned workflow dependency.
+   Provision `DEVELOPMENT_REPOSITORY_URL` with a GitLab deploy token whose only
+   scope is `read_repository`. Do not grant `write_repository` or `api`; audit
+   the authoritative repository identity and token permissions before release.
+   Place the downloaded candidate
+   and attestation at
+   `dist/release-qualification-v2.json` and
+   `dist/release-qualification-v2.attestation.json`, then run
    `tausik publish ci-check --snapshot <sha> --from v1.9.0 --tag v1.9.0`.
-   The command polls for at most 90 minutes. A stale green run, a red or
-   cancelled run, a missing run, a timeout, or an unreadable API all refuse and
-   print no tag command. Retry after a pending run completes; fix and rebuild a
-   red candidate. GitLab CI is necessary for the development commit, but it
-   does not prove the filtered public tree.
+   The command still requires the live GitHub `Tests` result for that exact SHA
+   and now also consumes one fresh matching v2 attestation. The claim binds the
+   version, development commit/tree, public snapshot commit/tree, signed
+   verifier revision, projection hashes, the trusted scenario ratchet, and all
+   required lane results. A stale
+   green run, red or cancelled lane, missing run, timeout, unreadable API,
+   missing or stale attestation, object mismatch, bad signature, or replay all
+   refuse and print no tag command. GitLab CI remains necessary for development,
+   but it does not prove the filtered public tree.
+   The attestation expires after 30 minutes; rerun the workflow after expiry.
+   The two `dist/` paths are defaults. Use `--qualification-candidate` and
+   `--qualification-attestation` only to point at downloaded artifacts.
 6. Only a successful `ci-check` prints
    `git push github <sha>:refs/tags/v1.9.0` — a **refspec push**, not a second
    `git tag -a`: the name `v1.9.0` already names the release commit on the
@@ -89,6 +126,94 @@ byte for byte, and a machine checks that equality, not a memory.
 7. Release notes: the GitHub Release body is written in English, the full text lives in `docs/en/whats-new-X.Y.md` and `docs/ru/whats-new-X.Y.md`, and the body links both pages. `tausik publish notes --version X.Y.Z --body-file <file>` refuses a body that misses either page; run it before creating the release and only after exact-SHA CI is green. The rule applies from 1.10 on; published tags are not re-cut for it.
 8. External authorship survives: a contributor's commits land by merge or by a
    squash carrying their `Co-Authored-By` — otherwise the authorship is erased.
+
+The initial key ceremony is provisioned: the reviewed Ed25519 public key is in
+`PINNED_PUBLIC_KEY_HEX`, while the matching hex seed exists only as
+`RELEASE_QUALIFICATION_SIGNING_SEED` in the protected environment. An
+unprovisioned or invalid key fails closed. `publish ci-check` verifies against
+that versioned public identity and never receives the private seed. Both values
+are lowercase hex encoding of exactly 32 bytes (64 characters). Generation and
+transfer happen on a controlled machine; never print the seed into CI logs or a
+shell transcript.
+
+The official path is not active merely because provisioning is complete. After
+the reviewed workflow and public key reach the protected default branch, run
+the first protected activation dry run in this exact order. At dispatch time,
+the exact public snapshot SHA must still be the protected default-branch
+revision that supplies the workflow: the verifier binds `github.workflow_sha`
+and refuses unless it equals that public snapshot. If the branch advances,
+build and qualify a new exact snapshot instead of dispatching stale evidence.
+
+1. Dispatch the workflow from that revision with the exact development and
+   public snapshot commit SHAs.
+2. Approve the protected environment and confirm that the verifier fetches the
+   authoritative GitLab object with the `read_repository`-only credential.
+3. Download both the candidate and attestation artifacts.
+4. Run `publish ci-check` as a no-push acceptance check; do not execute its
+   printed tag refspec. This consumes the nonce, so the downloaded artifacts
+   are spent. A real tag requires a fresh workflow run and fresh downloads.
+5. Record the workflow run URL or ID and its evidence in the release task.
+6. Only then declare the official qualification path active.
+
+If activation fails before a release tag exists, keep publication frozen and
+do not reuse its artifacts. Revert the workflow and `ci-check` contract
+together, or fix forward and repeat the whole exact-SHA activation. If a tag
+already exists, never move it: patch forward with a new version. Rotate any
+credential that the failed run may have exposed.
+
+Qualification v2 is additive. It does not change the frozen adherence-v1
+manifest or verifier. Its guarantee applies to the official procedure through
+`publish ci-check`; it is not a claim that local code can overrule a repository
+owner. Each nonce is locally single-use through an atomic marker at
+`.tausik/release-qualification-v2-used/<nonce>`. This does not provide
+cross-machine replay protection, and deleting the marker removes the local
+memory. An owner could delete it, run raw `git push`, change
+the workflow, or weaken repository settings. The operational boundary must
+therefore also enforce a protected default branch, protected
+`release-qualification` environment with scoped secret and approval, and a
+server-side tag ruleset. Those GitHub settings are external controls and must
+be audited before every official release.
+
+The Linux matrix and full-suite jobs run candidate bootstrap, plugins, and
+tests in a disposable, unprivileged, networkless container. The image,
+controller dependencies, scenario manifest, and scenario harness are
+hash-pinned. The preceding candidate-dependency build stage is disposable but
+networked and writable, and it runs as root inside the Docker builder. It has
+no secret, host mount, or Docker socket. The committed candidate source,
+generated dependency tree, and offline wheelhouse cross into the runtime image.
+The runtime is read-only,
+drops all capabilities, has no Docker socket, and cannot see the host artifact
+directory. Before execution, the outer controller verifies the effective
+Docker inspection for the exact user, network, rootfs, capabilities,
+no-new-privileges, process limit, three bounded tmpfs filesystems, and absence
+of mounts. The
+runtime independently checks the corresponding Linux mount, status, interface,
+and route state through `/proc`. After pytest terminates, the container waits
+for an explicit release signal. While that same container is still alive, the
+outer controller reads at most 32 MiB of untrusted JUnit from the 64 MiB
+`/result` tmpfs through `docker exec`, validates it, performs the public-remote
+observation itself, and keeps the completed lane JUnit only in controller
+memory. It then signals release, verifies the final container exit, atomically
+publishes the host JUnit without overwriting an existing target, and cleans up
+the container and image. The
+protected verifier later builds the candidate and attestation
+artifacts. The macOS compatibility smoke contributes only a workflow
+job result through the trusted `needs` topology. It has no separately verified
+JUnit identity and is excluded from the signed `REQUIRED_LANES` claim. Its
+bootstrap venv is installed offline from a platform wheelhouse downloaded with
+the same trusted hash lock before candidate execution.
+
+This boundary prevents ordinary candidate bootstrap, dependency, plugin, and
+test code from replacing the trusted controller or its evidence. It does not
+prove honest behavior by a deliberately test-aware malicious SUT that chooses
+to mimic expected answers while it is being tested. That threat requires an
+independent oracle or a stronger execution model and is outside this release
+qualification claim.
+After the ledger directory itself is durable, the marker file and that
+directory are fsynced on POSIX. The first creation of the ledger directory is
+still subject to parent-filesystem power-loss behavior. On Windows, exclusive
+creation prevents concurrent reuse, but power-loss durability still depends on
+the filesystem and the external server controls above.
 
 ## Containment when a public ref is contaminated
 

@@ -163,7 +163,11 @@ def record_review_round(
                 critical, high, warnings = (
                     _count(item, key) for key in ("critical", "high", "warnings")
                 )
-                verdict = "red" if critical or high else ("advisory" if warnings else "green")
+                verdict = (
+                    "red"
+                    if critical or high or not item["dependency_map_complete"]
+                    else ("advisory" if warnings else "green")
+                )
                 conn.execute(
                     "INSERT INTO review_cohort_results(cohort_pk,round_number,task_slug,verdict,"
                     "critical_findings,high_findings,warnings,reviewed_state_fingerprint,route_json,"
@@ -215,7 +219,10 @@ def record_review_round(
                     ),
                 )
             has_red = any(
-                _count(item, "critical") or _count(item, "high") for item in by_slug.values()
+                _count(item, "critical")
+                or _count(item, "high")
+                or not item["dependency_map_complete"]
+                for item in by_slug.values()
             )
             state = (
                 ("round1_red" if has_red else "green")

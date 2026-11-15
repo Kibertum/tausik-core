@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import builtins
 import os
 import subprocess
 import sys
@@ -15,7 +16,15 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "bootstrap"), str(ROOT / "scripts"), str(ROOT / "scripts" / "hooks")]
 
-from bootstrap_generate import generate_cursor_hooks_json, generate_cursor_rule  # noqa: E402
+from bootstrap_generate import (  # noqa: E402
+    generate_cursor_hooks_json,
+    generate_cursor_rule,
+    generate_cursorrules,
+)
+from bootstrap_rules_upgrade import (  # noqa: E402
+    LegacyCursorRuleMigrationError,
+    retire_generated_legacy_cursor_rule,
+)
 from bootstrap_copy import copy_scripts  # noqa: E402
 from bootstrap_modes import resolve_bootstrap_targets, run_post_bootstrap  # noqa: E402
 from claudemd_state import resolve_claudemd  # noqa: E402
@@ -42,6 +51,69 @@ def test_cursor_rule_is_current_owned_format_and_preserves_user_rules(tmp_path: 
     assert "TAUSIK:GENERATED-SHA256" in text
     assert custom.read_text(encoding="utf-8").endswith("custom\n")
     assert legacy.read_text(encoding="utf-8") == "user legacy content\n"
+
+
+def test_current_cursor_rule_retires_only_generated_legacy_projection(tmp_path: Path):
+    legacy = tmp_path / ".cursorrules"
+    generate_cursorrules(str(tmp_path), "demo", ["python"])
+    generate_cursor_rule(str(tmp_path), "demo", ["python"])
+
+    assert retire_generated_legacy_cursor_rule(str(tmp_path)) is True
+    assert not legacy.exists()
+    assert retire_generated_legacy_cursor_rule(str(tmp_path)) is False
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["stale-digest", "user-edit", "duplicate-marker", "malformed-marker"],
+)
+def test_current_cursor_rule_preserves_unproven_legacy_projection(tmp_path: Path, mutation: str):
+    legacy = tmp_path / ".cursorrules"
+    generate_cursorrules(str(tmp_path), "demo", ["python"])
+    generate_cursor_rule(str(tmp_path), "demo", ["python"])
+    content = legacy.read_text(encoding="utf-8")
+    marker = "<!-- TAUSIK:GENERATED-SHA256:"
+    if mutation == "stale-digest":
+        start = content.index(marker) + len(marker)
+        content = content[:start] + ("0" * 64) + content[start + 64 :]
+    elif mutation == "user-edit":
+        content += "\nUser-owned edit.\n"
+    elif mutation == "duplicate-marker":
+        content += f"\n{marker}{'0' * 64} -->\n"
+    else:
+        content = content.replace(" -->", "", 1)
+    legacy.write_text(content, encoding="utf-8")
+    before = legacy.read_bytes()
+
+    assert retire_generated_legacy_cursor_rule(str(tmp_path)) is False
+    assert legacy.read_bytes() == before
+
+
+@pytest.mark.parametrize("failure", ["read", "unlink"])
+def test_current_cursor_rule_operational_retirement_failure_is_not_silent(
+    tmp_path: Path, monkeypatch, failure: str
+):
+    legacy = tmp_path / ".cursorrules"
+    generate_cursorrules(str(tmp_path), "demo", ["python"])
+    generate_cursor_rule(str(tmp_path), "demo", ["python"])
+    if failure == "read":
+        original_open = builtins.open
+
+        def refuse_read(path, *args, **kwargs):
+            if Path(path) == legacy:
+                raise PermissionError("locked legacy rule")
+            return original_open(path, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "open", refuse_read)
+    else:
+
+        def refuse_unlink(_path):
+            raise PermissionError("locked legacy rule")
+
+        monkeypatch.setattr(os, "unlink", refuse_unlink)
+
+    with pytest.raises(LegacyCursorRuleMigrationError, match="close processes"):
+        retire_generated_legacy_cursor_rule(str(tmp_path))
 
 
 def test_cursor_hooks_preserve_user_entries_and_are_idempotent(tmp_path: Path):
@@ -284,7 +356,95 @@ def test_fresh_multi_host_init_refreshes_every_instruction_file(tmp_path: Path, 
     run_post_bootstrap(SimpleNamespace(init="demo"), str(tmp_path))
 
     refreshes = [call for call in calls if "update-claudemd" in call]
-    assert [Path(call[call.index("--claudemd") + 1]) for call in refreshes] == targets
+    assert [Path(call[call.index("--claudemd") + 1]) for call in refreshes] == [
+        targets[0],
+        targets[1],
+        targets[2],
+        targets[3],
+    ]
+
+
+def test_existing_project_upgrade_refreshes_rewritten_instruction_state(
+    tmp_path: Path, monkeypatch
+):
+    (tmp_path / ".tausik").mkdir()
+    (tmp_path / ".tausik" / "tausik.db").write_bytes(b"database")
+    agents = tmp_path / "AGENTS.md"
+    agents.write_text("dynamic", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def record(command, **_kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr("subprocess.run", record)
+    run_post_bootstrap(SimpleNamespace(init=None), str(tmp_path))
+
+    refresh = next(call for call in calls if "update-claudemd" in call)
+    assert Path(refresh[refresh.index("--claudemd") + 1]) == agents
+
+
+@pytest.mark.parametrize("init", ["demo", None])
+def test_post_bootstrap_refresh_failure_is_one_controlled_nonzero_contract(
+    tmp_path: Path, monkeypatch, capsys, init
+):
+    (tmp_path / ".tausik").mkdir()
+    (tmp_path / ".tausik" / "tausik.db").write_bytes(b"database")
+    for name in ("CLAUDE.md", "QWEN.md"):
+        (tmp_path / name).write_text("dynamic", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def record(command, **_kwargs):
+        calls.append(command)
+        failed = any(str(part).endswith("CLAUDE.md") for part in command)
+        return SimpleNamespace(returncode=1 if failed else 0)
+
+    monkeypatch.setattr("subprocess.run", record)
+    with pytest.raises(SystemExit) as stopped:
+        run_post_bootstrap(SimpleNamespace(init=init), str(tmp_path))
+
+    output = capsys.readouterr()
+    assert stopped.value.code == 1
+    assert "REFUSED: post-bootstrap dynamic-state refresh failed" in output.err
+    assert "CLAUDE.md" in output.err
+    assert "initialized and ready" not in output.out
+    assert "Traceback" not in output.err
+    assert any(any(str(part).endswith("QWEN.md") for part in call) for call in calls)
+
+
+@pytest.mark.parametrize("init_literal", ["'demo'", "None"])
+def test_post_bootstrap_refresh_refusal_is_visible_to_the_calling_process(
+    tmp_path: Path, init_literal: str
+):
+    (tmp_path / ".tausik").mkdir()
+    (tmp_path / ".tausik" / "tausik.db").write_bytes(b"database")
+    (tmp_path / "CLAUDE.md").write_text("dynamic", encoding="utf-8")
+    program = f"""
+import subprocess
+import sys
+from types import SimpleNamespace
+sys.path.insert(0, {str(ROOT / "bootstrap")!r})
+from bootstrap_modes import run_post_bootstrap
+def record(command, **kwargs):
+    failed = any(str(part).endswith('CLAUDE.md') for part in command)
+    return SimpleNamespace(returncode=1 if failed else 0)
+subprocess.run = record
+run_post_bootstrap(SimpleNamespace(init={init_literal}), {str(tmp_path)!r})
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=15,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "REFUSED: post-bootstrap dynamic-state refresh failed" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert "initialized and ready" not in result.stdout
 
 
 def test_cursor_adapter_normalizes_native_tools(monkeypatch):

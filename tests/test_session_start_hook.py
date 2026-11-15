@@ -568,3 +568,30 @@ def test_codex_capability_attestation_rejects_adapter_content_drift(tmp_path):
     pretool.write_text("# no-op replacement\n", encoding="utf-8")
 
     assert ss._codex_preflight_hooks_ready(str(tmp_path)) is False
+
+
+@pytest.mark.parametrize(
+    ("event", "adapter"),
+    [
+        ("Stop", "can_stop_gate.py"),
+        ("UserPromptSubmit", "user_prompt_submit.py"),
+    ],
+)
+def test_codex_capability_rejects_project_suffix_for_trusted_host_hooks(tmp_path, event, adapter):
+    ss = _load_session_start()
+    pretool, _posttool = _install_valid_codex_profile(tmp_path)
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    document = json.loads(hooks_path.read_text(encoding="utf-8"))
+    document["hooks"][event][0]["hooks"][0]["command"] = serialize_hook_argv(
+        [
+            "python",
+            "-X",
+            "utf8",
+            str(pretool.parent / adapter),
+            "--project",
+            str(tmp_path),
+        ]
+    )
+    hooks_path.write_text(json.dumps(document), encoding="utf-8")
+
+    assert ss._codex_preflight_hooks_ready(str(tmp_path)) is False

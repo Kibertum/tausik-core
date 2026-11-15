@@ -72,6 +72,7 @@ def repo(tmp_path):
     _write(root, "docs/en/x.md", "x\n")
     _write(root, "AGENTS.md", "stable\n<!-- DYNAMIC:START -->\nprivate\n<!-- DYNAMIC:END -->\n")
     _write(root, "CLAUDE.md", "stable\n<!-- DYNAMIC:START -->\nprivate\n<!-- DYNAMIC:END -->\n")
+    _write(root, "QWEN.md", "stable\n<!-- DYNAMIC:START -->\nprivate\n<!-- DYNAMIC:END -->\n")
     _write(root, "tausik/gates.json", "{}\n")
     _write(root, "tausik/policy.json", "{}\n")
     _write(root, "tausik/tasks/some-task.md", "task\n")
@@ -151,6 +152,19 @@ class TestTheExclusionListIsOneDeclaration:
         for path in snap.SANITIZED_PUBLIC_FILES:
             body = _git(root, "show", f"{tree}:{path}").stdout
             assert body == "stable\n<!-- DYNAMIC:START -->\n<!-- DYNAMIC:END -->\n"
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "stable\n<!-- DYNAMIC:START -->\nprivate\n",
+            "stable\n<!-- DYNAMIC:END -->\nprivate\n",
+            "<!-- DYNAMIC:END -->\n<!-- DYNAMIC:START -->\n",
+            "<!-- DYNAMIC:START -->\nx\n<!-- DYNAMIC:END -->\n<!-- DYNAMIC:END -->\n",
+        ],
+    )
+    def test_malformed_dynamic_markers_refuse_publication(self, body):
+        with pytest.raises(PublicationError, match="DYNAMIC markers"):
+            snap.public_text(body)
 
 
 class TestTheSnapshotIsBuiltFromObjects:

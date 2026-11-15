@@ -94,14 +94,14 @@ def run_native_stop_probe(
     return classify_native_stop_verdict(stdout=result.stdout, returncode=result.returncode)
 
 
-def classify_request(prompt: str) -> str:
+def classify_request(prompt: str, *, host_instance: str | None = None) -> str:
     """Classify only the host-supplied user prompt; answer prose is never input."""
     text = prompt.strip().lower()
     if not text:
         return "work"
     # This is a closed grammar, not an allowed prefix plus arbitrary prose.
     # Unknown objects, predicates, punctuation and suffixes remain governed work.
-    read_only_forms = (
+    read_only_forms: tuple[str, ...] = (
         r"status(?: of (?:this|the) (?:task|project|release))?",
         r"show (?:me )?(?:the )?status(?: of (?:this|the) (?:task|project|release))?",
         r"what is (?:the )?status(?: of (?:this|the) (?:task|project|release))?",
@@ -110,6 +110,13 @@ def classify_request(prompt: str) -> str:
         r"покажи статус(?: (?:задачи|проекта|релиза))?",
         r"(?:объясни|проверь|суммируй) (?:это|задачу|проект|изменение|код|план|ошибку|результат|релиз)",
     )
+    if host_instance and host_instance.casefold() == "codex":
+        read_only_forms += (
+            r"which tasks are open",
+            r"(?:show (?:me )?(?:the )?|list (?:the )?)open tasks",
+            "\u043a\u0430\u043a\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u043e\u0442\u043a\u0440\u044b\u0442\u044b",
+            "(?:\u043f\u043e\u043a\u0430\u0436\u0438|\u043f\u0435\u0440\u0435\u0447\u0438\u0441\u043b\u0438) \u043e\u0442\u043a\u0440\u044b\u0442\u044b\u0435 \u0437\u0430\u0434\u0430\u0447\u0438",
+        )
     if any(re.fullmatch(form + r"[?.]?", text) for form in read_only_forms):
         return "read_only"
     return "work"
@@ -151,7 +158,7 @@ def record_trusted_turn(
     )
     if lease is None or lease.get("revoked_at") is not None:
         raise ValueError("TURN_LEASE_MISSING: trusted turn has no live execution lease")
-    kind = classify_request(prompt)
+    kind = classify_request(prompt, host_instance=host_instance)
     now = utcnow_iso()
     with svc.be.transaction():
         if not turn_id:

@@ -19,27 +19,28 @@ def _do_task_add(svc: Any, args: dict) -> str:
     # execution lease may create a task, but deliberately may not follow that
     # with task_update (it is not task-bound until task_start).  Keep creation
     # and the complete contract atomic, matching the CLI's task-add surface.
+    from service_task_create import task_add_complete
     from task_detail_fields import TASK_CREATE_CONTRACT_FIELDS
 
-    contract_fields = {
-        key: args[key] for key in TASK_CREATE_CONTRACT_FIELDS if args.get(key) is not None
-    }
-    with svc.be.transaction():
-        result = svc.task_add(
-            args.get("story_slug"),
-            args["slug"],
-            args["title"],
-            stack=args.get("stack"),
-            complexity=args.get("complexity"),
-            goal=args.get("goal"),
-            role=args.get("role"),
-            defect_of=args.get("defect_of"),
-            call_budget=args.get("call_budget"),
-            tier=args.get("tier"),
-        )
-        if contract_fields:
-            svc.task_update(args["slug"], **contract_fields)
-    return result
+    return task_add_complete(
+        svc,
+        story_slug=args.get("story_slug"),
+        slug=args["slug"],
+        title=args["title"],
+        stack=args.get("stack"),
+        complexity=args.get("complexity"),
+        goal=args.get("goal"),
+        role=args.get("role"),
+        defect_of=args.get("defect_of"),
+        call_budget=args.get("call_budget"),
+        tier=args.get("tier"),
+        cost_budget_usd=args.get("cost_budget_usd"),
+        token_budget=args.get("token_budget"),
+        plan_steps=args.get("plan_steps"),
+        rationale=args.get("rationale"),
+        depends_on=args.get("depends_on"),
+        **{key: args.get(key) for key in TASK_CREATE_CONTRACT_FIELDS},
+    )
 
 
 def _do_task_quick(svc: Any, args: dict) -> str:

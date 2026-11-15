@@ -8,7 +8,7 @@ import hashlib
 import pytest
 
 from service_doctor_codex import check_codex_mcp_transport
-from hooks.codex_capability import serialize_hook_argv
+from hooks.codex_capability import CODEX_SECURITY_ADAPTERS, serialize_hook_argv
 
 
 def _install(
@@ -25,13 +25,7 @@ def _install(
     hooks_dir = codex / "scripts" / "hooks"
     hooks_dir.mkdir(parents=True)
     adapters = {}
-    for name in (
-        "codex_write_gate.py",
-        "memory_preflight_posttool.py",
-        "codex_composite_mcp.py",
-        "user_prompt_submit.py",
-        "can_stop_gate.py",
-    ):
+    for name in CODEX_SECURITY_ADAPTERS:
         content = f"# {name}\n".encode()
         (hooks_dir / name).write_bytes(content)
         adapters[name] = hashlib.sha256(content).hexdigest()
@@ -120,6 +114,11 @@ def _install(
         ("UserPromptSubmit", "user_prompt_submit.py"),
         ("Stop", "can_stop_gate.py"),
     ):
+        trusted_suffix = (
+            ["--project", str(root)]
+            if hook_state == "trusted_hook_wrong_suffix"
+            else ["--trusted-host", "codex"]
+        )
         document["hooks"][event].append(
             {
                 "matcher": "",
@@ -132,8 +131,7 @@ def _install(
                                 "-X",
                                 "utf8",
                                 str(hooks_dir / name),
-                                "--trusted-host",
-                                "codex",
+                                *trusted_suffix,
                             ]
                         ),
                     }
@@ -208,6 +206,7 @@ def test_doctor_fails_when_hook_registration_is_missing(tmp_path):
         "duplicate_project",
         "trailing_argument",
         "wrong_python",
+        "trusted_hook_wrong_suffix",
     ],
 )
 def test_doctor_fails_when_hook_registration_is_not_exact(tmp_path, hook_state):

@@ -28,9 +28,11 @@
       "scripts/project_parser.py",
       "scripts/service_task.py",
       "scripts/project_parser_task.py",
-      "scripts/project_backend.py"
+      "scripts/project_backend.py",
+      ".github/release-qualification-runtime.txt"
     ],
     "_exempt_files_reasons": {
+      ".github/release-qualification-runtime.txt": "PERMANENT generated lock artifact. pip-compile expands each dependency into one line per distribution hash, so line count measures supported wheels rather than source complexity. The controller enforces --require-hashes and pins the candidate requirements digest; this exact-path exemption covers no workflow or source file.",
       "harness/claude/mcp/project/tools.py": "PERMANENT, and the SHARE is the reason rather than the count: the file grows with every MCP tool, so a number in this sentence goes stale while the argument does not. Measured by AST, not by eye: 1052 of 1076 lines (97%) are two module-level literals, TOOLS and _STACKS_ENUM, and the file declares zero functions and zero classes. The line cap asks 'is this too long to read as logic' and a declarative schema table is not logic — splitting it would only scatter one table across files. The class_surface gate covers the real risk here (it declares no classes).",
       "scripts/backend_schema.py": "TEMPORARY, retired by split-the-three-registry-surfaces-over-the-line: the canonical DDL grows by design with every migration (v65 added a column to the same CREATE; v74 added four plus a table) and the file crossed 500 at 514 the first time a task measured it. The cap fired; the split along domain seams is filed, not dodged.",
       "scripts/backend_migrations.py": "TEMPORARY, retired by split-the-three-registry-surfaces-over-the-line: a one-line-per-version registry crossed at 502. Shrinking it means deleting history comments, which is worse than the excess lines.",

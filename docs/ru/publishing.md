@@ -57,19 +57,56 @@ GitLab хранит всю историю; в GitHub уезжает **тольк
    коммит, если родитель имеет общую историю с линией разработки или исключённые
    пути в достижимой истории, либо если снимок не равен фильтру. Чего команда знать не может — так
    это вершину REMOTE: устаревший локальный `github/main` ловит fast-forward-only
-   push на шаге 3, и ответ на тот отказ — fetch и снимок заново на новой
+   push на шаге 4, и ответ на тот отказ — fetch и снимок заново на новой
    вершине. Force не предусмотрен флагом — и запрещён файрволом.
 3. Заявленная редакция SENAR опубликована: `tausik publish senar-check` спрашивает у GitHub Kibertum/SENAR тег редакции, которую заявляет TAUSIK. Код 1 — тега нет, код 2 — спросить не удалось; в обоих случаях выпуск TAUSIK не тегируется. Печатает обе версии и ссылку на релизы SENAR.
 4. Владелец руками выполняет только push `main` после чтения вывода команды:
    `git push github <sha>:refs/heads/main` (только fast-forward). Тег пока не
    публикуется.
-5. Дождаться GitHub workflow `Tests` на точном SHA публичного снимка:
-   `tausik publish ci-check --snapshot <sha> --from v1.9.0 --tag v1.9.0`.
-   Команда опрашивает GitHub не дольше 90 минут. Старый зелёный прогон, красный
-   или отменённый прогон, отсутствие прогона, таймаут и неопределённость API —
-   отказ без команды тега. Pending-прогон можно проверить снова после завершения;
-   красный кандидат исправляется и пересобирается. GitLab CI нужен коммиту
-   разработки, но не доказывает отфильтрованное публичное дерево.
+5. Запустить `Release qualification v2` с версией, точным коммитом разработки и
+   точным коммитом публичного снимка. Непривилегированные lane jobs не имеют
+   signing/release-environment секретов и не сохраняют Git credential; checkout
+   получает только job token с `persist-credentials: false`. После успешных lint, полного Linux,
+   macOS compatibility smoke, Linux upgrade-matrix и нативного Windows
+   Cursor/Codex upgrade lane на точном снимке отдельный
+   job в защищённом
+   environment `release-qualification` берёт верификатор из неизменяемого SHA
+   workflow, получает development object через защищённый read-only
+   `DEVELOPMENT_REPOSITORY_URL`, независимо строит канонический candidate,
+   отказывает, если `github.workflow_sha` не равен точному SHA публичного снимка, и
+   проверяет, что Linux matrix JUnit содержит ровно 38 успешных тестов и
+   покрывает все десять обязательных journey-сценариев, проверяет пустой Ruff JSON по trusted
+   lint-конфигурации и удерживает Linux full-suite JUnit на пороге не менее
+   13 880 collected, 13 800 passed и не более 120 skipped тестов. Затем он
+   выпускает Ed25519-аттестацию для независимо доказанных lint, Linux full и
+   изолированного upgrade-matrix lanes. Нативный Windows остаётся обязательным
+   exact-SHA compatibility canary: аттестация связывает успешный GitHub job
+   result `qualification-windows`, run ID, attempt, workflow SHA и candidate SHA,
+   но не считает его доступный candidate-коду JUnit из 39 тестов доверенным
+   evidence. Windows job всё равно валидирует диагностический JUnit через pinned
+   harness, отключённый candidate `conftest.py` и bounded outer controller.
+   macOS остаётся обязательной неподписанной зависимостью workflow.
+   Для `DEVELOPMENT_REPOSITORY_URL` нужен GitLab deploy token только со scope
+   `read_repository`. Нельзя выдавать `write_repository` или `api`; перед
+   релизом проверяются identity авторитетного репозитория и права токена.
+   Скачанные candidate и attestation положить в
+   `dist/release-qualification-v2.json` и
+   `dist/release-qualification-v2.attestation.json` и выполнить `tausik publish
+   ci-check --snapshot <sha> --from v1.9.0 --tag
+   v1.9.0`. Команда по-прежнему требует живой результат GitHub `Tests` для
+   точного SHA и теперь однократно потребляет свежую совпадающую v2-аттестацию.
+   Claim связывает версию, commit/tree разработки, commit/tree публичного
+   снимка, подписанную ревизию верификатора, хэши проекций, доверенный ratchet
+   сценариев и результаты всех
+   обязательных lanes. Старый зелёный прогон, красный или отменённый lane,
+   отсутствие прогона, таймаут, неопределённость API, отсутствующая или
+   просроченная аттестация, несовпадение объектов, неверная подпись и повторное
+   использование дают отказ без команды тега. GitLab CI нужен разработке, но
+   не доказывает отфильтрованное публичное дерево.
+   Аттестация истекает через 30 минут; после этого workflow запускается заново.
+   Два пути в `dist/` используются по умолчанию. Флаги
+   `--qualification-candidate` и `--qualification-attestation` указывают только
+   на скачанные артефакты.
 6. Только успешный `ci-check` печатает
    `git push github <sha>:refs/tags/v1.9.0` — **push по refspec**, а не
    второй `git tag -a`: имя `v1.9.0` уже стоит на релизном коммите линии
@@ -87,6 +124,91 @@ GitLab хранит всю историю; в GitHub уезжает **тольк
 7. Заметки к выпуску: тело GitHub Release ведётся на английском, полный текст живёт в `docs/en/whats-new-X.Y.md` и `docs/ru/whats-new-X.Y.md`, и тело ссылается на обе страницы. `tausik publish notes --version X.Y.Z --body-file <файл>` отказывает телу без любой из них; запускать до создания релиза и только после зелёного exact-SHA CI. Правило действует с 1.10; опубликованные теги ради него не перевыпускаются.
 8. Авторство внешних вкладов сохраняется: чужие коммиты входят мержем или
    squash-ом с `Co-Authored-By` автора — иначе авторство стирается.
+
+Начальная key ceremony выполнена: reviewed Ed25519 public key записан в
+`PINNED_PUBLIC_KEY_HEX`, а соответствующий hex seed существует только как
+`RELEASE_QUALIFICATION_SIGNING_SEED` в protected environment.
+Неподготовленный или неверный ключ закрывает шлюз. `publish ci-check` проверяет
+аттестацию по этому versioned public identity и не получает приватный seed.
+Оба значения — lowercase hex ровно 32 байт (64 символа). Генерация и перенос
+выполняются на контролируемой машине; seed нельзя печатать в CI-лог или shell
+transcript.
+
+Одного provisioning недостаточно для активации официального пути. После push
+reviewed workflow и public key в защищённую default branch первый защищённый
+activation dry-run выполняется строго так. В момент dispatch точный SHA
+публичного снимка всё ещё должен быть ревизией защищённой default branch,
+которая поставляет workflow: verifier связывает `github.workflow_sha` и
+отказывает, если он не равен публичному снимку. Если ветка продвинулась, нужно
+построить и квалифицировать новый точный снимок, а не запускать устаревшее
+доказательство.
+
+1. Запустить workflow с этой ревизии и передать точные SHA development commit и
+   public snapshot commit.
+2. Одобрить protected environment и подтвердить, что verifier получает
+   авторитетный GitLab object через credential только со scope
+   `read_repository`.
+3. Скачать оба артефакта: candidate и attestation.
+4. Запустить `publish ci-check` как no-push acceptance check; не выполнять
+   напечатанный refspec тега. Этот запуск расходует nonce, поэтому скачанные
+   артефакты уже использованы. Для настоящего тега нужны новый workflow run и
+   новые downloads.
+5. Записать URL или ID workflow run и его доказательства в release task.
+6. Только после этого объявить официальный qualification path активным.
+
+Если activation завершилась ошибкой до создания release tag, публикация остаётся
+замороженной, а её артефакты нельзя использовать повторно. Workflow и контракт
+`ci-check` откатываются вместе, либо ошибка исправляется вперёд и весь exact-SHA
+activation повторяется. После создания тега его не перемещают: выпускают patch
+forward с новой версией. Любой credential, который мог раскрыться, ротируется.
+
+Qualification v2 добавлен рядом с замороженным adherence v1 и не меняет его
+manifest или verifier. Гарантия действует для официальной процедуры через
+`publish ci-check`; локальный код не может отнять полномочия владельца
+репозитория. Каждый nonce локально однократен за счёт атомарного маркера
+`.tausik/release-qualification-v2-used/<nonce>`. Это не даёт cross-machine
+защиту от replay, а удаление маркера стирает локальную память. Владелец может
+удалить marker, выполнить сырой `git push`,
+изменить workflow или ослабить настройки репозитория. Поэтому операционная
+граница обязана дополнительно держать защищённую default branch, защищённый
+environment `release-qualification` с узким секретом и approval, а также
+server-side ruleset для тегов. Эти настройки GitHub внешние; перед каждым
+официальным выпуском их нужно аудировать.
+
+Linux matrix и full-suite запускают bootstrap, плагины и тесты candidate в
+одноразовом непривилегированном контейнере без сети. Image, зависимости
+контроллера, manifest сценариев и сценарный harness закреплены хэшами.
+Предшествующий build-stage зависимостей одноразовый, но сетевой и writable; он
+работает как root внутри Docker builder. У него нет секретов, host mounts или
+Docker socket. В runtime переходят committed source кандидата, собранный каталог
+зависимостей и offline wheelhouse. Runtime read-only, без capabilities, Docker socket и
+доступа к host-каталогу артефактов. До исполнения внешний контроллер проверяет
+фактический Docker inspect: точные user, network, rootfs, capabilities,
+no-new-privileges, process limit, три ограниченных tmpfs и отсутствие mounts.
+Runtime независимо сверяет соответствующие mount, status, interfaces и routes
+Linux через `/proc`. После завершения pytest контейнер ждёт явный release signal.
+Пока тот же контейнер работает, внешний контроллер через `docker exec` читает
+не более 32 MiB недоверенного JUnit из 64 MiB tmpfs `/result`, валидирует его,
+сам проверяет публичный remote и держит готовый lane JUnit только в памяти
+контроллера. Затем он подаёт release signal, проверяет итоговый код завершения
+контейнера, атомарно публикует host JUnit без перезаписи существующей цели и
+удаляет контейнер и image.
+Защищённый верификатор затем строит артефакты candidate и attestation. macOS compatibility smoke передаёт только
+результат job через доверенную топологию `needs`. Для него нет отдельно
+проверенной идентичности JUnit, и он исключён из подписанного claim
+`REQUIRED_LANES`. Его bootstrap venv ставится offline из platform wheelhouse,
+который скачан по тому же доверенному hash-lock до запуска candidate.
+
+Эта граница не даёт обычному bootstrap, зависимостям, плагинам и тестовому коду
+кандидата заменить доверенный контроллер или его evidence. Она не доказывает
+честность намеренно вредоносного SUT, который распознаёт тест и имитирует
+ожидаемый ответ. Для такой угрозы нужен независимый oracle или более сильная
+модель исполнения; она не входит в claim этой release qualification.
+После того как сам ledger-каталог стал устойчивым, на POSIX marker-файл и этот
+каталог проходят `fsync`. Первое создание ledger-каталога всё ещё зависит от
+поведения родительской файловой системы при потере питания. На Windows
+эксклюзивное создание исключает конкурентный повтор, но power-loss durability
+по-прежнему зависит от файловой системы и внешних server controls выше.
 
 ## Containment, если публичный ref загрязнён
 
