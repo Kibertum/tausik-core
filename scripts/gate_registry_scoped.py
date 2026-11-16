@@ -13,6 +13,7 @@ is a behaviour change wearing a refactor's clothes.
 
 from __future__ import annotations
 
+from gate_harness_projection import HARNESS_PROJECTION_SPEC
 from gate_spec import PHASE_SCOPED, GateSpec
 
 # --- Scoped gates: the former `default_gates.UNIVERSAL_GATES` ---------------
@@ -402,6 +403,7 @@ _SCOPED: tuple[GateSpec, ...] = (
             "description": "Fail if the tausik/ git-native state drifts from the DB export",
         },
     ),
+    HARNESS_PROJECTION_SPEC,
     # Refuses a close/commit whose CLAUDE.md DYNAMIC block was NOT rendered from
     # this database — the block with its memory tail wiped, i.e. the shape of an
     # empty/foreign project. BLOCK: the wipe reached twenty commits between v1.0.0

@@ -879,6 +879,27 @@ def test_shell_expansion_cannot_hide_a_possible_tausik_entrypoint(tmp_path, comm
     assert "unsupported TAUSIK CLI invocation shape" in denial
 
 
+def test_absolute_path_under_tausik_checkout_is_not_cli_invocation(tmp_path):
+    """Dogfooding: absolute Windows paths in .../tausik/... must not fail closed."""
+    target = (
+        r"E:\Repos\acme\tausik\core"
+        r"\.github\workflows\release-qualification.yml"
+    )
+    command = (
+        f"$p = '{target}'; "
+        f"Set-Content -LiteralPath allowed.py -Value (Get-Content -Raw -LiteralPath $p)"
+    )
+    event = {
+        "tool_name": "Bash",
+        "tool_input": {"command": command, "cwd": str(tmp_path)},
+        "cwd": str(tmp_path),
+        "session_id": "thread-a",
+    }
+    allowed = run_gate(tmp_path, event, "allowed")
+    assert allowed.returncode == 0, allowed.stderr
+    assert "unsupported TAUSIK CLI invocation shape" not in (allowed.stderr or "")
+
+
 def test_redirected_same_task_cli_still_authorizes_both_effects(tmp_path):
     event = {
         "tool_name": "Bash",

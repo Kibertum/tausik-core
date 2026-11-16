@@ -35,6 +35,32 @@
   маркеров вместо остановки всего post-bootstrap refresh; жёсткие сбои
   refresh по-прежнему отказывают контролируемым nonzero.
 
+- Protected memory preflight больше не блокирует обычную работу хоста при
+  dogfooding: FTS-термины держат `remote_operation` одним атомом (с учётом
+  `_`), отбрасывают shell/JSON stopwords и берут корпус из observed command,
+  чтобы `MEMORY_CONFLICT_OVERFLOW` не срабатывал на каждом `gh` status.
+  Cursor `Shell` классифицируется и связывается с тем же PowerShell/Bash
+  action id, под которым резервирует hook, а hash payload берёт только
+  `command` — host-метаданные Cursor (`description`, `block_until_ms`,
+  `working_directory`, `cwd`, `timeout`) и injected
+  `--trailer "Co-authored-by: Cursor <…>"` больше не ломают корректный
+  preflight на PreToolUse.
+  Абсолютные пути в checkout `.../tausik/...` и имена workflow с `release`
+  больше не принимаются за CLI/release_shell. Release qualification пинит
+  Node 24 action SHA и `ubuntu-24.04`, чтобы публичный gate не уходил с
+  Node 20 deprecation.
+
+- Consumer-коммиты больше не тащат сгенерированные IDE harness-деревья в
+  историю проекта. Bootstrap дописывает `.tausik/`, каталоги профилей,
+  `bootstrap/` и `harness/` в `.gitignore`; блокирующий commit-gate
+  `harness_projection` отказывает staged `.cursor/` / `.claude/` /
+  `.tausik/**` / распакованный `.tausik-lib/**` / machine-local
+  `opencode.json` и `.mcp.json`, а при наличии `.tausik-lib` — ещё и
+  `bootstrap/`, `harness/`, `scripts/hooks/` рядом с submodule. В git
+  проекта — код продукта и результаты `tausik/` export. Preflight для
+  commit/push вырезает prose из `-m`, чтобы обычное tip-сообщение не давало
+  `MEMORY_CONFLICT_OVERFLOW`.
+
 ## [1.13.1] — 2026-11-15
 
 - Legacy `.cursorrules` удаляется только когда ownership digest TAUSIK

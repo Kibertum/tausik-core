@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import ntpath
+import os
 import re
 import shlex
 from collections.abc import Mapping
@@ -14,7 +15,59 @@ PROTECTED_KINDS = frozenset(
     {"framework_ui", "release_shell", "remote_operation", "commit", "push", "blocker"}
 )
 _MCP_PREFIXES = ("mcp__tausik-project__", "mcp__tausik_project__")
-_TRUSTED_SHELL_TOOLS = frozenset({"Bash", "PowerShell", "mcp__windows-mcp__PowerShell"})
+_TRUSTED_SHELL_TOOLS = frozenset(
+    {
+        "Bash",
+        "PowerShell",
+        "Shell",  # Cursor host name; normalized before action binding
+        "mcp__windows-mcp__PowerShell",
+    }
+)
+
+
+def normalize_host_shell_tool(tool_name: str) -> str:
+    """Map Cursor's Shell to the dialect name hooks reserve under."""
+    if tool_name == "Shell":
+        return "PowerShell" if os.name == "nt" else "Bash"
+    return tool_name
+
+
+_CURSOR_COMMIT_TRAILER = re.compile(
+    r"""\s+--trailer\s+(?:"Co-authored-by:\s*Cursor\s*<cursoragent@cursor\.com>"|'Co-authored-by:\s*Cursor\s*<cursoragent@cursor\.com>')""",
+    re.IGNORECASE,
+)
+
+
+def normalize_shell_command_for_binding(command: str) -> str:
+    """Drop host-injected commit trailers that agents never put in preflight.
+
+    Cursor rewrites `git commit -m …` into
+    `git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m …`
+    before PreToolUse. Binding must ignore that injection or every issued
+    commit token misses at reserve (TOKEN_MISSING under dogfooding).
+    """
+    return _CURSOR_COMMIT_TRAILER.sub("", command).strip()
+
+
+def binding_payload(tool_name: str, tool_input: Mapping[str, object]) -> dict[str, object]:
+    """Fields that identify the protected action — not host UI metadata.
+
+    Cursor's Shell tool always ships `description` / `block_until_ms` /
+    `working_directory` / `cwd` / `timeout` beside `command`. Hashing the raw
+    tool_input made a correct memory preflight miss at PreToolUse whenever the
+    agent (or the host) changed any of those incidental keys. Classification
+    already keys off `command` for shells; the binding hash must use the same
+    surface, after stripping host-injected commit trailers.
+    """
+    bound = normalize_host_shell_tool(tool_name)
+    if bound in _TRUSTED_SHELL_TOOLS or tool_name == "Shell":
+        command = tool_input.get("command")
+        if command is None:
+            return {"command": ""}
+        return {"command": normalize_shell_command_for_binding(str(command))}
+    return dict(tool_input)
+
+
 _LAUNCHER_VALUE_FLAGS = {
     "nice": frozenset({"-n", "--adjustment"}),
     "time": frozenset({"-f", "--format", "-o", "--output"}),
@@ -99,6 +152,21 @@ def _strip_outer_quotes(value: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
         return value[1:-1]
     return value
+
+
+_RELEASE_OR_VERSION_SCRIPT = re.compile(
+    r"(?i)^(?:"
+    r"release(?:[._-].+)?"
+    r"|version(?:[._-].+)?"
+    r"|bump[_-]?version"
+    r"|version[_-]?bump"
+    r")\.(?:py|ps1|sh|bash|cmd|bat)$"
+)
+
+
+def _is_release_or_version_script(token: str) -> bool:
+    """Match release/version tooling scripts, not any path containing those words."""
+    return bool(_RELEASE_OR_VERSION_SCRIPT.fullmatch(ntpath.basename(token.strip("\"'"))))
 
 
 def _shell_kind(command: str) -> str | None:
@@ -240,9 +308,7 @@ def _shell_kind(command: str) -> str | None:
         if executable == "twine" and "upload" in args:
             kinds.add("remote_operation")
         if executable.startswith("python") and any(
-            "release" in ntpath.basename(token).lower()
-            or "version" in ntpath.basename(token).lower()
-            for token in tokens[1:]
+            _is_release_or_version_script(token) for token in tokens[1:]
         ):
             kinds.add("release_shell")
         if "version" in executable and "bump" in args:
@@ -276,4 +342,11 @@ def classify_action(tool_name: object, tool_input: object) -> str | None:
     return _shell_kind(command) if isinstance(command, str) else None
 
 
-__all__ = ["PROTECTED_KINDS", "ProtectedActionClassificationError", "classify_action"]
+__all__ = [
+    "PROTECTED_KINDS",
+    "ProtectedActionClassificationError",
+    "binding_payload",
+    "classify_action",
+    "normalize_host_shell_tool",
+    "normalize_shell_command_for_binding",
+]

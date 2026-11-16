@@ -86,6 +86,10 @@
       "test": "tests/test_state_roundtrip_gate.py::TestStateRoundtripGate::test_red_on_single_field_hand_edit",
       "violation": "one hand-edited field in the committed tausik/ projection, diverging from the DB export"
     },
+    "harness_projection": {
+      "test": "tests/test_gate_harness_projection.py::test_gate_blocks_when_index_holds_a_profile_copy",
+      "violation": "a force-added .cursor/scripts file staged for commit in a consumer tree"
+    },
     "claudemd_state_drift": {
       "test": "tests/test_claudemd_state_gate.py::TestTheWipeIsCaught::test_replacing_the_block_with_an_empty_project_reds",
       "violation": "a dynamic block replaced by an empty-project rendering — carries no memory tail"

@@ -10,8 +10,18 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
 from memory_relevance import MAX_ENTRIES
-from memory_preflight_classification import PROTECTED_KINDS, classify_action
-from memory_preflight_query import fts_or, has_quarantined_conflict, live_conflict_count
+from memory_preflight_classification import (
+    PROTECTED_KINDS,
+    binding_payload,
+    classify_action,
+    normalize_host_shell_tool,
+)
+from memory_preflight_query import (
+    fts_or,
+    has_quarantined_conflict,
+    live_conflict_count,
+    preflight_terms,
+)
 from memory_supersedes import as_int, superseder_of
 from publication_boundary import redact
 from secret_patterns import secret_literal_names
@@ -20,7 +30,6 @@ from tausik_utils import ServiceError
 TOKEN_TTL_SECONDS = 300
 SEARCH_EXPANSION = max(MAX_ENTRIES * 8, 60)
 SEARCH_SCAN_LIMIT = 2048
-_WORD = re.compile(r"[A-Za-zА-Яа-яЁё0-9]{3,}")
 _INJECTION = re.compile(
     r"(?:ignore|disregard)\s+(?:all\s+)?(?:previous|prior)\s+instructions|system\s+prompt",
     re.IGNORECASE,
@@ -48,14 +57,19 @@ def _canonical(value: Any) -> str:
 def action_binding(tool_name: str, tool_input: Mapping[str, Any], kind: str) -> tuple[str, str]:
     if kind not in PROTECTED_KINDS:
         raise MemoryPreflightError("PROTECTED_KIND_UNKNOWN", f"unsupported kind {kind!r}")
+    # Cursor emits Shell; hooks reserve under PowerShell/Bash. Bind the dialect
+    # name so issued tokens match PreToolUse after cursor_hook.normalize_event.
+    bound_tool = normalize_host_shell_tool(tool_name)
     observed = classify_action(tool_name, tool_input)
     if observed != kind:
         raise MemoryPreflightError(
             "PROTECTED_KIND_MISMATCH",
             f"trusted identifier classifies as {observed!r}, not {kind!r}",
         )
-    payload_hash = hashlib.sha256(_canonical(dict(tool_input)).encode()).hexdigest()
-    target = tool_name.strip().lower()
+    payload_hash = hashlib.sha256(
+        _canonical(binding_payload(tool_name, tool_input)).encode()
+    ).hexdigest()
+    target = bound_tool.strip().lower()
     action_id = hashlib.sha256(f"{kind}\0{target}\0{payload_hash}".encode()).hexdigest()
     return action_id, payload_hash
 
@@ -74,17 +88,7 @@ def content_revision(be: Any) -> str:
 
 
 def _terms(tool_name: str, tool_input: Mapping[str, Any], kind: str) -> list[str]:
-    words = _WORD.findall(f"{kind} {tool_name} {_canonical(dict(tool_input))}".lower())
-    seen: set[str] = set()
-    terms: list[str] = []
-    for word in words:
-        if word in seen:
-            continue
-        seen.add(word)
-        terms.append(word)
-        if len(terms) == 24:
-            break
-    return terms
+    return preflight_terms(tool_name, tool_input, kind)
 
 
 def _tags(row: Mapping[str, Any]) -> list[str]:

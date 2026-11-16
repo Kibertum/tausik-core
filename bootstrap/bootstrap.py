@@ -440,7 +440,15 @@ def main() -> None:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    from bootstrap_gitignore import ensure_tausik_gitignore
     from bootstrap_venv import install_cli_wrapper
+
+    added_ignore = ensure_tausik_gitignore(project_dir)
+    if added_ignore:
+        print(
+            "  .gitignore: appended TAUSIK runtime/profile ignores "
+            f"({len(added_ignore)} line(s)) — commit tausik/ export, not harness copies"
+        )
 
     install_cli_wrapper(_bootstrap_dir, tausik_dir, primary_ide)
     print("  CLI wrapper: .tausik/tausik (or .tausik/tausik.cmd on Windows)")

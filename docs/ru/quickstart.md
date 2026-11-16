@@ -75,11 +75,11 @@ cd my-project
 
 ```
 Добавь https://github.com/Kibertum/tausik-core как git submodule в .tausik-lib,
-запусти python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init,
-добавь .tausik/ в .gitignore
+запусти python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
+(bootstrap сам допишет .tausik/ и каталоги IDE-профилей в .gitignore — их не коммитить)
 ```
 
-Агент выполнит все три шага — вам нужно только подтверждать его действия.
+Агент выполнит эти шаги — вам нужно только подтверждать его действия.
 
 ### Вариант Б: вручную через терминал
 
@@ -95,8 +95,7 @@ git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
 # Имя проекта определяется автоматически из названия папки
 python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
 
-# Добавить рабочие данные в .gitignore
-echo ".tausik/" >> .gitignore
+# Bootstrap также дописывает .tausik/ и сгенерированные IDE-профили в .gitignore
 ```
 
 ### Перезапустите IDE
@@ -310,9 +309,13 @@ tausik sync              # tausik/ → БД, файлы побеждают
    - Сохраняет `.gitignore`, инструкции и MCP-файлы выбранного хоста — объединяет, а не перезаписывает
 
 3. **Что попадает в git:**
-   - `.tausik-lib/` — сам фреймворк (git submodule, отслеживается)
-   - `.tausik/` — рабочие данные (база, конфиг, venv) — добавляется в `.gitignore`, не коммитится
-   - Папка выбранного профиля и соответствующий файл инструкций (для Cursor — `.cursor/` и `.cursor/rules/tausik.mdc`) — отслеживаются
+   - Код самого проекта
+   - `.tausik-lib` — только **указатель** submodule (не распакованные файлы фреймворка)
+   - `tausik/` — результаты `tausik state export` (задачи, решения, память)
+   - Корневые instruction-файлы хоста (`AGENTS.md`, `CLAUDE.md`, `QWEN.md`), если есть
+   - **Не коммитится:** runtime `.tausik/`, сгенерированные IDE-профили (`.cursor/`, `.claude/`, …),
+     `opencode.json`, `.mcp.json` — bootstrap пишет их в `.gitignore`; гейт `harness_projection`
+     на commit отказывает force-add
 
 4. **Начать с нуля или импортировать:**
    - TAUSIK начинает с чистой базы задач. Автоматического импорта из других систем нет.

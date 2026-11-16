@@ -183,6 +183,26 @@ def _dynamic_word_may_be_entrypoint(word: str) -> bool:
     return any(fnmatch.fnmatch(candidate, pattern) for candidate in candidates)
 
 
+def _unparsed_statement_may_invoke_tausik(statement: str) -> bool:
+    """Fail closed on ambiguous text without treating path segments as CLI."""
+    # A checkout living under .../tausik/... must remain operable: bare
+    # substring "tausik"/"project" matches ordinary absolute paths and English.
+    if _mentions_tausik_cli(statement):
+        return True
+    lowered = statement.replace("\\", "/").lower()
+    return bool(re.search(r"(?i)(?:^|[\s'\"(;|&!{])project\.py(?:$|[\s'\");|&}])", lowered))
+
+
+def _statement_words(statement: str) -> list[str] | None:
+    """Tokenize with POSIX first, then Windows-safe split for host paths."""
+    for posix in (True, False):
+        try:
+            return shlex.split(statement, posix=posix)
+        except ValueError:
+            continue
+    return None
+
+
 def _statement_may_invoke_tausik(statement: str) -> bool:
     try:
         from .python_invocation import is_python, python_script
@@ -191,10 +211,9 @@ def _statement_may_invoke_tausik(statement: str) -> bool:
 
     if _mentions_tausik_cli(statement):
         return True
-    try:
-        words = shlex.split(statement, posix=True)
-    except ValueError:
-        return "tausik" in statement.lower() or "project" in statement.lower()
+    words = _statement_words(statement)
+    if words is None:
+        return _unparsed_statement_may_invoke_tausik(statement)
     for index, word in enumerate(words):
         if _is_tausik_entrypoint(word) or _dynamic_word_may_be_entrypoint(word):
             return True

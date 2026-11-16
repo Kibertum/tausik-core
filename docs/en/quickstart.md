@@ -75,11 +75,11 @@ Open your project in the IDE, open your AI agent (Claude Code, Cursor, Qwen Code
 
 ```
 Add https://github.com/Kibertum/tausik-core as a git submodule in .tausik-lib,
-run python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init,
-add .tausik/ to .gitignore
+run python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
+(bootstrap appends .tausik/ and IDE profile dirs to .gitignore — do not commit them)
 ```
 
-The agent will execute all three steps — you just confirm its actions.
+The agent will execute those steps — you just confirm its actions.
 
 ### Option B: Manually via terminal
 
@@ -95,8 +95,7 @@ git submodule add https://github.com/Kibertum/tausik-core .tausik-lib
 # Project name is auto-derived from the directory name
 python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
 
-# Add working data to .gitignore
-echo ".tausik/" >> .gitignore
+# Bootstrap also appends .tausik/ and generated IDE profile dirs to .gitignore
 ```
 
 ### Restart Your IDE
@@ -311,9 +310,13 @@ If you already have a project with code and want to add TAUSIK:
    - Preserves `.gitignore` and the selected host's existing instruction/MCP files — merges instead of overwriting
 
 3. **What gets tracked in git:**
-   - `.tausik-lib/` — the framework itself (git submodule, tracked)
-   - `.tausik/` — runtime data (database, config, venv) — added to `.gitignore`, never committed
-   - The selected profile folder and matching instruction file (for Cursor, `.cursor/` and `.cursor/rules/tausik.mdc`) — tracked
+   - Product code of the project
+   - `.tausik-lib` — submodule **pointer** only (not unpacked framework files)
+   - `tausik/` — results of `tausik state export` (tasks, decisions, memory)
+   - Root instruction files the host reads (`AGENTS.md`, `CLAUDE.md`, `QWEN.md`) when present
+   - **Not tracked:** `.tausik/` runtime, generated IDE profiles (`.cursor/`, `.claude/`, …),
+     `opencode.json`, `.mcp.json` — bootstrap gitignores them; the `harness_projection`
+     commit gate refuses a force-add
 
 4. **Starting fresh vs. importing:**
    - TAUSIK starts with a clean task database. There is no automatic import from other systems.

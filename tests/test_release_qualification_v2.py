@@ -650,6 +650,16 @@ def test_workflow_keeps_candidate_unprivileged_and_verifier_protected():
     assert run_bodies and all("${{ inputs." not in body for body in run_bodies)
     action_refs = re.findall(r"uses: actions/[\w-]+@([^\s]+)", workflow)
     assert action_refs and all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
+    # Node 24 runtimes — GitHub annotates older SHAs as deprecated Node 20.
+    assert "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10" in workflow
+    assert "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0" in workflow
+    assert "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9" in workflow
+    assert "ubuntu-latest" not in workflow
+    assert all(
+        job.get("runs-on") == "ubuntu-24.04"
+        for job in workflow_document["jobs"].values()
+        if "runs-on" in job and "ubuntu" in str(job.get("runs-on"))
+    )
     checkout_steps = [
         step
         for job in workflow_document["jobs"].values()

@@ -243,6 +243,13 @@ COVERED: dict[str, tuple[Builder, Builder]] = {
 # gate -> (reason, module, red test, green test). The module is the one that
 # DOES drive both ends; the names are verified against its AST below.
 EXCUSED: dict[str, tuple[str, str, str, str]] = {
+    "harness_projection": (
+        "reads the STAGED set of a real git repository; its own module drives both "
+        "ends in a throwaway repo",
+        "test_gate_harness_projection.py",
+        "test_gate_blocks_when_index_holds_a_profile_copy",
+        "test_gate_passes_when_only_export_is_staged",
+    ),
     "path_artifact": (
         "reads the STAGED set of a real git repository; its own module drives both "
         "ends in a throwaway repo",
