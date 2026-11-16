@@ -695,6 +695,22 @@ def test_controller_lock_carries_all_platform_wheels():
     } <= digests
 
 
+def test_runtime_lock_pins_windows_mcp_dependency_with_all_wheels():
+    runtime_in = (ROOT / ".github/release-qualification-runtime.in").read_text(encoding="utf-8")
+    lock = (ROOT / ".github/release-qualification-runtime.txt").read_text(encoding="utf-8")
+
+    assert "uv pip compile --universal" in runtime_in
+    assert "mcp==1.30.0" in runtime_in
+    assert "pywin32==312 ; sys_platform == 'win32'" in lock
+    digests = set(
+        re.findall(
+            r"sha256:([0-9a-f]{64})",
+            lock.split("pywin32==312 ; sys_platform == 'win32'", 1)[1].split("\n#", 1)[0],
+        )
+    )
+    assert len(digests) >= 1
+
+
 def test_controller_lock_uses_wheels_and_excludes_source_archives():
     from release_lock_hashes import wheel_hashes_from_pypi_payload
 

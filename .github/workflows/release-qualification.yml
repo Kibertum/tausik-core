@@ -159,9 +159,11 @@ jobs:
           --candidate candidate --trusted trusted --lane full
           --output "$RUNNER_TEMP/test-full.xml"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
           name: release-qualification-v2-test-full
           path: ${{ runner.temp }}/test-full.xml
+          if-no-files-found: ignore
 
   test-macos:
     needs: validate-inputs

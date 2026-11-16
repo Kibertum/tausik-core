@@ -179,6 +179,7 @@ def test_prepared_context_stages_split_controller_under_importable_image_names(
         "controller.py": "scripts/release_qualification_container.py",
         "context.py": "scripts/release_qualification_container_context.py",
         "runtime.py": "scripts/release_qualification_container_runtime.py",
+        "docker.py": "scripts/release_qualification_container_docker.py",
         "evidence.py": "scripts/release_qualification_evidence.py",
     }
     for staged_name, source_name in expected.items():
@@ -190,6 +191,7 @@ def test_prepared_context_stages_split_controller_under_importable_image_names(
         ("controller.py", "controller.py"),
         ("context.py", "release_qualification_container_context.py"),
         ("runtime.py", "release_qualification_container_runtime.py"),
+        ("docker.py", "release_qualification_container_docker.py"),
         ("evidence.py", "release_qualification_evidence.py"),
         ("junit.py", "release_qualification_junit.py"),
     ):
@@ -210,6 +212,10 @@ def test_prepared_context_stages_split_controller_under_importable_image_names(
     )
     assert (
         "runtime.py /opt/controller/release_qualification_container_runtime.py"
+        in controller.DOCKERFILE
+    )
+    assert (
+        "docker.py /opt/controller/release_qualification_container_docker.py"
         in controller.DOCKERFILE
     )
 

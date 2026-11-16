@@ -1,0 +1,14 @@
+# Trusted runtime packages for qualification bootstrap and MCP import paths.
+#
+# Regenerate with Python 3.13, then expand every pin to all published wheels.
+# A resolver records only the wheel selected on the maintainer's platform; the
+# second command makes one reviewed lock valid on Linux, macOS, and Windows:
+#
+#   uv pip compile --universal --python-version 3.13 --generate-hashes \
+#     --no-emit-index-url \
+#     --output-file=.github/release-qualification-runtime.txt \
+#     .github/release-qualification-runtime.in
+#   python scripts/release_lock_hashes.py \
+#     .github/release-qualification-runtime.txt
+
+mcp==1.30.0

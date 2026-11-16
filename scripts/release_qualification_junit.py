@@ -199,5 +199,10 @@ def validate_lane_report(
     skipped = sum(case.find("skipped") is not None for case in cases)
     passed = len(cases) - failed - skipped
     if failed or len(cases) < minimum_cases or passed < minimum_passes or skipped > maximum_skips:
-        raise JunitEvidenceError("CI lane did not execute the required passing test floor")
+        raise JunitEvidenceError(
+            "CI lane did not execute the required passing test floor "
+            f"(cases={len(cases)} passed={passed} failed={failed} skipped={skipped}; "
+            f"need cases>={minimum_cases} passed>={minimum_passes} "
+            f"skipped<={maximum_skips} failed==0)"
+        )
     return hashlib.sha256(report).hexdigest()

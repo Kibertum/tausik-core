@@ -11,10 +11,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.13.2] — 2026-11-15
 
-- Release qualification controller lock now derives from a reviewed `.in`
-  source and includes every PyPI wheel hash for each exact pin. Windows,
-  macOS, and Linux therefore keep `--require-hashes` without accepting only
-  the wheel selected on the maintainer's platform.
+- Release qualification controller and runtime locks now derive from reviewed
+  `.in` sources and include every PyPI wheel hash for each exact pin, including
+  the Windows-only `pywin32` transitive of `mcp`. Windows, macOS, and Linux
+  therefore keep `--require-hashes` without accepting only the wheel selected
+  on the maintainer's platform. A full-lane floor refusal now prints the
+  observed case/pass/fail/skip counts and still uploads the diagnostic JUnit.
 
 - Codex `cli_doctor` recovery remains lease-exempt only for a sole doctor
   statement. A compound `doctor; write` now still passes write/scope gates

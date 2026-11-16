@@ -127,6 +127,9 @@ def prepare_context(
     shutil.copy2(
         trusted / "scripts/release_qualification_container_runtime.py", controller / "runtime.py"
     )
+    shutil.copy2(
+        trusted / "scripts/release_qualification_container_docker.py", controller / "docker.py"
+    )
     shutil.copy2(trusted / "scripts/release_qualification_evidence.py", controller / "evidence.py")
     shutil.copy2(trusted / "scripts/release_qualification_junit.py", controller / "junit.py")
     shutil.copy2(trusted / matrix_test, controller / "matrix.py")

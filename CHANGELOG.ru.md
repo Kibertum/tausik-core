@@ -13,10 +13,12 @@
 
 ## [1.13.2] — 2026-11-15
 
-- Lock контроллера release qualification теперь строится из рецензируемого
-  `.in` и включает hash каждого PyPI wheel для каждого точного pin. Windows,
-  macOS и Linux сохраняют `--require-hashes`, не принимая только wheel,
-  выбранный на платформе maintainer.
+- Lock контроллера и runtime release qualification теперь строятся из
+  рецензируемых `.in` и включают hash каждого PyPI wheel для каждого точного
+  pin, включая Windows-only `pywin32` у `mcp`. Windows, macOS и Linux
+  сохраняют `--require-hashes`, не принимая только wheel, выбранный на
+  платформе maintainer. Отказ full-lane floor печатает counts
+  cases/pass/fail/skip и всё равно выгружает диагностический JUnit.
 
 - Codex `cli_doctor` остаётся lease-exempt только для единственного doctor
   statement. Составная команда `doctor; write` снова проходит write/scope
