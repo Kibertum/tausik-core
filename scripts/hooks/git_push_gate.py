@@ -119,7 +119,8 @@ CONSUMED_FILENAME = ".push_ticket.consumed.json"
 SCHEMA_VERSION = 1
 # Cursor can fire PreToolUse twice for one Shell call; the first consume
 # deletes the ticket. A short-lived marker lets the duplicate invoke pass.
-CONSUMED_GRACE_SECONDS = 5
+# Keep this above Auto-review latency (tens of seconds), not a few seconds.
+CONSUMED_GRACE_SECONDS = 120
 
 
 def _find_tausik_dir() -> Path | None:

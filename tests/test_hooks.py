@@ -612,7 +612,14 @@ class TestGitPushGate:
     def test_double_pretooluse_allows_within_consumed_grace(self, tmp_path):
         """Cursor may fire PreToolUse twice; the duplicate must still allow."""
         from datetime import datetime, timedelta, timezone
+        import sys as _sys
 
+        hooks = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks")
+        if hooks not in _sys.path:
+            _sys.path.insert(0, hooks)
+        import git_push_gate as push_gate
+
+        assert push_gate.CONSUMED_GRACE_SECONDS >= 60
         ticket = tmp_path / ".push_ticket.json"
         future = (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat()
         self._write_ticket(ticket, sha=self._head_sha(), expires_iso=future)

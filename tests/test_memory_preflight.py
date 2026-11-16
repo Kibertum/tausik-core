@@ -416,9 +416,12 @@ def test_shell_binding_ignores_cursor_host_metadata():
         "cwd": "",
         "timeout": 30000,
     }
+    # All three must use the same host tool name: on Linux `Shell` binds to
+    # Bash, so an explicit `PowerShell` rewrite would mismatch action_id and
+    # refuse the Linux full-lane qualification (release 1.13.2 dogfooding).
     bare_id, bare_hash = action_binding("Shell", bare, "commit")
     decorated_id, decorated_hash = action_binding("Shell", decorated, "commit")
-    rewritten_id, rewritten_hash = action_binding("PowerShell", rewritten, "commit")
+    rewritten_id, rewritten_hash = action_binding("Shell", rewritten, "commit")
     assert bare_id == decorated_id == rewritten_id
     assert bare_hash == decorated_hash == rewritten_hash
     other_id, _ = action_binding("Shell", {"command": "git commit -m other"}, "commit")

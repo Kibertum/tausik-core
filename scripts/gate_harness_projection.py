@@ -87,20 +87,12 @@ def _git(root: str, *args: str) -> subprocess.CompletedProcess | None:
 
 
 def _profile_prefixes() -> tuple[str, ...]:
-    try:
-        from ide_utils import all_profile_dirs
+    # Always via ide_utils. A hardcoded profile-name fallback fails the
+    # multi-IDE literal lint (TestNoNewClaudeLiterals) and would silently
+    # cover only a subset of hosts if the registry grew.
+    from ide_utils import all_profile_dirs
 
-        dirs = set(all_profile_dirs()) | _EXTRA_PROFILE_DIRS
-    except Exception:  # noqa: BLE001 — registry unavailable must not crash commit
-        dirs = {
-            ".claude",
-            ".cursor",
-            ".codex",
-            ".qwen",
-            ".kilo",
-            ".opencode",
-            ".windsurf",
-        } | _EXTRA_PROFILE_DIRS
+    dirs = set(all_profile_dirs()) | _EXTRA_PROFILE_DIRS
     return tuple(sorted(f"{d}/" for d in dirs if d))
 
 
