@@ -144,6 +144,8 @@ def test_container_build_separates_candidate_install_from_trusted_runtime():
     assert "--target /candidate-deps" in dockerfile
     assert dockerfile.count("WORKDIR /build") == 2
     assert dockerfile.count("python -I -m pip") == 3
+    printf_chunk = dockerfile.split("printf", 1)[1].split("sitecustomize", 1)[0]
+    assert "\n" not in printf_chunk
     assert "WORKDIR /source" not in dockerfile
     assert "FROM python@" in dockerfile.split("AS runtime", 1)[0]
     runtime = dockerfile.split("AS runtime", 1)[1]

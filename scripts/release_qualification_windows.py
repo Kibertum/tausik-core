@@ -20,7 +20,8 @@ class WindowsQualificationError(RuntimeError):
 
 
 def _hash(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    # Windows checkouts may materialize CRLF; pins are LF object bytes.
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def _validate_ratchet(candidate: Path, trusted: Path) -> Path:
@@ -36,8 +37,15 @@ def _validate_ratchet(candidate: Path, trusted: Path) -> Path:
         observed = {path: _hash(path) for path in expected}
     except OSError as exc:
         raise WindowsQualificationError("qualification ratchet file is unreadable") from exc
-    if any(observed[path] != digest for path, digest in expected.items()):
-        raise WindowsQualificationError("qualification ratchet hash mismatch")
+    mismatches = [
+        f"{path.as_posix()}: got {observed[path][:12]} want {digest[:12]}"
+        for path, digest in expected.items()
+        if observed[path] != digest
+    ]
+    if mismatches:
+        raise WindowsQualificationError(
+            "qualification ratchet hash mismatch: " + "; ".join(mismatches)
+        )
     return trusted_harness
 
 

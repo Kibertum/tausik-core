@@ -73,7 +73,7 @@ RUN mkdir -p /opt/controller/site && \
     if [ -f /source/.release-controller/candidate-dockerignore ]; then \
       cp /source/.release-controller/candidate-dockerignore /source/.dockerignore; \
     fi && \
-    printf '%s\n' 'import sys' \"sys.path.insert(0, '/opt/controller/site')\" \"sys.path.append('/candidate-deps')\" > /usr/local/lib/python3.13/site-packages/sitecustomize.py && \
+    printf '%s\\n' 'import sys' \"sys.path.insert(0, '/opt/controller/site')\" \"sys.path.append('/candidate-deps')\" > /usr/local/lib/python3.13/site-packages/sitecustomize.py && \
     git config --system --add safe.directory /opt/controller/objects.git && \
     chown 10001:10001 /result && \
     chmod -R a-w /opt/controller /candidate-deps /candidate-wheelhouse
