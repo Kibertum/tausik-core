@@ -62,6 +62,23 @@ def test_consumer_lib_tree_refuses_framework_source_copies():
     ]
 
 
+def test_consumer_refuses_paths_that_shadow_tausik_lib(tmp_path):
+    root = tmp_path / "proj"
+    lib = root / ".tausik-lib" / "scripts"
+    lib.mkdir(parents=True)
+    (lib / "project.py").write_text("# framework\n", encoding="utf-8")
+    staged = [
+        "src/app.py",
+        "scripts/project.py",
+        "scripts/app_deploy.py",
+        "tausik/tasks/x.md",
+        ".tausik-lib",
+    ]
+    assert gate.forbidden_staged_paths(staged, consumer=True, root=str(root)) == [
+        "scripts/project.py",
+    ]
+
+
 def test_gate_blocks_when_index_holds_a_profile_copy(tmp_path, monkeypatch):
     root = tmp_path / "proj"
     root.mkdir()
@@ -110,6 +127,7 @@ def test_ensure_gitignore_appends_missing_rules(tmp_path):
     added_consumer = ensure_tausik_gitignore(str(root))
     assert "bootstrap/" in added_consumer
     assert "harness/" in added_consumer
+    assert "scripts/hooks/" in added_consumer
     text = gi.read_text(encoding="utf-8")
     assert ".tausik/" in text
     assert ensure_tausik_gitignore(str(root)) == []

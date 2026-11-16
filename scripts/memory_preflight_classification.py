@@ -8,8 +8,27 @@ import os
 import re
 import shlex
 from collections.abc import Mapping
+from datetime import datetime, timezone
 
 from tausik_utils import ServiceError
+
+# Cursor can fire PreToolUse twice for one Shell call. The first reserve wins;
+# the second must see the same reserved row as an idempotent allow, not TOKEN_REPLAY.
+RESERVE_IDEMPOTENT_GRACE_SECONDS = 5
+
+
+def within_reserve_grace(iso_ts: str | None, instant: datetime) -> bool:
+    """True when iso_ts is within RESERVE_IDEMPOTENT_GRACE_SECONDS of instant."""
+    if not iso_ts:
+        return False
+    try:
+        stamped = datetime.fromisoformat(str(iso_ts).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if stamped.tzinfo is None:
+        stamped = stamped.replace(tzinfo=timezone.utc)
+    return abs((instant - stamped).total_seconds()) <= RESERVE_IDEMPOTENT_GRACE_SECONDS
+
 
 PROTECTED_KINDS = frozenset(
     {"framework_ui", "release_shell", "remote_operation", "commit", "push", "blocker"}
@@ -345,8 +364,10 @@ def classify_action(tool_name: object, tool_input: object) -> str | None:
 __all__ = [
     "PROTECTED_KINDS",
     "ProtectedActionClassificationError",
+    "RESERVE_IDEMPOTENT_GRACE_SECONDS",
     "binding_payload",
     "classify_action",
     "normalize_host_shell_tool",
     "normalize_shell_command_for_binding",
+    "within_reserve_grace",
 ]

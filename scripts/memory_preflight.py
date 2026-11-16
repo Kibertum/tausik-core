@@ -15,6 +15,7 @@ from memory_preflight_classification import (
     binding_payload,
     classify_action,
     normalize_host_shell_tool,
+    within_reserve_grace,
 )
 from memory_preflight_query import (
     fts_or,
@@ -368,9 +369,12 @@ def reserve_preflight(
         )
         if row is None:
             raise MemoryPreflightError("TOKEN_MISSING", f"{kind} requires tausik_memory_preflight")
-        if row["status"] != "issued":
+        if row["status"] == "reserved" and within_reserve_grace(row.get("reserved_at"), instant):
+            # Idempotent allow for a duplicate PreToolUse on the same Shell call.
+            reserved = dict(row)
+        elif row["status"] != "issued":
             raise MemoryPreflightError("TOKEN_REPLAY", f"token is already {row['status']}")
-        if row["expires_at"] <= _iso(instant):
+        elif row["expires_at"] <= _iso(instant):
             be._ex(
                 "UPDATE memory_preflight_tokens SET status='expired',completed_at=? WHERE id=?",
                 (_iso(instant), row["id"]),
@@ -387,9 +391,21 @@ def reserve_preflight(
                 "UPDATE memory_preflight_tokens SET status='reserved',reserved_at=? WHERE id=? AND status='issued'",
                 (_iso(instant), row["id"]),
             )
-            if changed != 1:
-                raise MemoryPreflightError("TOKEN_REPLAY", "concurrent token reservation lost")
-            reserved = dict(row)
+            if changed == 1:
+                reserved = dict(row)
+            else:
+                again = be._q1(
+                    "SELECT * FROM memory_preflight_tokens WHERE id=?",
+                    (row["id"],),
+                )
+                if (
+                    again
+                    and again["status"] == "reserved"
+                    and within_reserve_grace(again.get("reserved_at"), instant)
+                ):
+                    reserved = dict(again)
+                else:
+                    raise MemoryPreflightError("TOKEN_REPLAY", "concurrent token reservation lost")
     if terminal_error is not None:
         raise terminal_error
     return reserved

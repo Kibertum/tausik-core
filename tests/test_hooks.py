@@ -589,7 +589,7 @@ class TestGitPushGate:
         assert "schema_version" in r.stderr
 
     def test_one_shot_second_push_blocked(self, tmp_path):
-        """Ticket is single-use: second push after consume must block."""
+        """Ticket is single-use: after grace expires, a later push must block."""
         from datetime import datetime, timedelta, timezone
 
         ticket = tmp_path / ".push_ticket.json"
@@ -597,9 +597,30 @@ class TestGitPushGate:
         self._write_ticket(ticket, sha=self._head_sha(), expires_iso=future)
         r1 = self._push_with_ticket(ticket)
         assert r1.returncode == 0, r1.stderr
+        # Expire the short-lived Cursor double-PreToolUse marker so a true
+        # second push is refused the same way as before the grace window.
+        consumed = tmp_path / ".push_ticket.consumed.json"
+        if consumed.exists():
+            past = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+            payload = json.loads(consumed.read_text(encoding="utf-8"))
+            payload["expires_at"] = past
+            consumed.write_text(json.dumps(payload), encoding="utf-8")
         r2 = self._push_with_ticket(ticket)
         assert r2.returncode == 2
         assert "no push ticket" in r2.stderr
+
+    def test_double_pretooluse_allows_within_consumed_grace(self, tmp_path):
+        """Cursor may fire PreToolUse twice; the duplicate must still allow."""
+        from datetime import datetime, timedelta, timezone
+
+        ticket = tmp_path / ".push_ticket.json"
+        future = (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat()
+        self._write_ticket(ticket, sha=self._head_sha(), expires_iso=future)
+        r1 = self._push_with_ticket(ticket)
+        assert r1.returncode == 0, r1.stderr
+        assert not ticket.exists()
+        r2 = self._push_with_ticket(ticket)
+        assert r2.returncode == 0, r2.stderr
 
     def test_skip_push_hook_env_still_bypasses(self, tmp_path):
         """TAUSIK_SKIP_PUSH_HOOK=1 remains as debug-only bypass."""

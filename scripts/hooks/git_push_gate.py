@@ -115,7 +115,11 @@ def _command_invokes_git_push(command: str, tool_name: str = "") -> bool:
 
 
 TICKET_FILENAME = ".push_ticket.json"
+CONSUMED_FILENAME = ".push_ticket.consumed.json"
 SCHEMA_VERSION = 1
+# Cursor can fire PreToolUse twice for one Shell call; the first consume
+# deletes the ticket. A short-lived marker lets the duplicate invoke pass.
+CONSUMED_GRACE_SECONDS = 5
 
 
 def _find_tausik_dir() -> Path | None:
@@ -138,6 +142,10 @@ def _ticket_path() -> Path | None:
     return tdir / TICKET_FILENAME
 
 
+def _consumed_path(ticket_path: Path) -> Path:
+    return ticket_path.with_name(CONSUMED_FILENAME)
+
+
 def _git_head_sha() -> str | None:
     try:
         out = subprocess.check_output(
@@ -158,13 +166,66 @@ def _git_head_sha() -> str | None:
     return out.decode("utf-8", "replace").strip()
 
 
+def _parse_expires(expires_str: object) -> datetime | None:
+    try:
+        expires = datetime.fromisoformat(str(expires_str))
+    except (TypeError, ValueError):
+        return None
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    return expires
+
+
+def _accept_consumed_grace(ticket_path: Path) -> tuple[bool, str]:
+    """Allow a duplicate PreToolUse after the live ticket was already consumed."""
+    marker = _consumed_path(ticket_path)
+    if not marker.exists():
+        return False, "no push ticket — run `tausik push-ok` first to authorize"
+    try:
+        raw = marker.read_text(encoding="utf-8")
+    except OSError as e:
+        return False, f"cannot read consumed push marker: {e}"
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return False, "no push ticket — run `tausik push-ok` first to authorize"
+    if not isinstance(payload, dict) or payload.get("schema_version") != SCHEMA_VERSION:
+        return False, "no push ticket — run `tausik push-ok` first to authorize"
+    expires = _parse_expires(payload.get("expires_at", ""))
+    if expires is None or datetime.now(timezone.utc) >= expires:
+        try:
+            marker.unlink()
+        except OSError:
+            pass
+        return False, "no push ticket — run `tausik push-ok` first to authorize"
+    head = _git_head_sha()
+    marker_sha = payload.get("commit_sha", "")
+    if head and marker_sha and marker_sha != head:
+        return False, "no push ticket — run `tausik push-ok` first to authorize"
+    return True, "ok"
+
+
+def _write_consumed_marker(ticket_path: Path, commit_sha: str) -> None:
+    marker = _consumed_path(ticket_path)
+    expires = datetime.now(timezone.utc).timestamp() + CONSUMED_GRACE_SECONDS
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "commit_sha": commit_sha,
+        "expires_at": datetime.fromtimestamp(expires, tz=timezone.utc).isoformat(),
+    }
+    try:
+        marker.write_text(json.dumps(payload), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _consume_ticket() -> tuple[bool, str]:
     """Return (allow, reason). On allow, the ticket file has been deleted."""
     path = _ticket_path()
     if path is None:
         return False, "no .tausik directory found — run `tausik init` first"
     if not path.exists():
-        return False, "no push ticket — run `tausik push-ok` first to authorize"
+        return _accept_consumed_grace(path)
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError as e:
@@ -180,15 +241,10 @@ def _consume_ticket() -> tuple[bool, str]:
             False,
             f"push ticket schema_version != {SCHEMA_VERSION} — re-run `tausik push-ok`",
         )
-    expires_str = ticket.get("expires_at", "")
-    try:
-        expires = datetime.fromisoformat(expires_str)
-    except (TypeError, ValueError):
+    expires = _parse_expires(ticket.get("expires_at", ""))
+    if expires is None:
         return False, "push ticket expires_at is not a valid ISO datetime"
-    now = datetime.now(timezone.utc)
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if now >= expires:
+    if datetime.now(timezone.utc) >= expires:
         try:
             path.unlink()
         except OSError:
@@ -203,8 +259,14 @@ def _consume_ticket() -> tuple[bool, str]:
         )
     try:
         path.unlink()
+    except FileNotFoundError:
+        # First of a Cursor double PreToolUse already deleted the ticket;
+        # fall through to write/accept the short-lived consumed marker.
+        pass
     except OSError as e:
-        return False, f"cannot consume push ticket: {e}"
+        if getattr(e, "winerror", None) != 2 and getattr(e, "errno", None) != 2:
+            return False, f"cannot consume push ticket: {e}"
+    _write_consumed_marker(path, str(ticket_sha or head or ""))
     return True, "ok"
 
 

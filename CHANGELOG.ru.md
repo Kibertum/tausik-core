@@ -52,14 +52,20 @@
 
 - Consumer-коммиты больше не тащат сгенерированные IDE harness-деревья в
   историю проекта. Bootstrap дописывает `.tausik/`, каталоги профилей,
-  `bootstrap/` и `harness/` в `.gitignore`; блокирующий commit-gate
-  `harness_projection` отказывает staged `.cursor/` / `.claude/` /
+  `bootstrap/`, `harness/` и `scripts/hooks/` в `.gitignore`; блокирующий
+  commit-gate `harness_projection` отказывает staged `.cursor/` / `.claude/` /
   `.tausik/**` / распакованный `.tausik-lib/**` / machine-local
   `opencode.json` и `.mcp.json`, а при наличии `.tausik-lib` — ещё и
-  `bootstrap/`, `harness/`, `scripts/hooks/` рядом с submodule. В git
-  проекта — код продукта и результаты `tausik/` export. Preflight для
-  commit/push вырезает prose из `-m`, чтобы обычное tip-сообщение не давало
+  `bootstrap/`, `harness/`, `scripts/hooks/` и любой staged путь, который уже
+  есть под `.tausik-lib` (копирование из submodule). В git проекта — код
+  продукта и результаты `tausik/` export. Preflight для commit/push вырезает
+  prose из `-m`, чтобы обычное tip-сообщение не давало
   `MEMORY_CONFLICT_OVERFLOW`.
+
+- Двойной PreToolUse Cursor больше не сжигает одноразовый push-ticket и
+  reservation memory preflight: `git_push_gate` держит 5-секундный consumed
+  marker, а `reserve_preflight` считает уже reserved токен внутри этого окна
+  идемпотентным.
 
 ## [1.13.1] — 2026-11-15
 

@@ -48,15 +48,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   Node 20 deprecation annotations.
 
 - Consumer commits may no longer re-drag generated IDE harness trees into the
-  project history. Bootstrap appends `.tausik/`, profile dirs, `bootstrap/`, and
-  `harness/` to `.gitignore`; the blocking `harness_projection` commit gate
-  refuses staged `.cursor/` / `.claude/` / `.tausik/**` / unpacked
-  `.tausik-lib/**` / machine-local `opencode.json` and `.mcp.json`, and — when
-  `.tausik-lib` is present — also refuses `bootstrap/`, `harness/`, and
-  `scripts/hooks/` copied beside the submodule. Project git keeps product code
-  plus `tausik/` export results. Commit/push preflight also strips `-m` message
-  prose from FTS terms so a normal tip message cannot trip
+  project history. Bootstrap appends `.tausik/`, profile dirs, `bootstrap/`,
+  `harness/`, and `scripts/hooks/` to `.gitignore`; the blocking
+  `harness_projection` commit gate refuses staged `.cursor/` / `.claude/` /
+  `.tausik/**` / unpacked `.tausik-lib/**` / machine-local `opencode.json` and
+  `.mcp.json`, and — when `.tausik-lib` is present — also refuses `bootstrap/`,
+  `harness/`, `scripts/hooks/`, and any staged path that already exists under
+  `.tausik-lib` (the copy-from-submodule defect). Project git keeps product
+  code plus `tausik/` export results. Commit/push preflight also strips `-m`
+  message prose from FTS terms so a normal tip message cannot trip
   `MEMORY_CONFLICT_OVERFLOW`.
+
+- Cursor double PreToolUse no longer burns a single-use push ticket or memory
+  preflight reservation: `git_push_gate` keeps a 5s consumed marker, and
+  `reserve_preflight` treats an already-reserved token inside that grace as
+  idempotent.
 
 ## [1.13.1] — 2026-11-15
 

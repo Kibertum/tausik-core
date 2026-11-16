@@ -34,6 +34,8 @@ _CONSUMER_FRAMEWORK_PREFIXES = (
     "scripts/hooks/",
     ".tausik/",
 )
+# Project state export is the only TAUSIK tree that belongs in consumer git.
+_CONSUMER_ALLOWED_PREFIXES = ("tausik/",)
 
 HARNESS_PROJECTION_SPEC = GateSpec(
     name="harness_projection",
@@ -106,7 +108,29 @@ def _consumer_has_lib(root: str) -> bool:
     return os.path.exists(os.path.join(root, ".tausik-lib"))
 
 
-def forbidden_staged_paths(staged: list[str], *, consumer: bool = False) -> list[str]:
+def _shadows_lib_checkout(root: str, path: str) -> bool:
+    """True when the staged path already exists inside `.tausik-lib`.
+
+    Agents repeatedly copy framework files from the submodule into the project
+    root (`scripts/project.py`, `docs/en/…`, …). Prefix lists cannot name every
+    future file; if the same relative path lives under `.tausik-lib`, staging it
+    at the project root is framework contamination — except the `tausik/` export.
+    """
+    if path == ".tausik-lib" or path.startswith(".tausik-lib/"):
+        return False
+    if path == "tausik" or any(
+        path == p.rstrip("/") or path.startswith(p) for p in _CONSUMER_ALLOWED_PREFIXES
+    ):
+        return False
+    return os.path.lexists(os.path.join(root, ".tausik-lib", *path.split("/")))
+
+
+def forbidden_staged_paths(
+    staged: list[str],
+    *,
+    consumer: bool = False,
+    root: str | None = None,
+) -> list[str]:
     """Return staged paths that drag generated harness / lib contents into git."""
     prefixes = _profile_prefixes()
     bad: list[str] = []
@@ -129,6 +153,9 @@ def forbidden_staged_paths(staged: list[str], *, consumer: bool = False) -> list
             path == p.rstrip("/") or path.startswith(p) for p in _CONSUMER_FRAMEWORK_PREFIXES
         ):
             bad.append(path)
+            continue
+        if consumer and root and _shadows_lib_checkout(root, path):
+            bad.append(path)
     return bad
 
 
@@ -150,12 +177,12 @@ def run_harness_projection_gate_for(gate: dict[str, Any], files: list[str]):
             "harness_projection: nothing staged — nothing to refuse.",
             remedy="Stage the project change and the tausik/ export, then re-run.",
         )
-    bad = forbidden_staged_paths(staged, consumer=_consumer_has_lib(root))
+    bad = forbidden_staged_paths(staged, consumer=_consumer_has_lib(root), root=root)
     if not bad:
         return gate_outcome.passed(
             "harness_projection: staged set has no generated IDE harness, "
             "machine-local MCP launcher, framework trees beside `.tausik-lib`, "
-            "or unpacked .tausik-lib files."
+            "paths that shadow `.tausik-lib`, or unpacked .tausik-lib files."
         )
     shown = "\n  ".join(bad[:20])
     more = f"\n  … (+{len(bad) - 20} more)" if len(bad) > 20 else ""
@@ -164,7 +191,8 @@ def run_harness_projection_gate_for(gate: dict[str, Any], files: list[str]):
         f"copies ({len(bad)} path(s)). Project git must carry product code plus "
         "`tausik/` export results — not IDE profile trees, not opencode/.mcp "
         "machine paths, not `.tausik/` runtime, not bootstrap/harness/hooks "
-        "beside `.tausik-lib`, and not files inside `.tausik-lib/`:\n  "
+        "beside `.tausik-lib`, not paths that already exist under `.tausik-lib`, "
+        "and not files inside `.tausik-lib/`:\n  "
         f"{shown}{more}\n"
         "Fix: git restore --staged <paths>; ensure they are in .gitignore; "
         "keep only the `.tausik-lib` submodule pointer; run `tausik state export` "

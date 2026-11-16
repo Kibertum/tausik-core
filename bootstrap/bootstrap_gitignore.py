@@ -34,7 +34,9 @@ def _required_lines(project_dir: str) -> list[str]:
     # harness/ as source). Consumer marker: `.tausik-lib` present.
     lib = Path(project_dir) / ".tausik-lib"
     if lib.exists() or lib.is_symlink():
-        extra.extend(["bootstrap/", "harness/"])
+        # hooks ship via bootstrap into the (gitignored) IDE profile; staging
+        # scripts/hooks/ beside .tausik-lib is the recurring framework dump.
+        extra.extend(["bootstrap/", "harness/", "scripts/hooks/"])
     lines = [".tausik/"]
     lines.extend(f"{p}/" if not p.endswith("/") else p for p in profiles)
     lines.extend(extra)

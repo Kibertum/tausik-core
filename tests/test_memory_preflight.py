@@ -504,6 +504,16 @@ def test_single_use_lifecycle_and_replay_are_durable(preflight):
         reserve_preflight(preflight.be, lease, "Bash", payload)
 
 
+def test_duplicate_pretooluse_reserve_is_idempotent_within_grace(preflight):
+    """Cursor may fire PreToolUse twice before the tool runs."""
+    _issued, payload = _inspect_and_issue(preflight)
+    lease = preflight._authorized_execution_lease
+    first = reserve_preflight(preflight.be, lease, "Bash", payload)
+    second = reserve_preflight(preflight.be, lease, "Bash", payload)
+    assert first["token"] == second["token"]
+    assert complete_preflight(preflight.be, lease["id"], "Bash", payload)
+
+
 def test_restart_and_concurrent_reservation_have_one_winner(preflight):
     _issued, payload = _inspect_and_issue(preflight)
     lease = dict(preflight._authorized_execution_lease)
@@ -521,7 +531,9 @@ def test_restart_and_concurrent_reservation_have_one_winner(preflight):
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         outcomes = sorted(pool.map(lambda _item: attempt(), range(2)))
-    assert outcomes == ["TOKEN_REPLAY", "reserved"]
+    # Both may succeed: the loser re-reads the reserved row within the
+    # Cursor double-PreToolUse grace window and treats it as idempotent.
+    assert outcomes == ["reserved", "reserved"]
 
     restarted = SQLiteBackend(db_path)
     try:
