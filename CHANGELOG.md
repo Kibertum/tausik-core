@@ -34,18 +34,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   still refuse with a controlled nonzero exit.
 
 - Protected memory preflight no longer blocks ordinary host work under
-  dogfooding: FTS terms keep `remote_operation` as one atom (underscore-aware),
-  drop shell/JSON stopwords, and prefer the observed command corpus so
-  `MEMORY_CONFLICT_OVERFLOW` does not fire on every `gh` status read. Cursor
-  `Shell` classifies and binds to the same PowerShell/Bash action id the hook
-  reserves, and the action payload hash uses only `command` — Cursor host
-  metadata (`description`, `block_until_ms`, `working_directory`, `cwd`,
-  `timeout`) and the injected `--trailer "Co-authored-by: Cursor <…>"` no
-  longer make a correct preflight miss at PreToolUse. Absolute paths under a
-  `.../tausik/...` checkout and workflow filenames containing `release` are no
-  longer mistaken for CLI/release_shell actions. Release qualification pins
-  Node 24 action SHAs and `ubuntu-24.04` so the public gate does not ship with
-  Node 20 deprecation annotations.
+  dogfooding: FTS terms keep `remote_operation` / `commit` / `push` as the
+  conflict key alone (no command prose — `gh workflow run release-…` and tip
+  messages used to flood historical release/CI/git dead_ends into
+  `MEMORY_CONFLICT_OVERFLOW`), drop shell/JSON stopwords, and prefer the
+  observed command for classification. Cursor `Shell` classifies and binds to
+  the same PowerShell/Bash action id the hook reserves, and the action payload
+  hash uses only `command` — Cursor host metadata (`description`,
+  `block_until_ms`, `working_directory`, `cwd`, `timeout`) and the injected
+  `--trailer "Co-authored-by: Cursor <…>"` no longer make a correct preflight
+  miss at PreToolUse. Absolute paths under a `.../tausik/...` checkout and
+  workflow filenames containing `release` are no longer mistaken for
+  CLI/release_shell actions. Release qualification pins Node 24 action SHAs
+  and `ubuntu-24.04` so the public gate does not ship with Node 20 deprecation
+  annotations.
 
 - Consumer commits may no longer re-drag generated IDE harness trees into the
   project history. Bootstrap appends `.tausik/`, profile dirs, `bootstrap/`,

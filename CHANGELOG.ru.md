@@ -37,12 +37,13 @@
 
 - Protected memory preflight больше не блокирует обычную работу хоста при
   dogfooding: FTS-термины держат `remote_operation` одним атомом (с учётом
-  `_`), отбрасывают shell/JSON stopwords и берут корпус из observed command,
-  чтобы `MEMORY_CONFLICT_OVERFLOW` не срабатывал на каждом `gh` status.
-  Cursor `Shell` классифицируется и связывается с тем же PowerShell/Bash
-  action id, под которым резервирует hook, а hash payload берёт только
-  `command` — host-метаданные Cursor (`description`, `block_until_ms`,
-  `working_directory`, `cwd`, `timeout`) и injected
+  `_`), а для `remote_operation` / `commit` / `push` conflict-key — только
+  kind (без prose команды: `gh workflow run release-…` и tip-сообщения
+  заливали историю release/CI/git в `MEMORY_CONFLICT_OVERFLOW`), отбрасывают
+  shell/JSON stopwords. Cursor `Shell` классифицируется и связывается с тем
+  же PowerShell/Bash action id, под которым резервирует hook, а hash payload
+  берёт только `command` — host-метаданные Cursor (`description`,
+  `block_until_ms`, `working_directory`, `cwd`, `timeout`) и injected
   `--trailer "Co-authored-by: Cursor <…>"` больше не ломают корректный
   preflight на PreToolUse.
   Абсолютные пути в checkout `.../tausik/...` и имена workflow с `release`

@@ -342,6 +342,25 @@ def test_commit_message_prose_does_not_flood_preflight_terms():
     assert "git" not in terms
 
 
+def test_remote_operation_command_prose_does_not_flood_preflight_terms():
+    from memory_preflight_query import preflight_terms
+
+    terms = preflight_terms(
+        "Shell",
+        {
+            "command": (
+                "gh workflow run release-qualification.yml -f version=1.13.2 "
+                "-f development_sha=abc -f public_snapshot_sha=def"
+            )
+        },
+        "remote_operation",
+    )
+    assert terms == ["remote_operation"]
+    assert "release" not in terms
+    assert "qualification" not in terms
+    assert "workflow" not in terms
+
+
 def test_commit_with_prose_message_does_not_overflow_on_unrelated_dead_ends(preflight):
     for index in range(12):
         preflight.be.memory_add(
