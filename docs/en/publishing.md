@@ -80,7 +80,7 @@ byte for byte, and a machine checks that equality, not a memory.
    SHA, verifies that the Linux matrix JUnit contains exactly 38 passing tests
    and covers all ten required journeys, verifies an empty Ruff JSON report
    against the trusted lint configuration, and ratchets the Linux full-suite JUnit
-   report at 13,880 collected, 13,800 passed, and at most 120 skipped tests.
+   report at 14,444 collected, 14,291 passed, and at most 160 skipped tests.
    It then emits its Ed25519 attestation for the independently evidenced lint,
    Linux full, and isolated upgrade-matrix lanes. Native Windows remains an
    obligatory exact-SHA compatibility canary: the attestation binds GitHub's

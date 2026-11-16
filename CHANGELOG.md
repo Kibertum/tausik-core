@@ -17,6 +17,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   therefore keep `--require-hashes` without accepting only the wheel selected
   on the maintainer's platform. A full-lane floor refusal now prints the
   observed case/pass/fail/skip counts and still uploads the diagnostic JUnit.
+  The Linux full-lane ratchet is 14,444 collected / 14,291 passed / ≤160 skipped
+  from exact-SHA qualification evidence.
 
 - Codex `cli_doctor` recovery remains lease-exempt only for a sole doctor
   statement. A compound `doctor; write` now still passes write/scope gates

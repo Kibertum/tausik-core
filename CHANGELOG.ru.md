@@ -19,6 +19,8 @@
   сохраняют `--require-hashes`, не принимая только wheel, выбранный на
   платформе maintainer. Отказ full-lane floor печатает counts
   cases/pass/fail/skip и всё равно выгружает диагностический JUnit.
+  Ratchet Linux full-lane: 14 444 collected / 14 291 passed / ≤160 skipped по
+  exact-SHA evidence квалификации.
 
 - Codex `cli_doctor` остаётся lease-exempt только для единственного doctor
   statement. Составная команда `doctor; write` снова проходит write/scope

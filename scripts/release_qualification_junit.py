@@ -54,9 +54,11 @@ WINDOWS_NATIVE_TEST = (
     "test_windows_native_cursor_upgrade_executes_registered_session_start_after_reload"
 )
 EXACT_WINDOWS_TESTS = (*EXACT_MATRIX_TESTS, WINDOWS_NATIVE_TEST)
-FULL_LANE_MINIMUM_CASES = 13_880
-FULL_LANE_MINIMUM_PASSES = 13_800
-FULL_LANE_MAXIMUM_SKIPS = 120
+# Exact-SHA qualification v2 full-lane ratchet (run 43872121140 on 1.13.2):
+# cases=14444 passed=14291 failed=0 skipped=153.
+FULL_LANE_MINIMUM_CASES = 14_444
+FULL_LANE_MINIMUM_PASSES = 14_291
+FULL_LANE_MAXIMUM_SKIPS = 160
 
 
 class JunitEvidenceError(ValueError):

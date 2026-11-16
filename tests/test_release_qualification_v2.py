@@ -561,10 +561,10 @@ def _lane_report(passed: int, skipped: int) -> bytes:
 @pytest.mark.parametrize(
     ("passed", "skipped", "valid"),
     [
-        (13_879, 0, False),
-        (13_799, 81, False),
-        (13_800, 121, False),
-        (13_800, 80, True),
+        (14_443, 0, False),
+        (14_290, 153, False),
+        (14_291, 161, False),
+        (14_291, 153, True),
     ],
     ids=["case-floor", "pass-floor", "skip-ceiling", "exact-boundary"],
 )
@@ -573,7 +573,7 @@ def test_full_lane_ratchet_enforces_each_independent_boundary(passed, skipped, v
         qualification.junit.FULL_LANE_MINIMUM_CASES,
         qualification.junit.FULL_LANE_MINIMUM_PASSES,
         qualification.junit.FULL_LANE_MAXIMUM_SKIPS,
-    ) == (13_880, 13_800, 120)
+    ) == (14_444, 14_291, 160)
     report = _lane_report(passed, skipped)
 
     if valid:
