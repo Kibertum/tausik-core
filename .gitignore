@@ -85,6 +85,7 @@ REVIEW-REPORT-*.md
 
 # Scratch next-session prompt (not tracked)
 prompt.md
+tausik-update.md
 
 # Presentation decks — build artifacts of a narrative, not source. The story
 # they tell lives in README, whats-new and the changelog; a PDF in the tree

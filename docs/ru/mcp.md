@@ -25,6 +25,18 @@ counters не меняют ревизию содержимого.
 подтверждения и не участвуют в выдаче токена. Проектная область и видимость
 архива применяются запросом памяти до expansion.
 
+### Чеклист агента (исходники фреймворка не открывать)
+
+1. Вызови `tausik_memory_preflight` с точными будущими `tool_name`,
+   `tool_input` и `protected_kind`.
+2. В Cursor передавай `tool_name: "Shell"`; PreToolUse биндит его в PowerShell
+   (Windows) или Bash (POSIX). В хеш входит только `command` — метаданные хоста игнорируются.
+3. Второй вызов: тот же payload + `inspection_id` + все значения `acknowledge_ids`.
+4. При conflict: `tausik_reason_step` с `kind=action`, в `content` есть
+   возвращённый `action_id`, затем ack с `override_reason: "reason:<seq>"`.
+5. Сразу выполни **ту же** команду. `TOKEN_MISSING` → снова с шага 1;
+   следуй `/commit` (или соответствующему skill), не открывай `memory_preflight.py`.
+
 ## Composite-транспорт Codex
 
 Codex может провести MCP-вызов через внешний инструмент `functions.exec`. В

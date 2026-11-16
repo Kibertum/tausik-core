@@ -382,6 +382,17 @@ def test_commit_with_prose_message_does_not_overflow_on_unrelated_dead_ends(pref
     assert preview["status"] in {"inspection_required", "issued"}
 
 
+def test_token_missing_names_mcp_ritual_not_sources(preflight):
+    lease = preflight._authorized_execution_lease
+    payload = {"command": "git commit -m alpha"}
+    with pytest.raises(MemoryPreflightError, match="TOKEN_MISSING") as caught:
+        reserve_preflight(preflight.be, lease, "Bash", payload)
+    message = str(caught.value)
+    assert "tausik_memory_preflight" in message
+    assert "/commit" in message
+    assert "do not read sources" in message
+
+
 def test_cursor_shell_maps_to_protected_kinds():
     payload = {"command": "gh run view 1 --repo Kibertum/tausik-core"}
     assert classify_action("Shell", payload) == "remote_operation"

@@ -17,6 +17,29 @@ Create well-structured commits with conventional commit messages.
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
+## Memory preflight (required before `git commit` on Cursor/Codex)
+
+Do **not** open `memory_preflight.py`. Use this ritual only.
+
+1. Exact command you will run next (byte-exact `command` string). Prefer
+   `git commit -F <msgfile>` on Windows.
+2. MCP `tausik_memory_preflight` once:
+   - `protected_kind`: `"commit"`
+   - `tool_name`: `"Shell"` (Cursor; hooks bind it to PowerShell/Bash)
+   - `tool_input`: `{ "command": "<exact command>" }`
+3. Response `inspection_required` → call again with the same three fields plus
+   `inspection_id` and every `acknowledge_ids` value (exact set).
+4. If any selected row has `conflict: true`:
+   - `tausik_reason_step(slug, kind="action", content=… must include the returned
+     `action_id` …)`
+   - re-inspect, then ack with `override_reason`: `"reason:<seq>"` (that step’s seq)
+5. Immediately run the **same** `command`. A changed command / package /
+   memory content → new preflight. On `TOKEN_MISSING`, repeat from step 2 —
+   do not read framework sources.
+
+Same pattern for `push` / `remote_operation` / `blocker` with the matching
+`protected_kind`. Detail: `docs/en/mcp.md` (agent checklist).
+
 ## Algorithm
 
 ### 1. Analyze Changes

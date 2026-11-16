@@ -123,7 +123,7 @@ byte for byte, and a machine checks that equality, not a memory.
    the GitHub Release, and `published_tags.json` records the commit either
    way. In the same pass, on the development line, `tausik/published_tags.json`
    is updated (see "Tags" below).
-7. Release notes: the GitHub Release body is written in English, the full text lives in `docs/en/whats-new-X.Y.md` and `docs/ru/whats-new-X.Y.md`, and the body links both pages. `tausik publish notes --version X.Y.Z --body-file <file>` refuses a body that misses either page; run it before creating the release and only after exact-SHA CI is green. The rule applies from 1.10 on; published tags are not re-cut for it.
+7. Release notes: the GitHub Release body lives at `docs/release/body-<version>.md` (not the repo root). It is written in English; the full text lives in `docs/en/whats-new-X.Y.md` and `docs/ru/whats-new-X.Y.md`; and the body links both pages. `tausik publish notes --version X.Y.Z --body-file docs/release/body-X.Y.Z.md` refuses a body that misses either page; run it before creating the release and only after exact-SHA CI is green. The rule applies from 1.10 on; published tags are not re-cut for it.
 8. External authorship survives: a contributor's commits land by merge or by a
    squash carrying their `Co-Authored-By` — otherwise the authorship is erased.
 

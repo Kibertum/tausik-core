@@ -368,7 +368,14 @@ def reserve_preflight(
             (lease["id"], action_id, payload_hash),
         )
         if row is None:
-            raise MemoryPreflightError("TOKEN_MISSING", f"{kind} requires tausik_memory_preflight")
+            raise MemoryPreflightError(
+                "TOKEN_MISSING",
+                f"{kind} requires tausik_memory_preflight: call MCP twice "
+                f"(inspect, then ack with inspection_id+acknowledge_ids); "
+                f"tool_name=Shell and exact command; on conflict "
+                f"tausik_reason_step kind=action containing action_id then "
+                f"override_reason=reason:<seq>. See /commit skill — do not read sources.",
+            )
         if row["status"] == "reserved" and within_reserve_grace(row.get("reserved_at"), instant):
             # Idempotent allow for a duplicate PreToolUse on the same Shell call.
             reserved = dict(row)

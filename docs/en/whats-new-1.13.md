@@ -4,6 +4,15 @@
 
 <!-- doc-map: reader=user; zone=release-notes -->
 
+## 1.13.3 — 2026-11-17
+
+TAUSIK 1.13.3 makes protected memory preflight usable from skills without opening
+`memory_preflight.py`, and keeps GitHub release bodies under
+`docs/release/body-<version>.md`.
+
+- [Exact 1.13.3 changelog](https://github.com/Kibertum/tausik-core/blob/v1.13.3/CHANGELOG.md)
+- [Upgrade guide](upgrade.md)
+
 ## 1.13.2 — 2026-11-15
 
 TAUSIK 1.13.2 is a stabilization release for existing Cursor and Codex projects.

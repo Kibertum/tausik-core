@@ -25,6 +25,18 @@ Rows containing instruction-injection patterns are quarantined before
 acknowledgement and cannot contribute to token issuance. Project scope and
 archive visibility are applied by the project memory query before expansion.
 
+### Agent checklist (do not read framework sources)
+
+1. Call `tausik_memory_preflight` with the exact upcoming `tool_name`,
+   `tool_input`, and `protected_kind`.
+2. On Cursor use `tool_name: "Shell"`; PreToolUse binds it to PowerShell
+   (Windows) or Bash (POSIX). Hash the `command` only — host metadata is ignored.
+3. Second call: same payload + `inspection_id` + every `acknowledge_ids` value.
+4. Conflict rows: `tausik_reason_step` with `kind=action` whose `content`
+   contains the returned `action_id`, then ack with `override_reason: "reason:<seq>"`.
+5. Run the **same** command immediately. `TOKEN_MISSING` → repeat from step 1;
+   follow `/commit` (or the matching skill), do not open `memory_preflight.py`.
+
 ## Codex composite transport
 
 Codex can route an MCP call through an outer `functions.exec` tool. In a trusted

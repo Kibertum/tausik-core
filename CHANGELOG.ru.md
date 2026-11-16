@@ -11,6 +11,19 @@
 
 ## [Unreleased]
 
+## [1.13.3] — 2026-11-17
+
+- DX агента для memory preflight: `/commit` описывает byte-exact ритуал
+  `tausik_memory_preflight` (inspect→ack, биндинг Cursor `Shell`,
+  conflict→`reason:<seq>` с `action` reason-step). `TOKEN_MISSING` печатает
+  эту remediation одной строкой. В `docs/en/mcp.md` и `docs/ru/mcp.md` —
+  короткий чеклист агента, чтобы не читать `memory_preflight.py`. Крипто токена,
+  TTL и правила биндинга не менялись.
+
+- Тела GitHub Release переезжают из корня в `docs/release/body-<version>.md`
+  (решение #440). Документы публикации и тест ссылок смотрят на новый путь;
+  история тел перенесена, не удалена.
+
 ## [1.13.2] — 2026-11-15
 
 - Lock контроллера и runtime release qualification теперь строятся из

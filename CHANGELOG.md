@@ -9,6 +9,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.3] — 2026-11-17
+
+- Agent DX for protected memory preflight: `/commit` documents the byte-exact
+  `tausik_memory_preflight` ritual (inspect→ack, Cursor `Shell` binding,
+  conflict→`reason:<seq>` with an `action` reason-step). `TOKEN_MISSING` now
+  prints that remediation in one line. `docs/en/mcp.md` and `docs/ru/mcp.md`
+  add a short agent checklist so hosts do not reverse-engineer
+  `memory_preflight.py`. Token crypto, TTL, and binding rules are unchanged.
+
+- GitHub release bodies move from the repo root to
+  `docs/release/body-<version>.md` (decision #440). Publishing docs and the
+  release-body link test point at the new path; historical bodies are relocated,
+  not deleted.
+
 ## [1.13.2] — 2026-11-15
 
 - Release qualification controller and runtime locks now derive from reviewed
