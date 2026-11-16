@@ -31,7 +31,7 @@ EXACT_MATRIX_TESTS = (
     ),
     "test_journey_refuses_when_installed_session_start_registration_is_missing[codex-SessionStart]",
     "test_journey_refuses_when_installed_session_start_registration_is_missing[cursor-sessionStart]",
-    "test_real_bootstrap_subprocess_refuses_markerless_required_target",
+    "test_real_bootstrap_subprocess_skips_markerless_foreign_agents",
     *(
         f"test_host_consumer_completes_clean_or_upgraded_journey[{host}-{tag}]"
         for host in ("codex", "cursor")

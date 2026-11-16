@@ -49,8 +49,10 @@ Large handoffs use a summary of at most 4096 UTF-8 bytes (serialized handoff sec
 Call `tausik_update_claudemd`. This refreshes the dynamic section AND injects compact memory tail (recent decisions + conventions + dead ends, one line each) so memory persists across sessions without a separate re-injection call.
 
 The task package fingerprint is also the protected-action memory boundary.
-After start/resume, use `tausik_memory_preflight` for the exact upcoming Codex
-protected action. A package refresh invalidates earlier preflight tokens.
+After start/resume, use `tausik_memory_preflight` for the exact upcoming
+protected action on full-profile hosts that gate mutations (Codex and Cursor
+alike — including `git commit`). A package refresh invalidates earlier
+preflight tokens.
 
 ### Phase 3 — Present Dashboard (under 800 tokens)
 

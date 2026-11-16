@@ -9,6 +9,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.2] — 2026-11-15
+
+- Release qualification controller lock now derives from a reviewed `.in`
+  source and includes every PyPI wheel hash for each exact pin. Windows,
+  macOS, and Linux therefore keep `--require-hashes` without accepting only
+  the wheel selected on the maintainer's platform.
+
+- Codex `cli_doctor` recovery remains lease-exempt only for a sole doctor
+  statement. A compound `doctor; write` now still passes write/scope gates
+  because the write-gate scans Bash and PowerShell target parsers together
+  (Codex reports PowerShell as Bash).
+
+- `ruff format` gate parsing strips ANSI from ruff 0.16 diagnostics and fails
+  closed when returncode 1 yields no parseable paths, so colored `--> path:L:C`
+  output cannot pass as already formatted.
+
+- Bootstrap refresh skips unmanaged instruction files that lack DYNAMIC markers
+  instead of aborting the whole post-bootstrap refresh; hard refresh failures
+  still refuse with a controlled nonzero exit.
+
 ## [1.13.1] — 2026-11-15
 
 - Legacy `.cursorrules` is retired only when its TAUSIK ownership digest proves

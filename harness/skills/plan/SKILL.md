@@ -31,7 +31,10 @@ Then summarize answers into a **user specification** (3-5 bullet points) and con
 
 **Skip this phase** if the user passes `--skip-interview` or provides a detailed spec upfront (more than 3 sentences describing the feature, or an obviously simple ask).
 
-Save the user specification via `tausik_task_log` after task creation.
+Fold the user specification into the atomic `tausik_task_add` `rationale`
+field (or CLI `--rationale`). Do **not** journal the new slug before
+`task start` — an unbound or foreign-bound lease rejects that cross-task
+write with `TASK_BINDING_MISMATCH`.
 
 ### 1. Analyze scope
 

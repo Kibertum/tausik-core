@@ -54,6 +54,7 @@ TASK_CREATE_CONTRACT_FIELDS: tuple[str, ...] = tuple(
         "rollback_plan",
         "assurance_profiles",
         "assurance_impact",
+        "relevant_files",
     }
 )
 

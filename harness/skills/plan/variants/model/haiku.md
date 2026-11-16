@@ -4,7 +4,7 @@ Plan a task. Follow steps in order. No improvisation.
 
 ## Steps
 
-1. **Interview.** If request is vague, invoke `/interview` skill (max 3 questions). Skip if `--skip-interview` or detailed spec given. Save spec via `tausik_task_log` after task created.
+1. **Interview.** If request is vague, invoke `/interview` skill (max 3 questions). Skip if `--skip-interview` or detailed spec given. Fold the spec into `tausik_task_add` `rationale` — never journal the new slug before `task start`.
 
 2. **Score complexity.** Count signals (domains, files, risk):
    - 1-2 → simple (1 task)

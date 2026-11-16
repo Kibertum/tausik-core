@@ -279,6 +279,10 @@ TOOLS = [
                     },
                 },
                 "assurance_impact": {"type": "object"},
+                "relevant_files": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
                 "role": {"type": "string"},
                 "complexity": {
                     "type": "string",

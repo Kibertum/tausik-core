@@ -4,9 +4,9 @@
 
 <!-- doc-map: reader=user; zone=release-notes -->
 
-## 1.13.1 — 2026-11-15
+## 1.13.2 — 2026-11-15
 
-TAUSIK 1.13.1 is a stabilization release for existing Cursor and Codex projects.
+TAUSIK 1.13.2 is a stabilization release for existing Cursor and Codex projects.
 It adds a published-version upgrade matrix beginning at v1.11.7, preserves task,
 dependency, session, lease, turn, Stop, and continuity state across the schema
 boundaries that own those records, and executes the commands installed in each
@@ -24,7 +24,12 @@ evidence, native Windows is a mandatory Cursor/Codex compatibility canary, and
 the protected verifier binds the successful Windows job identity without
 trusting candidate-writable JUnit as signed evidence.
 
-- [Exact 1.13.1 changelog](https://github.com/Kibertum/tausik-core/blob/v1.13.1/CHANGELOG.md)
+The qualification controller lock now carries every published wheel hash
+for each exact dependency pin. Native Windows, macOS, and Linux lanes retain
+strict `--require-hashes` verification without inheriting the maintainer's
+platform-specific wheel choice.
+
+- [Exact 1.13.2 changelog](https://github.com/Kibertum/tausik-core/blob/v1.13.2/CHANGELOG.md)
 - [Upgrade guide](upgrade.md)
 
 ## 1.13.0 — 2026-11-11

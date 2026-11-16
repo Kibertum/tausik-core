@@ -40,9 +40,9 @@ FROM {BASE_IMAGE} AS candidate-dependencies
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /build
 COPY . /source
-RUN python -I -m pip wheel --no-cache-dir --require-hashes --wheel-dir /candidate-wheelhouse \\
+RUN python -I -m pip wheel --no-cache-dir --require-hashes --only-binary=:all: --wheel-dir /candidate-wheelhouse \\
       -r /source/.release-controller/runtime-requirements.txt && \\
-    python -I -m pip install --no-cache-dir --no-index \\
+    python -I -m pip install --no-cache-dir --no-index --only-binary=:all: \\
       --find-links /candidate-wheelhouse --require-hashes --target /candidate-deps \\
       -r /source/.release-controller/runtime-requirements.txt
 
@@ -55,7 +55,7 @@ COPY --from=candidate-dependencies /candidate-wheelhouse /candidate-wheelhouse
 COPY . /source
 WORKDIR /build
 RUN mkdir -p /opt/controller/site && \\
-    python -I -m pip install --no-cache-dir --require-hashes --target /opt/controller/site \\
+    python -I -m pip install --no-cache-dir --require-hashes --only-binary=:all: --target /opt/controller/site \\
       -r /source/.release-controller/requirements.txt && \\
     ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \\
     ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx && \\

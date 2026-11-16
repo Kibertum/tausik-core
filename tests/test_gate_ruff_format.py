@@ -31,6 +31,20 @@ def test_an_unformatted_task_file_blocks(scratch_file):
     assert not ok and "probe.py" in msg and "ruff format" in msg
 
 
+def test_ansi_colored_ruff_016_location_line_is_parsed():
+    """ruff 0.16 paints `--> path:L:C`; the gate must still see the file."""
+    colored = (
+        "\x1b[1m\x1b[91munformatted:\x1b[0m File would be reformatted\n"
+        " \x1b[1m\x1b[94m--> \x1b[0mscripts\\probe.py:1:6\n"
+        "1 file would be reformatted\n"
+    )
+    plain = g._strip_ansi(colored)
+    assert "--> scripts\\probe.py:1:6" in plain
+    match = g._REFORMAT.match(" --> scripts\\probe.py:1:6")
+    assert match is not None
+    assert match.group("b").replace("\\", "/") == "scripts/probe.py"
+
+
 def test_a_formatted_task_file_passes(scratch_file):
     with open(scratch_file, "w", encoding="utf-8") as f:
         f.write('x = {"a": 1}\n')

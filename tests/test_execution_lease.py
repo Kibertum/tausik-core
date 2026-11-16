@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from execution_lease_package import route_allows_package_bypass
+from execution_lease_package import require_current_task_package, route_allows_package_bypass
 from project_backend import SQLiteBackend
 from project_service import ProjectService
 from service_execution_lease import (
@@ -453,6 +453,25 @@ def test_capability_mismatch_requires_explicit_owner_recovery(service):
     assert not emergency_marker.exists()
 
 
+@pytest.mark.parametrize(
+    "active_count, match",
+    [
+        (1, r"unbound while one task is active \(active-0\); run task start active-0"),
+        (2, r"unbound while 2 tasks are active \(active-0, active-1\); run task start"),
+    ],
+)
+def test_unbound_lease_names_active_tasks_and_recovery(service, active_count, match):
+    svc, _project = service
+    svc.epic_add("e", "E")
+    svc.story_add("e", "s", "S")
+    for index in range(active_count):
+        slug = f"active-{index}"
+        svc.task_add("s", slug, f"Active {index}", complexity="simple")
+        svc.be.task_update(slug, status="active")
+    with pytest.raises(ExecutionLeaseError, match=match):
+        require_current_task_package(svc, {"task_slug": None})
+
+
 def test_patch_build_drift_preserves_unexecuted_token_without_maintenance(service):
     svc, project = service
     assertion = trusted_assertion(project)
@@ -650,9 +669,12 @@ def test_active_task_without_persisted_package_refuses_lease_renewal(service):
     lease = issue_execution_lease(svc, assertion)
     assert lease["task_slug"] is None
     renewal = trusted_assertion(project, datetime.now(timezone.utc) + timedelta(seconds=1))
-    with pytest.raises(ExecutionLeaseError, match="PACKAGE_STALE.*unbound lease"):
+    with pytest.raises(ExecutionLeaseError, match="PACKAGE_STALE.*unbound"):
         issue_execution_lease(svc, renewal, now=renewal.issued_at + timedelta(milliseconds=1))
-    with pytest.raises(ExecutionLeaseError, match="PACKAGE_STALE.*not bound"):
+    with pytest.raises(
+        ExecutionLeaseError,
+        match=r"PACKAGE_STALE: lease is unbound while one task is active \(legacy\)",
+    ):
         require_execution_lease(
             svc,
             project_dir=str(project),

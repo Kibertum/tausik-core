@@ -185,9 +185,26 @@ def require_current_task_package(svc: Any, lease: Mapping[str, Any]) -> None:
 
     slug = lease.get("task_slug")
     if not isinstance(slug, str) or not slug:
-        active_count = svc.be._q1("SELECT COUNT(*) AS n FROM tasks WHERE status='active'")
-        if active_count and active_count["n"]:
-            raise ExecutionLeaseError("PACKAGE_STALE", "lease is not bound to an active task")
+        active_rows = svc.be._q("SELECT slug FROM tasks WHERE status='active' ORDER BY slug")
+        active_slugs = [
+            str(row["slug"])
+            for row in (active_rows or ())
+            if isinstance(row, dict) and row.get("slug")
+        ]
+        n = len(active_slugs)
+        if n == 1:
+            raise ExecutionLeaseError(
+                "PACKAGE_STALE",
+                "lease is unbound while one task is active "
+                f"({active_slugs[0]}); run task start {active_slugs[0]} to bind",
+            )
+        if n > 1:
+            named = ", ".join(active_slugs)
+            raise ExecutionLeaseError(
+                "PACKAGE_STALE",
+                f"lease is unbound while {n} tasks are active ({named}); "
+                "run task start <slug> to bind one",
+            )
         return
     bound = _bound_task_package(svc, slug)
     if bound is None or bound.get("status") != "active":

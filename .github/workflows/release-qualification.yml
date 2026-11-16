@@ -60,7 +60,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: >-
-          python -m pip install --require-hashes
+          python -m pip install --require-hashes --only-binary=:all:
           -r trusted/.github/release-qualification-lint.txt
       - working-directory: candidate
         run: >-
@@ -121,7 +121,7 @@ jobs:
           python-version: '3.13'
       - name: Install only trusted locked test dependencies
         run: >-
-          python -m pip install --require-hashes
+          python -m pip install --require-hashes --only-binary=:all:
           -r trusted/.github/release-qualification-controller.txt
           -r trusted/.github/release-qualification-runtime.txt
       - name: Run native Windows Cursor and Codex upgrade qualification
@@ -182,11 +182,11 @@ jobs:
         with:
           python-version: '3.13'
       - run: |
-          pip install --require-hashes -r trusted/.github/release-qualification-controller.txt
-          pip install --require-hashes -r trusted/.github/release-qualification-runtime.txt
+          pip install --require-hashes --only-binary=:all: -r trusted/.github/release-qualification-controller.txt
+          pip install --require-hashes --only-binary=:all: -r trusted/.github/release-qualification-runtime.txt
       - name: Build the trusted macOS bootstrap wheelhouse
         run: >-
-          python -m pip download --require-hashes
+          python -m pip download --require-hashes --only-binary=:all:
           --dest "$RUNNER_TEMP/runtime-wheelhouse"
           -r trusted/.github/release-qualification-runtime.txt
       - working-directory: candidate

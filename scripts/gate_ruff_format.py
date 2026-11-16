@@ -63,6 +63,12 @@ def legacy_unformatted(repo_root: str | None = None) -> set[str] | None:
 #: Two output shapes: `Would reformat: PATH` (ruff <= 0.15) and a diagnostic
 #: whose location line is ` --> PATH:L:C` (0.16+). Both are read.
 _REFORMAT = re.compile(r"^(?:Would reformat: (?P<a>.+?)|\s*--> (?P<b>.+?):\d+:\d+)\s*$")
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    """Ruff 0.16+ may color `--> PATH` even under capture; strip before parse."""
+    return _ANSI.sub("", text)
 
 
 def ruff_command() -> list[str]:
@@ -79,6 +85,10 @@ def unformatted(files: list[str], cwd: str | None = None) -> list[str] | None:
     """Files `ruff format --check` would change; None when ruff cannot run."""
     if not files:
         return []
+    env = os.environ.copy()
+    env["NO_COLOR"] = "1"
+    env.pop("CLICOLOR_FORCE", None)
+    env.pop("FORCE_COLOR", None)
     try:
         proc = subprocess.run(
             [*ruff_command(), "format", "--check", *files],
@@ -89,6 +99,7 @@ def unformatted(files: list[str], cwd: str | None = None) -> list[str] | None:
             cwd=cwd or _repo_root(),
             timeout=120,
             check=False,
+            env=env,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -96,13 +107,17 @@ def unformatted(files: list[str], cwd: str | None = None) -> list[str] | None:
         return None
     root = cwd or _repo_root()
     found = set()
-    for ln in proc.stdout.splitlines():
+    for ln in _strip_ansi(proc.stdout).splitlines():
         m = _REFORMAT.match(ln)
         if m:
             path = (m.group("a") or m.group("b")).strip()
             if os.path.isabs(path):
                 path = os.path.relpath(path, root)
             found.add(path.replace("\\", "/"))
+    # returncode 1 with no parsed paths means the output shape drifted —
+    # fail closed on the requested files rather than reporting them clean.
+    if proc.returncode == 1 and not found:
+        return sorted({p.replace("\\", "/") for p in files})
     return sorted(found)
 
 

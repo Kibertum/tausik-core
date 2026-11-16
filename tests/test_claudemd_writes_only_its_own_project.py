@@ -185,18 +185,17 @@ class TestTheNormalPathIsUnchanged:
             be.close()
         assert "Tasks: 0/0 done" in elsewhere.read_text(encoding="utf-8")
 
-    def test_explicit_instruction_without_dynamic_marker_fails_closed(self, tmp_path, monkeypatch):
+    def test_explicit_instruction_without_dynamic_marker_is_skipped(self, tmp_path, monkeypatch):
+        """Foreign/unmanaged instruction files stay untouched (H2 / bootstrap skip)."""
         mine = _make_project(tmp_path, "mine")
         elsewhere = tmp_path / "markerless.md"
         elsewhere.write_text("# user-owned instructions\n", encoding="utf-8")
         svc, be = _service(mine)
         monkeypatch.chdir(tmp_path)
         try:
-            with pytest.raises(SystemExit) as stopped:
-                cmd_update_claudemd(svc, SimpleNamespace(claudemd=str(elsewhere), dry_run=False))
+            cmd_update_claudemd(svc, SimpleNamespace(claudemd=str(elsewhere), dry_run=False))
         finally:
             be.close()
-        assert stopped.value.code == 1
         assert elsewhere.read_text(encoding="utf-8") == "# user-owned instructions\n"
 
     def test_running_from_a_subdirectory_of_your_project_now_works(self, tmp_path, monkeypatch):

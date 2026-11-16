@@ -52,6 +52,12 @@ class TestPlanSkill:
         text = _read("harness", "skills", "plan", "variants", "model", model)
         assert "tausik_task_add" in text
         assert "task_quick` + `task_update" not in text
+        assert "tausik_task_log" not in text
+
+    def test_plan_skill_never_prescribes_pre_start_task_log(self):
+        text = _read("harness", "skills", "plan", "SKILL.md")
+        assert "tausik_task_log" not in text
+        assert "rationale" in text
 
     def test_deployed_plan_skill_keeps_the_atomic_contract(self):
         text = _read(".claude", "skills", "plan", "SKILL.md")
@@ -67,6 +73,7 @@ class TestPlanSkill:
         ):
             assert field in text
         assert "task_quick` + `task_update" not in text
+        assert "tausik_task_log" not in text
 
 
 class TestClaudeMd:
@@ -103,7 +110,7 @@ class TestMcpToolsDescription:
         start = text.index('"name": "tausik_task_add"')
         end = text.index('"name": "tausik_task_start"', start)
         block = text[start:end]
-        for field in ('"depends_on"', '"plan_steps"', '"rationale"'):
+        for field in ('"depends_on"', '"plan_steps"', '"rationale"', '"relevant_files"'):
             assert field in block
 
     def test_mirror_in_sync(self):

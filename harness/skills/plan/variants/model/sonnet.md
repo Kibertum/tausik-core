@@ -12,7 +12,7 @@ For complex or vague requests, invoke the `/interview` skill — max 3 clarifyin
 
 **Skip** if `--skip-interview`, detailed spec given (>3 sentences), or obviously simple.
 
-Save the user spec via `tausik_task_log` after task creation.
+Fold the user spec into the atomic `tausik_task_add` `rationale` field. Do not journal the new slug before `task start`.
 
 ### 1. Analyze scope
 

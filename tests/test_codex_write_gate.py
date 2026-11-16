@@ -719,6 +719,43 @@ def test_redirects_and_prior_writes_do_not_preempt_exact_task_binding(tmp_path, 
     assert "TASK_BINDING_MISMATCH" in denial or "unsupported TAUSIK CLI" in denial
 
 
+@pytest.mark.parametrize("state", ["no_task", "allowed"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        ".tausik/tausik doctor; Set-Content -LiteralPath outside.py -Value pwned",
+        (
+            ".tausik/tausik doctor --reconcile-execution-leases revoke-and-reconcile; "
+            "Set-Content -LiteralPath outside.py -Value pwned"
+        ),
+    ],
+)
+def test_doctor_compound_write_is_not_lease_exempt(tmp_path, command, state):
+    """Trailing PowerShell write must hit scope even when doctor leads the chain."""
+    event = {
+        "tool_name": "Bash",
+        "tool_input": {"command": command, "cwd": str(tmp_path)},
+        "cwd": str(tmp_path),
+        "session_id": "thread-a",
+    }
+    denial = assert_denied(run_gate(tmp_path, event, state))
+    if state == "allowed":
+        assert "outside.py" in denial
+
+
+def test_sole_doctor_remains_lease_exempt(tmp_path):
+    event = {
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": ".tausik/tausik doctor --reconcile-execution-leases revoke-and-reconcile"
+        },
+        "session_id": "thread-a",
+    }
+    result = run_gate(tmp_path, event, "no_task")
+    assert result.returncode == 0, result.stderr
+    assert not result.stdout
+
+
 @pytest.mark.parametrize(
     ("command", "expected"),
     [

@@ -56,3 +56,24 @@ def test_complete_task_creation_commits_all_parts_or_none(svc):
     assert svc.be.task_get("rolled-back") is None
     assert svc.be._task_deps_of("rolled-back") == []
     assert svc.task_logs("rolled-back") == []
+
+
+def test_complete_task_creation_persists_relevant_files(svc):
+    task_add_complete(
+        svc,
+        story_slug=None,
+        slug="with-files",
+        title="With files",
+        goal="Store relevant_files on create",
+        acceptance_criteria="Files persist. Negative: omitted field stays empty.",
+        relevant_files=["scripts/a.py", "tests/test_a.py"],
+    )
+    task = svc.task_show("with-files")
+    raw = task.get("relevant_files")
+    if isinstance(raw, str):
+        import json
+
+        files = json.loads(raw)
+    else:
+        files = raw
+    assert files == ["scripts/a.py", "tests/test_a.py"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -39,6 +40,7 @@ def task_add_complete(
     rollback_plan: str | None = None,
     assurance_profiles: object = None,
     assurance_impact: object = None,
+    relevant_files: object = None,
     plan_steps: object = None,
     rationale: object = None,
     depends_on: object = None,
@@ -52,6 +54,9 @@ def task_add_complete(
     if rationale is not None and not isinstance(rationale, str):
         raise ValueError("rationale must be a string")
 
+    files = relevant_files
+    if isinstance(files, list):
+        files = json.dumps(list(files))
     contract: dict[str, Any] = {
         name: value
         for name, value in {
@@ -63,6 +68,7 @@ def task_add_complete(
             "rollback_plan": rollback_plan,
             "assurance_profiles": assurance_profiles,
             "assurance_impact": assurance_impact,
+            "relevant_files": files,
         }.items()
         if value is not None
     }

@@ -2,9 +2,10 @@
 """Adapt observed Codex write payloads to the existing task/scope gates.
 
 Codex 0.153.4 reports apply_patch as command text and PowerShell as Bash.
-The latter lacks shell identity: only leading literal PowerShell write cmdlets
-are recognized here. This is bounded syntax coverage, not shell inference or
-a guarantee about arbitrary programs, variables, aliases or computed writes.
+Any literal target the PowerShell statement parser reports is judged in that
+dialect, including writes after a leading doctor/CLI statement. Leading write
+cmdlets without a literal target still fail closed. Residuals remain: aliases
+outside the table, variables, encoded commands, and .NET calls.
 """
 
 from __future__ import annotations
@@ -187,12 +188,25 @@ def check_event(event: dict, project: str, *, trusted_host: str = "codex") -> in
             raise ValueError("missing shell command")
         shell_tool = "PowerShell" if tool in write_tools.MCP_SHELL_TOOLS else str(tool)
         normalized = {**event, "tool_name": shell_tool}
+        cwd = shell_cwd(event, project)
+        pwsh_targets = shell_channel.write_targets("PowerShell", command, cwd)
+        bash_targets = shell_channel.write_targets("Bash", command, cwd)
+        # Codex reports PowerShell as Bash; a trailing Set-Content after doctor
+        # must still use the PowerShell write dialect for scope checks.
+        # Leading Set-Content with no literal target still fails closed.
+        force_powershell = bool(pwsh_targets) or bool(_PWSH_WRITE.match(command))
         cli_requests, cli_seen = cli_authorization_requests(command)
         if cli_requests:
+            # Sole doctor may recover without a lease. A compound doctor;write
+            # still has only cli_doctor in requests, so check write targets too.
+            doctor_only = all(route == "cli_doctor" for route, _ in cli_requests)
+            has_write = bool(pwsh_targets or bash_targets or _PWSH_WRITE.match(command))
+            if doctor_only and not has_write:
+                return 0
             if result := _require_lease_requests(event, project, cli_requests, authorize=False):
                 return result
-        if _PWSH_WRITE.match(command):
-            if not shell_channel.write_targets("PowerShell", command, shell_cwd(event, project)):
+        if force_powershell:
+            if not pwsh_targets:
                 raise ValueError("PowerShell write has no supported literal target")
             normalized = {**event, "tool_name": "PowerShell"}
             result = _run_gate(bash_write_gate.main, normalized)
@@ -211,9 +225,7 @@ def check_event(event: dict, project: str, *, trusted_host: str = "codex") -> in
         result = _run_gate(bash_write_gate.main, normalized)
         if result:
             return result
-        if not cli_requests and shell_channel.write_targets(
-            shell_tool, command, shell_cwd(event, project)
-        ):
+        if not cli_requests and (bash_targets or pwsh_targets):
             if result := _require_lease(
                 event,
                 project,

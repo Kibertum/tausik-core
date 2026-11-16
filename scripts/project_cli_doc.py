@@ -100,7 +100,11 @@ def cmd_update_claudemd(svc: ProjectService, args: Any) -> None:
         msg, changed = apply_dynamic_section(path, content, dry_run)
         print(msg)
         any_change = any_change or changed
-        if msg.startswith("Error reading ") or msg.startswith("Warning: "):
+        # Missing DYNAMIC markers mean a foreign/unmanaged instruction file —
+        # skip it. Only hard read/write failures refuse the refresh.
+        if msg.startswith("Error reading "):
+            failures.append(msg)
+        elif msg.startswith("Warning: ") and "marker not found" not in msg:
             failures.append(msg)
     if failures:
         print("Error: dynamic-state refresh did not update every target.", file=sys.stderr)

@@ -46,12 +46,22 @@ done
 git -C .tausik-lib describe --tags --always > "$backup/framework-version.txt"
 ```
 
-PowerShell:
+PowerShell (write the backup helper to a file first — a quoted `py -c` one-liner
+is refused by the Codex/Cursor write-gate when `;` appears outside quotes):
 
 ```powershell
 $backup = Join-Path .. ("tausik-backup-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
 New-Item -ItemType Directory -Path $backup | Out-Null
-py -c 'import sqlite3,sys; s=sqlite3.connect("file:.tausik/tausik.db?mode=ro",uri=True); d=sqlite3.connect(sys.argv[1]); s.backup(d); assert d.execute("PRAGMA integrity_check").fetchone()==("ok",); d.close(); s.close()' (Join-Path $backup 'tausik.db')
+@'
+import sqlite3, sys
+src = sqlite3.connect("file:.tausik/tausik.db?mode=ro", uri=True)
+dst = sqlite3.connect(sys.argv[1])
+src.backup(dst)
+assert dst.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+dst.close()
+src.close()
+'@ | Set-Content -Encoding utf8 (Join-Path $env:TEMP 'tausik-wal-backup.py')
+py (Join-Path $env:TEMP 'tausik-wal-backup.py') (Join-Path $backup 'tausik.db')
 Copy-Item -LiteralPath .tausik\config.json -Destination $backup
 if (Test-Path .tausik\stacks) { Copy-Item -Recurse -LiteralPath .tausik\stacks -Destination $backup }
 foreach ($path in '.cursor','.codex','.cursorrules','AGENTS.md','CLAUDE.md','QWEN.md') {

@@ -11,6 +11,26 @@
 
 ## [Unreleased]
 
+## [1.13.2] — 2026-11-15
+
+- Lock контроллера release qualification теперь строится из рецензируемого
+  `.in` и включает hash каждого PyPI wheel для каждого точного pin. Windows,
+  macOS и Linux сохраняют `--require-hashes`, не принимая только wheel,
+  выбранный на платформе maintainer.
+
+- Codex `cli_doctor` остаётся lease-exempt только для единственного doctor
+  statement. Составная команда `doctor; write` снова проходит write/scope
+  gates: write-gate сканирует Bash и PowerShell parsers вместе (Codex
+  сообщает PowerShell как Bash).
+
+- Gate `ruff format` снимает ANSI с диагностики ruff 0.16 и закрывается
+  fail-closed, если returncode 1 не дал распознаваемых путей — цветной
+  `--> path:L:C` больше не проходит как «уже отформатировано».
+
+- Bootstrap refresh пропускает unmanaged instruction files без DYNAMIC
+  маркеров вместо остановки всего post-bootstrap refresh; жёсткие сбои
+  refresh по-прежнему отказывают контролируемым nonzero.
+
 ## [1.13.1] — 2026-11-15
 
 - Legacy `.cursorrules` удаляется только когда ownership digest TAUSIK

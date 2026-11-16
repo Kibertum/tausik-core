@@ -61,7 +61,7 @@ def _cli_argument_vectors(command: str) -> list[list[str]]:
         from python_invocation import is_python, python_script
 
     invocations: list[list[str]] = []
-    for statement in re.split(r"(?:\r?\n|[;&|]+)", command):
+    for statement in (command,):
         statement = statement.strip()
         while statement.startswith("(") and statement.endswith(")"):
             statement = statement[1:-1].strip()
@@ -268,6 +268,8 @@ def _task_start_slug(tokens: list[str]) -> str:
 
 def _bindings(tokens: list[str]) -> list[tuple[str, dict[str, object]]]:
     bindings: list[tuple[str, dict[str, object]]] = []
+    if tokens and tokens[0] == "doctor":
+        return [("cli_doctor", {})]
     if len(tokens) >= 3 and tokens[0] == "task":
         route = "cli_task_start" if tokens[1] == "start" else "cli_task_mutation"
         if tokens[1] == "start" or tokens[1] in _TASK_MUTATIONS_WITH_SLUG:

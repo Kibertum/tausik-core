@@ -407,7 +407,7 @@ def test_trusted_verifier_ratchets_are_literal_and_reviewable():
     )
     assert (
         hashlib.sha256((ROOT / qualification.SCENARIO_HARNESS_PATH).read_bytes()).hexdigest()
-        == "58529b3822cfeeac310401a327822f29e70edd23e314853bc29d0178244f46cb"
+        == "e4cb6f5e6110b960316ee810e66dd989b39dbef6fe3362bed97217e651ec90d3"
     )
 
 
@@ -638,7 +638,8 @@ def test_workflow_keeps_candidate_unprivileged_and_verifier_protected():
     assert "needs.qualification-windows.result" in verifier
     assert "success()" in verifier
     assert "--require-hashes" in workflow
-    assert "python -m pip download --require-hashes" in workflow
+    assert workflow.count("--only-binary=:all:") == 5
+    assert "python -m pip download --require-hashes --only-binary=:all:" in workflow
     assert "PIP_NO_INDEX: '1'" in workflow
     assert "PIP_FIND_LINKS: ${{ runner.temp }}/runtime-wheelhouse" in workflow
     assert "ruff check --config ../trusted/.github/release-qualification-ruff.toml" in workflow
@@ -666,6 +667,98 @@ def test_workflow_keeps_candidate_unprivileged_and_verifier_protected():
         else:
             assert "environment" not in job
             assert "secrets." not in serialized
+
+
+def test_controller_lock_carries_all_platform_wheels():
+    from release_lock_hashes import render_all_artifact_hashes
+
+    source = """demo==1.2.3
+    # via controller
+"""
+    expected = ["1" * 64, "2" * 64, "3" * 64]
+
+    rendered = render_all_artifact_hashes(source, lambda name, version: expected)
+
+    assert rendered.count("--hash=sha256:") == 3
+    assert all(digest in rendered for digest in expected)
+    assert "# via controller" in rendered
+
+    lock = (ROOT / ".github/release-qualification-controller.txt").read_text(encoding="utf-8")
+    librt = lock.split("librt==0.16.0", 1)[1].split("\n    # via mypy", 1)[0]
+    digests = set(re.findall(r"sha256:([0-9a-f]{64})", librt))
+    # Multi-platform wheel set: a single-platform compile cannot produce this many.
+    assert len(digests) >= 3
+    assert {
+        "17bac7f7a16b328fff77e440287693eb017abde913595b5827ebccbc21ecd8a6",
+        "14ed6ebe3e4f85f326d7920011ad30ff49ed9334e62cf88caef9ba973d9e3a92",
+        "33f41443a1f4e1f099331b3d8120e409fbff84b9760bc1cc9ea496f37ddaa5cc",
+    } <= digests
+
+
+def test_controller_lock_uses_wheels_and_excludes_source_archives():
+    from release_lock_hashes import wheel_hashes_from_pypi_payload
+
+    win = "1" * 64
+    mac = "2" * 64
+    linux = "3" * 64
+    source = "4" * 64
+    payload = {
+        "info": {"version": "1.2.3"},
+        "urls": [
+            {
+                "packagetype": "bdist_wheel",
+                "filename": "demo-1.2.3-cp313-cp313-win_amd64.whl",
+                "digests": {"sha256": win},
+            },
+            {
+                "packagetype": "bdist_wheel",
+                "filename": "demo-1.2.3-cp313-cp313-macosx_11_0_arm64.whl",
+                "digests": {"sha256": mac},
+            },
+            {
+                "packagetype": "bdist_wheel",
+                "filename": "demo-1.2.3-cp313-cp313-manylinux2014_x86_64.whl",
+                "digests": {"sha256": linux},
+            },
+            {
+                "packagetype": "sdist",
+                "filename": "demo-1.2.3.tar.gz",
+                "digests": {"sha256": source},
+            },
+        ],
+    }
+
+    assert wheel_hashes_from_pypi_payload(payload, "demo", "1.2.3") == [win, mac, linux]
+
+
+def test_controller_lock_render_keeps_win_mac_linux_wheel_set():
+    from release_lock_hashes import render_all_artifact_hashes
+
+    win, mac, linux = "a" * 64, "b" * 64, "c" * 64
+    source = "demo==1.2.3 \\\n    --hash=sha256:" + ("d" * 64) + "\n"
+
+    def lookup(name: str, version: str):
+        assert (name, version) == ("demo", "1.2.3")
+        return [linux, win, mac]  # unsorted on purpose
+
+    rendered = render_all_artifact_hashes(source, lookup)
+    digests = re.findall(r"sha256:([0-9a-f]{64})", rendered)
+    assert digests == sorted([win, mac, linux])
+    assert "d" * 64 not in digests
+
+
+@pytest.mark.parametrize(
+    "source, error",
+    [
+        ("# no pins\n", "no exact package pins"),
+        ("demo==1.2.3 \\\n    --hash=sha256:not-a-digest\n", "malformed hash line"),
+    ],
+)
+def test_controller_lock_expansion_fails_closed(source, error):
+    from release_lock_hashes import render_all_artifact_hashes
+
+    with pytest.raises(ValueError, match=error):
+        render_all_artifact_hashes(source, lambda _name, _version: ["1" * 64])
 
 
 def test_production_public_key_is_the_reviewed_identity_and_rejects_an_unrelated_seed():

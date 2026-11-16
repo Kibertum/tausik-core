@@ -1,0 +1,18 @@
+# Trusted controller and cross-platform qualification tools.
+#
+# Regenerate with Python 3.13, then expand every pin to all published wheels.
+# A resolver records only the wheel selected on the maintainer's platform; the
+# second command makes one reviewed lock valid on Linux, macOS, and Windows:
+#
+#   uv pip compile --universal --python-version 3.13 --generate-hashes \
+#     --no-emit-index-url \
+#     --output-file=.github/release-qualification-controller.txt \
+#     .github/release-qualification-controller.in
+#   python scripts/release_lock_hashes.py \
+#     .github/release-qualification-controller.txt
+
+bandit==1.9.4
+mypy==1.20.2
+pytest==9.2.0
+pytest-xdist==3.8.0
+ruff==0.16.5

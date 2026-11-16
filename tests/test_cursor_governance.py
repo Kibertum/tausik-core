@@ -397,7 +397,11 @@ def test_post_bootstrap_refresh_failure_is_one_controlled_nonzero_contract(
     def record(command, **_kwargs):
         calls.append(command)
         failed = any(str(part).endswith("CLAUDE.md") for part in command)
-        return SimpleNamespace(returncode=1 if failed else 0)
+        return SimpleNamespace(
+            returncode=1 if failed else 0,
+            stdout=b"",
+            stderr=b"refresh failed" if failed else b"",
+        )
 
     monkeypatch.setattr("subprocess.run", record)
     with pytest.raises(SystemExit) as stopped:
@@ -427,7 +431,11 @@ sys.path.insert(0, {str(ROOT / "bootstrap")!r})
 from bootstrap_modes import run_post_bootstrap
 def record(command, **kwargs):
     failed = any(str(part).endswith('CLAUDE.md') for part in command)
-    return SimpleNamespace(returncode=1 if failed else 0)
+    return SimpleNamespace(
+        returncode=1 if failed else 0,
+        stdout=b'',
+        stderr=b'refresh failed' if failed else b'',
+    )
 subprocess.run = record
 run_post_bootstrap(SimpleNamespace(init={init_literal}), {str(tmp_path)!r})
 """

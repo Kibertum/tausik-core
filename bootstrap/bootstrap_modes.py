@@ -306,11 +306,22 @@ def _refresh_dynamic_state(project_dir: str, tausik_wrapper: str) -> None:
                 capture_output=True,
             )
             if result.returncode != 0:
-                failures.append(instruction or "default instruction file")
-        except (OSError, subprocess.SubprocessError):
-            failures.append(instruction or "default instruction file")
+                raw = getattr(result, "stderr", None) or getattr(result, "stdout", None) or b""
+                if isinstance(raw, bytes):
+                    detail = raw.decode("utf-8", errors="replace").strip()
+                else:
+                    detail = str(raw).strip()
+                label = instruction or "default instruction file"
+                # Foreign AGENTS.md / instruction files without DYNAMIC markers
+                # are skipped by update-claudemd; do not fail the whole refresh.
+                if "marker not found" in detail and "skipped" in detail:
+                    print(f"  skip unmanaged instruction file: {label}")
+                    continue
+                failures.append(f"{label}: {detail or f'exit {result.returncode}'}")
+        except (OSError, subprocess.SubprocessError) as exc:
+            failures.append(f"{instruction or 'default instruction file'}: {exc}")
     if failures:
-        raise RuntimeError("dynamic-state refresh failed: " + ", ".join(failures))
+        raise RuntimeError("dynamic-state refresh failed: " + "; ".join(failures))
 
 
 def _refuse_post_bootstrap(error: BaseException) -> None:

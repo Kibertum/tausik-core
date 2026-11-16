@@ -140,13 +140,14 @@ def test_container_build_separates_candidate_install_from_trusted_runtime():
     assert "--wheel-dir /candidate-wheelhouse" in dockerfile
     assert "runtime-requirements.txt" in dockerfile
     assert dockerfile.count("--require-hashes") >= 2
+    assert dockerfile.count("--only-binary=:all:") == 3
     assert "--target /candidate-deps" in dockerfile
     assert dockerfile.count("WORKDIR /build") == 2
     assert dockerfile.count("python -I -m pip") == 3
     assert "WORKDIR /source" not in dockerfile
     assert "FROM python@" in dockerfile.split("AS runtime", 1)[0]
     runtime = dockerfile.split("AS runtime", 1)[1]
-    assert "--require-hashes --target /opt/controller/site" in runtime
+    assert "--require-hashes --only-binary=:all: --target /opt/controller/site" in runtime
     assert "pyproject.toml /opt/controller/pyproject.toml" in runtime
     assert "sitecustomize.py" in runtime
     assert "sys.path.insert(0, '/opt/controller/site')" in runtime

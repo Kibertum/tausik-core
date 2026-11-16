@@ -819,7 +819,7 @@ def test_journey_refuses_when_installed_session_start_registration_is_missing(
         _installed_hook_argv(consumer, host, event, "session_start.py")
 
 
-def test_real_bootstrap_subprocess_refuses_markerless_required_target(tmp_path):
+def test_real_bootstrap_subprocess_skips_markerless_foreign_agents(tmp_path):
     consumer = tmp_path / "consumer"
     _initialize(ROOT, consumer, "codex")
     markerless = consumer / "AGENTS.md"
@@ -840,8 +840,8 @@ def test_real_bootstrap_subprocess_refuses_markerless_required_target(tmp_path):
         consumer,
     )
 
-    assert result.returncode == 1
-    assert "REFUSED: post-bootstrap dynamic-state refresh failed" in result.stderr
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "REFUSED: post-bootstrap dynamic-state refresh failed" not in result.stderr
     markerless_text = markerless.read_text(encoding="utf-8")
     assert markerless_text.startswith("# user-owned markerless instructions\n")
     assert "<!-- DYNAMIC:START -->" not in markerless_text
@@ -961,9 +961,14 @@ def test_host_consumer_completes_clean_or_upgraded_journey(published_repo, tmp_p
         {
             "slug": "upgrade-journey",
             "title": "upgrade journey",
-            "goal": "Prove the upgraded Codex lifecycle remains operational",
+            "goal": f"Prove the upgraded {host} lifecycle remains operational",
             "acceptance_criteria": (
                 "AC-1 lifecycle completes. AC-2 Negative: work Stop blocks before done."
+                if host == "codex"
+                else (
+                    "AC-1 lifecycle completes. AC-2 Negative: Cursor keyword_detector "
+                    "path runs; can_stop_gate is not deployed on this host."
+                )
             ),
             "role": "developer",
             "stack": "python",
@@ -972,6 +977,11 @@ def test_host_consumer_completes_clean_or_upgraded_journey(published_repo, tmp_p
             "relevant_files": ["src/calc.py", "test_calc.py"],
         },
     )
+    with sqlite3.connect(db) as conn:
+        stored_files = conn.execute(
+            "SELECT relevant_files FROM tasks WHERE slug='upgrade-journey'"
+        ).fetchone()[0]
+    assert json.loads(stored_files) == ["src/calc.py", "test_calc.py"]
     _mcp_call(
         consumer,
         host,
@@ -1027,10 +1037,15 @@ def test_host_consumer_completes_clean_or_upgraded_journey(published_repo, tmp_p
         consumer,
         "verify",
     )
-    for line in (
-        "AC-1: ✓ test_calc.py::test_add",
-        "AC-2: ✓ production work Stop returned block",
-    ):
+    ac_lines = ["AC-1: ✓ test_calc.py::test_add"]
+    if host == "codex":
+        ac_lines.append("AC-2: ✓ production work Stop returned block")
+    else:
+        # Cursor does not install can_stop_gate; do not claim a Stop block.
+        ac_lines.append(
+            "AC-2: ✓ Cursor keyword_detector path exercised; can_stop_gate not deployed"
+        )
+    for line in ac_lines:
         _step(cli + ["task", "log", "upgrade-journey", line], consumer, "AC evidence")
     _step(
         cli + ["task", "done", "upgrade-journey", "--ac-verified", "--no-changelog"],
