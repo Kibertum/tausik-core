@@ -751,8 +751,58 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             notice += notice_for_json_list(
                 fields["relevant_files"], os.path.dirname(self.tausik_dir())
             )
+        execution_lease_id = fields.pop("_execution_lease_id", None)
+        # Refuse writing an incomplete complex contract: that left agents in a
+        # PACKAGE_STALE ↔ PACKAGE_INVALID deadlock (1.13.3 dogfood). Legacy
+        # rows keep the one-shot marker path — start/resume still normalizes.
+        merged = dict(task)
+        for key, value in fields.items():
+            merged[key] = value
+        if cb is not _MISSING:
+            merged["call_budget"] = cb
+        if "assurance_profiles" in fields and not isinstance(fields["assurance_profiles"], str):
+            merged["assurance_profiles"] = json.dumps(fields["assurance_profiles"])
+        if "assurance_impact" in fields and not isinstance(fields["assurance_impact"], str):
+            merged["assurance_impact"] = json.dumps(fields["assurance_impact"])
+        # Active-only: writing incomplete complex on a live task created the
+        # PACKAGE_STALE↔PACKAGE_INVALID deadlock. Planning rows still fail at
+        # start; other field fills on an already-complex row stay recovery.
+        if (
+            task.get("status") == "active"
+            and fields.get("complexity") == "complex"
+            and not merged.get("task_package_legacy")
+        ):
+            from task_context_package import (
+                build_task_context_package,
+                validate_package_contract,
+            )
+
+            probe = build_task_context_package(self, slug, max_bytes=16_384, task_override=merged)
+            validate_package_contract(probe)
         self._write_update_atomically(slug, budget_writes, fields)
+        if execution_lease_id is not None and task.get("status") == "active":
+            notice += self._rebind_lease_after_contract_change(slug, int(execution_lease_id))
         return self._task_updated(slug, notice)
+
+    def _rebind_lease_after_contract_change(self, slug: str, lease_id: int) -> str:
+        """Persist a fresh package and rebind the caller's lease (1.13.4)."""
+        from memory_only_backlog import profile_of_dir
+        from task_context_package import (
+            build_task_context_package,
+            persist_task_context_package,
+            require_package_fits,
+            validate_package_contract,
+        )
+
+        if profile_of_dir(self.tausik_dir()) != "full":
+            return ""
+        package = build_task_context_package(self, slug, max_bytes=16_384)
+        validate_package_contract(package)
+        require_package_fits(package)
+        with self.be.transaction():
+            persist_task_context_package(self, package)
+            _bind_execution_lease(self, lease_id, slug, package["fingerprint"])
+        return "\nLease package rebound after contract update."
 
     def _write_update_atomically(
         self, slug: str, budget_writes: list[tuple[Any, Any]], fields: dict[str, Any]

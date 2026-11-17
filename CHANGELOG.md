@@ -9,6 +9,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.4] — 2026-11-17
+
+- Soften execution-lease package freshness to **advisory** for ordinary
+  Write/MCP mutations (spirit of 1.11.7). `PACKAGE_STALE` no longer deadlocks
+  the agent after `task_update`: the lease gate warns and continues; only
+  `codex_protected_shell` (commit/push) stays fail-closed. `tausik_task_update`
+  is a rebind route and, when the live lease id is present, rebuilds and
+  rebinds the package after a successful contract edit. Incomplete
+  `complexity=complex` updates on an **active** task are refused before write
+  so `PACKAGE_STALE`↔`PACKAGE_INVALID` cannot strand a thread (planning rows
+  still fail at `task_start`). Memory preflight tokens remain commit/push-scoped;
+  lease tables are not dropped.
+
 ## [1.13.3] — 2026-11-17
 
 - Agent DX for protected memory preflight: `/commit` documents the byte-exact

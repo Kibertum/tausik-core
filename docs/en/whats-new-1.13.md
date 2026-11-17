@@ -4,6 +4,15 @@
 
 <!-- doc-map: reader=user; zone=release-notes -->
 
+## 1.13.4 — 2026-11-17
+
+TAUSIK 1.13.4 softens execution-lease package freshness for ordinary Write/MCP
+work (advisory `PACKAGE_STALE`), keeps commit/push fail-closed, and refuses
+incomplete `complexity=complex` updates before write so agents are not stranded.
+
+- [Exact 1.13.4 changelog](https://github.com/Kibertum/tausik-core/blob/v1.13.4/CHANGELOG.md)
+- [Upgrade guide](upgrade.md)
+
 ## 1.13.3 — 2026-11-17
 
 TAUSIK 1.13.3 makes protected memory preflight usable from skills without opening

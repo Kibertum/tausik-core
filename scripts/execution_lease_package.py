@@ -24,9 +24,20 @@ _TASK_ARGUMENT_BY_ROUTE = {
     "tausik_verify": "task_slug",
     "cli_task_mutation": "slug",
 }
-_REBIND_ROUTES = frozenset({"tausik_task_start", "cli_task_start"})
+_REBIND_ROUTES = frozenset(
+    {
+        "tausik_task_start",
+        "cli_task_start",
+        # Contract edits must not strand the same thread on PACKAGE_STALE
+        # before the agent can finish required complex fields or resume.
+        "tausik_task_update",
+        "cli_task_update",
+    }
+)
 _SESSION_BOOTSTRAP_ROUTES = frozenset({"tausik_session_open", "tausik_session_start"})
 _UNBOUND_TASK_ROUTES = frozenset({"tausik_task_add", "tausik_task_quick"})
+# Fail-closed package freshness only for commit/push (and explicit protected shell).
+_STRICT_PACKAGE_ROUTES = frozenset({"codex_protected_shell"})
 _OPTIONAL_TASK_ARGUMENT_ROUTES = frozenset(
     {
         "tausik_decide",
@@ -177,6 +188,25 @@ def route_allows_package_bypass(route: str | None, lease: Mapping[str, Any] | No
     if route in _REBIND_ROUTES or route in _SESSION_BOOTSTRAP_ROUTES:
         return True
     return bool(route in _UNBOUND_TASK_ROUTES and lease is not None and not lease.get("task_slug"))
+
+
+def route_requires_strict_package(route: str | None) -> bool:
+    """True when PACKAGE_STALE must still fail closed (commit/push shell)."""
+    return bool(route in _STRICT_PACKAGE_ROUTES)
+
+
+def package_freshness_policy(route: str | None, lease: Mapping[str, Any] | None = None) -> str:
+    """Return strict | rebind | advisory for package fingerprint checks.
+
+    1.13.4 soften: ordinary Write/MCP continues on a stale package; only
+    commit/push protected shells stay fail-closed. Rebind routes skip the
+    freshness check so task_update/task_start can recover the binding.
+    """
+    if route_allows_package_bypass(route, lease):
+        return "rebind"
+    if route_requires_strict_package(route):
+        return "strict"
+    return "advisory"
 
 
 def require_current_task_package(svc: Any, lease: Mapping[str, Any]) -> None:

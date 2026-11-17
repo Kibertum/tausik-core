@@ -119,7 +119,7 @@ def handle_tool(svc: Any, name: str, args: dict, *, authorization: str | None = 
     """Dispatch tool call to service method. Returns text result."""
     with _DISPATCH_LOCK:
         lease = _require_codex_execution_lease(svc, name, args, authorization=authorization)
-        if lease is not None and name == "tausik_task_start":
+        if lease is not None and name in {"tausik_task_start", "tausik_task_update"}:
             args = {**args, "_execution_lease_id": lease["id"]}
         from memory_only_backlog import deferred_reply
 

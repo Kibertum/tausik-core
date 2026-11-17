@@ -126,8 +126,12 @@ def require_live_lease(
                 )
                 reconcile_execution_lease_state(svc, assertion)
                 current = issue_execution_lease(svc, assertion)
-            from execution_lease_package import route_allows_package_bypass
+            from execution_lease_package import (
+                package_freshness_policy,
+                route_allows_package_bypass,
+            )
 
+            primary_route = request_items[0][0] if request_items else None
             lease = require_execution_lease(
                 svc,
                 project_dir=project_dir,
@@ -135,8 +139,18 @@ def require_live_lease(
                 thread_id=thread_id.strip(),
                 nonce=current["nonce"],
                 allow_package_rebind=bool(request_items)
-                and route_allows_package_bypass(request_items[0][0], current),
+                and route_allows_package_bypass(primary_route, current),
+                package_policy=package_freshness_policy(primary_route, current),
             )
+            advisory = (
+                lease.pop("_package_stale_advisory", None) if isinstance(lease, dict) else None
+            )
+            if advisory:
+                print(
+                    f"ADVISORY: PACKAGE_STALE tolerated for {primary_route or 'mutation'}: "
+                    f"{advisory}; run task start to rebind",
+                    file=sys.stderr,
+                )
             from execution_lease_package import require_task_argument_binding
 
             for item_route, item_arguments in request_items:

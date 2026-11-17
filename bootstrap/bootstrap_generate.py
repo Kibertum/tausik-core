@@ -177,6 +177,9 @@ def generate_cursor_mcp_json(
     if os.path.exists(project_server):
         lease_env = None
         if governance_profile == "full":
+            # ENFORCE remains on for identity/binding, but package freshness is
+            # advisory for ordinary Write/MCP (1.13.4); only commit/push stay
+            # fail-closed via package_freshness_policy in the lease gate.
             lease_env = {
                 "TAUSIK_ENFORCE_EXECUTION_LEASE": "1",
                 "TAUSIK_TRUSTED_HOST": "cursor",

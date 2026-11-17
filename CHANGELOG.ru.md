@@ -11,6 +11,18 @@
 
 ## [Unreleased]
 
+## [1.13.4] — 2026-11-17
+
+- Смягчение freshness package у execution lease до **advisory** для обычных
+  Write/MCP (дух 1.11.7). `PACKAGE_STALE` больше не вешает агента после
+  `task_update`: гейт предупреждает и продолжает; fail-closed остаётся только
+  у `codex_protected_shell` (commit/push). `tausik_task_update` — rebind-маршрут
+  и при живом lease id пересобирает package после правки контракта. Неполный
+  `complexity=complex` update на **active** задаче отклоняется до записи —
+  нет deadlock `PACKAGE_STALE`↔`PACKAGE_INVALID` (planning по-прежнему падает
+  на `task_start`). Memory preflight по-прежнему только commit/push; таблицы
+  lease не удаляются.
+
 ## [1.13.3] — 2026-11-17
 
 - DX агента для memory preflight: `/commit` описывает byte-exact ритуал

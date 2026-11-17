@@ -1,4 +1,4 @@
-"""Action-bound inspection of project memory before protected Codex operations."""
+"""Action-bound memory inspection before protected commit/push (and kin)."""
 
 from __future__ import annotations
 

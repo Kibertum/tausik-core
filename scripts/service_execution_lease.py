@@ -343,8 +343,15 @@ def require_execution_lease(
     nonce: str | None,
     now: datetime | None = None,
     allow_package_rebind: bool = False,
+    package_policy: str = "strict",
 ) -> dict[str, Any]:
-    """Validate a complete binding; trusted hooks supply the thread identity."""
+    """Validate a complete binding; trusted hooks supply the thread identity.
+
+    package_policy:
+      - strict: PACKAGE_STALE fails closed (commit/push)
+      - rebind: skip freshness (task_start / task_update recovery)
+      - advisory: PACKAGE_STALE tolerated for ordinary Write/MCP (1.13.4)
+    """
 
     if not host_instance or not thread_id or not nonce:
         raise ExecutionLeaseError("IDENTITY_MISSING", "host, thread and nonce are required")
@@ -389,8 +396,16 @@ def require_execution_lease(
     if not (lease["capability_min"] <= CAPABILITY_VERSION <= lease["capability_max"]):
         _enter_maintenance(svc, "mixed execution-lease capability", instant)
         raise ExecutionLeaseError("CAPABILITY_MISMATCH", "lease capability is incompatible")
-    if not allow_package_rebind:
-        require_current_task_package(svc, lease)
+    policy = "rebind" if allow_package_rebind else package_policy
+    if policy != "rebind":
+        try:
+            require_current_task_package(svc, lease)
+        except ExecutionLeaseError as exc:
+            if policy == "advisory" and getattr(exc, "code", None) == "PACKAGE_STALE":
+                lease = cast(dict[str, Any], dict(lease))
+                lease["_package_stale_advisory"] = str(exc)
+            else:
+                raise
     return cast(dict[str, Any], lease)
 
 
@@ -462,6 +477,8 @@ def consume_mcp_authorization(
     lease = svc.be._q1("SELECT * FROM execution_leases WHERE id=?", (row["lease_id"],))
     if lease is None:
         raise ExecutionLeaseError("LEASE_MISSING", "authorization lease disappeared")
+    from execution_lease_package import package_freshness_policy
+
     validated = require_execution_lease(
         svc,
         project_dir=project_dir_from_tausik(svc),
@@ -470,6 +487,7 @@ def consume_mcp_authorization(
         nonce=lease.get("nonce"),
         now=instant,
         allow_package_rebind=route_allows_package_bypass(route, lease),
+        package_policy=package_freshness_policy(route, lease),
     )
     require_task_argument_binding(validated, route, arguments)
     return cast(dict[str, Any], validated)

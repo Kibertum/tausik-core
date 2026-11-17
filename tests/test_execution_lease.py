@@ -854,7 +854,8 @@ def test_session_bootstrap_authorization_works_before_task_package_binding(servi
         )
 
 
-def test_contract_change_after_pretool_authorization_blocks_dispatch(service):
+def test_contract_change_after_pretool_authorization_is_advisory_for_ordinary_routes(service):
+    """1.13.4: ordinary MCP continues on PACKAGE_STALE; commit/push stay strict."""
     svc, project = service
     assertion = trusted_assertion(project)
     prepare(svc, assertion)
@@ -874,8 +875,16 @@ def test_contract_change_after_pretool_authorization_blocks_dispatch(service):
     authorize_mcp_mutation(svc, lease=bound, route="tausik_task_log", arguments={"slug": "work"})
     svc.task_update("work", goal="changed between hook and dispatch")
 
+    consumed = consume_mcp_authorization(svc, route="tausik_task_log", arguments={"slug": "work"})
+    assert consumed.get("_package_stale_advisory")
+
+    authorize_mcp_mutation(
+        svc, lease=bound, route="codex_protected_shell", arguments={"command": "git commit -m x"}
+    )
     with pytest.raises(ExecutionLeaseError, match="PACKAGE_STALE"):
-        consume_mcp_authorization(svc, route="tausik_task_log", arguments={"slug": "work"})
+        consume_mcp_authorization(
+            svc, route="codex_protected_shell", arguments={"command": "git commit -m x"}
+        )
 
 
 def test_task_start_rebinds_only_its_own_lease_and_recovers_stale_contract(service):
@@ -1319,3 +1328,100 @@ def test_incomplete_token_capability_enters_maintenance(service, token_schema_ch
 
     assert svc.be._q1("SELECT value FROM meta WHERE key='execution_lease_maintenance'")
     assert svc.be._execution_lease_by_nonce(lease["nonce"])["revoked_at"] is not None
+
+
+def test_package_freshness_policy_is_advisory_except_commit_push_and_rebind():
+    from execution_lease_package import package_freshness_policy, route_allows_package_bypass
+
+    assert package_freshness_policy("codex_implementation_write") == "advisory"
+    assert package_freshness_policy("tausik_task_log") == "advisory"
+    assert package_freshness_policy("codex_protected_shell") == "strict"
+    assert package_freshness_policy("tausik_task_update") == "rebind"
+    assert package_freshness_policy("tausik_task_start") == "rebind"
+    assert route_allows_package_bypass("tausik_task_update", {"task_slug": "a"})
+
+
+def test_advisory_package_policy_tolerates_stale_fingerprint(service):
+    svc, project = service
+    now = datetime(2030, 1, 1, tzinfo=timezone.utc)
+    assertion = trusted_assertion(project, now)
+    prepare(svc, assertion)
+    lease = issue_execution_lease(svc, assertion, now=now)
+    svc.epic_add("e", "E")
+    svc.story_add("e", "s", "S")
+    svc.task_add("s", "work", "Work", complexity="simple")
+    svc.task_update(
+        "work",
+        goal="ship bounded work",
+        acceptance_criteria="AC-1 works. Negative: invalid input is refused.",
+    )
+    svc.task_start("work", include_memory=False, execution_lease_id=lease["id"])
+    svc.task_update("work", goal="changed after binding")
+    with pytest.raises(ExecutionLeaseError, match="PACKAGE_STALE"):
+        require_execution_lease(
+            svc,
+            project_dir=str(project),
+            host_instance="codex",
+            thread_id="thread-a",
+            nonce=lease["nonce"],
+            now=now + timedelta(seconds=1),
+            package_policy="strict",
+        )
+    allowed = require_execution_lease(
+        svc,
+        project_dir=str(project),
+        host_instance="codex",
+        thread_id="thread-a",
+        nonce=lease["nonce"],
+        now=now + timedelta(seconds=2),
+        package_policy="advisory",
+    )
+    assert allowed.get("_package_stale_advisory")
+
+
+def test_task_update_with_lease_rebinds_package_and_refuses_incomplete_complex(service):
+    from tausik_utils import ServiceError
+
+    svc, project = service
+    assertion = trusted_assertion(project)
+    prepare(svc, assertion)
+    lease = issue_execution_lease(svc, assertion)
+    svc.epic_add("e", "E")
+    svc.story_add("e", "s", "S")
+    svc.task_add("s", "work", "Work", complexity="medium")
+    svc.task_update(
+        "work",
+        goal="ship bounded work",
+        acceptance_criteria="AC-1 works. Negative: invalid input is refused.",
+        scope="scripts/a.py",
+        rollback_plan="git revert",
+    )
+    svc.task_start("work", include_memory=False, execution_lease_id=lease["id"])
+    svc.task_update(
+        "work",
+        goal="changed with live lease",
+        _execution_lease_id=lease["id"],
+    )
+    require_execution_lease(
+        svc,
+        project_dir=str(project),
+        host_instance="codex",
+        thread_id="thread-a",
+        nonce=lease["nonce"],
+        package_policy="strict",
+    )
+    with pytest.raises(ServiceError, match="PACKAGE_INVALID|missing or incomplete"):
+        svc.task_update(
+            "work",
+            complexity="complex",
+            _execution_lease_id=lease["id"],
+        )
+    assert svc.be.task_get("work")["complexity"] == "medium"
+    require_execution_lease(
+        svc,
+        project_dir=str(project),
+        host_instance="codex",
+        thread_id="thread-a",
+        nonce=lease["nonce"],
+        package_policy="strict",
+    )

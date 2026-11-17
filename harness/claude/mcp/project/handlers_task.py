@@ -160,7 +160,10 @@ def _do_task_done(svc: Any, args: dict) -> str:
 
 
 def _do_task_update(svc: Any, args: dict) -> str:
-    fields = {k: v for k, v in args.items() if k != "slug"}
+    fields = {k: v for k, v in args.items() if k not in {"slug", "_execution_lease_id"}}
+    lease_id = args.get("_execution_lease_id")
+    if lease_id is not None:
+        fields["_execution_lease_id"] = lease_id
     return svc.task_update(args["slug"], **fields) if fields else "No fields to update."
 
 
