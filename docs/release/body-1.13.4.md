@@ -21,3 +21,7 @@ py .tausik-lib\bootstrap\bootstrap.py --project-dir . --ide cursor --no-detect
 ```
 
 Reload the IDE window after bootstrap so hooks and MCP pick up the soft gate.
+
+Full notes:
+[English](https://github.com/Kibertum/tausik-core/blob/v1.13.4/docs/en/whats-new-1.13.md) ·
+[Русский](https://github.com/Kibertum/tausik-core/blob/v1.13.4/docs/ru/whats-new-1.13.md).
