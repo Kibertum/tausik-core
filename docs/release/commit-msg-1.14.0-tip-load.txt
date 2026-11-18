@@ -1,0 +1,8 @@
+fix(mcp): reload tip scripts on memory preflight without Reload Window
+
+Long-lived MCP kept stale memory_preflight_query imports mid-release.
+Prefer project/scripts, refresh on each issue_preflight, and ratchet the
+1.14.0 surface bytes that the cut already shipped.
+
+SENAR-Task: mcp-preflight-must-load-tip-scripts-without-reload
+SENAR-Decision: #446

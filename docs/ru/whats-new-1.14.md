@@ -28,5 +28,11 @@ durable tracked = продукт + `tausik/`.
 Docs EN/RU и warn-only PostToolUse `windows_shell_hygiene` ловят вложенные
 кавычки, EncodedCommand, `gh --jq` braces и SSH heredoc. Хук не блокирует.
 
+### MCP tip scripts без Reload Window
+
+Memory preflight предпочитает живой `project/scripts` и перезагружает tip
+modules на каждый `issue_preflight`. Правка mid-release больше не требует
+Reload Window или рестарта MCP; deployed IDE-копии остаются fallback.
+
 - [Точный changelog 1.14.0](https://github.com/Kibertum/tausik-core/blob/v1.14.0/CHANGELOG.ru.md)
 - [Руководство по обновлению](upgrade.md)

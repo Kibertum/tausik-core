@@ -31,5 +31,11 @@ Day-0 docs EN/RU and a warn-only PostToolUse `windows_shell_hygiene` hook catch
 nested quotes, EncodedCommand trailing args, `gh --jq` braces, and SSH heredocs.
 The hook does not block.
 
+### MCP tip scripts without Reload Window
+
+Memory preflight prefers live `project/scripts` and reloads tip modules on each
+`issue_preflight`. A mid-release preflight fix no longer needs Reload Window or
+an MCP restart; deployed IDE copies stay fallbacks.
+
 - [Exact 1.14.0 changelog](https://github.com/Kibertum/tausik-core/blob/v1.14.0/CHANGELOG.md)
 - [Upgrade guide](upgrade.md)

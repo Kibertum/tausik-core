@@ -23,6 +23,7 @@ from memory_preflight_query import (
     live_conflict_count,
     preflight_terms,
 )
+from memory_preflight_tip_load import refresh_preflight_modules
 from memory_supersedes import as_int, superseder_of
 from publication_boundary import redact
 from secret_patterns import secret_literal_names
@@ -179,6 +180,7 @@ def issue_preflight(
     override_reason: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
+    refresh_preflight_modules(globals())
     lease = getattr(svc, "_authorized_execution_lease", None)
     if not isinstance(lease, dict):
         raise MemoryPreflightError(

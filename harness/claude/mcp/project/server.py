@@ -13,16 +13,22 @@ import traceback
 
 # The argument guard is shared with the codebase-rag server and lives in
 # scripts/ (sibling-mcp-servers-still-drop-unknown-arguments): one list of
-# rules, not one per server. scripts/ must be importable before main() runs,
-# from the deployed profile (.claude/mcp/project -> .claude/scripts) and from the
-# source tree (harness/claude/mcp/project -> scripts) alike.
-for _hops in (2, 4):
-    _cand = os.path.normpath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * _hops, "scripts")
+# rules, not one per server. Prefer the live project tip over the deployed IDE
+# copy so a mid-release edit is what this process imports — no Reload Window.
+_script_candidates = [
+    os.path.normpath(os.path.join(os.getcwd(), "scripts")),
+]
+for _hops in (4, 2):
+    _script_candidates.append(
+        os.path.normpath(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * _hops, "scripts")
+        )
     )
+for _cand in _script_candidates:
     if os.path.isfile(os.path.join(_cand, "mcp_arguments.py")):
-        if _cand not in sys.path:
-            sys.path.insert(0, _cand)
+        while _cand in sys.path:
+            sys.path.remove(_cand)
+        sys.path.insert(0, _cand)
         break
 
 from mcp_arguments import (  # noqa: E402
@@ -37,10 +43,14 @@ __all__ = ["declared_arguments", "reject_unknown_arguments", "_error_reply", "_u
 
 def _get_service(project_dir: str):
     """Create ProjectService for project."""
+    # Prefer the live project tip over the deployed IDE copy so mid-session
+    # edits to scripts/ are what MCP executes (no Reload Window ritual).
+    tip = os.path.normpath(os.path.join(project_dir, "scripts"))
     mcp_dir = os.path.dirname(os.path.abspath(__file__))
-    scripts_dir = os.path.normpath(os.path.join(mcp_dir, "..", "..", "scripts"))
-    if os.path.isdir(scripts_dir) and scripts_dir not in sys.path:
-        sys.path.insert(0, scripts_dir)
+    deployed = os.path.normpath(os.path.join(mcp_dir, "..", "..", "scripts"))
+    for scripts_dir in (tip, deployed):
+        if os.path.isdir(scripts_dir) and scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
     from project_backend import SQLiteBackend
     from project_service import ProjectService
 

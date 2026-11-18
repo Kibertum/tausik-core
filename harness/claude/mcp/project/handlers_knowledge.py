@@ -128,8 +128,17 @@ def _do_memory_search(svc: Any, args: dict) -> str:
 def _do_memory_preflight(svc: Any, args: dict) -> str:
     """Inspect applicable memory and, after exact acknowledgement, issue a token."""
     import json
+    import importlib
 
-    from memory_preflight import issue_preflight
+    # Tip scripts first: a mid-release preflight fix must not require Reload Window.
+    from memory_preflight_tip_load import prefer_project_scripts, refresh_preflight_modules
+
+    prefer_project_scripts()
+    refresh_preflight_modules()
+    import memory_preflight as _preflight
+
+    importlib.reload(_preflight)
+    issue_preflight = _preflight.issue_preflight
 
     result = issue_preflight(
         svc,

@@ -25,6 +25,10 @@
 - Windows shell hygiene: docs EN/RU + warn-only PostToolUse `windows_shell_hygiene`
   (вложенные кавычки, EncodedCommand, `gh --jq` braces, SSH heredoc). Не блокирует.
 
+- MCP memory preflight предпочитает живой `project/scripts` и перезагружает tip
+  modules на каждый `issue_preflight`: правка mid-release не требует Reload
+  Window / рестарта MCP. Deployed IDE-копии остаются fallback.
+
 ## [1.13.4] — 2026-11-17
 
 - Смягчение freshness package у execution lease до **advisory** для обычных

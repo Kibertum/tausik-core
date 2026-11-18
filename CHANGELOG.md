@@ -25,6 +25,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   `windows_shell_hygiene` (nested quotes, EncodedCommand trailing args, `gh --jq`
   braces, SSH heredocs). Does not block.
 
+- MCP memory preflight prefers live `project/scripts` and reloads tip modules on
+  each `issue_preflight` so a mid-release preflight fix does not require Reload
+  Window / MCP restart. Deployed IDE copies stay fallbacks.
+
 ## [1.13.4] — 2026-11-17
 
 - Soften execution-lease package freshness to **advisory** for ordinary
