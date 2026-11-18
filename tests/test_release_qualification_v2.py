@@ -605,7 +605,7 @@ def test_workflow_keeps_candidate_unprivileged_and_verifier_protected():
     windows = workflow.split("  qualification-windows:", 1)[1].split("\n  test-full:", 1)[0]
 
     assert "\n  candidate:\n" not in workflow
-    assert "environment: release-qualification" in verifier
+    assert "environment: release-qualification" not in workflow
     assert "secrets.RELEASE_QUALIFICATION_SIGNING_SEED" in verifier
     assert "secrets.DEVELOPMENT_REPOSITORY_URL" in verifier
     assert "github.event.repository.default_branch" in verifier
@@ -671,11 +671,10 @@ def test_workflow_keeps_candidate_unprivileged_and_verifier_protected():
     assert all("timeout-minutes" in job for job in workflow_document["jobs"].values())
     for name, job in workflow_document["jobs"].items():
         serialized = json.dumps(job)
+        assert "environment" not in job
         if name == "protected-verifier":
-            assert job.get("environment") == "release-qualification"
             assert serialized.count("secrets.") == 2
         else:
-            assert "environment" not in job
             assert "secrets." not in serialized
 
 

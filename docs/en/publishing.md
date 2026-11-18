@@ -128,13 +128,13 @@ byte for byte, and a machine checks that equality, not a memory.
    squash carrying their `Co-Authored-By` — otherwise the authorship is erased.
 
 The initial key ceremony is provisioned: the reviewed Ed25519 public key is in
-`PINNED_PUBLIC_KEY_HEX`, while the matching hex seed exists only as
-`RELEASE_QUALIFICATION_SIGNING_SEED` in the protected environment. An
-unprovisioned or invalid key fails closed. `publish ci-check` verifies against
-that versioned public identity and never receives the private seed. Both values
-are lowercase hex encoding of exactly 32 bytes (64 characters). Generation and
-transfer happen on a controlled machine; never print the seed into CI logs or a
-shell transcript.
+`PINNED_PUBLIC_KEY_HEX`, while the matching hex seed exists only as the
+repository secret `RELEASE_QUALIFICATION_SIGNING_SEED` (together with
+`DEVELOPMENT_REPOSITORY_URL`). An unprovisioned or invalid key fails closed.
+`publish ci-check` verifies against that versioned public identity and never
+receives the private seed. Both values are lowercase hex encoding of exactly
+32 bytes (64 characters). Generation and transfer happen on a controlled
+machine; never print the seed into CI logs or a shell transcript.
 
 The official path is not active merely because provisioning is complete. After
 the reviewed workflow and public key reach the protected default branch, run
@@ -146,8 +146,8 @@ build and qualify a new exact snapshot instead of dispatching stale evidence.
 
 1. Dispatch the workflow from that revision with the exact development and
    public snapshot commit SHAs.
-2. Approve the protected environment and confirm that the verifier fetches the
-   authoritative GitLab object with the `read_repository`-only credential.
+2. Confirm that the verifier fetches the authoritative GitLab object with the
+   `read_repository`-only credential (no GitHub environment approval step).
 3. Download both the candidate and attestation artifacts.
 4. Run `publish ci-check` as a no-push acceptance check; do not execute its
    printed tag refspec. This consumes the nonce, so the downloaded artifacts

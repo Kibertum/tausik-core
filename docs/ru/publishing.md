@@ -127,12 +127,12 @@ GitLab хранит всю историю; в GitHub уезжает **тольк
 
 Начальная key ceremony выполнена: reviewed Ed25519 public key записан в
 `PINNED_PUBLIC_KEY_HEX`, а соответствующий hex seed существует только как
-`RELEASE_QUALIFICATION_SIGNING_SEED` в protected environment.
-Неподготовленный или неверный ключ закрывает шлюз. `publish ci-check` проверяет
-аттестацию по этому versioned public identity и не получает приватный seed.
-Оба значения — lowercase hex ровно 32 байт (64 символа). Генерация и перенос
-выполняются на контролируемой машине; seed нельзя печатать в CI-лог или shell
-transcript.
+repository secret `RELEASE_QUALIFICATION_SIGNING_SEED` (вместе с
+`DEVELOPMENT_REPOSITORY_URL`). Неподготовленный или неверный ключ закрывает
+шлюз. `publish ci-check` проверяет аттестацию по этому versioned public
+identity и не получает приватный seed. Оба значения — lowercase hex ровно
+32 байт (64 символа). Генерация и перенос выполняются на контролируемой
+машине; seed нельзя печатать в CI-лог или shell transcript.
 
 Одного provisioning недостаточно для активации официального пути. После push
 reviewed workflow и public key в защищённую default branch первый защищённый
@@ -145,9 +145,9 @@ activation dry-run выполняется строго так. В момент d
 
 1. Запустить workflow с этой ревизии и передать точные SHA development commit и
    public snapshot commit.
-2. Одобрить protected environment и подтвердить, что verifier получает
-   авторитетный GitLab object через credential только со scope
-   `read_repository`.
+2. Подтвердить, что verifier получает авторитетный GitLab object через
+   credential только со scope `read_repository` (без Approve GitHub
+   environment).
 3. Скачать оба артефакта: candidate и attestation.
 4. Запустить `publish ci-check` как no-push acceptance check; не выполнять
    напечатанный refspec тега. Этот запуск расходует nonce, поэтому скачанные

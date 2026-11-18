@@ -44,6 +44,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   `importlib.reload(memory_preflight)`, so full-suite workers keep exception
   identity.
 
+- Release qualification `protected-verifier` no longer uses the GitHub
+  `release-qualification` environment, so a release is not blocked on Review
+  deployments. Signing and GitLab fetch secrets stay repository secrets.
+
 ## [1.13.4] — 2026-11-17
 
 - Soften execution-lease package freshness to **advisory** for ordinary

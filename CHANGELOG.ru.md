@@ -45,6 +45,10 @@
   `importlib.reload(memory_preflight)`, чтобы full-suite worker сохранял
   identity исключения.
 
+- Release qualification `protected-verifier` больше не использует GitHub
+  environment `release-qualification`: релиз не ждёт Review deployments.
+  Секреты подписи и GitLab fetch остаются repository secrets.
+
 ## [1.13.4] — 2026-11-17
 
 - Смягчение freshness package у execution lease до **advisory** для обычных
