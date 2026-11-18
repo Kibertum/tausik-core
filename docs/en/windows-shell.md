@@ -1,3 +1,5 @@
+[English](windows-shell.md) | [Русский](../ru/windows-shell.md)
+
 # Windows shell hygiene for agents
 
 <!-- doc-map: reader=agent; zone=getting-started -->

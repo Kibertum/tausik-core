@@ -138,7 +138,6 @@
       "tests/test_cost_budget_task.py",
       "tests/test_direct_edit_bypass_record.py",
       "tests/test_doc_extract.py",
-      "tests/test_fileless_close.py",
       "tests/test_fresh_install_has_every_migrated_table.py",
       "tests/test_fts5_sync.py",
       "tests/test_gate_progress_run_start.py",

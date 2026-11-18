@@ -98,7 +98,9 @@ def _enforce_handle(
 # Fileless close lives in gate_fileless_close (filesize split). Re-export the
 # helpers tests and callers historically imported from this module.
 from gate_fileless_close import (  # noqa: E402
+    _projection_prefixes,  # noqa: F401 — re-export for historical test imports
     enforce_no_file_changes as _enforce_no_file_changes,
+    roadmap_is_generated,  # noqa: F401 — re-export for historical test imports
 )
 
 

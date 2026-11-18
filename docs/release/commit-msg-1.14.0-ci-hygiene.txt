@@ -1,7 +1,7 @@
-fix(release): refresh constants and hook counts for 1.14.0 CI
+fix(release): CI hygiene for 1.14.0 public snapshot Tests
 
-Regenerate docs/_generated/constants.json for tausik_version 1.14.0, bump
-README/hooks prose to hooks_count=25, and scope release_shell preflight
-terms to the kind alone so git tag no longer hits MEMORY_CONFLICT_OVERFLOW.
+Re-export fileless helpers, doc language switchers, ruff freeze shrink,
+UTF-8 harness-projection decode, and refreshed adherence fixture hashes.
 
-Co-Authored-By: Claude <noreply@anthropic.com>
+SENAR-Task: ci-hygiene-for-1-14-0-snapshot-tests
+SENAR-Decision: #446

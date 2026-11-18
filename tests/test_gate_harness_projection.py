@@ -189,6 +189,7 @@ def test_consumer_export_only_layout_without_recurse_submodules(tmp_path, monkey
         cwd=root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     assert check.returncode == 0, check.stdout + check.stderr

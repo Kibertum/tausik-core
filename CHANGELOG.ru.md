@@ -29,6 +29,11 @@
   modules на каждый `issue_preflight`: правка mid-release не требует Reload
   Window / рестарта MCP. Deployed IDE-копии остаются fallback.
 
+- CI hygiene для public snapshot 1.14.0: re-export fileless helpers из
+  `gate_verify_first`, EN/RU switcher на `windows-shell.md`, сужение ruff
+  format freeze list, UTF-8 decode в harness-projection тестах, обновление
+  adherence fixture hashes.
+
 ## [1.13.4] — 2026-11-17
 
 - Смягчение freshness package у execution lease до **advisory** для обычных

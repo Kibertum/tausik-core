@@ -29,6 +29,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   each `issue_preflight` so a mid-release preflight fix does not require Reload
   Window / MCP restart. Deployed IDE copies stay fallbacks.
 
+- CI hygiene for the 1.14.0 public snapshot: re-export fileless helpers from
+  `gate_verify_first`, EN/RU switchers on `windows-shell.md`, shrink the ruff
+  format freeze list, UTF-8 subprocess decoding in harness-projection tests,
+  refresh adherence fixture hashes.
+
 ## [1.13.4] — 2026-11-17
 
 - Soften execution-lease package freshness to **advisory** for ordinary
