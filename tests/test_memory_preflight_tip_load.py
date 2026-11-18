@@ -108,3 +108,21 @@ def test_refresh_preserves_classification_exception_identity():
     refresh_preflight_modules()
     with pytest.raises(before, match="spans protected kinds"):
         classify_action("Bash", {"command": "git commit -m x && git push origin main"})
+
+
+def test_handler_tip_refresh_does_not_reload_memory_preflight_module():
+    """MCP handler must rebind tip modules without replacing MemoryPreflightError."""
+    import importlib
+
+    import memory_preflight as mp
+    from memory_preflight import MemoryPreflightError, action_binding
+
+    before = MemoryPreflightError
+    prefer_project_scripts()
+    refresh_preflight_modules(mp.__dict__)
+    assert mp.MemoryPreflightError is before
+    # Even a full module reload must keep the stable errors module class.
+    importlib.reload(mp)
+    assert mp.MemoryPreflightError is before
+    with pytest.raises(before, match="PROTECTED_KIND_MISMATCH"):
+        action_binding("invented_tool", {}, "commit")

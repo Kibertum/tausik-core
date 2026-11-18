@@ -128,16 +128,16 @@ def _do_memory_search(svc: Any, args: dict) -> str:
 def _do_memory_preflight(svc: Any, args: dict) -> str:
     """Inspect applicable memory and, after exact acknowledgement, issue a token."""
     import json
-    import importlib
 
     # Tip scripts first: a mid-release preflight fix must not require Reload Window.
+    # Rebind tip modules into the already-imported memory_preflight globals — do
+    # NOT importlib.reload(memory_preflight): that replaces MemoryPreflightError
+    # and breaks pytest.raises / isinstance for every prior importer in-process.
     from memory_preflight_tip_load import prefer_project_scripts, refresh_preflight_modules
-
-    prefer_project_scripts()
-    refresh_preflight_modules()
     import memory_preflight as _preflight
 
-    importlib.reload(_preflight)
+    prefer_project_scripts()
+    refresh_preflight_modules(_preflight.__dict__)
     issue_preflight = _preflight.issue_preflight
 
     result = issue_preflight(

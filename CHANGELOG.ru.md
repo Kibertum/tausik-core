@@ -40,6 +40,11 @@
   `release-manifest-v1.json` фиксирует hashes тел hygiene-фикстур для frozen
   gate.
 
+- `MemoryPreflightError` живёт в `memory_preflight_errors` (без reload); MCP
+  `tausik_memory_preflight` перебиндивает tip-модули без
+  `importlib.reload(memory_preflight)`, чтобы full-suite worker сохранял
+  identity исключения.
+
 ## [1.13.4] — 2026-11-17
 
 - Смягчение freshness package у execution lease до **advisory** для обычных

@@ -39,6 +39,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   still matches. `release-manifest-v1.json` seals the hygiene fixture body
   hashes that the frozen gate compares.
 
+- `MemoryPreflightError` lives in `memory_preflight_errors` (never reloaded);
+  MCP `tausik_memory_preflight` rebinds tip modules without
+  `importlib.reload(memory_preflight)`, so full-suite workers keep exception
+  identity.
+
 ## [1.13.4] — 2026-11-17
 
 - Soften execution-lease package freshness to **advisory** for ordinary

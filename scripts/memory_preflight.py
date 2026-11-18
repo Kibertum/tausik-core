@@ -23,11 +23,11 @@ from memory_preflight_query import (
     live_conflict_count,
     preflight_terms,
 )
+from memory_preflight_errors import MemoryPreflightError
 from memory_preflight_tip_load import refresh_preflight_modules
 from memory_supersedes import as_int, superseder_of
 from publication_boundary import redact
 from secret_patterns import secret_literal_names
-from tausik_utils import ServiceError
 
 TOKEN_TTL_SECONDS = 300
 SEARCH_EXPANSION = max(MAX_ENTRIES * 8, 60)
@@ -36,12 +36,6 @@ _INJECTION = re.compile(
     r"(?:ignore|disregard)\s+(?:all\s+)?(?:previous|prior)\s+instructions|system\s+prompt",
     re.IGNORECASE,
 )
-
-
-class MemoryPreflightError(ServiceError):
-    def __init__(self, code: str, message: str) -> None:
-        self.code = code
-        super().__init__(f"{code}: {message}")
 
 
 def _iso(dt: datetime) -> str:
