@@ -21,6 +21,13 @@ _TIP_MODULES = (
     "memory_relevance",
 )
 
+# importlib.reload replaces exception classes in the module dict. Callers that
+# bound the old class (pytest.raises, isinstance) then miss raises from the
+# reloaded functions. Keep the first-seen class objects across reloads.
+_PRESERVE_ATTRS = {
+    "memory_preflight_classification": ("ProtectedActionClassificationError",),
+}
+
 
 def prefer_project_scripts(project_dir: str | None = None) -> str | None:
     """Put ``<project>/scripts`` first on ``sys.path`` when it exists.
@@ -49,8 +56,13 @@ def refresh_preflight_modules(namespace: dict[str, Any] | None = None) -> Module
         mod = sys.modules.get(name)
         if mod is None:
             importlib.import_module(name)
-        else:
-            importlib.reload(mod)
+            continue
+        preserved = {
+            attr: getattr(mod, attr) for attr in _PRESERVE_ATTRS.get(name, ()) if hasattr(mod, attr)
+        }
+        importlib.reload(mod)
+        for attr, value in preserved.items():
+            setattr(mod, attr, value)
     query = sys.modules["memory_preflight_query"]
     if namespace is not None:
         namespace["fts_or"] = query.fts_or

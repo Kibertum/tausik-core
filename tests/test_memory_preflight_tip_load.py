@@ -6,6 +6,12 @@ import importlib
 import sys
 import textwrap
 
+import pytest
+
+from memory_preflight_classification import (
+    ProtectedActionClassificationError,
+    classify_action,
+)
 from memory_preflight_tip_load import prefer_project_scripts, refresh_preflight_modules
 
 _TIP_NAMES = (
@@ -94,3 +100,11 @@ def test_refresh_rebinds_after_tip_edit(tmp_path, monkeypatch):
     finally:
         sys.path[:] = before
         _purge_tip_modules()
+
+
+def test_refresh_preserves_classification_exception_identity():
+    """Reload must not break pytest.raises on the pre-refresh exception class."""
+    before = ProtectedActionClassificationError
+    refresh_preflight_modules()
+    with pytest.raises(before, match="spans protected kinds"):
+        classify_action("Bash", {"command": "git commit -m x && git push origin main"})

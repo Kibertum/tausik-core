@@ -13,8 +13,8 @@
     "scripts/backend_migrations_v85.py": "3decae62914de4b47a653f82d168b051b374bb4ce3c1b74840d5127cab87dff9",
     "scripts/backend_migrations_v86.py": "61bc88dd699ee7fb0605864050725552edb0804bf3bbb8a7545616c91466de33",
     "scripts/mcp_handler_shape.py": "d1a859f19a4068892f9e4789e8d29a1c54ba67bfeb87e3dd8b9b768c34e3f82c",
-    "tests/fixtures/adherence/manifest-v1.json": "949a83a6999d86ee783fcd9ea0823dafa609587a3dcc31e0feb1590095d6feae",
-    "tests/fixtures/adherence/policy-v1.json": "8384f8b9d9f8c3a165e7a853357ca78586dd44edfd278937ee8c29d5addbbcfe",
+    "tests/fixtures/adherence/manifest-v1.json": "8fd813561e4359f2a8a2f97e6927daac5b2c940611461cce553b13d1eab2746d",
+    "tests/fixtures/adherence/policy-v1.json": "2f44c49325dd4b88c5b33399c23eab942d048b5caef55398509115261e5d17c2",
     "tests/fixtures/adherence/valid-events-v1.json": "f1ee79dce8dc53e2ca69158864a4acb53fb3fccd69570399a0901475f8cc69d4"
   },
   "native_lanes": {

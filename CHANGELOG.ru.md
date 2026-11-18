@@ -34,6 +34,12 @@
   format freeze list, UTF-8 decode в harness-projection тестах, обновление
   adherence fixture hashes.
 
+- Tip `refresh_preflight_modules` сохраняет identity
+  `ProtectedActionClassificationError` через `importlib.reload`, чтобы
+  `pytest.raises` после `issue_preflight` снова совпадал.
+  `release-manifest-v1.json` фиксирует hashes тел hygiene-фикстур для frozen
+  gate.
+
 ## [1.13.4] — 2026-11-17
 
 - Смягчение freshness package у execution lease до **advisory** для обычных

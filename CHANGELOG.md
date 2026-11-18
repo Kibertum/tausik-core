@@ -34,6 +34,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   format freeze list, UTF-8 subprocess decoding in harness-projection tests,
   refresh adherence fixture hashes.
 
+- Tip `refresh_preflight_modules` keeps `ProtectedActionClassificationError`
+  identity across `importlib.reload`, so `pytest.raises` after `issue_preflight`
+  still matches. `release-manifest-v1.json` seals the hygiene fixture body
+  hashes that the frozen gate compares.
+
 ## [1.13.4] — 2026-11-17
 
 - Soften execution-lease package freshness to **advisory** for ordinary

@@ -168,7 +168,7 @@ def _candidate(release_repo):
 def test_frozen_adherence_v1_release_artifacts_are_byte_identical():
     expected = {
         "scripts/adherence_release.py": "c795e607555648498bdb0e9f6af23f118dd84ccb2a2055d0c1349ad3c2c173ac",
-        "tests/fixtures/adherence/release-manifest-v1.json": "cf5822d5071b4269d25b69a92a8e63d6d4a9e52fe5ec28210fe34ebfca5c96c1",
+        "tests/fixtures/adherence/release-manifest-v1.json": "5b19b331aade80d0fa5d57cbdfe10c2365ecb0838778ac66efc6ac73fb2fd5f3",
     }
     assert {
         rel: hashlib.sha256((ROOT / rel).read_bytes()).hexdigest() for rel in expected
