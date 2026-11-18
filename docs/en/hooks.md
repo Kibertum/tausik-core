@@ -4,7 +4,7 @@
 
 <!-- doc-map: reader=user; zone=core-surface -->
 
-TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **24 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 25 gates in total (1.11.8 added the Codex `can_stop_gate.py`).
+TAUSIK uses Claude Code hooks for automatic quality control. Hooks intercept agent actions **before** and **after** execution — they are gates, not instructions. **25 Python hooks + 1 shell `pre-commit`** ship with TAUSIK — 26 gates in total (1.14.0 added warn-only `windows_shell_hygiene.py`).
 
 The default `governance_profile: "full"` deploys the table below. An explicit project-level `"memory-only"` profile deploys only `memory_pretool_block.py` and `memory_posttool_audit.py` on hook-capable hosts, removes the OpenCode QG-0 plugin, and retains TAUSIK MCP/RAG/data. The same profile keeps a light backlog: task records stay usable, and session, verify, and gated close are not the default. Use it where project memory and work accounting are useful but TAUSIK task/verify ceremony is not. It is never inferred from an infrastructure stack. See [configuration](configuration.md#governance-footprint) for the guarantees deliberately lost.
 

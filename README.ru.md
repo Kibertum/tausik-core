@@ -142,7 +142,7 @@ Run `tausik verify --task fix-mobile-button` first.
 <summary>Сырые числа</summary>
 
 - **152 MCP-инструментов** — полный программный доступ к базе проекта.
-- **24 хука реального времени** — гейт задачи, bash firewall, push gate, автоформат, детектор дрифта, аудит памяти и другие.
+- **25 хуков реального времени** — гейт задачи, bash firewall, push gate, автоформат, детектор дрифта, аудит памяти и другие.
 - **25 стек-зависимых наборов проверок** — pytest, ruff, mypy, tsc, eslint, cargo, go vet, phpstan, helm-lint, hadolint и другие, по тронутым файлам.
 - **14 core-навыков** разворачиваются автоматически; в официальном магазине остаются только `docs`, `excel` и `pdf`, которые ставятся по одному и не расходуют контекст без необходимости.
 - **6 автоматических метрик**, **общая локальная база знаний** (`~/.tausik-knowledge`, `--global`), **пакетное выполнение** (`/run plan.md`).
@@ -153,12 +153,12 @@ Run `tausik verify --task fix-mobile-button` first.
 
 | IDE | MCP-инструменты | Навыки | Хуки | Статус |
 |---|---|---|---|---|
-| **Claude Code** | 152 | 14 core + по запросу | 24 (полностью) | First-class |
-| **Qwen Code** | 152 | 14 core + по запросу | 24 (паритет с Claude) | First-class |
+| **Claude Code** | 152 | 14 core + по запросу | 25 (полностью) | First-class |
+| **Qwen Code** | 152 | 14 core + по запросу | 25 (паритет с Claude) | First-class |
 | **Kilo Code** (+ [z.ai GLM](docs/ru/kilo-zai.md)) | 152 | 14 core + по запросу | — (гейты на task start/done) | First-class через MCP |
 | **Cursor** | 152 | 14 core + по запросу | — (нативные project hooks) | First-class в 1.11.8 |
-| VSCode + Claude Extension | 152 | 14 core + по запросу | 24 | Прогнано E2E |
-| **Codex CLI** | 152 | 14 core + по запросу | 24 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
+| VSCode + Claude Extension | 152 | 14 core + по запросу | 25 | Прогнано E2E |
+| **Codex CLI** | 152 | 14 core + по запросу | 25 (та же декларация, что у Claude; принуждают после того, как вы доверили хуки проекта в Codex) | First-class, подтверждено живьём в 1.9 |
 | **OpenCode** | 152 | 14 core + по запросу | — (один плагин QG-0; гейты на task start/done) | Через MCP |
 | Windsurf | MCP + правила | зависит от хоста | зависит от хоста | Ожидается / вручную |
 

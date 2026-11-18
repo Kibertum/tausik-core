@@ -42,7 +42,7 @@
       ]
     }
   },
-  "hooks_count": 24,
+  "hooks_count": 25,
   "mcp_descriptions_hash": "33b6fe5b8b7f5bf3",
   "mcp_main_tools": 152,
   "mcp_project_tools": 152,
@@ -53,6 +53,6 @@
   "schema_version": 1,
   "skills_core_count": 14,
   "stacks_count": 25,
-  "tausik_version": "1.13.4",
-  "test_count": 14472
+  "tausik_version": "1.14.0",
+  "test_count": 14500
 }

@@ -68,11 +68,12 @@ _TERM_STOPWORDS = frozenset(
 
 
 def _command_corpus(kind: str, command: str) -> str:
-    if kind in {"commit", "push", "remote_operation"}:
+    if kind in {"commit", "push", "remote_operation", "release_shell"}:
         # Kind alone is the conflict key: OR-ing "git" / commit-message prose /
-        # "gh workflow run release-qualification…" floods historical
-        # release/CI/git dead_ends and trips MEMORY_CONFLICT_OVERFLOW on a
-        # normal tip commit or exact-SHA qual trigger (dogfooding blocker).
+        # "gh workflow run release-qualification…" / "git tag vX.Y.Z" floods
+        # historical release/CI/git dead_ends and trips MEMORY_CONFLICT_OVERFLOW
+        # on a normal tip commit, exact-SHA qual trigger, or local release tag
+        # (dogfooding blocker).
         return kind
     return f"{kind} {command}"
 

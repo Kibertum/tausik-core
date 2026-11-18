@@ -1,0 +1,7 @@
+fix(release): refresh constants and hook counts for 1.14.0 CI
+
+Regenerate docs/_generated/constants.json for tausik_version 1.14.0, bump
+README/hooks prose to hooks_count=25, and scope release_shell preflight
+terms to the kind alone so git tag no longer hits MEMORY_CONFLICT_OVERFLOW.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
