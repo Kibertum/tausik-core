@@ -167,7 +167,9 @@ jobs:
 
   test-macos:
     needs: validate-inputs
-    runs-on: macos-latest
+    # macos-latest (26) often cancels after ~15m queued with no runner
+    # (actions/runner#4833); macos-15 still acquires under the same incident.
+    runs-on: macos-15
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
