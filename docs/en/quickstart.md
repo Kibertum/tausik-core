@@ -76,7 +76,7 @@ Open your project in the IDE, open your AI agent (Claude Code, Cursor, Qwen Code
 ```
 Add https://github.com/Kibertum/tausik-core as a git submodule in .tausik-lib,
 run python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
-(bootstrap appends .tausik/ and IDE profile dirs to .gitignore — do not commit them)
+(bootstrap appends .tausik/, .tausik-lib/, and IDE/harness paths to .gitignore — export-only)
 ```
 
 The agent will execute those steps — you just confirm its actions.
@@ -115,15 +115,18 @@ The selected host decides which profile files appear:
 - The matching host instruction file appears — for example `.cursor/rules/tausik.mdc` or `CLAUDE.md`
 - TAUSIK detects your project's stack (Python, React, Go, etc.) and enables appropriate checks
 
-**Two directories to understand:**
+**Two directories to understand (export-only consumer git):**
 
-- **`.tausik-lib/`** — the framework source code (git submodule, tracked in version control). This is TAUSIK itself.
-- **`.tausik/`** — runtime data: database, config, virtual environment. Added to `.gitignore` — this is local working data, never committed.
+- **`.tausik-lib/`** — local framework checkout (submodule or vendor copy). Bootstrap adds it to
+  `.gitignore` on day-0; do **not** commit it. Install/update on each machine, then re-bootstrap.
+- **`.tausik/`** — runtime data: database, config, virtual environment. Also gitignored.
+- **`tausik/`** (no leading dot) — durable state export (`tausik state export`). **This** is what
+  belongs in git alongside product code.
 
-Team members who clone the repo run `git submodule update --init` to get the framework, then `python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init` (replace `cursor` with their host) to set up local `.tausik/`.
-
-Keep the generated profile folder and matching host instruction file under version control.
-They contain the project's agent configuration; `.tausik/` remains local runtime data.
+Team members clone the product repo, obtain `.tausik-lib` locally (submodule init or vendor
+checkout), then run `python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init` (replace
+`cursor` with their host). Never `git add .tausik-lib` or deployed IDE/harness trees — the
+`harness_projection` commit gate refuses them.
 
 ## Step 3. Verify Installation
 
@@ -132,6 +135,7 @@ They contain the project's agent configuration; `.tausik/` remains local runtime
 ```
 
 > **Windows note:** This command requires Git Bash or WSL. If you're using cmd.exe or PowerShell, run `.tausik/tausik.cmd status` instead.
+> Agent shell one-liners: see [windows-shell.md](windows-shell.md) (file instead of nested quotes).
 
 If you see something like:
 
@@ -309,14 +313,15 @@ If you already have a project with code and want to add TAUSIK:
    - Detects existing config files (`.eslintrc`, `pyproject.toml`, etc.)
    - Preserves `.gitignore` and the selected host's existing instruction/MCP files — merges instead of overwriting
 
-3. **What gets tracked in git:**
+3. **What gets tracked in git (export-only):**
    - Product code of the project
-   - `.tausik-lib` — submodule **pointer** only (not unpacked framework files)
    - `tausik/` — results of `tausik state export` (tasks, decisions, memory)
    - Root instruction files the host reads (`AGENTS.md`, `CLAUDE.md`, `QWEN.md`) when present
-   - **Not tracked:** `.tausik/` runtime, generated IDE profiles (`.cursor/`, `.claude/`, …),
-     `opencode.json`, `.mcp.json` — bootstrap gitignores them; the `harness_projection`
-     commit gate refuses a force-add
+   - **Not tracked:** `.tausik-lib/` (local framework checkout), `.tausik/` runtime, generated
+     IDE profiles (`.cursor/`, `.claude/`, `.kilo/`, `.codex/`, …), `harness/` / `bootstrap/`
+     copies, `opencode.json`, `.mcp.json` — bootstrap seeds `.gitignore` on day-0; the
+     `harness_projection` commit gate refuses a force-add and reminds you when the DB has
+     state but the commit omits `tausik/`
 
 4. **Starting fresh vs. importing:**
    - TAUSIK starts with a clean task database. There is no automatic import from other systems.

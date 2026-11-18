@@ -37,7 +37,10 @@ quality gates. Pytest gate использует `{test_files_for_files}` substit
   decide`), закрывается флагом `task done --no-file-changes` — третье состояние
   области. Разрешено ТОЛЬКО когда git подтверждает, что объявленная область
   (`--relevant-files` как pathspec; всё дерево при пустом списке) не имеет
-  незакоммиченных правок; иначе fail-closed. Счётно:
+  незакоммиченных правок; иначе fail-closed. Чужой dirty вне pathspec не
+  блокирует. Работа **вне этого git** (другой репозиторий / out-of-tree):
+  `task done --no-file-changes --external-evidence` — проверка dirty дерева
+  хоста пропускается; нельзя сочетать с `--relevant-files`. Счётно:
   `SELECT * FROM tasks WHERE no_file_changes_declared = 1`
   (qg2-cannot-close-fileless-task).
 - Проекция состояния — `tausik/{epics,stories,tasks,decisions,memory}/` — из

@@ -312,6 +312,14 @@ def add_task(sub: argparse._SubParsersAction) -> None:
         "pathspec, else the whole tree) has no uncommitted changes.",
     )
     tdone.add_argument(
+        "--external-evidence",
+        action="store_true",
+        dest="external_evidence",
+        help="With --no-file-changes: evidence/files live outside this git tree. "
+        "Skips the host working-tree dirty check. Refuse combining with "
+        "--relevant-files. Empty scope without this flag still means whole tree.",
+    )
+    tdone.add_argument(
         "--no-changelog",
         action="store_true",
         dest="no_changelog",

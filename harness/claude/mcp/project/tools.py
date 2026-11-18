@@ -376,6 +376,10 @@ TOOLS = [
                     "type": "boolean",
                     "description": "Close a task that touched NO files (pure planning / a decision). Allowed only when git proves the declared scope (relevant_files as a pathspec, else the whole tree) has no uncommitted changes; fail-closed otherwise. The third QG-2 scope state, symmetric to no_tests_declared.",
                 },
+                "external_evidence": {
+                    "type": "boolean",
+                    "description": "With no_file_changes: evidence/files live outside this git tree. Skips the host working-tree dirty check. Do not combine with relevant_files. Empty scope without this flag still means whole tree.",
+                },
                 "no_changelog": {
                     "type": "boolean",
                     "description": "Close a task that warrants NO changelog entry (docs/cleanup/measurement). Skips the continuous-changelog gate (convention #275) and logs an explicit bypass reason. Only meaningful when config.task_done.changelog_gate is enabled.",

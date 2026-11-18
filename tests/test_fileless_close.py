@@ -186,6 +186,49 @@ class TestFilelessGateBranch:
         out = report["blocking_failures"][0]["output"]
         assert "uncommitted changes" in out and "scripts/other.py" in out
 
+    def test_dirty_unrelated_with_clean_pathspec_allows(self, svc, monkeypatch):
+        """Unrelated dirty host files must not block a clean declared pathspec."""
+        _stub_verify_gates(monkeypatch)
+        captured = {}
+
+        def fake_uncommitted(paths=None, root=None, **kwargs):
+            captured["paths"] = paths
+            return []
+
+        monkeypatch.setattr(vgd, "uncommitted_changes", fake_uncommitted)
+        report = self._report()
+        enforce_verify_first(svc, report, "t", ["docs/out-of-tree-note.md"], no_file_changes=True)
+        assert captured["paths"] == ["docs/out-of-tree-note.md"]
+        assert report["passed"] is True
+        assert report["blocking_failures"] == []
+
+    def test_external_evidence_skips_host_dirty_check(self, svc, monkeypatch):
+        _stub_verify_gates(monkeypatch)
+        monkeypatch.setattr(
+            vgd,
+            "uncommitted_changes",
+            lambda *a, **k: pytest.fail("git must not run for external-evidence"),
+        )
+        report = self._report()
+        enforce_verify_first(svc, report, "t", None, no_file_changes=True, external_evidence=True)
+        assert report["passed"] is True
+        assert report["blocking_failures"] == []
+        assert "external-evidence" in (svc.be.task_get("t")["notes"] or "")
+
+    def test_external_evidence_refuses_with_relevant_files(self, svc, monkeypatch):
+        _stub_verify_gates(monkeypatch)
+        report = self._report()
+        enforce_verify_first(
+            svc,
+            report,
+            "t",
+            ["scripts/x.py"],
+            no_file_changes=True,
+            external_evidence=True,
+        )
+        assert report["passed"] is False
+        assert "external-evidence" in report["blocking_failures"][0]["output"]
+
     def test_unverifiable_git_fails_closed(self, svc, monkeypatch):
         # AC2/AC3: git returns None → the declaration is unbacked → BLOCK.
         # This is the non-vacuity guard: the flag alone can never close a task.
@@ -214,7 +257,9 @@ class TestFilelessGateBranch:
 
 def _stub_no_verify_gates(monkeypatch):
     """A project with NO verify-trigger gates (registry absent / all disabled)."""
-    monkeypatch.setattr("project_config.load_config", lambda *a, **k: {"task_done": {"auto_verify": False}})
+    monkeypatch.setattr(
+        "project_config.load_config", lambda *a, **k: {"task_done": {"auto_verify": False}}
+    )
     monkeypatch.setattr("project_config.get_gates_for_trigger", lambda trigger, cfg=None: [])
 
 

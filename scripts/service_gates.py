@@ -212,6 +212,7 @@ class GatesMixin:
         progress_fn: Any | None = None,
         trigger: str = "task-done",
         no_file_changes: bool = False,
+        external_evidence: bool = False,
         no_changelog: bool = False,
         verify_handle: str | None = None,
         zero_gate_ack: bool = False,
@@ -248,6 +249,7 @@ class GatesMixin:
                 slug,
                 relevant_files,
                 no_file_changes=True,
+                external_evidence=external_evidence,
                 verify_handle=verify_handle,
                 zero_gate_ack=zero_gate_ack,
             )
@@ -310,6 +312,7 @@ class GatesMixin:
                 slug,
                 relevant_files,
                 no_file_changes=no_file_changes,
+                external_evidence=external_evidence,
                 no_changelog=no_changelog,
                 verify_handle=verify_handle,
                 zero_gate_ack=zero_gate_ack,
@@ -323,6 +326,7 @@ class GatesMixin:
         relevant_files: list[str] | None,
         *,
         no_file_changes: bool = False,
+        external_evidence: bool = False,
         no_changelog: bool = False,
         verify_handle: str | None = None,
         zero_gate_ack: bool = False,
@@ -342,6 +346,7 @@ class GatesMixin:
             slug,
             relevant_files,
             no_file_changes=no_file_changes,
+            external_evidence=external_evidence,
             no_changelog=no_changelog,
             verify_handle=verify_handle,
             zero_gate_ack=zero_gate_ack,
@@ -360,6 +365,7 @@ class GatesMixin:
         relevant_files: list[str] | None = None,
         *,
         no_file_changes: bool = False,
+        external_evidence: bool = False,
         no_changelog: bool = False,  # ruff-not-enabled: ARG002 — uniform post-scope shape
         verify_handle: str | None = None,
         zero_gate_ack: bool = False,
@@ -373,6 +379,7 @@ class GatesMixin:
             slug,
             relevant_files,
             no_file_changes=no_file_changes,
+            external_evidence=external_evidence,
             verify_handle=verify_handle,
             zero_gate_ack=zero_gate_ack,
         )
@@ -385,6 +392,7 @@ class GatesMixin:
         *,
         no_changelog: bool = False,
         no_file_changes: bool = False,  # ruff-not-enabled: ARG002 — uniform post-scope shape
+        external_evidence: bool = False,  # ruff-not-enabled: ARG002 — uniform post-scope shape
         verify_handle: str | None = None,  # ruff-not-enabled: ARG002 — uniform post-scope shape
         zero_gate_ack: bool = False,  # ruff-not-enabled: ARG002 — uniform post-scope shape
     ) -> None:

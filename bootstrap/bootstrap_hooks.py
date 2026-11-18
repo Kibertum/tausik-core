@@ -118,6 +118,7 @@ MCP_COVERAGE: dict[str, str] = {
     "bash_write_gate.py": MCP_SHELL_MATCHER,
     "git_push_gate.py": MCP_SHELL_MATCHER,
     "tool_choice_nudge.py": MCP_SHELL_MATCHER,
+    "windows_shell_hygiene.py": MCP_SHELL_MATCHER,
     "auto_format.py": MCP_WRITE_MATCHER,
     "memory_posttool_audit.py": MCP_WRITE_MATCHER,
     "task_call_counter.py": f"{MCP_WRITE_MATCHER}|{MCP_SHELL_MATCHER}",
@@ -294,25 +295,21 @@ def _builtin_hooks_dict(hook_cmd: Callable[..., str]) -> dict[str, Any]:
         ],
         "PostToolUse": [
             {
-                # The tool TAUSIK ships, named at the moment an alternative was chosen:
-                # an MCP twin for a CLI call, and `symbol` for a grep after
-                # a definition. Measured before it existed — MCP 29.1% of
-                # framework calls, `symbol` 2 uses against 226 greps.
-                # Measured in session #233: 1,216 of 1,530 CLI invocations had an
-                # MCP twin and used the shell anyway — 79.5% — while the rules
-                # call MCP-first a hard constraint and nothing checked it.
-                #
-                # Shell tools only: the nudge is about choosing the shell over a
-                # tool, and it has nothing to say about a Write or a Read. It
-                # lands on BOTH hook-bearing hosts: a capability on one and not
-                # the other is what `cross_model_parity` refuses.
+                # MCP-first + symbol nudges (session #233: 79.5% CLI had an MCP
+                # twin). Shell only. Windows hygiene: nested quotes / EncodedCommand
+                # / gh --jq / SSH heredocs — warn-only.
                 "matcher": SHELL_MATCHER,
                 "hooks": [
                     {
                         "type": "command",
                         "command": hook_cmd("tool_choice_nudge.py"),
                         "timeout": 6,
-                    }
+                    },
+                    {
+                        "type": "command",
+                        "command": hook_cmd("windows_shell_hygiene.py"),
+                        "timeout": 5,
+                    },
                 ],
             },
             {

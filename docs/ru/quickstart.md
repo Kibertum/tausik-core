@@ -76,7 +76,7 @@ cd my-project
 ```
 Добавь https://github.com/Kibertum/tausik-core как git submodule в .tausik-lib,
 запусти python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
-(bootstrap сам допишет .tausik/ и каталоги IDE-профилей в .gitignore — их не коммитить)
+(bootstrap сам допишет .tausik/, .tausik-lib/ и пути IDE/harness в .gitignore — export-only)
 ```
 
 Агент выполнит эти шаги — вам нужно только подтверждать его действия.
@@ -115,15 +115,19 @@ python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
 - Появится соответствующий файл инструкций хоста — например, `.cursor/rules/tausik.mdc` или `CLAUDE.md`
 - TAUSIK определит технологический стек вашего проекта (Python, React, Go и т.д.) и включит подходящие проверки
 
-**Две директории, которые важно понимать:**
+**Две директории (export-only consumer git):**
 
-- **`.tausik-lib/`** — исходный код фреймворка (git submodule, отслеживается в git). Это сам TAUSIK.
-- **`.tausik/`** — рабочие данные: база, конфиг, виртуальное окружение. Добавлена в `.gitignore` — это локальные данные, они не коммитятся.
+- **`.tausik-lib/`** — локальный checkout фреймворка (submodule или vendor-копия). Bootstrap
+  добавляет её в `.gitignore` в day-0; **не коммитьте**. Ставьте/обновляйте на каждой машине,
+  затем re-bootstrap.
+- **`.tausik/`** — runtime: база, конфиг, venv. Тоже в `.gitignore`.
+- **`tausik/`** (без точки) — durable export (`tausik state export`). **Это** идёт в git вместе
+  с кодом продукта.
 
-Коллеги, склонировавшие репозиторий, выполняют `git submodule update --init`, затем `python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init` (заменив `cursor` своим хостом) для настройки локальной `.tausik/`.
-
-Оставьте под версионным контролем сгенерированную папку профиля и соответствующий файл
-инструкций хоста. Они содержат конфигурацию агента проекта; `.tausik/` остаётся локальными runtime-данными.
+Коллеги клонируют продуктовый репозиторий, локально получают `.tausik-lib` (submodule init или
+vendor), затем `python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init` (хост — свой).
+Нельзя `git add .tausik-lib` или развёрнутые IDE/harness-деревья — гейт `harness_projection`
+на commit отказывает.
 
 ## Шаг 3. Проверьте установку
 
@@ -132,6 +136,7 @@ python .tausik-lib/bootstrap/bootstrap.py --ide cursor --init
 ```
 
 > **Windows:** эта команда требует Git Bash или WSL. Если используете cmd.exe или PowerShell, выполните `.tausik/tausik.cmd status`.
+> One-liner агента: [windows-shell.md](windows-shell.md) (файл вместо вложенных кавычек).
 
 Если видите что-то вроде:
 
@@ -308,14 +313,15 @@ tausik sync              # tausik/ → БД, файлы побеждают
    - Находит существующие конфиги (`.eslintrc`, `pyproject.toml` и т.д.)
    - Сохраняет `.gitignore`, инструкции и MCP-файлы выбранного хоста — объединяет, а не перезаписывает
 
-3. **Что попадает в git:**
+3. **Что попадает в git (export-only):**
    - Код самого проекта
-   - `.tausik-lib` — только **указатель** submodule (не распакованные файлы фреймворка)
    - `tausik/` — результаты `tausik state export` (задачи, решения, память)
    - Корневые instruction-файлы хоста (`AGENTS.md`, `CLAUDE.md`, `QWEN.md`), если есть
-   - **Не коммитится:** runtime `.tausik/`, сгенерированные IDE-профили (`.cursor/`, `.claude/`, …),
-     `opencode.json`, `.mcp.json` — bootstrap пишет их в `.gitignore`; гейт `harness_projection`
-     на commit отказывает force-add
+   - **Не коммитится:** `.tausik-lib/` (локальный checkout), runtime `.tausik/`, сгенерированные
+     IDE-профили (`.cursor/`, `.claude/`, `.kilo/`, `.codex/`, …), копии `harness/` / `bootstrap/`,
+     `opencode.json`, `.mcp.json` — bootstrap сеет `.gitignore` в day-0; гейт
+     `harness_projection` отказывает force-add и пишет в stderr, если в DB есть state, а в
+     коммите нет `tausik/`
 
 4. **Начать с нуля или импортировать:**
    - TAUSIK начинает с чистой базы задач. Автоматического импорта из других систем нет.

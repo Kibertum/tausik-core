@@ -26,6 +26,7 @@ def _validate(
     evidence_json: str | None,
     no_knowledge: bool,
     no_file_changes: bool,
+    external_evidence: bool,
     no_changelog: bool,
     zero_gate_ack: bool,
 ) -> tuple[str, int]:
@@ -41,6 +42,7 @@ def _validate(
         ("ac_verified", ac_verified),
         ("no_knowledge", no_knowledge),
         ("no_file_changes", no_file_changes),
+        ("external_evidence", external_evidence),
         ("no_changelog", no_changelog),
         ("zero_gate_ack", zero_gate_ack),
     ):
@@ -71,6 +73,7 @@ def _validate(
             evidence_json is not None,
             no_knowledge,
             no_file_changes,
+            external_evidence,
             no_changelog,
             zero_gate_ack,
         )
@@ -153,6 +156,7 @@ def run_progress_close(
     evidence_json: str | None = None,
     no_knowledge: bool = False,
     no_file_changes: bool = False,
+    external_evidence: bool = False,
     no_changelog: bool = False,
     zero_gate_ack: bool = False,
     progress_fn: Any | None = None,
@@ -172,6 +176,7 @@ def run_progress_close(
         evidence_json=evidence_json,
         no_knowledge=no_knowledge,
         no_file_changes=no_file_changes,
+        external_evidence=external_evidence,
         no_changelog=no_changelog,
         zero_gate_ack=zero_gate_ack,
     )
@@ -230,6 +235,7 @@ def run_progress_close(
                 evidence_json=evidence_json,
                 progress_fn=progress_fn,
                 no_file_changes=no_file_changes,
+                external_evidence=external_evidence,
                 no_changelog=no_changelog,
                 verify_handle=handle,
                 zero_gate_ack=zero_gate_ack,

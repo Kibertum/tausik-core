@@ -1,0 +1,7 @@
+fix(release): drop absolute path from TauX research pointer
+
+Public snapshot refused leak class 'dev-machine path' on
+docs/ru/research/newproduct-nov2026-pointer.md; name the sibling repo without
+a local machine path.
+
+Co-Authored-By: Claude <noreply@anthropic.com>

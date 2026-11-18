@@ -15,7 +15,9 @@ is exactly the defect to stop.
 from __future__ import annotations
 
 import os
+import sqlite3
 import subprocess
+import sys
 from typing import Any
 
 import gate_outcome
@@ -24,18 +26,26 @@ from gate_spec import PHASE_SCOPED, GateSpec
 
 _EXTRA_PROFILE_DIRS = frozenset({".agents", ".kilocode", ".claude-project"})
 _MACHINE_LOCAL_FILES = frozenset({".mcp.json", "opencode.json", ".cursorrules"})
-# Consumer marker: `.tausik-lib` present means framework code arrives via the
-# submodule / gitlink. Staging the framework's own trees beside it is the
-# "drag the framework into the project" defect that keeps recurring. The core
-# repository has no `.tausik-lib`, so these prefixes stay legitimate there.
+# Consumer marker: `.tausik-lib` present means framework code arrives via a
+# local checkout (submodule or vendor copy). Staging the framework's own trees
+# beside it — or the checkout itself — is the "drag the framework into the
+# project" defect that keeps recurring. The core repository has no
+# `.tausik-lib`, so these prefixes stay legitimate there.
 _CONSUMER_FRAMEWORK_PREFIXES = (
     "bootstrap/",
     "harness/",
     "scripts/hooks/",
     ".tausik/",
+    ".tausik-lib/",
 )
 # Project state export is the only TAUSIK tree that belongs in consumer git.
 _CONSUMER_ALLOWED_PREFIXES = ("tausik/",)
+_MISSING_EXPORT_STDERR = (
+    "harness_projection: DB has project state, but this commit stages no "
+    "`tausik/` export. Durable tracked TAUSIK surface is `tausik/` "
+    "(run `tausik state export` and `git add tausik/`), not `.tausik-lib` "
+    "or deployed IDE/harness trees.\n"
+)
 
 HARNESS_PROJECTION_SPEC = GateSpec(
     name="harness_projection",
@@ -100,6 +110,47 @@ def _consumer_has_lib(root: str) -> bool:
     return os.path.exists(os.path.join(root, ".tausik-lib"))
 
 
+def _db_has_state(root: str) -> bool:
+    """True when the project DB exists and holds at least one durable row."""
+    db = os.path.join(root, ".tausik", "tausik.db")
+    if not os.path.isfile(db):
+        return False
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            for table in ("tasks", "memory", "decisions"):
+                try:
+                    n = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                except sqlite3.Error:
+                    continue
+                if n and int(n) > 0:
+                    return True
+            return False
+        finally:
+            conn.close()
+    except (OSError, sqlite3.Error):
+        return False
+
+
+def _staged_has_export(staged: list[str]) -> bool:
+    for raw in staged:
+        path = raw.replace("\\", "/")
+        if path == "tausik" or path.startswith("tausik/"):
+            return True
+    return False
+
+
+def _warn_missing_export(root: str, staged: list[str]) -> None:
+    """Stderr notice when durable state exists but the commit omits tausik/."""
+    if not _consumer_has_lib(root):
+        return
+    if not _db_has_state(root):
+        return
+    if _staged_has_export(staged):
+        return
+    sys.stderr.write(_MISSING_EXPORT_STDERR)
+
+
 def _shadows_lib_checkout(root: str, path: str) -> bool:
     """True when the staged path already exists inside `.tausik-lib`.
 
@@ -137,8 +188,9 @@ def forbidden_staged_paths(
         if any(path == p.rstrip("/") or path.startswith(p) for p in prefixes):
             bad.append(path)
             continue
-        # Submodule pointer (`.tausik-lib`) is allowed; unpacked lib files are not.
-        if path.startswith(".tausik-lib/") and path != ".tausik-lib":
+        # Export-only: refuse both unpacked lib files and the checkout pointer
+        # on consumers. Non-consumer (framework) trees never stage `.tausik-lib`.
+        if path == ".tausik-lib" or path.startswith(".tausik-lib/"):
             bad.append(path)
             continue
         if consumer and any(
@@ -169,12 +221,13 @@ def run_harness_projection_gate_for(gate: dict[str, Any], files: list[str]):
             "harness_projection: nothing staged — nothing to refuse.",
             remedy="Stage the project change and the tausik/ export, then re-run.",
         )
+    _warn_missing_export(root, staged)
     bad = forbidden_staged_paths(staged, consumer=_consumer_has_lib(root), root=root)
     if not bad:
         return gate_outcome.passed(
             "harness_projection: staged set has no generated IDE harness, "
             "machine-local MCP launcher, framework trees beside `.tausik-lib`, "
-            "paths that shadow `.tausik-lib`, or unpacked .tausik-lib files."
+            "paths that shadow `.tausik-lib`, or `.tausik-lib` itself."
         )
     shown = "\n  ".join(bad[:20])
     more = f"\n  … (+{len(bad) - 20} more)" if len(bad) > 20 else ""
@@ -184,9 +237,8 @@ def run_harness_projection_gate_for(gate: dict[str, Any], files: list[str]):
         "`tausik/` export results — not IDE profile trees, not opencode/.mcp "
         "machine paths, not `.tausik/` runtime, not bootstrap/harness/hooks "
         "beside `.tausik-lib`, not paths that already exist under `.tausik-lib`, "
-        "and not files inside `.tausik-lib/`:\n  "
+        "and not `.tausik-lib/` itself:\n  "
         f"{shown}{more}\n"
         "Fix: git restore --staged <paths>; ensure they are in .gitignore; "
-        "keep only the `.tausik-lib` submodule pointer; run `tausik state export` "
-        "and `git add tausik/` for project state."
+        "run `tausik state export` and `git add tausik/` for project state."
     )

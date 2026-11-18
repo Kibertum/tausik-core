@@ -76,20 +76,11 @@ def _format_task_done_failures(report: dict[str, Any]) -> str:
 
 
 def _redeem_verify_handle(be: "SQLiteBackend", slug: str, report: dict[str, Any]) -> None:
-    """Spend the presented verify handle, inside the caller's transaction.
+    """Spend the verify handle inside the caller's `status='done'` transaction.
 
-    Called from within the `status='done'` transaction so the spend shares its
-    fate: a rollback un-spends the handle, and a close blocked by a later gate
-    never reaches this line at all. Redeem-once is about one green not closing
-    two tasks (SEP-2322 replay) — that is a property of CLOSING, not of passing
-    the gate that checked the handle.
-
-    A failed spend RAISES rather than warning. Reaching here means every gate
-    passed and the handle validated moments ago, so the only ways the atomic
-    `WHERE handle_redeemed_at IS NULL` can miss are a concurrent close that took
-    it first or a database fault — and both mean this close must not be the one
-    that succeeds. The caller's `except: rollback_tx(); raise` turns it into a
-    refused close with the task untouched.
+    Spend shares the close's fate (rollback un-spends; a later-gate block never
+    reaches here). Redeem-once stops one green closing two tasks. A failed spend
+    RAISES: concurrent close or DB fault must not let this close succeed.
     """
     handle = report.get("_verify_handle_to_redeem")
     if not handle:
@@ -129,6 +120,7 @@ class TaskDoneReportMixin:
         evidence_json: str | None = None,
         progress_fn: Any | None = None,
         no_file_changes: bool = False,
+        external_evidence: bool = False,
         no_changelog: bool = False,
         verify_handle: str | None = None,
         zero_gate_ack: bool = False,
@@ -191,6 +183,7 @@ class TaskDoneReportMixin:
             relevant_files,
             progress_fn=progress_fn,
             no_file_changes=no_file_changes,
+            external_evidence=external_evidence,
             no_changelog=no_changelog,
             verify_handle=verify_handle,
             zero_gate_ack=zero_gate_ack,
@@ -487,12 +480,7 @@ class TaskDoneReportMixin:
                 report["warnings"].append(cost_warning)
             cascade = self._cascade_done(slug)  # type: ignore[attr-defined]
             msgs.extend([*cascade, *journal_close_lines(self, slug), *plan_next_line(self)])
-            # v2-verify-receipt-as-argument: spend the presented handle HERE,
-            # inside the transaction that writes status='done'. Redeem-once
-            # exists so one green cannot close two tasks; binding the spend to
-            # the close means a rollback un-spends it too, and a close that
-            # blocks on a later gate no longer burns a verify run the agent
-            # then has to repeat.
+            # Spend the presented handle inside the done transaction (redeem-once).
             _redeem_verify_handle(self.be, slug, report)
         __import__("task_baseline").release(self.tausik_dir(), slug)  # type: ignore[attr-defined]
         report["ok"] = True

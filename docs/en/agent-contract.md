@@ -36,7 +36,10 @@ gates. The pytest gate uses the `{test_files_for_files}` substitution — it run
 - A task that **legitimately touches no files** (pure planning, `tausik decide`) closes
   with `task done --no-file-changes` — the third state of a scope. Allowed ONLY when git
   confirms the declared scope (`--relevant-files` as a pathspec; the whole tree when the
-  list is empty) has no uncommitted edits; otherwise fail-closed. Countable:
+  list is empty) has no uncommitted edits; otherwise fail-closed. Unrelated dirty outside
+  the pathspec does not block. Work **outside this git** (another repo / out-of-tree):
+  `task done --no-file-changes --external-evidence` skips the host-tree dirty check; do
+  not combine with `--relevant-files`. Countable:
   `SELECT * FROM tasks WHERE no_file_changes_declared = 1`
   (qg2-cannot-close-fileless-task).
 - The state projection — `tausik/{epics,stories,tasks,decisions,memory}/` — is **EXCLUDED**

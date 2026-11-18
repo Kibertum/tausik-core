@@ -20,6 +20,7 @@ generated from those declarations.
 | `start-here-maintainer.md` | maintainer | en, ru |
 | `start-here-user.md` | user | en, ru |
 | `upgrade.md` | user | en, ru |
+| `windows-shell.md` | agent | en, ru |
 | `workflow.md` | user | en, ru |
 
 ## core-surface
@@ -133,6 +134,7 @@ generated from those declarations.
 | `whats-new-1.11.md` | user | en, ru |
 | `whats-new-1.12.md` | user | en, ru |
 | `whats-new-1.13.md` | user | en, ru |
+| `whats-new-1.14.md` | user | en, ru |
 | `whats-new-1.8.md` | user | en, ru |
 | `whats-new-1.9.md` | user | en, ru |
 
@@ -160,4 +162,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-84 page(s), 83 carried by both languages.
+86 page(s), 85 carried by both languages.

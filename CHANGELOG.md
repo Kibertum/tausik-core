@@ -9,6 +9,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-11-18
+
+- Consumer **export-only** day-0: bootstrap seeds `.tausik-lib/` (plus IDE/harness copy
+  paths) into `.gitignore` when `.tausik-lib` is present; `harness_projection` refuses
+  staging the lib checkout itself and prints stderr when the DB has state but the
+  commit omits `tausik/`. Quickstart EN/RU document product + `tausik/` as the durable
+  tracked surface.
+
+- QG-2 `--no-file-changes` pathspecs only `relevant_files` (unrelated dirty no longer
+  blocks a clean declared scope). Out-of-repo work: `--external-evidence` skips the
+  host-tree dirty check; refuse combining with `--relevant-files`. Agent-contract EN/RU.
+
+- Windows shell hygiene: day-0 docs EN/RU + warn-only PostToolUse
+  `windows_shell_hygiene` (nested quotes, EncodedCommand trailing args, `gh --jq`
+  braces, SSH heredocs). Does not block.
+
 ## [1.13.4] — 2026-11-17
 
 - Soften execution-lease package freshness to **advisory** for ordinary

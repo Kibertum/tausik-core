@@ -11,6 +11,20 @@
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-11-18
+
+- Consumer **export-only** day-0: bootstrap сеет `.tausik-lib/` (и пути IDE/harness)
+  в `.gitignore`, если есть `.tausik-lib`; `harness_projection` отказывает стейдж
+  самого checkout lib и пишет в stderr, когда в DB есть state, а в коммите нет
+  `tausik/`. Quickstart EN/RU: durable tracked = продукт + `tausik/`.
+
+- QG-2 `--no-file-changes` смотрит только pathspec `relevant_files` (чужой dirty вне
+  области не блокирует). Out-of-repo: `--external-evidence` пропускает dirty-check
+  дерева хоста; нельзя с `--relevant-files`. Agent-contract EN/RU.
+
+- Windows shell hygiene: docs EN/RU + warn-only PostToolUse `windows_shell_hygiene`
+  (вложенные кавычки, EncodedCommand, `gh --jq` braces, SSH heredoc). Не блокирует.
+
 ## [1.13.4] — 2026-11-17
 
 - Смягчение freshness package у execution lease до **advisory** для обычных

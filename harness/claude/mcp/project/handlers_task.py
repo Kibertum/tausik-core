@@ -120,6 +120,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
             evidence_json=args.get("evidence_json"),
             no_knowledge=args.get("no_knowledge", False),
             no_file_changes=args.get("no_file_changes", False),
+            external_evidence=args.get("external_evidence", False),
             no_changelog=args.get("no_changelog", False),
             zero_gate_ack=bool(args.get("gates_not_applicable", False)),
             # Per-gate progress is deterministic runner state, not a model
@@ -145,6 +146,7 @@ def _do_task_done(svc: Any, args: dict) -> str:
         evidence_json=args.get("evidence_json"),
         progress_fn=None,
         no_file_changes=args.get("no_file_changes", False),
+        external_evidence=args.get("external_evidence", False),
         no_changelog=args.get("no_changelog", False),
         # Read explicitly: the MCP dispatch does no schema validation, so an
         # argument this handler does not name is silently dropped (memory #368,

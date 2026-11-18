@@ -17,7 +17,8 @@ acceptance criteria, verification evidence and a recoverable history.
 3. Hosts without slash commands execute `harness/skills/<name>/SKILL.md`.
 
 References: [agent quickstart](docs/en/agent-quickstart.md),
-[MCP](docs/en/mcp.md), [CLI](docs/en/cli.md), [skills](docs/en/skills.md).
+ [MCP](docs/en/mcp.md), [CLI](docs/en/cli.md), [skills](docs/en/skills.md),
+ [Windows shell](docs/en/windows-shell.md).
 
 ## Host contract
 

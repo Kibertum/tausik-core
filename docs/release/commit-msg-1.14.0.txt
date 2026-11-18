@@ -1,0 +1,6 @@
+release(1.14.0): export-only day-0, fileless QG-2, Windows shell hygiene
+
+Ship consumer gitignore seeding for .tausik-lib, scoped --no-file-changes /
+--external-evidence closes, and warn-only Windows shell hygiene with notes.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
