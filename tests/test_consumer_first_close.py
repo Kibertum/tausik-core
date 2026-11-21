@@ -82,8 +82,9 @@ def consumer(tmp_path_factory) -> Path:
     """Настоящий чужой проект, поднятый настоящим bootstrap."""
     root = tmp_path_factory.mktemp("consumer")
     (root / "src").mkdir()
+    (root / "tests").mkdir()
     (root / "src" / "calc.py").write_text(_CALC, encoding="utf-8")
-    (root / "test_calc.py").write_text(_TEST, encoding="utf-8")
+    (root / "tests" / "test_calc.py").write_text(_TEST, encoding="utf-8")
     _run(["git", "init", "-q", "."], root)
     _run(["git", "add", "-A"], root)
     _run(
@@ -148,7 +149,7 @@ class TestНовыйПроектЗакрываетПервуюЗадачу:
                 "add-subtract",
                 "--scope-paths",
                 "src/calc.py",
-                "test_calc.py",
+                "tests/test_calc.py",
             ],
             consumer,
             "task update --scope-paths",
@@ -163,7 +164,7 @@ class TestНовыйПроектЗакрываетПервуюЗадачу:
                 "add-subtract",
                 "--relevant-files",
                 "src/calc.py",
-                "test_calc.py",
+                "tests/test_calc.py",
             ],
             consumer,
         )
@@ -177,8 +178,8 @@ class TestНовыйПроектЗакрываетПервуюЗадачу:
         # (POSIX-обёртка из bash либо MCP). Тест идёт путём, работающим на
         # обеих платформах.
         for line in (
-            "AC-1: ✓ test_calc.py::test_subtract",
-            "AC-2: ✓ test_calc.py::test_subtract",
+            "AC-1: ✓ tests/test_calc.py::test_subtract",
+            "AC-2: ✓ tests/test_calc.py::test_subtract",
         ):
             logged = _run([wrapper, "task", "log", "add-subtract", line], consumer)
             assert logged.returncode == 0, (

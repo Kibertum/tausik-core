@@ -1,3 +1,7 @@
+# Adherence release seals hash fixture bytes on Linux CI. Windows autocrlf
+# must not rewrite those JSON bodies or the frozen release-gate hashes drift.
+tests/fixtures/adherence/** text eol=lf
+
 # The RENAR derived tree is generated with LF newlines (renar_export.write_tree
 # uses newline="\n"). Pin it to LF on checkout so `tausik renar export --check`
 # does not see false CRLF drift on Windows clones (core.autocrlf=true).

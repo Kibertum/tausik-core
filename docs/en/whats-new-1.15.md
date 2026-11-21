@@ -29,7 +29,8 @@ rounds when the host cannot offer a mechanically read-only reviewer. Docs:
 Phantom STALE after a green verify is gone (TB-016). Empty `testing.roots=[]`
 no longer discovers tests (TB-005). Lockfiles are not authored filesize (TB-014).
 `--relevant-files` refuses `.` and directories; `NoTestRoots` fails fast; cohort
-readiness uses the shared AC evidence parser.
+readiness uses the shared AC evidence parser. Post-bootstrap refresh skips
+markerless / `hand_maintained` instruction files instead of aborting the upgrade.
 
 - [Exact 1.15.0 changelog](https://github.com/Kibertum/tausik-core/blob/v1.15.0/CHANGELOG.md)
 - [Upgrade guide](upgrade.md)

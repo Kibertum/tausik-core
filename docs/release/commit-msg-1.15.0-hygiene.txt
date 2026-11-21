@@ -1,0 +1,5 @@
+fix(1.15.0): CI hygiene for public snapshot (LF seals, bootstrap skip, tests/)
+
+Reseal adherence fixtures on LF bytes and pin eol=lf; skip hand_maintained
+instruction files in post-bootstrap refresh; place consumer journey tests under
+tests/ so NoTestRoots stays honest on the release snapshot.

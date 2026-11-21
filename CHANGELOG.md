@@ -14,6 +14,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 Cursor PreToolUse **failClosed** unfreeze for managing-agent and consumers, durable
 CLI lease rebind, and TauX dogfood fixes (TB-005…016, TB-009 L3 Codex path).
 
+- CI hygiene for the public snapshot: pin `tests/fixtures/adherence/**` to LF;
+  reseal `release-manifest-v1.json` on LF bytes; post-bootstrap refresh skips
+  `hand_maintained` / markerless instruction files instead of aborting; consumer
+  journey fixtures place tests under `tests/` so NoTestRoots stays honest.
 - Cursor PreToolUse **failClosed**: bootstrap emits a 45s timeout floor; cursor_hook.map_exit never returns bare exit 1 (Claude warning/unexpected -> allow; policy deny stays exit 2). Hand-edit of hooks.json without capability regen is CAPABILITY_MISMATCH; recovery is bootstrap --ide cursor, not a human external one-liner. Covers core managing-agent and consumer Cursor hosts (ansible dogfood).
 - Durable Cursor/CLI lease bind: `task update` authorizes as `cli_task_update` (the existing rebind route) and CLI consumes the PreToolUse authorization so contract edits rebind the live package fingerprint instead of stranding `PACKAGE_STALE` until another `task start`.
 - Review separation recognizes Cursor Composer ids (`composer-2.5-fast`, point releases) as the `cursor` vendor family so L3 hard-floor records can be filed on Cursor hosts.

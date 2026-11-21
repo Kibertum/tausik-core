@@ -290,10 +290,11 @@ def _upgrade_current(consumer: Path, host: str) -> None:
 def _initialize(snapshot: Path, consumer: Path, host: str) -> None:
     consumer.mkdir()
     (consumer / "src").mkdir()
+    (consumer / "tests").mkdir()
     (consumer / "src" / "calc.py").write_text(
         "def add(a, b):\n    return a + b\n", encoding="utf-8"
     )
-    (consumer / "test_calc.py").write_text(
+    (consumer / "tests" / "test_calc.py").write_text(
         "from src.calc import add\n\n\ndef test_add():\n    assert add(2, 2) == 4\n",
         encoding="utf-8",
     )
@@ -973,15 +974,15 @@ def test_host_consumer_completes_clean_or_upgraded_journey(published_repo, tmp_p
             "role": "developer",
             "stack": "python",
             "complexity": "simple",
-            "scope_paths": ["src/calc.py", "test_calc.py"],
-            "relevant_files": ["src/calc.py", "test_calc.py"],
+            "scope_paths": ["src/calc.py", "tests/test_calc.py"],
+            "relevant_files": ["src/calc.py", "tests/test_calc.py"],
         },
     )
     with sqlite3.connect(db) as conn:
         stored_files = conn.execute(
             "SELECT relevant_files FROM tasks WHERE slug='upgrade-journey'"
         ).fetchone()[0]
-    assert json.loads(stored_files) == ["src/calc.py", "test_calc.py"]
+    assert json.loads(stored_files) == ["src/calc.py", "tests/test_calc.py"]
     _mcp_call(
         consumer,
         host,
@@ -1032,12 +1033,12 @@ def test_host_consumer_completes_clean_or_upgraded_journey(published_repo, tmp_p
             "upgrade-journey",
             "--relevant-files",
             "src/calc.py",
-            "test_calc.py",
+            "tests/test_calc.py",
         ],
         consumer,
         "verify",
     )
-    ac_lines = ["AC-1: ✓ test_calc.py::test_add"]
+    ac_lines = ["AC-1: ✓ tests/test_calc.py::test_add"]
     if host == "codex":
         ac_lines.append("AC-2: ✓ production work Stop returned block")
     else:

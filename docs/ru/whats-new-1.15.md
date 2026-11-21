@@ -29,7 +29,8 @@ repair-раунды, когда хост не даёт механически re
 Фантомный STALE после зелёного verify убран (TB-016). Пустой `testing.roots=[]`
 больше не уходит в discovery (TB-005). Lockfile не authored filesize (TB-014).
 `--relevant-files` отвергает `.` и каталоги; `NoTestRoots` fail-fast; готовность
-когорты использует общий парсер AC evidence.
+когорты использует общий парсер AC evidence. Post-bootstrap refresh пропускает
+файлы без DYNAMIC / `hand_maintained` вместо abort всего upgrade.
 
 - [Точный changelog 1.15.0](https://github.com/Kibertum/tausik-core/blob/v1.15.0/CHANGELOG.ru.md)
 - [Руководство по обновлению](upgrade.md)

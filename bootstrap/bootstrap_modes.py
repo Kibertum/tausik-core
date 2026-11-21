@@ -314,7 +314,12 @@ def _refresh_dynamic_state(project_dir: str, tausik_wrapper: str) -> None:
                 label = instruction or "default instruction file"
                 # Foreign AGENTS.md / instruction files without DYNAMIC markers
                 # are skipped by update-claudemd; do not fail the whole refresh.
-                if "marker not found" in detail and "skipped" in detail:
+                soft_skip = (
+                    ("marker not found" in detail and "skipped" in detail)
+                    or "hand_maintained" in detail
+                    or "no DYNAMIC markers" in detail
+                )
+                if soft_skip:
                     print(f"  skip unmanaged instruction file: {label}")
                     continue
                 failures.append(f"{label}: {detail or f'exit {result.returncode}'}")
