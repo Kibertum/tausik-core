@@ -154,6 +154,31 @@ class TestReadiness:
         out = vh.run_hierarchy_verify(svc, "st", "story", _runner=lambda *a, **k: GREEN)
         assert "h-c: no numbered AC evidence logged" in out["refused"]
 
+    def test_documented_numbered_form_without_ac_token_is_ready(self, svc):
+        """TB-008: `AC verified: 1. ✓ …` must satisfy readiness (not only `AC-N`)."""
+        for slug in ("h-a", "h-b", "h-c"):
+            svc.be._conn.execute("DELETE FROM task_logs WHERE task_slug=?", (slug,))
+            svc.be._conn.execute(
+                "INSERT INTO task_logs(task_slug, message, created_at) VALUES(?,?,?)",
+                (slug, "AC verified: 1. ✓ tests/x.py::t", "2026-10-06T00:00:00Z"),
+            )
+        svc.be._conn.commit()
+        out = vh.run_hierarchy_verify(
+            svc, "st", "story", prepare=False, _runner=lambda *a, **k: dict(GREEN)
+        )
+        assert out.get("passed") is True, out.get("refused")
+
+    def test_unnumbered_log_still_blocks_readiness(self, svc):
+        for slug in ("h-a", "h-b", "h-c"):
+            svc.be._conn.execute("DELETE FROM task_logs WHERE task_slug=?", (slug,))
+            svc.be._conn.execute(
+                "INSERT INTO task_logs(task_slug, message, created_at) VALUES(?,?,?)",
+                (slug, "looks done, all good", "2026-10-06T00:00:00Z"),
+            )
+        svc.be._conn.commit()
+        out = vh.run_hierarchy_verify(svc, "st", "story", _runner=lambda *a, **k: GREEN)
+        assert "no numbered AC evidence logged" in out["refused"]
+
     def test_ready_cohort_runs_once(self, svc):
         calls = []
 

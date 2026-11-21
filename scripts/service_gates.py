@@ -271,6 +271,27 @@ class GatesMixin:
             scope = "critical"
         report["scope"] = scope
 
+        # TB-016 / dogfood 2026-11-21: on the close path, redeem Verify-First
+        # BEFORE recording the cheap task-done gate run. The previous order
+        # wrote verification_runs N+1 (trigger=task-done) first; when freshness
+        # then missed, last_run_kind named that phantom row as "the last verify
+        # run" and STALE pointed at evidence that never covered the product.
+        # Cheap gates also must not mutate coverage before the handle/freshness
+        # check. Handle spend still waits for the real close transaction.
+        if trigger == "task-done":
+            self._run_post_scope_gates(
+                report,
+                slug,
+                relevant_files,
+                no_file_changes=no_file_changes,
+                external_evidence=external_evidence,
+                no_changelog=no_changelog,
+                verify_handle=verify_handle,
+                zero_gate_ack=zero_gate_ack,
+            )
+            if not report.get("passed"):
+                return report
+
         passed, results, status = run_gates_with_cache(
             self.be._conn,
             slug,
@@ -300,23 +321,6 @@ class GatesMixin:
                 }
                 for r in failed
             ]
-            return report
-
-        # Verify-First Contract enforcement: only on the task-done path,
-        # only when there ARE verify-trigger gates configured (otherwise no
-        # heavy verification was ever expected — small projects are fine),
-        # and only when auto_verify is NOT explicitly opted-in.
-        if trigger == "task-done":
-            self._run_post_scope_gates(
-                report,
-                slug,
-                relevant_files,
-                no_file_changes=no_file_changes,
-                external_evidence=external_evidence,
-                no_changelog=no_changelog,
-                verify_handle=verify_handle,
-                zero_gate_ack=zero_gate_ack,
-            )
         return report
 
     def _run_post_scope_gates(

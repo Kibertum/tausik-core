@@ -1,0 +1,291 @@
+TAUSIK BUGS ENCOUNTERED DURING TAUX DEVELOPMENT
+Updated: 2026-11-20
+
+TB-001  Complex imported task cannot start because package metadata is incomplete
+Status: FIXED AND LOCALLY VERIFIED
+Observed: `task start taux-foundation-adr --package` returned PACKAGE_INVALID for
+call_budget and assurance_impact. The v84 one-shot migration supports legacy rows,
+but a task imported after that migration was not marked for normalization.
+Workaround used: explicitly set task planning metadata without changing goal/AC/scope.
+Root cause: portable export omits the internal compatibility marker and state import
+did not reconstruct it for an incomplete pre-v84 complex package.
+Fix: import marks only incomplete complex task contracts as legacy; the existing
+start normalization applies compatibility defaults. New API/CLI tasks remain strict.
+TauX prevention: imported state must be versioned and normalized transactionally;
+unknown assurance stays explicit and cannot silently become PASS.
+
+TB-002  PowerShell cannot safely pass ordinary authored handoff JSON
+Status: FIXED AND LOCALLY VERIFIED
+Observed: JSON containing spaces was split into multiple argv values and argparse
+returned `unrecognized arguments`. JSON with escaped Unicode spaces worked only as
+an unsuitable workaround.
+Root cause: `session handoff` accepted only one positional JSON argument.
+Fix: retain positional compatibility and add UTF-8 `--json-file`/`--stdin` inputs;
+require exactly one input and an object-shaped payload.
+TauX prevention: structured APIs are primary; CLI accepts file/stdin for structured
+payloads and never requires shell-specific quoting for correctness.
+
+TB-003  update-claudemd implicitly selects and updates AGENTS.md
+Status: FIXED AND LOCALLY VERIFIED
+Observed: in a non-Claude TauX checkout, `update-claudemd` searched for its marker
+inside manually maintained AGENTS.md and reported a skipped update.
+Root cause: resolver preferred the active IDE rules file and fell back to AGENTS.md;
+sibling synchronization was enabled by default.
+Fix: the Claude-named command resolves only explicit Claude projections; AGENTS.md
+sibling writes require explicit `claudemd.sibling_dynamic=true` opt-in.
+TauX prevention: canonical continuity is host-neutral. CLAUDE.md, AGENTS.md and other
+host files are optional projections with explicit targets and ownership.
+
+TB-004  Installed workflow skills describe CLAUDE.md as universal context storage
+Status: FIXED AND LOCALLY VERIFIED
+Observed: start/checkpoint/end instructions unconditionally prescribe updating
+CLAUDE.md even when the active host is Codex/Kilo and no Claude projection exists.
+Fix: changed workflow language and APIs to host-neutral context persistence;
+refresh a host projection only when that adapter and target are explicitly configured.
+
+TB-005  Configured local pytest root cannot run with the TAUSIK virtualenv
+Status: FIXED AND LOCALLY VERIFIED (core task tb005-testing-roots-runner-provision-or-report)
+Observed: `.tausik/venv/Scripts/python.exe -m pytest -q .tausik/local-tests`
+fails with `No module named pytest`, although `.tausik/config.json` declares that
+directory in `testing.roots` and local setup documents the TAUSIK Python command.
+Required fix: installation/doctor must either provision the declared test runner or
+report the root as unrunnable before verify; never treat configured roots as executed.
+Fix: explicit `testing.roots=[]` skips discovery (#1090); when configured roots exist,
+doctor/verify refuse if `.tausik/venv` cannot import pytest (`testing_venv_pytest.py`).
+Verify #4284 PASS. Pending consumer upgrade to this core build.
+
+TB-006  Long agent/TAUSIK session exhibits severe memory growth
+Status: ATTRIBUTED — NOT A TAUSIK CLI/MCP LEAK UNDER MEASURED CYCLES (session #330)
+Observed: the owner had to pause and restart the development session because memory
+usage was described as leaking severely. No per-process trace was captured before
+the original restart.
+Evidence (2026-11-21, Windows, Cursor + Codex host):
+- Baseline tree: ~3994 MB WS across 94 matched processes; Cursor.exe alone ~3358 MB
+  (~84%); TAUSIK-ish rows in the top sample ~221 MB.
+- Soak: 5× (task show + search + status) against this core tree; TAUSIK-owned
+  process set stayed n=23 / ~201 MB with delta ≈ 0 MB (docs/release/_tb006_soak.json).
+- No orphaned pytest workers from this soak; multiple RAG MCP servers from OTHER
+  projects/hosts (taux-core Codex, BotAdminPanel, bible, YPN) coexist on the machine —
+  host/lifecycle multiplicity, not growth from this project's CLI cycles.
+Attribution: severe growth as reported tracks the Cursor process tree, not TAUSIK
+CLI/MCP accumulation under repeated task/search/status. No speculative TAUSIK
+cache/teardown fix. Optional follow-up: host-side MCP reaping when switching projects.
+TauX prevention: every broker, bridge, provider and GUI worker has explicit owner,
+deadline/cancellation, bounded queues/caches/output, finally-based teardown and
+observable resource metrics. A child timeout must terminate and reap owned children;
+release gates compare idle and repeated-cycle memory without calling unknown usage zero.
+
+TB-007  Supplementary author self-review cannot be recorded on an L3-routed task
+Status: FIXED AND LOCALLY VERIFIED
+Observed: `review record --type L1 --reviewer-context author` was explicitly
+labelled as a self-review after three fixed findings, while the active task still
+required an external L3. TAUSIK refused the record because L1 cannot satisfy the
+route, required one reviewer invocation and lacked a recognized author model.
+Expected: retain the honest L1/L2 audit record with `satisfies_route=false` and keep
+the L3 gate open. Recording supplementary review evidence must not imply closure.
+TauX prevention: review receipts distinguish provenance, level, reviewer identity
+and gate applicability. A lower-level review can be stored without satisfying a
+higher-level requirement; the resolver, not record insertion, decides sufficiency.
+2026-11-21 workflow-core repeat: four honest focused L2 records (initial red,
+two repair rounds, final PASS) were all refused solely because the task route
+requires L3. The independent findings and repairs therefore cannot be persisted
+through `review record`, even though none was presented as satisfying the L3 gate.
+2026-11-21 resume-context repeat: a final independent L2 PASS after two red repair
+rounds was refused with `route requires L3; L2 cannot satisfy it`. The result was
+not offered as an L3 substitute; refusal again discards useful lower-level evidence
+instead of retaining it with `satisfies_route=false`.
+
+TB-008  L3 cohort readiness rejects the documented numbered AC evidence format
+Status: FIXED AND LOCALLY VERIFIED
+Observed: task logs using the documented forms `AC verified: 1. ... 2. ...` and
+`AC verified: 1. ✓ ...` were parsed as human evidence but `review cohort-open`
+still returned `no numbered AC evidence logged`. The readiness query in
+`verify_hierarchy.py` checks only `message LIKE '%AC-%'`, so it requires a literal
+`AC-1` token that the task/ship skill examples do not require.
+Workaround: log the same honest matrix with explicit `AC-1:` through `AC-N:` labels.
+Required fix: use the shared AC evidence parser/read model for review readiness, or
+make the public logging contract require and generate the same canonical markers;
+add parity tests for CLI/MCP examples, multiline notes and explicit GAP entries.
+TauX prevention: one versioned evidence parser and schema serve logging, review
+packets and closure. Readiness never relies on a second substring heuristic.
+
+TB-009  Normal L3 review has no usable mechanically read-only Codex path
+Status: FIXED IN CORE (pending consumer upgrade / host config.review.l3_host)
+Observed: the registered `tausik-external-reviewer` subagent correctly refused
+round 1 because its host exposed write-capable tools despite the role declaring a
+read-only review. A same-family `codex exec --sandbox read-only --ephemeral` round
+then started with `approval: never` and `sandbox: read-only`, but the local Codex
+authorization policy rejected every repository read (`Get-Content`, `rg`, and
+`cmd /c type`) as `blocked by policy`. The reviewer could inspect only the issued
+packet, so round 2 remained red and the bounded cohort exhausted both rounds without
+ever obtaining an independent file review.
+Core fix: `review_l3_preflight` + `review cohort-infrastructure-blocked` (schema
+v90) preserve round budget; open/status carry `delegation`/`l3_capability`;
+enforced `review.l3_host` blocks `cohort-record`. Docs: `docs/en|ru/codex-l3-readonly.md`.
+Tests: `test_review_l3_preflight.py`, `test_codex_l3_readonly_conformance.py`.
+Required fix prompt: add a Codex-specific L3 conformance test that launches the
+documented external reviewer with the exact production policy stack and proves
+both sides of least privilege: repository reads and search succeed, while writes,
+processes outside the allowlist, network mutation, and task-state mutation fail.
+The dispatcher must preflight that capability before opening or consuming a cohort
+round; an infrastructure refusal must not burn one of the two defect-repair rounds.
+Carry `Author model: <id>` into the generated delegation automatically, return a
+distinct `review_infrastructure_blocked` receipt, and document the supported Codex
+CLI flags/policy interaction. Add Windows PowerShell coverage because this failure
+occurred only after process creation and was not detected by route selection.
+TauX prevention: provider capability negotiation is executable and fail-closed.
+Read-only means an explicit capability set that is smoke-tested before review; an
+unavailable provider preserves the review budget and cannot be confused with a
+product finding. Host adapters are first-class and Codex is the initial reference.
+2026-11-21 repeat after AC-7 repair: a fresh generation-2 cohort packet was
+issued, but the registered same-family external reviewer again refused before
+reading any file because its context still exposed write-capable tools. This
+confirms that the failure is capability enforcement, not a stale packet or the
+previous AC-7 gap. No reviewer verdict was fabricated and no third workaround
+was attempted in the TauX task.
+2026-11-21 workflow-core repeat: the existing isolated L3 reviewer failed twice
+before returning any file evidence because the platform classified both the
+original and neutrally reworded read-only correctness request as possible cyber
+risk. This is an infrastructure refusal, not a product finding or PASS; the same
+scope was routed to an available read-only L2 reviewer while L3 remains unsatisfied.
+2026-11-21 preview-install repeat: the dedicated external-reviewer role again
+stopped before reading any file. Its host could not mechanically enforce read-only,
+and the invocation lacked infrastructure-issued cohort_id, round and immutable
+packet_digest. The bounded product packet already had verify #78, full tests,
+cross-platform package probes, checksum verification and a clean independent L2.
+Owner workaround for TauX development: record an explicit, task-scoped assurance
+exception against this infrastructure failure; do not label it an L3 PASS and do
+not repeat the broken ceremony. Continue the product dependency route on the
+existing product evidence while retaining the exception in task history.
+
+TB-010  Node test evidence with spaces cannot be resolved by the task gate
+Status: FIXED AND LOCALLY VERIFIED
+Observed: a green Node test whose declared title contains spaces could not be
+accepted as task evidence: the JavaScript test resolver treated only the first
+token as the test name and failed to match the actual `test("...")` declaration.
+The same test was executed successfully by the pinned Node 26 runner and the
+task-scoped verification was green; closure required an explicit
+`AC-1: ✓ green verification_run #<id> for this task` log instead.
+Required fix: parse structured Node test output or preserve the complete quoted
+test identifier; add coverage for spaces, punctuation and nested test names.
+Fix: `find_test_refs` keeps quoted `path::"title with spaces"` as one token and
+re-joins unquoted multi-word titles; `TEST_REF_RE` accepts those forms;
+`_named_test_defined` strips citation quotes before matching `test("…")`.
+Partial first-word citations still fail closed against the full title.
+TauX prevention: evidence references use typed stable IDs, while human-readable
+test titles remain display metadata and are never reparsed as identifiers.
+
+TB-011  Planned backlog task cannot start with its persisted assurance package
+Status: FIXED AND LOCALLY VERIFIED
+Observed: `task start taux-workflow-core` rejected the route-created task with
+`PACKAGE_INVALID: missing or incomplete fields: call_budget, assurance_impact`.
+The task already contained an `assurance_impact` object, but only blast radius and
+reversibility were persisted; the route/backlog handoff did not populate the full
+start-time contract or a call budget. A planned task therefore was not executable
+without an ad hoc metadata repair.
+Required fix: validate and normalize generated/imported task packages when the
+route is built, report the exact missing assurance keys, and add a fixture proving
+every route-selected task can enter `active` without owner intervention.
+Fix: incomplete complex packages from `task_add_complete` and state import get
+`task_package_legacy=1` so start normalizes; `PACKAGE_INVALID` lists each missing
+`assurance_impact.*` key; plain API `complexity=complex` without the marker stays
+strict.
+TauX prevention: lifecycle creation and transition share one versioned schema;
+an entity advertised as startable is already valid for the start transition.
+
+TB-012  Task closure ignores its non-downgradable L3 hard floor
+Status: FIXED AND LOCALLY VERIFIED
+Observed: `taux-workflow-core` declared `assurance.depth=L3`, `hard_floor=L3`
+and residual L3 evidence gaps. Four honest L2 records were refused because only
+L3 could satisfy the route, and TB-009 had already established that the external
+reviewer could not read the files. Nevertheless `task done taux-workflow-core
+--ac-verified` returned completed without any L3 record or owner exception.
+The product AC, verify #63, final independent L2 PASS and Node26 suite were green,
+but the required assurance level was not met and is not claimed here.
+Required fix: task closure must atomically resolve the current review route and
+refuse when a hard-floor receipt is absent; lower review records must remain
+recordable with `satisfies_route=false`; add a regression spanning route, record,
+infrastructure-blocked review and task-done so those surfaces cannot disagree.
+TauX prevention: closure validates typed current evidence against every mandatory
+obligation in one transaction; an unavailable provider preserves an explicit gap
+and cannot silently downgrade or satisfy it.
+
+TB-013  Honest repair review cannot be recorded when route predicts one invocation
+Status: FIXED AND LOCALLY VERIFIED
+Observed: `taux-crash-resume` required one fresh L2 reviewer invocation. The first
+independent review correctly returned FAIL with actionable findings; after repair,
+the same fresh reviewer performed the necessary second read-only pass and returned
+PASS. `review record --type L2 --reviewer-invocations 2` refused the evidence because
+the route predicted exactly one invocation, and also required model identity flags
+that the task/reviewer handoff did not provide automatically. Recording `1` would
+misstate the actual review history, so no receipt was fabricated.
+Required fix: treat the route invocation count as a minimum/default budget rather
+than an equality constraint once findings require repair, or model explicit review
+rounds with FAIL/PASS receipts. Carry recognized author/reviewer identity from the
+session and delegated reviewer automatically. Add a regression for one failing L2
+round followed by a passing repair round and require both rounds to remain visible.
+TauX prevention: verification history is append-only and correction-preserving;
+failed observations remain linked to the repaired result and honest extra evidence
+cannot be rejected merely because the optimistic route estimated fewer attempts.
+
+TB-014  Generated package lock is treated as an authored oversized source file
+Status: FIXED AND LOCALLY VERIFIED
+Observed: scoped verify #73 failed before tests because the generated npm
+`package-lock.json` has 1,349 lines and the generic 500-line source limit was
+applied without a generated-file exception. The repository contract explicitly
+allows justified generation exceptions, and the lock must remain generated and
+complete; splitting or hand-editing it would be incorrect. The repeated scope
+therefore verifies the authored package manifest and code while the pinned npm
+install, TypeScript build and full Node suite validate the lock-derived graph.
+Required fix: classify standard deterministic lockfiles as generated evidence,
+check their parser/integrity instead of authored-source line count, and keep them
+visible in task scope without blocking downstream tests.
+TauX prevention: file policies are type-aware; generated manifests receive
+integrity/provenance checks while authored modules receive maintainability limits.
+TB-015 — Site scoped verify #46 reports bootstrap as inapplicable, then fails on 46 unrelated bootstrap_drift files
+Status: FIXED AND LOCALLY VERIFIED
+- Context: linked `taux-website-promo` task in the standalone TAUSIK VitePress site repository.
+- Command: `.tausik/tausik verify --task add-honest-bilingual-taux-preview-section --relevant-files <six authored site files>`.
+- Observed: preparation says the tree has no applicable `bootstrap/bootstrap.py`, but the gate still fails on 46 deployed harness files outside the declared site scope.
+- Expected: an inapplicable bootstrap gate is skipped, or drift is limited to task-relevant deployable sources; authored VitePress scope must not require framework bootstrap repair.
+- Fix: `bootstrap_drift` returns NOT_APPLICABLE (`bootstrap_inapplicable`) when
+  `resolve_bootstrap_argv` finds no entrypoint — same premise as verify prepare.
+  Drift still fails when bootstrap applies; undeclared-security honesty unchanged.
+- Workaround (pre-fix): do not bootstrap/refresh or repair TAUSIK while implementing TauX; retain the green VitePress build/SEO evidence and record verify #46 honestly as infrastructure failure.
+- 2026-11-21 owner decision: use a task-scoped evidence exception for the local,
+  non-deployed site change. The exception relies on the green VitePress build,
+  bilingual SEO audit, rendered inspection and independent L2 PASS; it does not
+  convert verify #46 to green and does not authorize deployment or publication.
+
+
+NEW:
+
+2026-11-21 — verify #88: gate `filesize` применяет общий лимит 500 строк к
+сгенерированному `package-lock.json` (1888 строк) и блокирует запуск тестового
+gate. Правила TauX разрешают исключение для генерации, но verify не распознаёт
+lock-файл как generated artifact и не предлагает штатного task-scoped waiver.
+Временный обход в TauX: отдельно проверить неизменность/валидность lock-файла и
+запустить verify по исходникам и документации без `package-lock.json`; не
+минифицировать lock-файл и не исправлять TAUSIK в этом репозитории.
+Triage (core): covered by TB-014 (done) + uncommitted WIP here —
+`package-lock.json` (and sibling locks) are in `gate_filesize` fallbacks and
+`tausik/gates.json` exempt_basenames. TauX still sees the old gate until upgrade.
+No new TB; re-open only if still red after consumer upgrade (export drift).
+
+2026-11-21 — verify #89/#91 + `task done`: сразу после зелёного verify команда
+закрытия дважды объявила evidence STALE и сослалась на следующий run (#90/#92),
+для которого не появился файловый evidence. Между verify и `task done` не было
+продуктовых изменений. Freshness lookup тем самым сам инвалидирует только что
+полученный результат. Попытка атомарного `task done --verify` также дала verify
+#93 PASS и немедленный STALE со ссылкой на #94. Штатного обхода без нового
+signing key, preparation или изменения TAUSIK не найдено; в TauX задачу оставить
+инфраструктурно blocked и продолжить независимую работу. Не чинить TAUSIK здесь.
+Triage (core): filed+started `tb016-verify-pass-done-stale-phantom-next-run`
+under release1150-dogfood.
+Status: FIXED IN CORE (pending consumer upgrade)
+- Root cause: `_run_quality_gates_report` recorded cheap task-done gates as
+  verification_runs N+1 before Verify-First; `last_run_kind` then named that
+  phantom row as "the last verify run" on a freshness miss.
+- Fix: redeem Verify-First before the task-done gate record; `last_run_kind`
+  filters `run_trigger='verify'` and refuses to blame a later task-done row.
+- Tests: `tests/test_refusal_kinds.py`, `tests/test_tb016_phantom_stale.py`.

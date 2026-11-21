@@ -21,7 +21,6 @@ import update_check as uc  # noqa: E402
 from project_backend import SQLiteBackend  # noqa: E402
 from project_cli import cmd_session  # noqa: E402
 from project_service import ProjectService  # noqa: E402
-from tausik_utils import ServiceError  # noqa: E402
 from tausik_version import __version__  # noqa: E402
 
 NOW = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
@@ -224,7 +223,7 @@ def test_every_enabled_start_check_is_forced_and_uses_the_short_timeout(tmp_path
     assert all(timeout == uc.SESSION_START_TIMEOUT_S for _, timeout in sent)
 
 
-def test_newer_release_blocks_cli_before_a_session_row_opens(tmp_path, monkeypatch):
+def test_newer_release_opens_session_with_warning(tmp_path, monkeypatch, capsys):
     td = tmp_path / ".tausik"
     td.mkdir()
     svc = ProjectService(SQLiteBackend(str(td / "tausik.db")))
@@ -234,25 +233,27 @@ def test_newer_release_blocks_cli_before_a_session_row_opens(tmp_path, monkeypat
         "urlopen",
         _opener({"tag_name": f"v{newer}"}, []),
     )
-    monkeypatch.setattr(
-        uc,
-        "_write_cache",
-        lambda *_args: (_ for _ in ()).throw(PermissionError("read only")),
-    )
     args = SimpleNamespace(session_cmd="start", host_id=None)
-    with pytest.raises(
-        ServiceError,
-        match=rf"installed {re_escape(__version__)}.*latest {re_escape(newer)}.*\.tausik-lib",
-    ):
-        cmd_session(svc, args)
-    assert svc.be.session_current() is None
+    cmd_session(svc, args)
+    captured = capsys.readouterr()
+    combined = f"{captured.out}\n{captured.err}"
+    assert svc.be.session_current() is not None
+    assert newer in combined and __version__ in combined
+    assert "Upgrade:" in combined or "available" in combined.lower()
     svc.be.close()
 
 
-def re_escape(value: str) -> str:
-    import re
-
-    return re.escape(value)
+def test_session_start_release_check_returns_update_available(tmp_path):
+    td = tmp_path / ".tausik"
+    td.mkdir()
+    newer = f"{__version__.rsplit('.', 1)[0]}.{int(__version__.rsplit('.', 1)[1]) + 1}"
+    result = uc.session_start_release_check(
+        _Svc(td), now=NOW, opener=_opener({"tag_name": f"v{newer}"}, [])
+    )
+    assert result["status"] == "update-available" and result["fresh"] is True
+    assert result["latest"] == newer
+    assert "unverified" not in result["warning"]
+    assert "Upgrade:" in result["warning"]
 
 
 @pytest.mark.parametrize(
@@ -310,12 +311,18 @@ def test_privacy_opt_out_sends_nothing_and_is_explicitly_unverified(tmp_path):
     assert "unverified" in result["warning"]
 
 
-def test_shared_hook_preserves_cli_release_refusal_for_non_codex(monkeypatch, tmp_path):
+def test_shared_hook_surfaces_cli_release_warning_for_non_codex(monkeypatch, tmp_path):
     sys.path.insert(0, os.path.join(_ROOT, "scripts", "hooks"))
     import session_start as ss
 
     monkeypatch.setattr(ss, "_tausik_path", lambda _d: "tausik")
-    completed = SimpleNamespace(returncode=1, stderr="Error: installed 1; latest 2", stdout="")
+    completed = SimpleNamespace(
+        returncode=0,
+        stderr="TAUSIK 9.9.9 is available (this project runs 1.0.0). Upgrade: …",
+        stdout="Session #1 started.",
+    )
     monkeypatch.setattr(ss.subprocess, "run", lambda *args, **kwargs: completed)
-    blocker = ss._open_host_session(str(tmp_path), {"session_id": "host-1"})
-    assert "START REFUSED" in blocker and "Do not begin project work" in blocker
+    note = ss._open_host_session(str(tmp_path), {"session_id": "host-1"})
+    assert note is not None
+    assert "OPENED WITH WARNING" in note and "9.9.9" in note
+    assert "START REFUSED" not in note

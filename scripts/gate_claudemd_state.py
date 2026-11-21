@@ -171,7 +171,7 @@ def run_claudemd_state_gate() -> gate_outcome.GateOutcome:
     be = None
     try:
         from claudemd_state import resolve_claudemd
-        from claudemd_writer import plan_dynamic_writes
+        from claudemd_writer import plan_dynamic_writes, sibling_dynamic_enabled
         from project_backend import SQLiteBackend
         from service_knowledge_aggregates import build_compact_memory_tail
 
@@ -194,10 +194,15 @@ def run_claudemd_state_gate() -> gate_outcome.GateOutcome:
 
         offenders: list[str] = []
         judged: list[str] = []
-        # The same plan the writer follows: a sibling the policy does not write
-        # is not judged, and a sibling whose only knowledge would be foreign
-        # owes no tail — its trimmed expectation carries none.
-        for path, expected in plan_dynamic_writes(primary, "\n".join(tail), tausik_dir):
+        # Judge sibling when the project still allows sibling content
+        # (`sibling_dynamic`); writers opt in separately via `--sibling` /
+        # `context refresh --target agents`.
+        for path, expected in plan_dynamic_writes(
+            primary,
+            "\n".join(tail),
+            tausik_dir,
+            include_sibling=sibling_dynamic_enabled(tausik_dir),
+        ):
             text = _read(path)
             if text is None:
                 continue

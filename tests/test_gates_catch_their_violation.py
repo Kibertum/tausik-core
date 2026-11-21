@@ -156,6 +156,8 @@ def _bootstrap_project(tmp_path, mp, deployed: str):
     mp.setenv("TAUSIK_DIR", str(tmp_path / ".tausik"))
     _write(tmp_path, "scripts/a.py", "x = 1\n")
     _write(tmp_path, ".claude/scripts/a.py", deployed)
+    # TB-015: gate is N/A without an entrypoint; violation catch needs one.
+    _write(tmp_path, "bootstrap/bootstrap.py", "# stub\n")
     return _run("bootstrap_drift", {}, [])
 
 

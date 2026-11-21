@@ -64,10 +64,17 @@ def labelled(reason: str) -> str:
 
 
 def last_run_kind(be: Any, slug: str) -> tuple[str, str]:
-    """Why a close without a handle found no fresh green run: (kind, detail)."""
+    """Why a close without a handle found no fresh green verify: (kind, detail).
+
+    Only rows with ``run_trigger='verify'`` count. A green ``task-done`` gate
+    run recorded moments earlier is cheap-close evidence, not a verify — naming
+    it as "the last verify run" was the TB-016 phantom STALE (dogfood #90/#92/#94
+    after a real green #89/#91/#93).
+    """
     try:
         row = be._q1(  # ruff-not-enabled: SLF001 — read-only
-            "SELECT id, exit_code, ran_at FROM verification_runs WHERE task_slug=? "
+            "SELECT id, exit_code, ran_at FROM verification_runs "
+            "WHERE task_slug=? AND run_trigger='verify' "
             "ORDER BY id DESC LIMIT 1",
             (slug,),
         )
@@ -79,5 +86,6 @@ def last_run_kind(be: Any, slug: str) -> tuple[str, str]:
         return FAILED, f"the last verify run #{row['id']} ({row['ran_at']}) did not pass"
     return STALE, (
         f"the last verify run #{row['id']} ({row['ran_at']}) passed, but it is older than "
-        "the cache window or the files it covered have changed"
+        "the cache window or the files it covered have changed "
+        "(a later task-done gate run is not verify evidence)"
     )

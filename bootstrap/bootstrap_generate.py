@@ -19,7 +19,8 @@ from bootstrap_paths import mcp_runtime_fingerprint, portable_path
 _CLAUDE_MCP_VAR = "${CLAUDE_PROJECT_DIR:-.}"
 _CLAUDE_HOOK_VAR = "${CLAUDE_PROJECT_DIR}"
 _CURSOR_VAR = "${workspaceFolder}"
-
+# Cursor failClosed timeout floor (1.15); capability stays in sync via bootstrap.
+_CURSOR_PRETOOLUSE_TIMEOUT_FLOOR_S = 45
 
 # Managed entries from older bootstrap versions that no longer ship.
 RETIRED_MCP_SERVERS: tuple[str, ...] = ("tausik-brain",)
@@ -279,9 +280,12 @@ def generate_cursor_hooks_json(
                 # execution lease remain the actual enforcement boundaries.
                 if event == "stop" and shared_command.split()[:1] == ["can_stop_gate.py"]:
                     continue
+                shared_timeout = int(hook.get("timeout", 10))
+                if event == "preToolUse":
+                    shared_timeout = max(shared_timeout, _CURSOR_PRETOOLUSE_TIMEOUT_FLOOR_S)
                 item: dict[str, Any] = {
                     "command": adapter_command(event, shared_command),
-                    "timeout": int(hook.get("timeout", 10)),
+                    "timeout": shared_timeout,
                 }
                 if matcher:
                     item["matcher"] = matcher
@@ -295,7 +299,7 @@ def generate_cursor_hooks_json(
         generated.setdefault("preToolUse", []).append(
             {
                 "command": adapter_command("preToolUse", "codex_write_gate.py"),
-                "timeout": 10,
+                "timeout": _CURSOR_PRETOOLUSE_TIMEOUT_FLOOR_S,
                 "failClosed": True,
             }
         )

@@ -214,7 +214,56 @@ def test_stronger_record_cannot_borrow_zero_invocations_from_l1_route(run_type):
         reviewer_context="different-model" if run_type == "L3" else "fresh",
         reviewer_invocations=0,
     )
-    assert "route requires 1 reviewer invocation(s); recorded 0" in errors
+    assert "route requires at least 1 reviewer invocation(s); recorded 0" in errors
+
+
+def test_supplementary_l2_may_record_below_l3_route_without_satisfying():
+    """TB-007: insert with enforce_route_depth=False; satisfaction stays false."""
+    route = build_review_route(
+        evaluate_assurance(
+            profiles=["executable"],
+            impact={**LOW, "governance_boundary": True},
+            observed_evidence=[],
+        )
+    )
+    assert route["depth"] == "L3"
+    insert_errors = validate_review_record(
+        route,
+        run_type="L2",
+        author_model="gpt-5.6-sol",
+        reviewer_model="gpt-5.6-sol",
+        reviewer_context="fresh",
+        reviewer_invocations=1,
+        enforce_route_depth=False,
+    )
+    assert insert_errors == []
+    satisfaction = validate_review_record(
+        route,
+        run_type="L2",
+        author_model="gpt-5.6-sol",
+        reviewer_model="gpt-5.6-sol",
+        reviewer_context="fresh",
+        reviewer_invocations=1,
+        enforce_route_depth=True,
+    )
+    assert any("cannot satisfy it" in e for e in satisfaction)
+
+
+def test_repair_round_invocations_above_route_estimate_are_accepted():
+    """TB-013: route invocation count is a minimum, not a rigid equality."""
+    route = build_review_route(
+        evaluate_assurance(profiles=["executable"], impact=LOW, observed_evidence=[])
+    )
+    assert route["execution"]["reviewer_invocations"] == 1
+    errors = validate_review_record(
+        route,
+        run_type="L2",
+        author_model="gpt-5.6-sol",
+        reviewer_model="gpt-5.6-sol",
+        reviewer_context="fresh",
+        reviewer_invocations=2,
+    )
+    assert errors == []
 
 
 def test_bound_l3_record_with_l1_route_and_zero_invocations_fails_closed(tmp_path):
@@ -243,7 +292,7 @@ def test_bound_l3_record_with_l1_route_and_zero_invocations_fails_closed(tmp_pat
         reviewer_invocations=0,
         route_json=json.dumps(stored),
     )
-    assert "route requires 1 reviewer invocation(s); recorded 0" in review_record_blockers(
+    assert "route requires at least 1 reviewer invocation(s); recorded 0" in review_record_blockers(
         service.be._conn, "t", current
     )
     service.be.close()
@@ -476,6 +525,53 @@ def test_qg2_enforces_explicit_hard_floor_and_rejects_a_lower_record(
         reviewer_invocations=1,
     )
     assert "completed" in service.task_done("hard", None, True, True, evidence=evidence)
+    service.be.close()
+
+
+def test_hard_floor_blocks_close_without_external_agents_opt_in(tmp_path, monkeypatch):
+    """TB-012: non-downgradable hard_floor enforces even when external_agents is off."""
+    from risk_model import WEIGHTS
+    from tausik_utils import ServiceError
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("service_review_gate.external_agent_review_enabled", lambda _s: False)
+    service = ProjectService(SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db")))
+    service.task_add(None, "floor", "Floor")
+    service.task_update(
+        "floor",
+        goal="change governance behavior",
+        acceptance_criteria="AC-1 works. Negative: invalid input is refused.",
+        scope="scripts/x.py",
+        assurance_profiles=["executable"],
+        assurance_impact={**LOW, "governance_boundary": True},
+    )
+    service.task_start("floor")
+    import risk_compute
+
+    monkeypatch.setattr(
+        risk_compute,
+        "compute_task_risk",
+        lambda *_a, **_k: {
+            "score": 0.1,
+            "level": "low",
+            "factors": {name: 0.1 for name in WEIGHTS},
+            "weights": dict(WEIGHTS),
+            "defaulted": [],
+        },
+    )
+    evidence = "AC verified: 1. behavior test passed 2. invalid input refused"
+    with pytest.raises(ServiceError, match="L3 review record is required"):
+        service.task_done("floor", None, True, True, evidence=evidence)
+    service.be.review_record(
+        "floor",
+        "L2",
+        author_model="gpt-5.6-sol",
+        reviewer_model="gpt-5.6-sol",
+        reviewer_context="fresh",
+        reviewer_invocations=1,
+    )
+    with pytest.raises(ServiceError, match="route requires L3"):
+        service.task_done("floor", None, True, True, evidence=evidence)
     service.be.close()
 
 

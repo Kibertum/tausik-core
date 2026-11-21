@@ -43,6 +43,27 @@ def test_product_and_export_are_allowed_lib_pointer_is_not():
     assert gate.forbidden_staged_paths(["README.md", ".tausik-lib"]) == [".tausik-lib"]
 
 
+def test_consumer_allows_root_docs_even_when_lib_has_same_basenames(tmp_path):
+    """Same basename in `.tausik-lib` alone must not refuse project-owned root docs."""
+    root = tmp_path / "proj"
+    lib = root / ".tausik-lib"
+    lib.mkdir(parents=True)
+    (lib / "AGENTS.md").write_text("# framework agents\n", encoding="utf-8")
+    (lib / "README.md").write_text("# framework readme\n", encoding="utf-8")
+    (lib / "scripts").mkdir()
+    (lib / "scripts" / "project.py").write_text("# framework\n", encoding="utf-8")
+    staged = [
+        "AGENTS.md",
+        "README.md",
+        "scripts/project.py",
+        "src/app.py",
+        "tausik/tasks/x.md",
+    ]
+    assert gate.forbidden_staged_paths(staged, consumer=True, root=str(root)) == [
+        "scripts/project.py",
+    ]
+
+
 def test_consumer_lib_tree_refuses_framework_source_copies():
     staged = [
         "src/app.py",

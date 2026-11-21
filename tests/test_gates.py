@@ -317,6 +317,16 @@ class TestGateRunner:
         monkeypatch.setenv("TAUSIK_GATES_CONFIG", str(cfg))
         assert run_filesize_gate({"max_lines": 500}, [str(f)])[0] is True
 
+    def test_package_lock_basename_is_exempt_authored_js_is_not(self, tmp_path):
+        """TB-014: generated lockfiles skip the authored line cap; source does not."""
+        lock = tmp_path / "app" / "package-lock.json"
+        lock.parent.mkdir(parents=True)
+        lock.write_text("x\n" * 1400, encoding="utf-8")
+        authored = tmp_path / "app" / "index.js"
+        authored.write_text("x\n" * 600, encoding="utf-8")
+        assert run_filesize_gate({"max_lines": 500}, [str(lock)])[0] is True
+        assert run_filesize_gate({"max_lines": 500}, [str(authored)])[0] is False
+
     def test_committed_config_merges_over_defaults_never_drops(self, tmp_path, monkeypatch):
         # AC3: committed config EXTENDS the fallback (union) — a config that only
         # adds 'vendored/' must not drop the baseline 'tests/' exemption.

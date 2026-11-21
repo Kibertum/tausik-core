@@ -179,13 +179,16 @@ def _packet(
             "WHERE task_slug=? OR depends_on_slug=? ORDER BY task_slug, depends_on_slug",
             (slug, slug),
         ).fetchall()
+        from ac_evidence_readiness import has_numbered_evidence_logged
+
+        ac_text = str(row.get("acceptance_criteria") or "")
         ac_evidence = [
             dict(log)
             for log in conn.execute(
-                "SELECT id,message,phase,created_at FROM task_logs "
-                "WHERE task_slug=? AND message LIKE '%AC-%' ORDER BY id",
+                "SELECT id,message,phase,created_at FROM task_logs WHERE task_slug=? ORDER BY id",
                 (slug,),
             ).fetchall()
+            if has_numbered_evidence_logged(ac_text, str(log["message"] or ""))
         ]
         contexts.append(
             {
@@ -471,27 +474,8 @@ def cohort_status(svc: Any, cohort_id: int, *, issue_packet: bool = True) -> dic
     return out
 
 
-def cohort_summary(out: Mapping[str, Any]) -> str:
-    """Compact shared CLI/MCP rendering: one denominator and one next action."""
-    lines = [
-        f"L3 cohort: {len(out.get('members') or [])} tasks · "
-        f"green {out.get('green', 0)} · advisory {out.get('advisory', 0)} · "
-        f"accepted-risk {out.get('accepted_risk', 0)} · red {out.get('red', 0)} · "
-        f"carried {out.get('carried', 0)} · rounds {out.get('rounds', '0/2')}",
-        f"Cohort #{out.get('cohort_id')} · state {out.get('state')}",
-    ]
-    packet = out.get("packet")
-    if isinstance(packet, Mapping):
-        lines.append(
-            f"Next: run L3 round {packet.get('round')} for "
-            + ", ".join(str(item.get("slug")) for item in packet.get("tasks") or [])
-        )
-    if out.get("owner_action"):
-        lines.append("Owner action: " + str(out["owner_action"]) + ".")
-    return "\n".join(lines)
-
-
 # Split only for the repository's 500-line module gate; these remain the public
 # review_cohort API used by CLI/MCP callers.
 from review_cohort_receipt import cohort_review_blockers, decide_review_cohort  # noqa: E402,F401
 from review_cohort_record import record_review_round  # noqa: E402,F401
+from review_cohort_render import cohort_summary  # noqa: E402,F401

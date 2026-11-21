@@ -29,7 +29,7 @@ from bootstrap_copy import copy_scripts  # noqa: E402
 from bootstrap_modes import resolve_bootstrap_targets, run_post_bootstrap  # noqa: E402
 from claudemd_state import resolve_claudemd  # noqa: E402
 from hooks.cursor_capability import cursor_preflight_hooks_ready  # noqa: E402
-from hooks.cursor_hook import adapt_output, normalize_event  # noqa: E402
+from hooks.cursor_hook import adapt_output, map_exit, normalize_event  # noqa: E402
 from hooks.cursor_command import split_cursor_command  # noqa: E402
 from hooks.codex_write_gate import check_event  # noqa: E402
 from ide_utils import detect_ide  # noqa: E402
@@ -290,6 +290,8 @@ def test_transient_cursor_hook_drift_refuses_without_poisoning_project(tmp_path:
     )
 
     assert "CAPABILITY_MISMATCH" in notice
+    assert "bootstrap/bootstrap.py --ide cursor" in notice
+    assert "external one-liner" in notice
     check = SQLiteBackend(str(db_path))
     try:
         assert check._q1("SELECT value FROM meta WHERE key='execution_lease_maintenance'") is None
@@ -615,6 +617,135 @@ def test_cursor_adapter_emits_valid_native_responses():
     assert json.loads(failed_post) == {"additional_context": "attempt_event_id=8"}
     stop = adapt_output(json.dumps({"decision": "block", "reason": "continue"}), "stop", 0)
     assert json.loads(stop) == {"followup_message": "continue"}
+
+
+def test_cursor_pretooluse_timeout_floor_covers_windows_cold_start(tmp_path: Path):
+    from bootstrap_generate import _CURSOR_PRETOOLUSE_TIMEOUT_FLOOR_S
+
+    profile = tmp_path / ".cursor"
+    profile.mkdir()
+    generate_cursor_hooks_json(str(tmp_path), str(profile))
+    data = json.loads((profile / "hooks.json").read_text(encoding="utf-8"))
+    managed = [
+        entry
+        for entry in data["hooks"]["preToolUse"]
+        if ".cursor/scripts/hooks/cursor_hook.py" in entry["command"]
+    ]
+    assert managed
+    assert all(int(entry["timeout"]) >= _CURSOR_PRETOOLUSE_TIMEOUT_FLOOR_S for entry in managed)
+
+
+def test_cursor_hook_map_exit_never_returns_bare_exit_1():
+    code, body = map_exit("preToolUse", 1, "", "warning only")
+    assert code == 0
+    assert json.loads(body)["permission"] == "allow"
+    code, body = map_exit("preToolUse", 2, "", "BLOCKED: no ticket")
+    assert code == 2
+    assert json.loads(body)["permission"] == "deny"
+    code, body = map_exit("preToolUse", 99, "", "boom")
+    assert code == 0
+    assert json.loads(body)["permission"] == "allow"
+
+
+def test_cursor_hook_malformed_stdin_fail_opens(tmp_path: Path):
+    hook = ROOT / "scripts" / "hooks" / "cursor_hook.py"
+    adapter = tmp_path / "cursor_hook.py"
+    adapter.write_text(hook.read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "git_push_gate.py").write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            str(adapter),
+            "--event",
+            "preToolUse",
+            "--script",
+            "git_push_gate.py",
+            "--project",
+            str(tmp_path),
+        ],
+        input="{not-json",
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["permission"] == "allow"
+
+
+def test_cursor_hook_shell_child_exit_1_maps_to_allow_process_exit_0(tmp_path: Path):
+    """Shell preToolUse must not freeze failClosed when a child exits 1 (Claude warn)."""
+    hook = ROOT / "scripts" / "hooks" / "cursor_hook.py"
+    adapter = tmp_path / "cursor_hook.py"
+    adapter.write_text(hook.read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "warn_gate.py").write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            str(adapter),
+            "--event",
+            "preToolUse",
+            "--script",
+            "warn_gate.py",
+            "--project",
+            str(tmp_path),
+        ],
+        input=json.dumps(
+            {
+                "conversation_id": "cursor-shell",
+                "tool_name": "Shell",
+                "tool_input": {"command": "echo ok"},
+            }
+        ),
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"permission": "allow"}
+
+
+def test_generated_cursor_adapter_executes_shell_gate_allow(tmp_path: Path):
+    """Managed preToolUse command shape allows Shell through cursor_hook (AC-1)."""
+    project = tmp_path / "cursor shell project"
+    profile = project / ".cursor"
+    profile.mkdir(parents=True)
+    copy_scripts(str(ROOT), str(profile))
+    generate_cursor_hooks_json(str(project), str(profile), venv_python=sys.executable)
+    hooks = json.loads((profile / "hooks.json").read_text(encoding="utf-8"))["hooks"]
+    managed = next(
+        entry
+        for entry in hooks["preToolUse"]
+        if "bash_firewall.py" in split_cursor_command(entry["command"])
+        or "secret_scan.py" in split_cursor_command(entry["command"])
+    )
+    command = [
+        part.replace("${workspaceFolder}", str(project))
+        for part in split_cursor_command(managed["command"])
+    ]
+    if command[:1] == ["&"]:
+        command = command[1:]
+    result = subprocess.run(
+        command,
+        input=json.dumps(
+            {
+                "conversation_id": "cursor-shell-chain",
+                "tool_name": "Shell",
+                "tool_input": {"command": "echo consumer-unfreeze"},
+            }
+        ),
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"permission": "allow"}
 
 
 def test_cursor_dynamic_state_resolves_owned_rule(tmp_path: Path, monkeypatch):

@@ -196,6 +196,9 @@ def _named_test_defined(path: str, ref: str) -> bool:
         source = re.sub(r"(?m)(?://|#|--)[^\n]*$", "", source)
     for segment in segments:
         name = segment.split("[", 1)[0].strip()
+        # Node/Jest titles may be cited quoted: path::"renders the title".
+        if len(name) >= 2 and name[0] == name[-1] and name[0] in "\"'`":
+            name = name[1:-1]
         if not name:
             continue
         if python:

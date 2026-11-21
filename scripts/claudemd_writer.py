@@ -135,14 +135,19 @@ def strip_foreign_knowledge(block: str) -> str:
 
 
 def plan_dynamic_writes(
-    primary: str, block: str, tausik_dir: str | None = None
+    primary: str,
+    block: str,
+    tausik_dir: str | None = None,
+    *,
+    include_sibling: bool = False,
 ) -> list[tuple[str, str]]:
-    """(path, content) for every file `update-claudemd` writes.
+    """(path, content) for every file a DYNAMIC refresh writes.
 
-    The primary gets the whole block. The AGENTS.md sibling — tracked in most
-    projects — gets it without other projects' knowledge, or nothing at all when
-    `claudemd.sibling_dynamic` is false. Both callers AND the state gate go
-    through this plan, so what is written and what is judged cannot disagree.
+    The primary always gets the whole block. The AGENTS.md sibling is included
+    only when `include_sibling` is True AND `claudemd.sibling_dynamic` is not
+    false. Auto-mirroring every `update-claudemd` into AGENTS.md silently
+    skipped hand-maintained files and looked like success — callers that want
+    the sibling must opt in (or use `context refresh --target agents`).
 
     The knob is read from the project that OWNS the files being written — the
     `.tausik/` beside the primary — not from whichever database the caller
@@ -153,7 +158,7 @@ def plan_dynamic_writes(
     if tausik_dir is None:
         tausik_dir = os.path.join(os.path.dirname(os.path.abspath(primary)), ".tausik")
     plan = [(primary, block)]
-    if sibling_dynamic_enabled(tausik_dir):
+    if include_sibling and sibling_dynamic_enabled(tausik_dir):
         plan.extend(
             (path, strip_foreign_knowledge(block)) for path in resolve_sibling_targets(primary)[1:]
         )

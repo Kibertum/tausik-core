@@ -134,4 +134,6 @@ CREATE INDEX IF NOT EXISTS idx_review_cohort_results_task
     ON review_cohort_results(task_slug, id DESC);
 CREATE INDEX IF NOT EXISTS idx_review_cohort_family
     ON review_cohorts(family_key, generation DESC);
+CREATE INDEX IF NOT EXISTS idx_review_infra_cohort
+    ON review_cohort_infrastructure_events(cohort_pk, round_number, id);
 """

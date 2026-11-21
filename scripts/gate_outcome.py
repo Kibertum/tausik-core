@@ -123,6 +123,10 @@ REASON_FAST_PHASE_FAILED = "fast_phase_failed"
 
 REASON_NO_SOURCE_DIR = "no_source_dir"
 REASON_NO_PROJECTION = "no_projection"
+# Consumer / site tree with no bootstrap entrypoint. Same premise as verify
+# prepare's "bootstrap does not apply": judging deployed harness drift there
+# would demand a repair the tree cannot run (TB-015).
+REASON_BOOTSTRAP_INAPPLICABLE = "bootstrap_inapplicable"
 
 
 @dataclass(frozen=True)

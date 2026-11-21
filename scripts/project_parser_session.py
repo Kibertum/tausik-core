@@ -28,7 +28,21 @@ def build_session_subparsers(sub: Any) -> None:
         nargs="?",
         default=None,
         help="Authored fields (next_steps, warnings, in_progress[].state) as JSON; "
-        "without it the handoff is generated from the journal",
+        "use '-' to read stdin. Prefer --json-file on Windows/PowerShell. "
+        "Without authored input the handoff is generated from the journal",
+    )
+    sh.add_argument(
+        "--json-file",
+        default=None,
+        metavar="PATH",
+        help="Read authored JSON from PATH (UTF-8). Safe on PowerShell/cmd; "
+        "do not combine with positional JSON or --json-stdin",
+    )
+    sh.add_argument(
+        "--json-stdin",
+        action="store_true",
+        help="Read authored JSON from stdin (same as positional '-'). "
+        "Do not combine with positional JSON or --json-file",
     )
     sh.add_argument("--host-id", default=None, help="Write into this host session's row")
     slh = sess_sub.add_parser("last-handoff")

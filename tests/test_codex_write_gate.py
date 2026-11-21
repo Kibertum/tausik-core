@@ -652,6 +652,98 @@ def test_subshell_cli_start_authorizes_the_exact_route(tmp_path):
         backend.close()
 
 
+def test_cli_task_update_rebinds_lease_after_contract_edit(tmp_path, capsys):
+    """CLI task update must use cli_task_update rebind, not strand PACKAGE_STALE."""
+    from service_execution_lease import require_execution_lease
+
+    directory = tmp_path / ".tausik"
+    directory.mkdir()
+    backend = SQLiteBackend(str(directory / "tausik.db"))
+    try:
+        svc = ProjectService(backend)
+        svc.epic_add("e", "E")
+        svc.story_add("e", "s", "S")
+        svc.task_add("s", "probe", "Probe", complexity="simple")
+        svc.task_update(
+            "probe",
+            goal="bind then rebind",
+            acceptance_criteria="AC-1 rebinds. Negative: stale fingerprint is refused.",
+            relevant_files=json.dumps(["allowed.py"]),
+        )
+        assertion = assertion_from_session_start(
+            {"hook_event_name": "SessionStart", "session_id": "thread-a"},
+            str(tmp_path),
+            trusted_host="codex",
+        )
+        reconcile_execution_lease_state(svc, assertion)
+        issued = issue_execution_lease(svc, assertion)
+        svc.task_start("probe", include_memory=False, execution_lease_id=issued["id"])
+        before = svc.be._execution_lease_by_nonce(issued["nonce"])
+        assert before["task_package_fingerprint"]
+    finally:
+        backend.close()
+
+    event = {
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": "python scripts/project.py task update probe --relevant-files other.py"
+        },
+        "session_id": "thread-a",
+    }
+    allowed = run_gate(tmp_path, event)
+    assert allowed.returncode == 0 and not allowed.stdout, allowed.stderr
+    backend = SQLiteBackend(str(directory / "tausik.db"))
+    try:
+        svc = ProjectService(backend)
+        from project_cli_task import cmd_task
+
+        cmd_task(
+            svc,
+            SimpleNamespace(
+                task_cmd="update",
+                slug="probe",
+                update_relevant_files=["other.py"],
+                ac=None,
+                notes=None,
+                notes_overwrite=False,
+                add_scope_paths=None,
+                update_tickets=None,
+                title=None,
+                goal=None,
+                stack=None,
+                complexity=None,
+                role=None,
+                scope=None,
+                scope_exclude=None,
+                scope_paths=None,
+                scope_tools=None,
+                rollback_plan=None,
+                call_budget=None,
+                tier=None,
+                cost_budget_usd=None,
+                token_budget=None,
+                assurance_profiles=None,
+                assurance_impact=None,
+            ),
+        )
+        out = capsys.readouterr().out
+        assert "Lease package rebound" in out
+        after = svc.be._execution_lease_by_nonce(issued["nonce"])
+        assert after["task_package_fingerprint"] != before["task_package_fingerprint"]
+        require_execution_lease(
+            svc,
+            project_dir=str(tmp_path),
+            host_instance="codex",
+            thread_id="thread-a",
+            nonce=issued["nonce"],
+            package_policy="strict",
+        )
+        with pytest.raises(Exception, match="IDENTITY_MISSING"):
+            consume_mcp_authorization(svc, route="cli_task_update", arguments={"slug": "probe"})
+    finally:
+        backend.close()
+
+
 @pytest.mark.parametrize(
     "command",
     [

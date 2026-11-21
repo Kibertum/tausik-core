@@ -290,7 +290,14 @@ def _bindings(tokens: list[str]) -> list[tuple[str, dict[str, object]]]:
     if tokens and tokens[0] == "doctor":
         return [("cli_doctor", {})]
     if len(tokens) >= 3 and tokens[0] == "task":
-        route = "cli_task_start" if tokens[1] == "start" else "cli_task_mutation"
+        if tokens[1] == "start":
+            route = "cli_task_start"
+        elif tokens[1] == "update":
+            # Must match execution_lease_package._REBIND_ROUTES so contract
+            # edits rebind the lease instead of stranding PACKAGE_STALE.
+            route = "cli_task_update"
+        else:
+            route = "cli_task_mutation"
         if tokens[1] == "start" or tokens[1] in _TASK_MUTATIONS_WITH_SLUG:
             slug = _task_start_slug(tokens) if tokens[1] == "start" else tokens[2]
             binding: dict[str, object] = {"slug": slug}
@@ -323,7 +330,13 @@ def _bindings(tokens: list[str]) -> list[tuple[str, dict[str, object]]]:
         slug = _flag_value(tokens, "--task")
         return [("cli_task_mutation", {"slug": slug})] if slug else []
     if len(tokens) >= 2 and tokens[0] == "review" and tokens[1].startswith("cohort-"):
-        if tokens[1] in {"cohort-open", "cohort-status", "cohort-record", "cohort-decide"}:
+        if tokens[1] in {
+            "cohort-open",
+            "cohort-status",
+            "cohort-record",
+            "cohort-decide",
+            "cohort-infrastructure-blocked",
+        }:
             return [("tausik_review_cohort", {})]
     if len(tokens) >= 2 and tokens[:2] == ["metrics", "log-usage"]:
         slug = _flag_value(tokens, "--task-slug")

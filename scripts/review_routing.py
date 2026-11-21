@@ -131,24 +131,34 @@ def validate_review_record(
     post_repair_verification_passed: bool = True,
     reviewer_available: bool = True,
     require_identities: bool = True,
+    enforce_route_depth: bool = True,
 ) -> list[str]:
-    """Return blockers that make a claimed route unsafe to record/close."""
+    """Return blockers that make a claimed route unsafe to record/close.
+
+    ``enforce_route_depth=False`` allows persisting a lower-level supplementary
+    review (TauX TB-007) without claiming the route is satisfied — closure still
+    calls this with the default True (and ``review_record_blockers`` re-checks
+    current-route depth). Invocation count is a minimum/budget (TB-013), not a
+    rigid equality, so a repair round with more calls remains recordable.
+    """
     errors: list[str] = []
     required_depth = str(route.get("depth") or "L2")
     if run_type not in _DEPTH:
         errors.append("run_type must be L1, L2, or L3")
         return errors
-    if _DEPTH[run_type] < _DEPTH.get(required_depth, 2):
+    if enforce_route_depth and _DEPTH[run_type] < _DEPTH.get(required_depth, 2):
         errors.append(f"route requires {required_depth}; {run_type} cannot satisfy it")
 
     route_expected = int((route.get("execution") or {}).get("reviewer_invocations", 1))
     expected = max(route_expected, _MIN_REVIEWER_INVOCATIONS[run_type])
-    if reviewer_invocations != expected:
+    if run_type == "L1":
+        if reviewer_invocations:
+            errors.append("L1 must use zero reviewer invocations")
+    elif reviewer_invocations < expected:
         errors.append(
-            f"route requires {expected} reviewer invocation(s); recorded {reviewer_invocations}"
+            f"route requires at least {expected} reviewer invocation(s); "
+            f"recorded {reviewer_invocations}"
         )
-    if run_type == "L1" and reviewer_invocations:
-        errors.append("L1 must use zero reviewer invocations")
     if require_identities and review_model_family(author_model) is None:
         errors.append("review record requires a recognized author model identity")
     if run_type == "L2" and reviewer_context != "fresh":

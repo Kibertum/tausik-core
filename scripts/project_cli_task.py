@@ -278,59 +278,9 @@ def _cmd_task(svc: ProjectService, args: Any) -> None:
     elif c == "review":
         print(svc.task_review(args.slug))
     elif c == "update":
-        import json as _json
+        from project_cli_task_update import run_task_update
 
-        from task_scope_widen import refuse_conflicting_flags, widen
-
-        refuse_conflicting_flags(args)
-        add_paths = getattr(args, "add_scope_paths", None)
-        if add_paths is not None:
-            print(widen(svc, args.slug, list(add_paths)))
-
-        fields = {}
-        for k in (
-            "title",
-            "goal",
-            "notes",
-            "stack",
-            "complexity",
-            "role",
-            "scope",
-            "scope_exclude",
-            "scope_paths",
-            "scope_tools",
-            "rollback_plan",
-            "call_budget",
-            "tier",
-            "cost_budget_usd",
-            "token_budget",
-            "assurance_profiles",
-            "assurance_impact",
-        ):
-            v = getattr(args, k, None)
-            if v is not None:
-                fields[k] = v
-        if getattr(args, "notes_overwrite", False):
-            if getattr(args, "notes", None) is None:
-                print("--notes-overwrite has no effect without --notes.", file=sys.stderr)
-                return
-            fields["notes_overwrite"] = True
-        if args.ac is not None:
-            fields["acceptance_criteria"] = args.ac
-        rf = getattr(args, "update_relevant_files", None)
-        if rf is not None:
-            fields["relevant_files"] = _json.dumps(list(rf))
-        tickets = getattr(args, "update_tickets", None)
-        if tickets is not None:
-            import tracker_ref
-
-            fields["tracker_refs"] = tracker_ref.dumps(tracker_ref.normalise_all(list(tickets)))
-        if fields:
-            print(svc.task_update(args.slug, **fields))
-        elif add_paths is None:
-            # A widening already printed what it did; saying this after one
-            # would read as "nothing happened" over a change that did.
-            print("No fields to update.")
+        run_task_update(svc, args)
     elif c == "delete":
         print(svc.task_delete(args.slug))
     elif c == "plan":

@@ -27,7 +27,8 @@ set. It is still where to start.
 | `task step` | mark a phase inside a task | 5.2% |
 | `decide` | record a decision and what it rejected | 4.9% |
 | `verify` | run the gates over the task's scope and get a receipt | 4.6% |
-| `update-claudemd` | refresh the dynamic part of `CLAUDE.md` | 3.4% |
+| `update-claudemd` | Claude-only DYNAMIC refresh (`--sibling` opt-in for AGENTS.md) | 3.4% |
+| `context refresh` | host-neutral DYNAMIC projection; requires `--target` | — |
 | `session handoff` | leave the next agent the state of the session | 2.9% |
 
 Every flag of each is in `.tausik/tausik <command> --help`. The help text lives in the
@@ -40,6 +41,16 @@ parser rather than on this page: a page goes stale in silence, `--help` cannot.
 > What to do instead: call the POSIX wrapper `.tausik/tausik` from bash (it passes `"$@"` and cannot lose an argument) or use the MCP tools — neither goes through a shell. If the redirection was **deliberate** (a script writing `cmd /c "tausik.cmd status > out.txt"`, say), set `TAUSIK_CMDLINE_GUARD=off`.
 >
 > Redirection typed by hand in an interactive console (`tausik status > out.txt`) is left alone: there `%CMDCMDLINE%` holds only the shell's own startup line and names no arguments.
+
+> **`session handoff` authored JSON on PowerShell.** A positional JSON object with spaces is split into several argv tokens (`unrecognized arguments`). Prefer a file or stdin — the same schema as MCP `tausik_session_handoff`:
+>
+> ```powershell
+> Set-Content -Encoding utf8 .\handoff.json '{"next_steps":["resume fix-x"],"warnings":["MCP needs Reload"]}'
+> .tausik\tausik session handoff --json-file .\handoff.json
+> Get-Content -Raw -Encoding utf8 .\handoff.json | .tausik\tausik session handoff --json-stdin
+> ```
+>
+> Invalid JSON or a schema violation prints a structured `{code,message}` to stderr, exits 2, and does **not** write a handoff.
 
 ## The rest of the surface, by what you came for
 

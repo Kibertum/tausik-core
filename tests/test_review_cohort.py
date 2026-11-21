@@ -422,6 +422,7 @@ def test_mcp_schema_discriminates_every_cohort_action(monkeypatch):
         "open",
         "status",
         "record",
+        "infrastructure-blocked",
         "decide",
     ]
     record = variants[2]

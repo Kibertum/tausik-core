@@ -240,15 +240,23 @@ def test_comparator_ignore_rules_match_the_real_copier(tmp_path):
     assert set(_deployed_relpaths(str(src))) == landed
 
 
+def _mkbootstrap(tmp_path):
+    """Stub bootstrap entrypoint so the gate treats the tree as applicable."""
+    boot = tmp_path / "bootstrap"
+    boot.mkdir(exist_ok=True)
+    (boot / "bootstrap.py").write_text("# stub\n", encoding="utf-8")
+
+
 class TestGateRunner:
     """The registered task-done gate wrapper: pass/fail + actionable message."""
 
     def _point_gate_at(self, tmp_path, monkeypatch):
-        (tmp_path / ".tausik").mkdir()
+        (tmp_path / ".tausik").mkdir(exist_ok=True)
         monkeypatch.setenv("TAUSIK_DIR", str(tmp_path / ".tausik"))
 
     def test_passes_and_is_silent_when_in_sync(self, tmp_path, monkeypatch):
         _mkproject(tmp_path, source={"a.py": "x\n"}, profiles={"claude": {"a.py": "x\n"}})
+        _mkbootstrap(tmp_path)
         self._point_gate_at(tmp_path, monkeypatch)
         from gate_bootstrap_drift import run_bootstrap_drift_gate
 
@@ -256,7 +264,9 @@ class TestGateRunner:
         assert passed is True and "no bootstrap drift" in msg.lower()
 
     def test_fails_and_names_the_file_and_command_on_drift(self, tmp_path, monkeypatch):
+        # AC-2: when bootstrap applies, drift still fails the gate.
         _mkproject(tmp_path, source={"a.py": "NEW\n"}, profiles={"claude": {"a.py": "OLD\n"}})
+        _mkbootstrap(tmp_path)
         self._point_gate_at(tmp_path, monkeypatch)
         from gate_bootstrap_drift import run_bootstrap_drift_gate
 
@@ -268,6 +278,7 @@ class TestGateRunner:
     def test_passes_when_no_profiles_present(self, tmp_path, monkeypatch):
         (tmp_path / "scripts").mkdir()
         (tmp_path / "scripts" / "a.py").write_text("x\n", encoding="utf-8")
+        _mkbootstrap(tmp_path)
         self._point_gate_at(tmp_path, monkeypatch)
         from gate_bootstrap_drift import run_bootstrap_drift_gate
 
@@ -275,8 +286,22 @@ class TestGateRunner:
         assert passed is True
 
     def test_passes_when_source_dir_missing(self, tmp_path, monkeypatch):
+        _mkbootstrap(tmp_path)
         self._point_gate_at(tmp_path, monkeypatch)
         from gate_bootstrap_drift import run_bootstrap_drift_gate
 
         passed, msg = run_bootstrap_drift_gate()
         assert passed is True and "skipped" in msg.lower()
+
+    def test_na_when_bootstrap_inapplicable_despite_profile_drift(self, tmp_path, monkeypatch):
+        # AC-1 / TB-015: site/consumer tree without bootstrap must not fail on
+        # deployed harness/scripts drift outside authored scope.
+        _mkproject(tmp_path, source={"a.py": "NEW\n"}, profiles={"claude": {"a.py": "OLD\n"}})
+        self._point_gate_at(tmp_path, monkeypatch)
+        import gate_outcome
+        from gate_bootstrap_drift import run_bootstrap_drift_gate
+
+        result = run_bootstrap_drift_gate()
+        assert result.outcome == gate_outcome.NOT_APPLICABLE
+        assert result.reason_code == gate_outcome.REASON_BOOTSTRAP_INAPPLICABLE
+        assert result.legacy_passed is True

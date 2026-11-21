@@ -3,7 +3,7 @@
 Migrations live in backend_migrations.py.
 """
 
-SCHEMA_VERSION = 89
+SCHEMA_VERSION = 90
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -597,6 +597,18 @@ CREATE TABLE IF NOT EXISTS review_cohort_packets (
     packet_digest TEXT NOT NULL,
     issued_at TEXT NOT NULL,
     UNIQUE(cohort_pk, round_number)
+);
+
+CREATE TABLE IF NOT EXISTS review_cohort_infrastructure_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cohort_pk INTEGER NOT NULL REFERENCES review_cohorts(id) ON DELETE CASCADE,
+    round_number INTEGER NOT NULL CHECK(round_number IN (1, 2)),
+    receipt_kind TEXT NOT NULL CHECK(receipt_kind = 'review_infrastructure_blocked'),
+    code TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    detail TEXT,
+    packet_digest TEXT NOT NULL,
+    recorded_at TEXT NOT NULL
 );
 
 CREATE TRIGGER IF NOT EXISTS review_cohort_results_counts_insert

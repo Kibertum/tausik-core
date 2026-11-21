@@ -39,6 +39,12 @@ def _seed(svc):
         plan="план",
         scope_paths='["b.py", "a.py"]',
         call_budget=120,
+        # Complete complex package so re-import does not attach task_package_legacy
+        # (TB-011 marks only incomplete complex rows).
+        assurance_profiles='["executable"]',
+        assurance_impact=(
+            '{"blast_radius":"bounded","level":"medium","reversibility":"conditional"}'
+        ),
         completed_at="2026-07-24T15:00:00Z",
     )
     svc.be._ex(

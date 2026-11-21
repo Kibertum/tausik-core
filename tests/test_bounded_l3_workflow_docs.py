@@ -76,7 +76,7 @@ def test_en_and_ru_user_docs_state_delta_only_round_two_and_no_round_three():
 def test_mcp_docs_publish_all_cohort_actions_and_required_record_fields():
     for path in ("docs/en/mcp.md", "docs/ru/mcp.md"):
         text = _text(path)
-        for action in ("open", "status", "record", "decide"):
+        for action in ("open", "status", "record", "infrastructure-blocked", "decide"):
             assert f'"action":"{action}"' in text
         for field in (
             "cohort_id",

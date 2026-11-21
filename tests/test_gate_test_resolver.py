@@ -157,3 +157,11 @@ class TestDiscoveryReachesTheDepthItPromises:
             '{"testing": {"roots": ["a/b/c/tests"]}}', encoding="utf-8"
         )
         assert roots_of(root) == [os.path.join(root, "a", "b", "c", "tests")]
+
+    def test_explicit_empty_roots_skips_discovery(self, tmp_path):
+        """Negative (#1090): testing.roots=[] must not fall through to tests/."""
+        root = _tree(tmp_path, "tests/test_alpha.py", "backend/tests/test_beta.py")
+        cfg_dir = tmp_path / ".tausik"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.json").write_text('{"testing": {"roots": []}}', encoding="utf-8")
+        assert roots_of(root) == []

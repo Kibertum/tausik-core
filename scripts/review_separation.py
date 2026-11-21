@@ -31,6 +31,8 @@ _OPENAI_MODEL = re.compile(r"^gpt-\d+(?:\.\d+)?(?:-(?:luna|terra|sol|astra))?$")
 # unrecognized-but-well-formed generation must not silently read as "unknown
 # family" — that would refuse every honest review record on the host running it.
 _GLM_MODEL = re.compile(r"^glm-\d+(?:\.\d+)?(?:-[a-z][a-z0-9-]*)?$")
+# Cursor Composer point releases (composer-2.5-fast) follow the same shape.
+_COMPOSER_MODEL = re.compile(r"^composer-\d+(?:\.\d+)?(?:-[a-z][a-z0-9-]*)?$")
 
 
 def review_model_family(model_id: str | None) -> str | None:
@@ -52,6 +54,8 @@ def review_model_family(model_id: str | None) -> str | None:
         return f"openai:{normalized}"
     if _GLM_MODEL.fullmatch(normalized):
         return f"glm:{normalized}"
+    if _COMPOSER_MODEL.fullmatch(normalized):
+        return f"cursor:{normalized}"
     return None
 
 
@@ -74,6 +78,8 @@ def vendor_family(model_id: str | None) -> str | None:
         return "openai"
     if _GLM_MODEL.fullmatch(normalized):
         return "glm"
+    if _COMPOSER_MODEL.fullmatch(normalized):
+        return "cursor"
     return None
 
 

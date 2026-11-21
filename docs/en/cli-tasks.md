@@ -104,7 +104,8 @@ task show <slug>                # Full info: plan, notes, decisions, defect_of, 
 task show <slug> --package      # Bounded deterministic agent context (default 16384 B)
 task show <slug> --package --max-bytes 4096
 task start <slug> [--package]   # planning -> active only after atomic package validation
-                                #   plain and repeated starts also build/bind it; --package selects JSON
+                                #   plain and repeated starts also build/bind it; default text is Goal/AC/scope
+                                #   (no JSON dump); --package selects the structured package JSON
                                 #   PACKAGE_TOO_LARGE / REVISION_CONFLICT leave task and lease unchanged
                                 #   under Codex, CLI start consumes exact hook authorization and rebinds that thread
                                 #   session time and call capacity are advice in the output, not a refusal (1.10, #376)
@@ -208,8 +209,13 @@ session start [--host-id ID]    # Fresh release check, then start; newer TAUSIK 
 session end [--summary TEXT] [--host-id ID]  # End the active one; with --host-id exactly that host's session
 session current                 # Show active session
 session list [--limit N]        # Recent sessions (default: 10); the handoff column shows which carry one
-session handoff [json] [--host-id ID]  # Handoff generated from the journal; json = authored next_steps/warnings on top (1.10)
+session handoff [json|-] [--json-file PATH] [--json-stdin] [--host-id ID]
+                                # Journal handoff; optional authored next_steps/warnings.
+                                # On Windows/PowerShell prefer --json-file or stdin — a
+                                # positional JSON with spaces splits into unrecognized argv.
 session last-handoff [--session N]  # The live handoff; with --session, session N's (missing session / no handoff are distinct refusals)
+context refresh --target <id>   # Host-neutral DYNAMIC projection (claude|cursor|agents|…); required target
+update-claudemd [--sibling]     # Claude-only DYNAMIC refresh; AGENTS.md only with --sibling
 session extend [--minutes N]    # Raise the active-time advisory threshold (`session_max_minutes`; advice, not a gate)
 session recompute               # Retro: compare wall-clock vs active (gap-based) minutes for past sessions
 ```

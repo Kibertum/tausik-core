@@ -38,6 +38,7 @@ def svc(tmp_path, monkeypatch):
     """
     monkeypatch.chdir(tmp_path)
     crypto_keys.init_keys(str(tmp_path))
+    (tmp_path / "tests").mkdir(exist_ok=True)
     for rel in _SCOPE:
         path = tmp_path / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -182,9 +183,7 @@ class TestMintedHandleClosesTheTask:
                 raise RuntimeError("a later check says no")
             return original(self, slug, task, run_ids)
 
-        monkeypatch.setattr(
-            service_gates.GatesMixin, "_check_verification_checklist", _maybe_block
-        )
+        monkeypatch.setattr(service_gates.GatesMixin, "_check_verification_checklist", _maybe_block)
         with pytest.raises(RuntimeError):
             task_ready._task_done_report(
                 "t",
@@ -322,6 +321,7 @@ class TestAKeylessRunEarnsNoHandle:
         """The same project as `svc`, minus the key — the state of every
         consumer that never opted into signed receipts."""
         monkeypatch.chdir(tmp_path)
+        (tmp_path / "tests").mkdir(exist_ok=True)
         for rel in _SCOPE:
             path = tmp_path / rel
             path.parent.mkdir(parents=True, exist_ok=True)

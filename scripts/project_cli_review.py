@@ -101,6 +101,17 @@ def cmd_review(svc: ProjectService, args: Any) -> None:
                     "usage": usage,
                     "json": args.json,
                 }
+            elif sub == "cohort-infrastructure-blocked":
+                request = {
+                    "action": "infrastructure-blocked",
+                    "cohort_id": args.cohort_id,
+                    "round": args.round_number,
+                    "packet_digest": args.packet_digest,
+                    "reason": args.reason,
+                    "code": args.code,
+                    "detail": args.detail,
+                    "json": args.json,
+                }
             else:
                 request = {
                     "action": "decide",
@@ -171,6 +182,8 @@ def cmd_review(svc: ProjectService, args: Any) -> None:
         notes = _notes_with_reason(args.critical, getattr(args, "reason", None), args.notes)
         if args.run_type == "L3":
             notes = _l3_notes_or_exit(args, notes)
+        # Insert validates the recorded level; route-depth satisfaction is
+        # separate so a supplementary L1/L2 on an L3 task can persist (TB-007).
         blockers = validate_review_record(
             route,
             run_type=args.run_type,
@@ -179,10 +192,22 @@ def cmd_review(svc: ProjectService, args: Any) -> None:
             reviewer_context=reviewer_context,
             reviewer_invocations=reviewer_invocations,
             require_identities=hasattr(svc.be, "_q1"),
+            enforce_route_depth=False,
         )
         if blockers:
             print("Error: review record refused — " + "; ".join(blockers), file=sys.stderr)
             sys.exit(1)
+        satisfaction = validate_review_record(
+            route,
+            run_type=args.run_type,
+            author_model=author_model,
+            reviewer_model=reviewer_model,
+            reviewer_context=reviewer_context,
+            reviewer_invocations=reviewer_invocations,
+            require_identities=hasattr(svc.be, "_q1"),
+            enforce_route_depth=True,
+        )
+        satisfies_route = not satisfaction
         usage_fn = getattr(svc.be, "usage_events_cost_rollup_for_task", None)
         usage = usage_fn(args.task) if usage_fn else {"availability": "unavailable"}
         rid = svc.be.review_record(  # type: ignore[attr-defined]
@@ -204,8 +229,15 @@ def cmd_review(svc: ProjectService, args: Any) -> None:
         )
         print(
             f"Recorded review #{rid} (task={args.task}, type={args.run_type}, "
-            f"critical={args.critical}, warnings={args.warnings})."
+            f"critical={args.critical}, warnings={args.warnings}, "
+            f"satisfies_route={str(satisfies_route).lower()})."
         )
+        if not satisfies_route:
+            print(
+                "NOTE: supplementary review stored; route remains open — "
+                + "; ".join(satisfaction),
+                file=sys.stderr,
+            )
         return
     if sub == "list":
         rows = svc.be.review_list(  # type: ignore[attr-defined]

@@ -55,9 +55,14 @@ in a fresh host thread after `task start <slug> --package` returns a newly
 validated package. If the task call budget itself is exhausted, checkpoint is
 insufficient: decompose the task or wait for a trusted owner planning change.
 
-### 3. Update CLAUDE.md
+### 3. Refresh host DYNAMIC projection
 
-Use `tausik_update_claudemd` MCP tool to refresh the dynamic section.
+Canonical state is the DB. Host files are opt-in projections:
+- Claude: `tausik_update_claudemd` (CLAUDE.md only; AGENTS.md only with CLI `--sibling`)
+- Other hosts / AGENTS.md: `.tausik/tausik context refresh --target <id>`
+  (`claude` | `cursor` | `agents` | …). No `--target` is a hard refuse; a
+  hand-maintained file without DYNAMIC markers is a structured non-success,
+  not a silent skip.
 
 ### 4. Confirm
 

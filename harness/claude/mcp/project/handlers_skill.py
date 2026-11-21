@@ -209,27 +209,15 @@ def handle_skill_repo_list() -> str:
 
 
 def handle_update_claudemd(svc) -> str:
-    """Обновить секцию DYNAMIC в CLAUDE.md и её побратиме AGENTS.md.
+    """Refresh DYNAMIC in CLAUDE.md only (Claude adapter compat).
 
-    Ни блок, ни запись файла здесь не собираются заново: и то и другое живёт в
-    `claudemd_state` / `claudemd_writer` вместе с командой CLI. Эта функция
-    БЫЛА второй копией — и разошлась с оригиналом на впрыске хвоста памяти и на
-    обновлении AGENTS.md, из-за чего /start молча стирал из CLAUDE.md блок
-    памяти, который сам же обещает впрыснуть
-    (mcp-update-claudemd-erases-the-memory-tail).
+    Host-neutral refresh is `context refresh --target`. AGENTS.md is not
+    auto-mirrored: hand-maintained files must not be silently skipped-as-ok.
     """
     from claudemd_state import build_dynamic_state, resolve_claudemd, resolve_project_dir
     from claudemd_writer import apply_dynamic_section, plan_dynamic_writes
+    from context_refresh import ownership_of
 
-    # НЕ `_project_dir()`, то есть НЕ cwd. Адрес брался из текущего каталога
-    # процесса, а содержимое — из `svc`: два источника вместо одного. Пока
-    # сервер стоит в своём проекте, они совпадают; когда не совпадают, этот
-    # обработчик пишет состояние ЧУЖОЙ базы в НАСТОЯЩИЕ файлы репозитория.
-    # Так и происходило — аудит-хук поймал здесь единственную запись на всю
-    # ленту, и её источником был контрактный тест, зовущий каждый инструмент
-    # MCP с временным проектом при cwd в корне репозитория
-    # (claudemd-dynamic-block-wiped-to-an-empty-project). Теперь адрес выводится
-    # из той же базы, что даёт содержимое, и разойтись им больше негде.
     project_dir = resolve_project_dir(svc)
     if project_dir is None:
         return (
@@ -240,11 +228,15 @@ def handle_update_claudemd(svc) -> str:
     claudemd = resolve_claudemd(project_dir)
     if not claudemd:
         return "Warning: CLAUDE.md not found."
+    if ownership_of(claudemd) == "hand_maintained":
+        return (
+            '{"status":"hand_maintained","target":"claude","message":'
+            '"CLAUDE.md has no DYNAMIC markers — not modified"}'
+        )
 
     dynamic_content = build_dynamic_state(svc, project_dir)
-
     messages = [
         apply_dynamic_section(path, content, False)[0]
-        for path, content in plan_dynamic_writes(claudemd, dynamic_content)
+        for path, content in plan_dynamic_writes(claudemd, dynamic_content, include_sibling=False)
     ]
     return " ".join(messages)

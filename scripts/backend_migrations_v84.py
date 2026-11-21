@@ -32,6 +32,56 @@ def legacy_package_contract_incomplete(row: dict[str, object]) -> bool:
     )
 
 
+def legacy_marker_for_imported_task(
+    *,
+    complexity: object,
+    call_budget: object,
+    assurance_profiles: object,
+    assurance_impact: object,
+) -> int | None:
+    """Mark incomplete complex imports so start can normalize (TB-001 / TB-011).
+
+    Portable export omits the local one-shot marker. Returning ``1`` means the
+    importer should set ``task_package_legacy``; ``None`` means leave the column
+    alone (complete complex and non-complex stay strict).
+    """
+    if complexity != "complex":
+        return None
+    budget: object = call_budget
+    try:
+        if isinstance(call_budget, bool):
+            budget = None
+        elif isinstance(call_budget, int):
+            budget = call_budget
+        elif isinstance(call_budget, str):
+            budget = int(call_budget)
+        elif call_budget is None:
+            budget = None
+        else:
+            budget = None
+    except (TypeError, ValueError):
+        budget = None
+    profiles_raw: object = assurance_profiles
+    if isinstance(profiles_raw, list):
+        profiles_raw = json.dumps(profiles_raw)
+    elif profiles_raw is None:
+        profiles_raw = "[]"
+    impact_raw: object = assurance_impact
+    if isinstance(impact_raw, dict):
+        impact_raw = json.dumps(impact_raw, sort_keys=True)
+    elif impact_raw is None:
+        impact_raw = "{}"
+    if legacy_package_contract_incomplete(
+        {
+            "call_budget": budget,
+            "assurance_profiles": profiles_raw,
+            "assurance_impact": impact_raw,
+        }
+    ):
+        return 1
+    return None
+
+
 def mark_legacy_task_packages_v84(conn: sqlite3.Connection) -> None:
     """One-shot mark; guarded for intentionally minimal migration fixtures."""
     tables = {

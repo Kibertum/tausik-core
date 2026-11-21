@@ -76,6 +76,10 @@ def _project_the_state_gate_can_reach(tmp_path, monkeypatch):
     root = tmp_path / "project"
     (root / ".tausik").mkdir(parents=True)
     (root / "tausik").mkdir()
+    # bootstrap entrypoint so bootstrap_drift reaches its comparators (TB-015
+    # short-circuits to bootstrap_inapplicable when the tree has none).
+    (root / "bootstrap").mkdir()
+    (root / "bootstrap" / "bootstrap.py").write_text("# stub\n", encoding="utf-8")
     canonical_schema_db_file(root / ".tausik" / "tausik.db")
     monkeypatch.setattr(project_config, "find_tausik_dir", lambda *a, **k: str(root / ".tausik"))
 
@@ -200,9 +204,24 @@ class TestTheHonestSkipsStayPasses:
             "project_config.find_tausik_dir", lambda *a, **k: str(tmp_path / ".tausik")
         )
         (tmp_path / ".tausik").mkdir()
+        # Applicable bootstrap, no scripts/ — distinct from bootstrap_inapplicable.
+        (tmp_path / "bootstrap").mkdir()
+        (tmp_path / "bootstrap" / "bootstrap.py").write_text("# stub\n", encoding="utf-8")
         outcome = gate_bootstrap_drift.run_bootstrap_drift_gate()
         assert outcome.outcome == gate_outcome.NOT_APPLICABLE
         assert outcome.reason_code == gate_outcome.REASON_NO_SOURCE_DIR
+        assert not outcome.blocks
+        assert outcome.legacy_passed
+
+    def test_bootstrap_inapplicable_is_not_applicable(self, tmp_path, monkeypatch):
+        # TB-015: no bootstrap entrypoint → skip before judging deploy drift.
+        monkeypatch.setattr(
+            "project_config.find_tausik_dir", lambda *a, **k: str(tmp_path / ".tausik")
+        )
+        (tmp_path / ".tausik").mkdir()
+        outcome = gate_bootstrap_drift.run_bootstrap_drift_gate()
+        assert outcome.outcome == gate_outcome.NOT_APPLICABLE
+        assert outcome.reason_code == gate_outcome.REASON_BOOTSTRAP_INAPPLICABLE
         assert not outcome.blocks
         assert outcome.legacy_passed
 
@@ -211,8 +230,9 @@ class TestTheHonestSkipsStayPasses:
             gate_outcome.REASON_NO_SOURCE_DIR,
             gate_outcome.REASON_NO_PROJECTION,
             gate_outcome.REASON_NO_DATABASE,
+            gate_outcome.REASON_BOOTSTRAP_INAPPLICABLE,
         ]
-        assert len(set(codes)) == 3
+        assert len(set(codes)) == 4
         assert gate_outcome.REASON_RUNNER_ERROR not in codes
 
 

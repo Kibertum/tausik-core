@@ -61,7 +61,11 @@ Follow the route verbatim. Keep deterministic gates in every lane.
   record is refused, and the route is never downgraded to dodge that.
   Delegate with the reviewer's mechanically enforced Read+Grep-only capability
   set. If the host cannot enforce that set, stop; prompt instructions alone do
-  not make a write-capable shell read-only.
+  not make a write-capable shell read-only. On Codex use
+  `codex exec --sandbox read-only --ephemeral` and declare `review.l3_host`
+  (see `docs/en/codex-l3-readonly.md`). When preflight fails, record
+  `review cohort-infrastructure-blocked` — never burn a repair round on
+  infrastructure, and never label that an L3 PASS.
 - **L3-deep**: launch the multi-agent `/review` flow only when the dispatcher
   returns `deep=true`. That occurs only for an explicit deep audit or a
   configured extreme hard floor.

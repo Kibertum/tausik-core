@@ -116,6 +116,10 @@ CLASSES_AT_DECLARATION = frozenset(
         # repository context shown to a reviewer; it is neither executable nor
         # a case for a normative assertion and has no test polarity/environment.
         "review_cohort_packets",
+        # TB-009 (v90): durable L3 infrastructure refusal receipts. NOT a TC
+        # artifact class — bookkeeping that a cohort round was refused for
+        # host capability, with no assertion polarity or environment-ref.
+        "review_cohort_infrastructure_events",
         # r1118-codex-execution-lease (v82): live host-thread leases, their
         # singleton compatibility state and one-use mutation authorizations.
         # NOT TC artifact classes — they are execution-governance bookkeeping;

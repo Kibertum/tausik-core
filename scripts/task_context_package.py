@@ -346,11 +346,11 @@ def validate_package_contract(package: dict[str, Any]) -> None:
         if not assurance.get("profiles"):
             missing.append("assurance_profiles")
         impact = assurance.get("impact") or {}
-        if any(
-            impact.get(field) in (None, "unknown")
-            for field in ("level", "blast_radius", "reversibility")
-        ):
-            missing.append("assurance_impact")
+        # Name each missing impact key (TB-011): a partial object is not "all
+        # of assurance_impact" — the agent must see which field is still unknown.
+        for field in ("level", "blast_radius", "reversibility"):
+            if impact.get(field) in (None, "unknown"):
+                missing.append(f"assurance_impact.{field}")
     if missing:
         raise TaskPackageError(
             "PACKAGE_INVALID", "missing or incomplete fields: " + ", ".join(missing)

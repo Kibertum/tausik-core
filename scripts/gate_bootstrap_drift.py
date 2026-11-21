@@ -96,10 +96,21 @@ def run_bootstrap_drift_gate() -> gate_outcome.GateOutcome:
     try:
         from project_config import find_tausik_dir  # ruff-not-enabled: PLC0415
         from service_doctor_drift import scripts_drift_names  # ruff-not-enabled: PLC0415
+        from verify_prepare import resolve_bootstrap_argv  # ruff-not-enabled: PLC0415
 
         # The project root is the parent of the resolved `.tausik/` dir, so the
         # gate checks the SAME project task-done is closing rather than the cwd.
         project_dir = os.path.dirname(os.path.abspath(find_tausik_dir()))
+        # Same applicability rule as verify prepare: without a bootstrap
+        # entrypoint the tree cannot redeploy, so harness/scripts drift must
+        # not block authored site/consumer scope (TB-015).
+        if resolve_bootstrap_argv(project_dir) is None:
+            return gate_outcome.not_applicable(
+                gate_outcome.REASON_BOOTSTRAP_INAPPLICABLE,
+                "No bootstrap entrypoint in this tree — bootstrap_drift does "
+                "not apply here (same premise as verify prepare). Deployed "
+                "profile drift is not judged.",
+            )
         scripts = scripts_drift_names(project_dir)
         harness = _harness_drift_names(project_dir)
     except Exception as e:  # noqa: BLE001 — caught, but recorded as non-execution, not as a pass

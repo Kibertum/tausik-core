@@ -70,8 +70,32 @@ def normalize_event(event: dict, event_name: str) -> dict:
     return normalized
 
 
+def _deny_payload(reason: str) -> str:
+    return json.dumps(
+        {
+            "permission": "deny",
+            "user_message": reason,
+            "agent_message": reason,
+        }
+    )
+
+
 def adapt_output(stdout: str, event_name: str, returncode: int) -> str:
-    """Translate successful shared-hook output to Cursor's native response schema."""
+    """Translate shared-hook output to Cursor's native response schema."""
+    if event_name == "preToolUse" and returncode == 2:
+        try:
+            payload = json.loads(stdout) if stdout.strip() else None
+        except (TypeError, json.JSONDecodeError):
+            payload = None
+        if isinstance(payload, dict):
+            nested = payload.get("hookSpecificOutput")
+            if isinstance(nested, dict) and nested.get("permissionDecision") == "deny":
+                reason = nested.get("permissionDecisionReason")
+                if isinstance(reason, str) and reason.strip():
+                    return _deny_payload(reason.strip())
+            if payload.get("permission") == "deny":
+                return stdout
+        return stdout if stdout.strip() else _deny_payload("TAUSIK hook denied the operation")
     if returncode != 0:
         return stdout
     if not stdout.strip():
@@ -123,6 +147,33 @@ def adapt_output(stdout: str, event_name: str, returncode: int) -> str:
     return stdout
 
 
+def map_exit(event_name: str, returncode: int, stdout: str, stderr: str) -> tuple[int, str]:
+    """Map Claude-style exit codes onto Cursor failClosed-safe outcomes.
+
+    Cursor with failClosed:true treats exit 1 as a hook failure and blocks.
+    Shared TAUSIK docs treat exit 1 as warning+allow. Policy deny stays exit 2.
+    Unexpected child exits and adapter exceptions fail-open to allow on
+    preToolUse so a crash cannot freeze the host the way bare exit 1 does;
+    intentional denies must keep exit 2.
+    """
+    if event_name != "preToolUse":
+        return returncode, adapt_output(stdout, event_name, returncode)
+
+    if returncode == 0:
+        return 0, adapt_output(stdout, event_name, 0)
+    if returncode == 2:
+        reason = (stderr or "").strip() or "TAUSIK hook denied the operation"
+        body = adapt_output(stdout, event_name, 2)
+        if not body.strip():
+            body = _deny_payload(reason)
+        return 2, body
+    if returncode == 1:
+        return 0, adapt_output(stdout, event_name, 0) or json.dumps({"permission": "allow"})
+    note = (stderr or "").strip() or f"hook exited {returncode}"
+    sys.stderr.write(f"TAUSIK cursor_hook: fail-open after unexpected exit ({note})\n")
+    return 0, json.dumps({"permission": "allow"})
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--event", required=True)
@@ -130,43 +181,53 @@ def main() -> int:
     parser.add_argument("--project", required=True)
     parser.add_argument("--script-arg", action="append", default=[])
     args = parser.parse_args()
-    if Path(args.script).name != args.script or not args.script.endswith(".py"):
-        raise ValueError("script must be a sibling Python basename")
-    event = json.load(sys.stdin)
-    if not isinstance(event, dict):
-        raise ValueError("Cursor hook payload must be an object")
-    script = Path(__file__).resolve().with_name(args.script)
-    if not script.is_file():
-        raise FileNotFoundError(script)
-    command = [sys.executable, "-X", "utf8", str(script)]
-    if args.script == "codex_write_gate.py":
-        command.extend(["--project", args.project, "--trusted-host", "cursor"])
-    if args.script in {
-        "session_start.py",
-        "user_prompt_submit.py",
-        "can_stop_gate.py",
-        "memory_preflight_posttool.py",
-    }:
-        command.extend(["--trusted-host", "cursor"])
-    command.extend(args.script_arg)
-    result = subprocess.run(
-        command,
-        input=json.dumps(normalize_event(event, args.event)),
-        text=True,
-        capture_output=True,
-        check=False,
-        env={
-            **os.environ,
-            "CLAUDE_PROJECT_DIR": args.project,
-            "CURSOR_PROJECT_DIR": args.project,
-        },
-    )
-    output = adapt_output(result.stdout, args.event, result.returncode)
-    if output:
-        sys.stdout.write(output)
-    if result.stderr:
-        sys.stderr.write(result.stderr)
-    return result.returncode
+    try:
+        if Path(args.script).name != args.script or not args.script.endswith(".py"):
+            raise ValueError("script must be a sibling Python basename")
+        try:
+            event = json.load(sys.stdin)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Cursor hook payload must be JSON: {exc}") from exc
+        if not isinstance(event, dict):
+            raise ValueError("Cursor hook payload must be an object")
+        script = Path(__file__).resolve().with_name(args.script)
+        if not script.is_file():
+            raise FileNotFoundError(script)
+        command = [sys.executable, "-X", "utf8", str(script)]
+        if args.script == "codex_write_gate.py":
+            command.extend(["--project", args.project, "--trusted-host", "cursor"])
+        if args.script in {
+            "session_start.py",
+            "user_prompt_submit.py",
+            "can_stop_gate.py",
+            "memory_preflight_posttool.py",
+        }:
+            command.extend(["--trusted-host", "cursor"])
+        command.extend(args.script_arg)
+        result = subprocess.run(
+            command,
+            input=json.dumps(normalize_event(event, args.event)),
+            text=True,
+            capture_output=True,
+            check=False,
+            env={
+                **os.environ,
+                "CLAUDE_PROJECT_DIR": args.project,
+                "CURSOR_PROJECT_DIR": args.project,
+            },
+        )
+        code, output = map_exit(args.event, result.returncode, result.stdout, result.stderr)
+        if output:
+            sys.stdout.write(output)
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+        return code
+    except Exception as exc:  # noqa: BLE001 — Cursor failClosed: never bare exit 1
+        sys.stderr.write(f"TAUSIK cursor_hook: fail-open after adapter error: {exc}\n")
+        if args.event == "preToolUse":
+            sys.stdout.write(json.dumps({"permission": "allow"}))
+            return 0
+        return 0
 
 
 if __name__ == "__main__":

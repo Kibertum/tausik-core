@@ -135,6 +135,9 @@ class TestGateThirdLink:
         monkeypatch.setenv("TAUSIK_DIR", str(tmp_path / ".tausik"))
         _tree(tmp_path / "scripts", {"a.py": "x\n"})
         _tree(tmp_path / ".claude" / "scripts", {"a.py": "x\n"})
+        # TB-015: without a bootstrap entrypoint the gate is N/A before the
+        # third-link check; these tests judge the link, so the tree must apply.
+        _tree(tmp_path / "bootstrap", {"bootstrap.py": "# stub\n"})
 
     def test_in_sync_and_fresh_passes_and_says_so(self, tmp_path, monkeypatch):
         self._synthetic_in_sync_project(tmp_path, monkeypatch)

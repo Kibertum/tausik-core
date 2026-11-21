@@ -9,6 +9,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.15.0] — 2026-11-21
+
+Cursor PreToolUse **failClosed** unfreeze for managing-agent and consumers, durable
+CLI lease rebind, and TauX dogfood fixes (TB-005…016, TB-009 L3 Codex path).
+
+- Cursor PreToolUse **failClosed**: bootstrap emits a 45s timeout floor; cursor_hook.map_exit never returns bare exit 1 (Claude warning/unexpected -> allow; policy deny stays exit 2). Hand-edit of hooks.json without capability regen is CAPABILITY_MISMATCH; recovery is bootstrap --ide cursor, not a human external one-liner. Covers core managing-agent and consumer Cursor hosts (ansible dogfood).
+- Durable Cursor/CLI lease bind: `task update` authorizes as `cli_task_update` (the existing rebind route) and CLI consumes the PreToolUse authorization so contract edits rebind the live package fingerprint instead of stranding `PACKAGE_STALE` until another `task start`.
+- Review separation recognizes Cursor Composer ids (`composer-2.5-fast`, point releases) as the `cursor` vendor family so L3 hard-floor records can be filed on Cursor hosts.
+- L3 on Codex: capability preflight + `review cohort-infrastructure-blocked` receipt that does not consume a repair round; open/status carry `Author model` delegation and `l3_capability` (TauX TB-009). Docs: `docs/en/codex-l3-readonly.md`.
+- Windows release-qualification controller: empty pytest config is a real temp `.ini` on Windows — `-c nul` under pytest 9 made rootdir `\\.\nul\` and skipped the trusted harness (TauX TB-009 dogfood).
+- QG-2 close after a green verify no longer STALE-names a phantom next `task-done` gate run: Verify-First redeems before that record, and `last_run_kind` only reads `run_trigger=verify` (TauX TB-016).
+- Complex task packages from route/backlog handoff (`task_add_complete`) and state import mark incomplete contracts with `task_package_legacy` so `task start` can normalize — no owner metadata repair (TauX TB-011). `PACKAGE_INVALID` names each missing `assurance_impact.*` key; new API/CLI complex rows without the marker stay strict.
+- AC evidence: Node/Jest test titles with spaces stay one citation — quoted `path::"a b"` and unquoted multi-word titles are not truncated to the first token (TauX TB-010). A partial first-word citation still fails closed against the full title.
+- `bootstrap_drift` is `NOT_APPLICABLE` when the tree has no bootstrap entrypoint (same premise as verify prepare) — site/consumer scoped verify no longer fails on unrelated deployed harness drift (TauX TB-015). Drift still blocks when bootstrap applies; undeclared-security scope honesty is unchanged.
+- Review records: supplementary L1/L2 on a higher route persist with `satisfies_route=false` (TB-007); invocation count is a minimum/budget so repair rounds record (TB-013); `hard_floor` always enforces on `task done` even without `review.external_agents` opt-in (TB-012).
+- Filesize gate treats standard lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, …) as generated evidence by basename — visible in scope, not subject to the authored 500-line cap (TauX TB-014).
+- Cohort readiness uses the shared AC evidence parser (not `LIKE '%AC-%'`), so documented forms like `AC verified: 1. ✓ …` satisfy `review cohort-open` / hierarchy verify (TauX TB-008).
+- `--relevant-files`: `.` / project root and existing directories are refused before gates (no silent expand); declare concrete files so QG-2 scope honesty and undeclared-security checks stay meaningful.
+- Verify: Python scope without `testing.roots` / discoverable `tests/` fails fast as `NoTestRoots` before the expensive gate lane; docs-only scopes stay on `--no-tests-expected` + `--gates-not-applicable`. Docs state that `--no-tests-expected` does not launder `COULD_NOT_RUN`. Empty `testing.roots=[]` no longer falls back to discovery (TB-005); doctor/verify refuse an unrunnable `.tausik/venv` without pytest.
+- `task start` / resume default text omits the full Task package JSON dump; it still builds, persists and lease-binds the package and prints Goal, acceptance criteria and scope. Full package stays on `task start --package` / `task show --package`.
+- Session start: a newer GitHub release warns and names the upgrade command; it no longer refuses opening the session. `updates.check=false` still sends no HTTP and stays explicitly unverified.
+- `verify` prepare: format `.{ide}/scripts/...` via `library_source` (not the deploy copy / product line-length); consumer redeploy uses `.tausik-lib/bootstrap` when project `bootstrap/` is absent — stops format↔`bootstrap_drift` oscillation.
+- `harness_projection` ownership: root project docs (`AGENTS.md`, `README.md`, …) are not refused merely because the same basename exists under `.tausik-lib`; only nested paths that shadow the lib tree stay blocked. Gate messages name the ownership signal and tell agents to keep project docs staged.
+- `session handoff --json-file` / `--json-stdin` (and positional `-`): authored JSON shares one schema with MCP; PowerShell-safe path documented. Invalid input exits 2 with structured `{code,message}` and does not write a handoff.
+- Host-neutral `context refresh --target <id>`: DYNAMIC projections require an explicit target; hand-maintained files without markers are refused (structured status), not silently skipped. `update-claudemd` is Claude-only; AGENTS.md sibling only with `--sibling`.
+
 ## [1.14.0] — 2026-11-18
 
 - Consumer **export-only** day-0: bootstrap seeds `.tausik-lib/` (plus IDE/harness copy

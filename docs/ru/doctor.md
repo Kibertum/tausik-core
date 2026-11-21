@@ -21,6 +21,7 @@
 | Группа | Проверка | Pass-критерий |
 |-------|----------|---------------|
 | **venv** | Python virtualenv | `.tausik/venv/` существует и `python -V` запускается |
+| **venv** | Venv pytest | Если `testing.roots` указывает на существующие каталоги, pytest должен импортироваться из `.tausik/venv`. Отсутствующий runner — FAIL: настроенные корни остаются unrunnable, а не молча исполняются через системный pytest. Установка: `.tausik/venv/.../python -m pip install pytest`. Строка отсутствует, если roots не заданы. |
 | **venv** | stdlib only | Сторонние пакеты не утекли в venv |
 | **DB** | SQLite файл | `.tausik/tausik.db` существует, открывается |
 | **DB** | Schema migration | Применена последняя миграция (соответствует `backend_migrations.py`) |

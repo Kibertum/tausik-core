@@ -235,13 +235,14 @@ def cmd_session(svc: ProjectService, args: Any) -> None:
             s["handoff"] = "yes" if s.get("handoff") else "-"
         _print_table(sessions, ["id", "started_at", "ended_at", "handoff", "summary"])
     elif c == "handoff":
-        data = None
-        if args.json_data:
-            try:
-                data = json.loads(args.json_data)
-            except (json.JSONDecodeError, TypeError) as e:
-                print(f"Error: invalid JSON for handoff: {e}", file=sys.stderr)
-                return
+        from handoff_authored_input import AuthoredHandoffInputError, load_from_cli_args
+
+        try:
+            data = load_from_cli_args(args)
+        except AuthoredHandoffInputError as e:
+            print(json.dumps(e.as_dict(), ensure_ascii=False), file=sys.stderr)
+            print(f"Error: {e}", file=sys.stderr)
+            raise SystemExit(2) from e
         from service_execution_lease import ExecutionLeaseError, consume_mcp_authorization
 
         try:

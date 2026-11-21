@@ -51,6 +51,20 @@ class TestTheDetectorReadsEcosystemForms:
     def test_a_non_test_is_not_read_as_one(self, text):
         assert _refs(text) == []
 
+    @pytest.mark.parametrize(
+        "citation",
+        [
+            'src/app.test.ts::"renders the title"',
+            "src/app.test.ts::'renders the title'",
+            "src/app.test.ts::renders the title",
+            'src/app.test.ts::"renders: hero, v2"',
+            'src/__tests__/app.test.tsx::"outer"::"inner step"',
+        ],
+    )
+    def test_node_titles_with_spaces_are_read_whole(self, citation):
+        # TB-010: whitespace must not truncate the title to the first token.
+        assert _refs(f"AC-1: ✓ {citation}") == [citation]
+
 
 class TestTheResolverAcceptsATestNamedAsOneBesideTheCode:
     """Negative boundary lives here too: the same citation with the file absent
@@ -82,6 +96,12 @@ class TestTheResolverAcceptsATestNamedAsOneBesideTheCode:
         )
         assert _test_ref_exists("pkg/foo_test.go::TestBar", root)
         assert _test_ref_exists("src/app.test.ts::renders the title", root)
+        assert _test_ref_exists('src/app.test.ts::"renders the title"', root)
+
+    def test_partial_first_token_does_not_accept_a_different_title(self, rust_project):
+        # TB-010 negative: citing only the first word must not match the full title.
+        root = str(rust_project)
+        assert not _test_ref_exists("src/app.test.ts::renders", root)
 
     def test_a_missing_file_or_an_undeclared_name_still_fails_closed(self, rust_project):
         root = str(rust_project)

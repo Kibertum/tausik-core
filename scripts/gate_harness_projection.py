@@ -152,18 +152,27 @@ def _warn_missing_export(root: str, staged: list[str]) -> None:
 
 
 def _shadows_lib_checkout(root: str, path: str) -> bool:
-    """True when the staged path already exists inside `.tausik-lib`.
+    """True when a nested staged path already exists inside `.tausik-lib`.
 
-    Agents repeatedly copy framework files from the submodule into the project
+    Agents repeatedly copy framework trees from the submodule into the project
     root (`scripts/project.py`, `docs/en/…`, …). Prefix lists cannot name every
-    future file; if the same relative path lives under `.tausik-lib`, staging it
-    at the project root is framework contamination — except the `tausik/` export.
+    future file; if the same relative nested path lives under `.tausik-lib`,
+    staging it at the project root is framework contamination — except the
+    `tausik/` export.
+
+    Root-level basenames are project-owned surface even when the library ships
+    the same name (AGENTS.md, README.md, CLAUDE.md, …). Same basename alone is
+    not harness contamination; only a nested path that shadows the lib tree is.
     """
     if path == ".tausik-lib" or path.startswith(".tausik-lib/"):
         return False
     if path == "tausik" or any(
         path == p.rstrip("/") or path.startswith(p) for p in _CONSUMER_ALLOWED_PREFIXES
     ):
+        return False
+    # Project-owned root docs share names with the library checkout; never treat
+    # a single-segment path as a harness shadow of `.tausik-lib`.
+    if "/" not in path:
         return False
     return os.path.lexists(os.path.join(root, ".tausik-lib", *path.split("/")))
 
@@ -227,18 +236,22 @@ def run_harness_projection_gate_for(gate: dict[str, Any], files: list[str]):
         return gate_outcome.passed(
             "harness_projection: staged set has no generated IDE harness, "
             "machine-local MCP launcher, framework trees beside `.tausik-lib`, "
-            "paths that shadow `.tausik-lib`, or `.tausik-lib` itself."
+            "nested paths that shadow `.tausik-lib`, or `.tausik-lib` itself "
+            "(root docs such as AGENTS.md/README.md stay project-owned)."
         )
     shown = "\n  ".join(bad[:20])
     more = f"\n  … (+{len(bad) - 20} more)" if len(bad) > 20 else ""
     return gate_outcome.failed(
         "harness_projection: refusing to commit generated TAUSIK harness "
-        f"copies ({len(bad)} path(s)). Project git must carry product code plus "
-        "`tausik/` export results — not IDE profile trees, not opencode/.mcp "
-        "machine paths, not `.tausik/` runtime, not bootstrap/harness/hooks "
-        "beside `.tausik-lib`, not paths that already exist under `.tausik-lib`, "
-        "and not `.tausik-lib/` itself:\n  "
+        f"copies ({len(bad)} path(s)). Ownership signal: project git carries "
+        "product code plus `tausik/` export — not IDE profile trees, not "
+        "opencode/.mcp machine paths, not `.tausik/` runtime, not "
+        "bootstrap/harness/hooks beside `.tausik-lib`, not nested paths that "
+        "already exist under `.tausik-lib` (root AGENTS.md/README.md are "
+        "project-owned and are not refused for a matching lib basename), and "
+        "not `.tausik-lib/` itself:\n  "
         f"{shown}{more}\n"
-        "Fix: git restore --staged <paths>; ensure they are in .gitignore; "
-        "run `tausik state export` and `git add tausik/` for project state."
+        "Fix: git restore --staged <harness paths>; keep project docs staged; "
+        "ensure harness trees are in .gitignore; run `tausik state export` "
+        "and `git add tausik/` for project state."
     )

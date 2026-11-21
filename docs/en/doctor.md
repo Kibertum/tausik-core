@@ -21,6 +21,7 @@ Or via MCP: `tausik_doctor` (no parameters). The MCP variant returns the same da
 | Group | Check | Pass criteria |
 |-------|-------|---------------|
 | **venv** | Python virtualenv | `.tausik/venv/` exists and `python -V` runs |
+| **venv** | Venv pytest | When `testing.roots` names existing directories, pytest must be importable from `.tausik/venv`. Missing runner is FAIL — configured roots stay unrunnable rather than silently executed via a system pytest. Install: `.tausik/venv/.../python -m pip install pytest`. Absent when roots are not configured. |
 | **venv** | stdlib only | No third-party packages leaked into venv |
 | **DB** | SQLite file | `.tausik/tausik.db` exists, openable |
 | **DB** | Schema migration | Latest migration applied (matches `backend_migrations.py`) |

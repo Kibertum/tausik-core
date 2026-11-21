@@ -104,3 +104,17 @@ def add_review(sub: argparse._SubParsersAction) -> None:
     cohort_decide.add_argument("--reason", required=True)
     cohort_decide.add_argument("--finding-ref", action="append", default=[])
     cohort_decide.add_argument("--json", action="store_true")
+
+    cohort_infra = rev_sub.add_parser(
+        "cohort-infrastructure-blocked",
+        help="Record review_infrastructure_blocked without consuming an L3 round (TB-009)",
+    )
+    cohort_infra.add_argument("cohort_id", type=int)
+    cohort_infra.add_argument(
+        "--round", dest="round_number", type=int, choices=[1, 2], required=True
+    )
+    cohort_infra.add_argument("--packet-digest", required=True)
+    cohort_infra.add_argument("--reason", required=True)
+    cohort_infra.add_argument("--code", required=True)
+    cohort_infra.add_argument("--detail", default=None)
+    cohort_infra.add_argument("--json", action="store_true")

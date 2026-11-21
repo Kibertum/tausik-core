@@ -11,9 +11,11 @@ travels — the test intercepts the request and checks it. Measured on
 so the session-start check has a strict two-second timeout.
 
 HOW. Every public session-start boundary performs a fresh check before opening
-the session. A successful answer newer than the installed version refuses the
-start and names the upgrade command. The separate `tausik update-check` command
-retains its daily cache policy for status/doctor use.
+the session. A successful answer newer than the installed version WARNS and
+names the upgrade command — it does not refuse the start (TauX dogfood: a
+blocked start stranded work on a still-supported install). The separate
+`tausik update-check` command retains its daily cache policy for status/doctor
+use.
 
 WHAT FAILS HOW. No network, timeout, a GitHub error or a garbage answer records
 the error and KEEPS the last good answer. Session start continues, but reports
@@ -191,11 +193,11 @@ def session_start_release_check(
 ) -> dict[str, Any]:
     """Perform the release check for a public session-start boundary.
 
-    Only an authoritative successful answer can block. Privacy opt-out and
-    failures stay explicit as disabled/unknown and never masquerade as current.
+    A newer authoritative release is a warning, never a hard refuse. Privacy
+    opt-out and failures stay explicit as disabled/unknown and never masquerade
+    as current.
     """
     from project_config import load_config
-    from tausik_utils import ServiceError
     from tausik_version import __version__
 
     tausik_dir = svc.tausik_dir()
@@ -238,10 +240,17 @@ def session_start_release_check(
             f"git -C .tausik-lib fetch --tags && git -C .tausik-lib checkout v{latest} "
             "&& python .tausik-lib/bootstrap/bootstrap.py --ide all"
         )
-        raise ServiceError(
-            f"TAUSIK session start refused: installed {__version__}, latest {latest}. "
-            f"Upgrade: {upgrade}"
-        )
+        return {
+            "status": "update-available",
+            "fresh": True,
+            "installed": __version__,
+            "latest": latest,
+            "checked_at": cache.get("checked_at"),
+            "warning": (
+                f"TAUSIK {latest} is available (this project runs {__version__}). "
+                f"Upgrade: {upgrade}"
+            ),
+        }
     result = {
         "status": "checked",
         "fresh": True,

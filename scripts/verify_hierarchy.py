@@ -54,11 +54,14 @@ def review_ready_reasons(be: Any, slugs: list[str]) -> list[str]:
             reasons.append(f"{slug}: plan incomplete")
         if not (row["acceptance_criteria"] or "").strip():
             reasons.append(f"{slug}: no acceptance criteria")
-        log_row = be._q1(
-            "SELECT 1 AS ok FROM task_logs WHERE task_slug=? AND message LIKE '%AC-%' LIMIT 1",
+        from ac_evidence_readiness import has_numbered_evidence_logged
+
+        log_rows = be._q(
+            "SELECT message FROM task_logs WHERE task_slug=? ORDER BY id",
             (slug,),
         )
-        if not log_row:
+        notes = "\n".join(str(r["message"] or "") for r in log_rows)
+        if not has_numbered_evidence_logged(row["acceptance_criteria"] or "", notes):
             reasons.append(f"{slug}: no numbered AC evidence logged")
     return reasons
 

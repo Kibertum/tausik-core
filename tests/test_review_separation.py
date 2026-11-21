@@ -99,11 +99,33 @@ def test_a_released_glm_generation_is_recognized_in_every_host_spelling(model_id
         ("glm-4.5-air", "glm-5.2", "glm"),
         ("gpt-5.6-sol", "gpt-6-astra", "openai"),
         ("zai-coding-plan/glm-5.2", "glm-5.2 [200k]", "glm"),
+        ("composer-2.5-fast", "composer-2.5", "cursor"),
     ],
-    ids=["claude-tiers", "same-id", "glm-generations", "openai-tiers", "host-spellings"],
+    ids=[
+        "claude-tiers",
+        "same-id",
+        "glm-generations",
+        "openai-tiers",
+        "host-spellings",
+        "cursor-composer",
+    ],
 )
 def test_one_environment_family_covers_tiers_and_generations(author, reviewer, vendor):
     assert rs.vendor_family(author) == rs.vendor_family(reviewer) == vendor
+
+
+@pytest.mark.parametrize(
+    "model_id, family",
+    [
+        ("composer-2.5-fast", "cursor:haiku"),
+        ("composer-2.5", "cursor:fable"),
+        ("composer-3.0-fast", "cursor:composer-3.0-fast"),
+        ("composer-x", None),
+    ],
+    ids=["registered-fast", "registered-base", "point-release", "invented"],
+)
+def test_cursor_composer_ids_are_recognized_for_l3_records(model_id, family):
+    assert rs.review_model_family(model_id) == family
 
 
 @pytest.mark.parametrize(
@@ -111,8 +133,9 @@ def test_one_environment_family_covers_tiers_and_generations(author, reviewer, v
     [
         ("glm-5.2", "glm-5.2"),
         ("gpt-5.6-sol", "gpt-6-astra"),
+        ("composer-2.5-fast", "composer-2.5-fast"),
     ],
-    ids=["glm-same-model", "openai-tiers"],
+    ids=["glm-same-model", "openai-tiers", "cursor-composer"],
 )
 def test_a_same_family_l3_is_the_recordable_form(author, reviewer):
     svc = _Svc()

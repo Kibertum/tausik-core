@@ -110,7 +110,8 @@ task show <slug> --work-packet --query "..." [--source PATH ...] [--max-bytes N]
                                 # получает до 16384 Б; остаток указан для других секций в allocations.
                                 # Не более 16 --source.
 task start <slug> [--package]   # planning → active только после атомарной проверки package
-                                #   plain/repeated start тоже строит и привязывает его; --package выбирает JSON
+                                #   plain/repeated start тоже строит и привязывает его; по умолчанию Goal/AC/scope
+                                #   (без JSON dump); --package выбирает структурированный JSON пакета
                                 #   PACKAGE_TOO_LARGE / REVISION_CONFLICT не меняют задачу и lease
                                 #   в Codex CLI start поглощает точную hook-авторизацию и перепривязывает этот поток
                                 #   время сессии и ёмкость вызовов — совет в выводе, не отказ (1.10, #376)
@@ -232,7 +233,10 @@ session start [--host-id ID]    # Свежая проверка релиза, з
 session end [--summary TEXT] [--host-id ID]  # Завершить активную; с --host-id — ровно сессию этого хоста
 session current                 # Показать активную сессию
 session list [--limit N]        # Последние сессии (default: 10); столбец handoff показывает, у каких он записан
-session handoff [json] [--host-id ID]  # Handoff из журнала; json — авторские next_steps/warnings поверх (1.10)
+session handoff [json|-] [--json-file PATH] [--json-stdin] [--host-id ID]
+                                # Handoff из журнала; на Windows/PowerShell — --json-file или stdin
+context refresh --target <id>   # Host-neutral DYNAMIC (claude|cursor|agents|…); target обязателен
+update-claudemd [--sibling]     # DYNAMIC только Claude; AGENTS.md только с --sibling
 session last-handoff [--session N]  # Живой handoff; с --session — handoff сессии N (нет сессии / нет handoff — разные отказы)
 session extend [--minutes N]    # Поднять порог совета по active-time (`session_max_minutes`; совет, не ворота)
 session recompute               # Retro: сравнить wall-clock vs active (gap-based) минуты

@@ -50,7 +50,7 @@ def refuse_conflicting_flags(args: Any) -> None:
         )
 
 
-def widen(svc: Any, slug: str, add: list[str]) -> str:
+def widen(svc: Any, slug: str, add: list[str], *, execution_lease_id: int | None = None) -> str:
     """Add `add` to the task's declared scope. Returns what a reader needs to see."""
     from project_service import ServiceError
 
@@ -69,7 +69,10 @@ def widen(svc: Any, slug: str, add: list[str]) -> str:
     if not new:
         return f"Task '{slug}': already declared — {', '.join(already)}. Nothing changed."
 
-    svc.task_update(slug, scope_paths=current + new)
+    fields: dict[str, Any] = {"scope_paths": current + new}
+    if execution_lease_id is not None:
+        fields["_execution_lease_id"] = execution_lease_id
+    svc.task_update(slug, **fields)
     said = f"Task '{slug}': scope widened by {', '.join(new)} ({len(current) + len(new)} total)."
     if already:
         said += f" Already declared: {', '.join(already)}."

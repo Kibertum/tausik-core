@@ -80,9 +80,17 @@ def _do_session_handoff(svc: Any, args: dict) -> str:
     what the caller sees, so a counter failure can no longer be mistaken for a
     handoff failure.
     """
-    result = svc.session_handoff(
-        args.get("handoff"), host_session_id=_authorized_host_session_id(svc)
-    )
+    from handoff_authored_input import AuthoredHandoffInputError, validate_authored
+
+    raw = args.get("handoff")
+    authored = None
+    if raw is not None:
+        try:
+            authored = validate_authored(raw)
+        except AuthoredHandoffInputError as exc:
+            # Structured refusal — never call session_handoff with bad payload.
+            raise ValueError(json.dumps(exc.as_dict(), ensure_ascii=False)) from exc
+    result = svc.session_handoff(authored, host_session_id=_authorized_host_session_id(svc))
     reset_checkpoint_counter(svc)
     return result
 

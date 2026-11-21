@@ -24,7 +24,13 @@ sys.path.insert(0, os.path.join(_TESTS, "..", "scripts"))
 
 from project_backend import SQLiteBackend  # noqa: E402
 from project_service import ProjectService, ServiceError  # noqa: E402
-from relevant_files_input import RIGHT_FORM, check_declared_paths  # noqa: E402
+from relevant_files_input import (  # noqa: E402
+    DIR_REFUSAL,
+    DOT_REFUSAL,
+    RIGHT_FORM,
+    check_declared_paths,
+    early_refuse_message,
+)
 from task_done_scope import persist_declared_scope  # noqa: E402
 
 
@@ -143,3 +149,33 @@ def test_the_help_text_no_longer_invites_the_comma():
     help_text = task_sub.choices["update"].format_help()
     assert "SPACE-separated" in help_text
     assert "JSON-list scope" not in help_text
+
+
+class TestDotAndDirectoryAreRefusedFirst:
+    """AC: dirs and '.' refuse before gates; undeclared security stays intact."""
+
+    @pytest.mark.parametrize("token", [".", "./", ".\\"])
+    def test_dot_tokens_are_refused(self, tmp_path, token):
+        with pytest.raises(ServiceError) as err:
+            check_declared_paths([token], str(tmp_path))
+        assert DOT_REFUSAL in str(err.value)
+        assert RIGHT_FORM in str(err.value)
+
+    def test_existing_directory_is_refused_not_expanded(self, project):
+        root, svc, be = project
+        with pytest.raises(ServiceError) as err:
+            svc.task_update("subject", relevant_files=json.dumps(["scripts"]))
+        assert DIR_REFUSAL in str(err.value)
+        assert _stored(be) is None
+
+    def test_early_refuse_message_matches_validator(self, tmp_path):
+        (tmp_path / "pkg").mkdir()
+        msg = early_refuse_message(["pkg"], str(tmp_path))
+        assert msg and DIR_REFUSAL in msg
+        (tmp_path / "pkg" / "x.py").write_text("", encoding="utf-8")
+        assert early_refuse_message(["pkg/x.py"], str(tmp_path)) is None
+
+    def test_ordinary_files_still_store(self, project):
+        _root, svc, be = project
+        svc.task_update("subject", relevant_files=json.dumps(["scripts/a.py"]))
+        assert _stored(be) == ["scripts/a.py"]

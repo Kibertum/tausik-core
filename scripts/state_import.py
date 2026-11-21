@@ -174,71 +174,40 @@ def parse_tree(tree: dict[str, str]) -> dict[str, list[dict]]:
 
 
 def _epic_cols(rec: dict) -> dict:
-    return {
-        "title": _fm(rec["fm"], "title"),
-        "status": _fm(rec["fm"], "status"),
-        "description": rec["body"] or None,
-    }
+    from state_import_cols import epic_cols
+
+    return epic_cols(rec, fm_get=_fm)
 
 
 def _story_cols(rec: dict, epic_id: int | None) -> dict:
-    return {
-        "epic_id": epic_id,
-        "title": _fm(rec["fm"], "title"),
-        "status": _fm(rec["fm"], "status"),
-        "description": rec["body"] or None,
-    }
+    from state_import_cols import story_cols
+
+    return story_cols(rec, epic_id, fm_get=_fm)
 
 
 def _task_cols(rec: dict, story_id: int | None) -> dict:
-    fm, secs = rec["fm"], parse_sections(rec["body"], TASK_SECTIONS)
-    return {
-        "story_id": story_id,
-        "title": _fm(fm, "title"),
-        "status": _fm(fm, "status"),
-        "stack": _fm(fm, "stack"),
-        "complexity": _fm(fm, "complexity"),
-        "role": _fm(fm, "role"),
-        "tier": _fm(fm, "tier"),
-        "goal": secs["Goal"] or None,
-        "plan": secs["Plan"] or None,
-        "acceptance_criteria": secs["Acceptance Criteria"] or None,
-        "rollback_plan": secs["Rollback"] or None,
-        "scope": _fm(fm, "scope"),
-        "scope_exclude": _fm(fm, "scope_exclude"),
-        "scope_paths": _fm_list(fm, "scope_paths"),
-        "scope_tools": _fm_list(fm, "scope_tools"),
-        "relevant_files": _fm_list(fm, "relevant_files"),
-        "assurance_profiles": _fm_list(fm, "assurance_profiles"),
-        "assurance_impact": (
-            _json_object(fm["assurance_impact"]) if "assurance_impact" in fm else ABSENT
-        ),
-        "defect_of": _fm(fm, "defect_of"),
-        "call_budget": _fm(fm, "call_budget"),
-        "completed_at": _fm(fm, "completed_at"),
-        "resolution": _fm(fm, "resolution"),
-        "resolution_reason": _fm(fm, "resolution_reason"),
-    }
+    from state_import_cols import task_cols
+
+    return task_cols(
+        rec,
+        story_id,
+        fm_get=_fm,
+        fm_list=_fm_list,
+        absent=ABSENT,
+        task_sections=TASK_SECTIONS,
+    )
 
 
 def _decision_cols(rec: dict) -> dict:
-    secs = parse_sections(rec["body"], ["Decision", "Rationale"])
-    return {
-        "decision": secs["Decision"] or "",
-        "task_slug": _fm(rec["fm"], "task"),
-        "rationale": secs["Rationale"] or None,
-    }
+    from state_import_cols import decision_cols
+
+    return decision_cols(rec, fm_get=_fm)
 
 
 def _memory_cols(rec: dict) -> dict:
-    fm = rec["fm"]
-    return {
-        "type": _fm(fm, "type"),
-        "title": _fm(fm, "title"),
-        "content": rec["body"] or "",
-        "tags": _fm_list(fm, "tags"),
-        "task_slug": _fm(fm, "task"),
-    }
+    from state_import_cols import memory_cols
+
+    return memory_cols(rec, fm_get=_fm, fm_list=_fm_list)
 
 
 # --- generic idempotent upsert ----------------------------------------------

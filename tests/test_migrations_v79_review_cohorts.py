@@ -44,6 +44,7 @@ def test_v79_preserves_legacy_review_rows_and_adds_bounded_tables():
         "review_cohort_rounds",
         "review_cohort_results",
         "review_cohort_packets",
+        "review_cohort_infrastructure_events",
     }
     cohort_columns = {row[1] for row in conn.execute("PRAGMA table_info(review_cohorts)")}
     result_columns = {row[1] for row in conn.execute("PRAGMA table_info(review_cohort_results)")}

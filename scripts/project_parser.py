@@ -425,17 +425,9 @@ def build_parser() -> argparse.ArgumentParser:
     rm_p = sub.add_parser("roadmap", help="Project roadmap")
     rm_p.add_argument("--include-done", action="store_true")
 
-    # --- update-claudemd ---
-    uc_p = sub.add_parser("update-claudemd", help="Update CLAUDE.md dynamic section")
-    uc_p.add_argument(
-        "--claudemd", default=None, help="Path to CLAUDE.md (auto-detected if omitted)"
-    )
-    uc_p.add_argument(
-        "--dry-run",
-        action="store_true",
-        dest="dry_run",
-        help="Show diff between current CLAUDE.md and what `update-claudemd` would write; do not modify the file. Exit code 0 if identical, 1 if drift detected.",
-    )
+    from project_parser_context import build_context_subparsers
+
+    build_context_subparsers(sub)
 
     # --- metrics / hud / suggest-model (delegated below) ---
 

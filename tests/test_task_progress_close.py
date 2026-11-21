@@ -30,6 +30,13 @@ def _project(root: Path, *, steps: int = 1) -> ProjectService:
     (root / ".tausik").mkdir(parents=True)
     (root / "scripts").mkdir()
     (root / "scripts" / "feature.py").write_text("value = 1\n", encoding="utf-8")
+    # NoTestRoots (1.15): a Python relevant_files scope needs a discoverable
+    # tests/ tree (or testing.roots) before verify may claim a green suite.
+    (root / "tests").mkdir()
+    (root / "tests" / "test_feature.py").write_text(
+        "def test_feature_constant():\n    assert True\n",
+        encoding="utf-8",
+    )
     crypto_keys.init_keys(str(root))
     svc = ProjectService(SQLiteBackend(str(root / ".tausik" / "tausik.db")))
     svc.task_add(None, "work", "Work", complexity="simple")

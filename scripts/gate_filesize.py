@@ -131,6 +131,19 @@ _FILESIZE_EXEMPT_BASENAMES = frozenset(
         "CHANGELOG.md",
         "CHANGELOG.ru.md",
         "cli.md",  # docs/{en,ru}/cli.md — full CLI command reference
+        # Deterministic package lockfiles (TauX TB-014): line count measures the
+        # resolved graph, not authored source complexity.
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "bun.lockb",
+        "Cargo.lock",
+        "poetry.lock",
+        "Pipfile.lock",
+        "composer.lock",
+        "Gemfile.lock",
+        "uv.lock",
+        "go.sum",
     }
 )
 

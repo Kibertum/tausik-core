@@ -290,12 +290,16 @@ def test_task_update_rejects_non_string_assurance_impact_enum(svc):
 def test_plain_start_persists_package_before_activation(svc):
     result = svc.task_start("work")
     stored = load_task_context_package(svc, "work")
-    assert "Task package:" in result
+    assert "Task package:" not in result
+    assert "Goal:" in result
+    assert "Acceptance criteria:" in result
+    assert f"Package bound (fingerprint={stored['fingerprint']})" in result
     assert stored is not None
     assert stored["required"]["status"] == "active"
     assert svc.task_show("work")["status"] == "active"
     repeated = svc.task_start("work")
-    assert "Task package:" in repeated
+    assert "Task package:" not in repeated
+    assert f"Package bound (fingerprint={stored['fingerprint']})" in repeated
     assert load_task_context_package(svc, "work")["fingerprint"] == stored["fingerprint"]
 
 
@@ -454,6 +458,43 @@ def test_new_complex_task_requires_explicit_package_declarations(svc):
     with pytest.raises(TaskPackageError, match="PACKAGE_INVALID.*call_budget"):
         svc.task_start("work")
     assert svc.task_show("work")["status"] == "planning"
+
+
+def test_package_invalid_names_each_missing_assurance_impact_key(svc):
+    # TB-011 AC-2: a partial impact object must name the missing keys exactly.
+    svc.task_update(
+        "work",
+        complexity="complex",
+        call_budget=40,
+        assurance_profiles=["executable"],
+        assurance_impact={"blast_radius": "bounded", "reversibility": "reversible"},
+    )
+    with pytest.raises(TaskPackageError, match=r"assurance_impact\.level") as err:
+        svc.task_start("work")
+    assert "assurance_impact.blast_radius" not in str(err.value)
+    assert "assurance_impact.reversibility" not in str(err.value)
+
+
+def test_route_complete_create_marks_incomplete_complex_startable(svc):
+    # TB-011 AC-1: task_add_complete (route/backlog handoff) leaves a startable row.
+    from service_task_create import task_add_complete
+
+    task_add_complete(
+        svc,
+        story_slug=None,
+        slug="route-complex",
+        title="Route complex",
+        complexity="complex",
+        goal="ship the route path",
+        acceptance_criteria=("AC-1 works. Negative: malformed route payload is refused."),
+        scope="scripts/",
+        rollback_plan="git revert",
+        assurance_impact={"blast_radius": "bounded", "reversibility": "reversible"},
+    )
+    assert svc.task_show("route-complex")["task_package_legacy"] == 1
+    svc.task_start("route-complex", include_memory=False)
+    assert svc.task_show("route-complex")["status"] == "active"
+    assert svc.task_show("route-complex")["call_budget"] == 80
 
 
 @pytest.mark.parametrize("corruption", ["payload", "metadata"])

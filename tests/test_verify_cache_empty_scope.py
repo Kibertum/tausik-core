@@ -268,6 +268,7 @@ class TestRelaxedLookupBucketAndPrefixLeak:
 class TestUnrelatedPathsUnaffected:
     def test_strict_hit_still_works(self, conn, monkeypatch, no_envelope, tmp_path):
         """Объявленная область → строгое попадание, гейты не гоняются повторно."""
+        (tmp_path / "tests").mkdir(exist_ok=True)
         src = tmp_path / "scripts" / "x.py"
         src.parent.mkdir(parents=True, exist_ok=True)
         src.write_text("# x", encoding="utf-8")
@@ -281,6 +282,7 @@ class TestUnrelatedPathsUnaffected:
 
     def test_strict_hit_invalidated_by_edit(self, conn, monkeypatch, no_envelope, tmp_path):
         """И обратное: правка объявленного файла двигает хэш и снимает зелёный."""
+        (tmp_path / "tests").mkdir(exist_ok=True)
         src = tmp_path / "scripts" / "x.py"
         src.parent.mkdir(parents=True, exist_ok=True)
         src.write_text("# before", encoding="utf-8")

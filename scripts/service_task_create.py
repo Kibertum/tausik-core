@@ -90,6 +90,22 @@ def task_add_complete(
         )
         if contract:
             svc.task_update(slug, **contract)
+        # Route/backlog handoff (task_add_complete): incomplete complex packages
+        # get the one-shot legacy marker so task start can normalize — same
+        # premise as state import (TB-011). Ad-hoc CLI/MCP complexity=complex
+        # without this path stays strict PACKAGE_INVALID.
+        if complexity == "complex":
+            from backend_migrations_v84 import legacy_marker_for_imported_task
+
+            row = svc.be.task_get(slug) or {}
+            marker = legacy_marker_for_imported_task(
+                complexity=row.get("complexity"),
+                call_budget=row.get("call_budget"),
+                assurance_profiles=row.get("assurance_profiles"),
+                assurance_impact=row.get("assurance_impact"),
+            )
+            if marker is not None:
+                svc.task_update(slug, task_package_legacy=marker)
         if steps:
             svc.task_plan(slug, steps)
         if rationale:

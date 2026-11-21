@@ -19,6 +19,10 @@ Two decisions, both deliberate:
 * An element that merely does not exist is a WARNING, not a refusal: the file
   may be about to be created by the very task that declares it.
 
+Refuse-first for '.' and directories (1.15 / TauX dogfood): expanding a folder
+or the project root would look like a file scope while git-diff honesty and
+security under-declare compared the wrong shape. Concrete files only.
+
 One implementation, called from every path that TAKES a declaration (the CLI
 update, `verify --relevant-files`, and `task done` on both CLI and MCP), so the
 three entry points cannot disagree on what a declaration is. `tausik state
@@ -38,14 +42,43 @@ from tausik_utils import ServiceError
 #: The one sentence that names the right form; every refusal carries it.
 RIGHT_FORM = "paths are passed SPACE-separated: --relevant-files a.py b.py (stored as a JSON list)"
 
+DOT_REFUSAL = (
+    "declare concrete files, not '.' / the project root — a whole-tree scope "
+    "cannot honestly certify QG-2 coverage"
+)
+DIR_REFUSAL = (
+    "declare concrete files, not a directory — refuse-first (no silent expand) "
+    "so under-declare and security scope stay honest"
+)
+
+
+def _normalize_declared(raw: object) -> str:
+    """Forward-slash form used for comparison; trailing slashes stripped."""
+    return str(raw).replace("\\", "/").rstrip("/")
+
+
+def _is_dot_or_project_root(normalized: str) -> bool:
+    """True for '.', './', '.\\', and empty-after-strip tokens."""
+    return normalized in {"", "."}
+
+
+def _abs_under_root(root: str, normalized: str) -> str:
+    if os.path.isabs(normalized):
+        return os.path.normpath(normalized)
+    return os.path.normpath(os.path.join(root, normalized.replace("/", os.sep)))
+
 
 def check_declared_paths(paths: list[str], project_dir: str | None) -> list[str]:
     """Validate a declared list; return warning lines (may be empty).
 
-    Raises ServiceError for an element that carries a comma and resolves to
-    nothing on disk — the comma-joined mistake. Existence is judged against
-    `project_dir` when given (relative declarations are project-relative),
-    else against the process cwd.
+    Raises ServiceError for:
+    * an element that carries a comma and resolves to nothing on disk — the
+      comma-joined mistake;
+    * '.' / project-root tokens — whole-tree is not a file scope;
+    * an element that exists and is a directory — refuse-first (no expand).
+
+    Existence is judged against `project_dir` when given (relative declarations
+    are project-relative), else against the process cwd.
     """
     root = project_dir or os.getcwd()
     missing: list[str] = []
@@ -53,8 +86,18 @@ def check_declared_paths(paths: list[str], project_dir: str | None) -> list[str]
         # Backslashes read as separators, as every other reader of this column
         # does (gate_test_resolver): a declaration typed on Windows must not
         # turn into "not on disk" on a POSIX runner.
-        p = str(raw).replace("\\", "/")
-        exists = os.path.exists(p if os.path.isabs(p) else os.path.join(root, p))
+        p = _normalize_declared(raw)
+        if _is_dot_or_project_root(p):
+            raise ServiceError(
+                f"relevant_files element {str(raw)!r} names the project root: "
+                f"{DOT_REFUSAL}. {RIGHT_FORM}"
+            )
+        abs_path = _abs_under_root(root, p)
+        exists = os.path.exists(abs_path)
+        if exists and os.path.isdir(abs_path):
+            raise ServiceError(
+                f"relevant_files element {p!r} is a directory: {DIR_REFUSAL}. {RIGHT_FORM}"
+            )
         parts = [s.strip() for s in p.split(",") if s.strip()]
         # The corruption shape: two or more pieces that each LOOK like a path.
         # A single not-yet-created file whose name carries a comma has one
@@ -73,6 +116,34 @@ def check_declared_paths(paths: list[str], project_dir: str | None) -> list[str]
         f"NOTE: {len(missing)} declared path(s) not on disk yet: {', '.join(missing)} "
         "— accepted (the task may create them); verify will map no tests to them until they exist."
     ]
+
+
+def early_refuse_message(paths: list[str] | None, project_dir: str | None = None) -> str | None:
+    """Refusal text for verify-before-gates, or None when the list is acceptable."""
+    try:
+        check_declared_paths([str(p) for p in (paths or [])], project_dir)
+    except ServiceError as exc:
+        return str(exc)
+    return None
+
+
+def invalid_scope_gate_result(
+    message: str,
+) -> tuple[bool, list[dict[str, object]], str]:
+    """Synthetic verify failure used before describe_declared_scope / gates."""
+    return (
+        False,
+        [
+            {
+                "name": "scope-declaration",
+                "passed": False,
+                "skipped": False,
+                "severity": "block",
+                "output": message,
+            }
+        ],
+        "invalid-relevant-files",
+    )
 
 
 def notice_for_json_list(raw: object, project_dir: str | None) -> str:

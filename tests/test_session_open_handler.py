@@ -26,7 +26,6 @@ import update_check as uc
 import handlers
 from project_backend import SQLiteBackend
 from project_service import ProjectService
-from tausik_utils import ServiceError
 from tausik_version import __version__
 
 _handle_tool = handlers.handle_tool
@@ -74,7 +73,7 @@ class TestEnvelopeKeysAlwaysPresent:
         assert "tasks" in env
         assert "self_check" in env
 
-    def test_newer_release_blocks_compound_open_before_session_row(self, tmp_path, monkeypatch):
+    def test_newer_release_warns_on_compound_open_and_opens_session(self, tmp_path, monkeypatch):
         td = tmp_path / ".tausik"
         td.mkdir()
         installed = __version__.split(".")
@@ -94,14 +93,15 @@ class TestEnvelopeKeysAlwaysPresent:
         )
         installed_svc = ProjectService(SQLiteBackend(str(td / "tausik.db")))
         env = json.loads(_handle_tool(installed_svc, "tausik_session_open", {}))
-        assert env["version_check"]["status"] == "blocked"
+        assert env["version_check"]["status"] == "update-available"
         assert (
-            __version__ in env["version_check"]["error"] and newer in env["version_check"]["error"]
+            newer in env["version_check"]["warning"]
+            and __version__ in env["version_check"]["warning"]
         )
-        assert installed_svc.be.session_current() is None
+        assert installed_svc.be.session_current() is not None
         installed_svc.be.close()
 
-    def test_newer_release_blocks_plain_mcp_start_before_session_row(self, tmp_path, monkeypatch):
+    def test_newer_release_warns_on_plain_mcp_start_and_opens_session(self, tmp_path, monkeypatch):
         td = tmp_path / ".tausik"
         td.mkdir()
         newer = f"{__version__.rsplit('.', 1)[0]}.{int(__version__.rsplit('.', 1)[1]) + 1}"
@@ -125,9 +125,9 @@ class TestEnvelopeKeysAlwaysPresent:
             lambda *_args, **_kwargs: {"thread_id": "mcp-thread"},
         )
 
-        with pytest.raises(ServiceError, match=rf"installed {__version__}.*latest {newer}"):
-            _handle_tool(installed_svc, "tausik_session_start", {})
-        assert installed_svc.be.session_current() is None
+        result = _handle_tool(installed_svc, "tausik_session_start", {})
+        assert newer in result and "WARNING:" in result
+        assert installed_svc.be.session_current() is not None
         installed_svc.be.close()
 
 

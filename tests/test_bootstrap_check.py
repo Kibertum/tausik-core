@@ -134,6 +134,10 @@ class TestGateWiring:
     def test_gate_blocks_on_harness_drift(self, tmp_path, monkeypatch):
         import gate_bootstrap_drift as g
 
+        (tmp_path / ".tausik").mkdir()
+        boot = tmp_path / "bootstrap"
+        boot.mkdir()
+        (boot / "bootstrap.py").write_text("# stub\n", encoding="utf-8")
         monkeypatch.setattr(
             g, "_harness_drift_names", lambda _p: [".claude/mcp/project/handlers.py"]
         )
@@ -147,6 +151,10 @@ class TestGateWiring:
     def test_gate_passes_when_both_comparators_clean(self, tmp_path, monkeypatch):
         import gate_bootstrap_drift as g
 
+        (tmp_path / ".tausik").mkdir()
+        boot = tmp_path / "bootstrap"
+        boot.mkdir()
+        (boot / "bootstrap.py").write_text("# stub\n", encoding="utf-8")
         monkeypatch.setattr(g, "_harness_drift_names", lambda _p: [])
         monkeypatch.setattr("service_doctor_drift.scripts_drift_names", lambda _p: [])
         monkeypatch.setattr("project_config.find_tausik_dir", lambda: str(tmp_path / ".tausik"))

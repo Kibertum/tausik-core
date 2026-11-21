@@ -70,8 +70,13 @@ def _config_uncertainty(base: str) -> str | None:
     if "roots" not in testing:
         return None
     roots = testing["roots"]
-    if not isinstance(roots, list) or not roots:
-        return "testing.roots is not a non-empty list"
+    if not isinstance(roots, list):
+        return "testing.roots is not a list"
+    # Explicit `[]` is intentional "no roots" (#1090), not uncertainty. Treating
+    # it as fail-open uncertainty used to widen to the full lane after discovery
+    # ignored the empty list.
+    if not roots:
+        return None
     if any(not isinstance(root, str) or not root.strip() for root in roots):
         return "testing.roots contains a non-string or empty entry"
     missing = [root for root in roots if not os.path.isdir(os.path.join(base, root))]

@@ -64,19 +64,16 @@ def test_roots(base: str) -> list[str]:
     Пустой список означает «корней нет», и это ОТДЕЛЬНЫЙ исход, а не пустое
     отображение: см. `NoTestRootsError` и `assert_test_roots`.
     """
-    roots: list[str] = []
     configured = _configured_roots(base)
-    for rel in configured:
-        # normpath: настроенный корень пишут через `/` даже на Windows, а
-        # обнаруженные приходят с разделителем платформы. Без приведения одна и
-        # та же функция отдавала бы корни в двух написаниях в зависимости от
-        # того, настроены они или найдены, и сравнивающий их вызывающий читал
-        # бы разные строки как разные каталоги.
-        candidate = os.path.normpath(os.path.join(base, rel))
-        if os.path.isdir(candidate):
-            roots.append(candidate)
-    if roots:
-        return roots  # явная настройка побеждает обнаружение
+    # Key present (including `[]`) wins over discovery — #1090 / TB-005.
+    if configured is not None:
+        roots: list[str] = []
+        for rel in configured:
+            # normpath keeps `/` config and platform discovery comparable.
+            candidate = os.path.normpath(os.path.join(base, rel))
+            if os.path.isdir(candidate):
+                roots.append(candidate)
+        return roots
 
     default = os.path.join(base, "tests")
     if os.path.isdir(default):
@@ -177,18 +174,21 @@ def _walk_level(
             _walk_level(base, path, remaining - 1, found, skip)
 
 
-def _configured_roots(base: str) -> list[str]:
-    """`testing.roots` из конфига проекта. Ошибка чтения — не корни, а пусто."""
+def _configured_roots(base: str) -> list[str] | None:
+    """``testing.roots`` when the key exists; None when absent/unreadable.
+
+    ``[]`` stays empty (no discovery). Non-list values become ``[]``.
+    """
     path = tausik_config_path(base)
     try:
         with open(path, encoding="utf-8") as fh:
             cfg = json.load(fh)
     except (OSError, ValueError):
-        return []
+        return None
     testing = cfg.get("testing")
-    if not isinstance(testing, dict):
-        return []
-    roots = testing.get("roots")
+    if not isinstance(testing, dict) or "roots" not in testing:
+        return None
+    roots = testing["roots"]
     if not isinstance(roots, list):
         return []
     return [str(r) for r in roots if isinstance(r, (str, os.PathLike))]

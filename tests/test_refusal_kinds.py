@@ -53,11 +53,12 @@ def be(tmp_path):
     b.close()
 
 
-def _run(be, exit_code):
+def _run(be, exit_code, *, trigger="verify"):
     be._conn.execute(
-        "INSERT INTO verification_runs(task_slug, scope, command, exit_code, files_hash, ran_at) "
-        "VALUES ('t', 'manual', 'pytest', ?, 'h', '2026-09-23T10:00:00Z')",
-        (exit_code,),
+        "INSERT INTO verification_runs(task_slug, scope, command, exit_code, files_hash, "
+        "ran_at, run_trigger) "
+        "VALUES ('t', 'manual', 'pytest', ?, 'h', '2026-09-23T10:00:00Z', ?)",
+        (exit_code, trigger),
     )
     be._conn.commit()
 
@@ -70,3 +71,21 @@ def test_a_close_without_a_handle_says_never_ran_red_or_stale(be):
     _run(be, 0)
     kind, why = k.last_run_kind(be, "t")
     assert kind == k.STALE and "passed" in why
+
+
+def test_task_done_row_is_not_named_as_the_last_verify(be):
+    """TB-016: a later task-done gate run must not become the STALE subject."""
+    _run(be, 0, trigger="verify")
+    green_id = be._conn.execute(
+        "SELECT id FROM verification_runs ORDER BY id DESC LIMIT 1"
+    ).fetchone()[0]
+    _run(be, 0, trigger="task-done")
+    phantom_id = be._conn.execute(
+        "SELECT id FROM verification_runs ORDER BY id DESC LIMIT 1"
+    ).fetchone()[0]
+    assert phantom_id > green_id
+    kind, why = k.last_run_kind(be, "t")
+    assert kind == k.STALE
+    assert f"#{green_id}" in why
+    assert f"#{phantom_id}" not in why
+    assert "task-done" in why

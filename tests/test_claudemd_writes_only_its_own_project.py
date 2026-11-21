@@ -127,17 +127,26 @@ class TestTheStrangersFilesAreNeverTouched:
         mine, stranger, svc = two_projects
         before = {doc: _sha(stranger / doc) for doc in ("CLAUDE.md", "AGENTS.md")}
 
-        cmd_update_claudemd(svc, SimpleNamespace(claudemd=None, dry_run=False))
+        cmd_update_claudemd(svc, SimpleNamespace(claudemd=None, dry_run=False, sibling=False))
 
         for doc in ("CLAUDE.md", "AGENTS.md"):
             assert _sha(stranger / doc) == before[doc], f"CLI записал в ЧУЖОЙ проект ({doc})"
         assert "Tasks: 0/0 done" in (mine / "CLAUDE.md").read_text(encoding="utf-8")
 
-    def test_the_sibling_agents_md_of_the_own_project_is_refreshed(self, two_projects):
-        """Побратим обновляется — но побратим СВОЕГО проекта."""
+    def test_mcp_does_not_auto_refresh_agents_sibling(self, two_projects):
+        """MCP update-claudemd is Claude-only; AGENTS.md needs explicit --sibling / target."""
         mine, _stranger, svc = two_projects
+        before = (mine / "AGENTS.md").read_text(encoding="utf-8")
         handle_update_claudemd(svc)
+        assert (mine / "AGENTS.md").read_text(encoding="utf-8") == before
+        assert "Tasks: 0/0 done" in (mine / "CLAUDE.md").read_text(encoding="utf-8")
+
+    def test_cli_sibling_flag_refreshes_own_agents_only(self, two_projects):
+        mine, stranger, svc = two_projects
+        before_stranger = (stranger / "AGENTS.md").read_text(encoding="utf-8")
+        cmd_update_claudemd(svc, SimpleNamespace(claudemd=None, dry_run=False, sibling=True))
         assert "Tasks: 0/0 done" in (mine / "AGENTS.md").read_text(encoding="utf-8")
+        assert (stranger / "AGENTS.md").read_text(encoding="utf-8") == before_stranger
 
 
 class TestItRefusesRatherThanGuessing:
@@ -180,20 +189,28 @@ class TestTheNormalPathIsUnchanged:
         svc, be = _service(mine)
         monkeypatch.chdir(tmp_path)
         try:
-            cmd_update_claudemd(svc, SimpleNamespace(claudemd=str(elsewhere), dry_run=False))
+            cmd_update_claudemd(
+                svc,
+                SimpleNamespace(claudemd=str(elsewhere), dry_run=False, sibling=False),
+            )
         finally:
             be.close()
         assert "Tasks: 0/0 done" in elsewhere.read_text(encoding="utf-8")
 
-    def test_explicit_instruction_without_dynamic_marker_is_skipped(self, tmp_path, monkeypatch):
-        """Foreign/unmanaged instruction files stay untouched (H2 / bootstrap skip)."""
+    def test_explicit_instruction_without_dynamic_marker_is_refused(self, tmp_path, monkeypatch):
+        """Hand-maintained files are not modified; CLI exits non-zero with status."""
         mine = _make_project(tmp_path, "mine")
         elsewhere = tmp_path / "markerless.md"
         elsewhere.write_text("# user-owned instructions\n", encoding="utf-8")
         svc, be = _service(mine)
         monkeypatch.chdir(tmp_path)
         try:
-            cmd_update_claudemd(svc, SimpleNamespace(claudemd=str(elsewhere), dry_run=False))
+            with pytest.raises(SystemExit) as ei:
+                cmd_update_claudemd(
+                    svc,
+                    SimpleNamespace(claudemd=str(elsewhere), dry_run=False, sibling=False),
+                )
+            assert ei.value.code == 2
         finally:
             be.close()
         assert elsewhere.read_text(encoding="utf-8") == "# user-owned instructions\n"

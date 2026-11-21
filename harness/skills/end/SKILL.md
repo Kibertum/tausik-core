@@ -66,9 +66,14 @@ Only save project-specific patterns — not framework instructions.
 
 Use `tausik_session_end` with `summary="Completed X, fixed Y, planned Z"`.
 
-### 6. Update CLAUDE.md
+### 6. Refresh host DYNAMIC projection
 
-Use `tausik_update_claudemd` MCP tool to refresh the dynamic section.
+Canonical state is the DB. Host files are opt-in projections:
+- Claude: `tausik_update_claudemd` (CLAUDE.md only; AGENTS.md only with CLI `--sibling`)
+- Other hosts / AGENTS.md: `.tausik/tausik context refresh --target <id>`
+  (`claude` | `cursor` | `agents` | …). No `--target` is a hard refuse; a
+  hand-maintained file without DYNAMIC markers is a structured non-success,
+  not a silent skip.
 
 ### 7. Git Commit Prompt
 

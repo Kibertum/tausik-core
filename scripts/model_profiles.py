@@ -42,6 +42,14 @@ DEFAULT_FAMILIES: dict[str, dict[str, dict[str, str]]] = {
         "opus": {"model": "gpt-5.6-sol", "display": "GPT-5.6 Sol"},
         "fable": {"model": "gpt-6-astra", "display": "GPT-6 Astra"},
     },
+    # Cursor Composer (host-native) — L3 hard_floor records on Cursor must
+    # name a real family; without this, review record refuses composer-* ids.
+    "cursor": {
+        "haiku": {"model": "composer-2.5-fast", "display": "Composer 2.5 Fast"},
+        "sonnet": {"model": "composer-2.5", "display": "Composer 2.5"},
+        "opus": {"model": "composer-2.5", "display": "Composer 2.5"},
+        "fable": {"model": "composer-2.5", "display": "Composer 2.5"},
+    },
 }
 
 # Vendor token fallback when a model id is not found in the (merged) families
@@ -51,6 +59,7 @@ _VENDOR_TOKENS: tuple[tuple[str, str], ...] = (
     ("glm", "glm"),
     ("qwen", "qwen"),
     ("gpt", "openai"),
+    ("composer", "cursor"),
 )
 
 

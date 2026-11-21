@@ -350,21 +350,15 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
             notice = resume_recognition_message(self.be, slug, task.get("complexity"))
             if notice:
                 messages.append(notice)
-            if include_memory:
-                if package is not None:
-                    from memory_relevance import lines_for_task
+            from task_start_compact import append_start_context
 
-                    messages.extend(lines_for_task(self.be, slug))
-                    messages.append(
-                        "Task package: "
-                        + json.dumps(
-                            package, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-                        )
-                    )
-                else:
-                    from memory_relevance import lines_for_task
-
-                    messages.extend(lines_for_task(self.be, slug))
+            append_start_context(
+                messages,
+                be=self.be,
+                slug=slug,
+                package=package,
+                include_memory=include_memory,
+            )
             return "\n".join(messages)
         if force:
             raise ServiceError(_FORCE_RETIRED)
@@ -464,19 +458,15 @@ class TaskMixin(TaskDoneReportMixin, GatesMixin, CascadeMixin, ReasoningMixin, R
         rec_msg = start_recognition_message(self.be, slug, task.get("complexity"))
         if rec_msg:
             msgs.append(rec_msg)
-        if include_memory:
-            if package is not None:
-                from memory_relevance import lines_for_task
+        from task_start_compact import append_start_context
 
-                msgs.extend(lines_for_task(self.be, slug))
-                msgs.append(
-                    "Task package: "
-                    + json.dumps(package, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-                )
-            else:
-                from memory_relevance import lines_for_task
-
-                msgs.extend(lines_for_task(self.be, slug))
+        append_start_context(
+            msgs,
+            be=self.be,
+            slug=slug,
+            package=package,
+            include_memory=include_memory,
+        )
         from service_delegate import record_task_recommendation
 
         record_task_recommendation(self.be, slug, task.get("complexity"))

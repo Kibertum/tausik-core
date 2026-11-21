@@ -91,6 +91,7 @@ def project(tmp_path, monkeypatch):
     cwd to a real `.tausik/`. A monkeypatched resolver would test the test.
     """
     os.makedirs(tmp_path / ".tausik", exist_ok=True)
+    os.makedirs(tmp_path / "tests", exist_ok=True)
     crypto_keys.init_keys(str(tmp_path))
     monkeypatch.chdir(tmp_path)
     return str(tmp_path)

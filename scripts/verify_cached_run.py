@@ -52,24 +52,16 @@ from verify_scope_honesty import (
     describe_declared_scope,
     security_block_reason,
 )
+from verify_scope_input import refuse_invalid_relevant_files
 
 # How to spell the CLI in a remediation the reader's shell will accept.
 _CLI = cli_invocation()
 
-
-# verify-no-test-mapped-dead-end: the audit query this feature exists to make
-# answerable — "which closures rest on no executed gate at all?". Exported as a
-# constant so docs, tests and any future report agree on one spelling.
-#
-# The first cut put the marker in `scope` instead, to avoid a migration. That
-# column is CHECK-constrained to the SENAR tiers, so every write raised
-# IntegrityError on a real database while passing in tests whose DDL is a
-# hand-written copy without the constraint. Hence a column, and hence v40.
+# Audit: closures with no executed gate (`no_tests_declared=1`). Kept as a
+# column (v40) because `scope` is CHECK-constrained to SENAR tiers.
 AUDIT_NO_TESTS_DECLARED_SQL = (
     "SELECT task_slug, ran_at FROM verification_runs WHERE no_tests_declared = 1"
 )
-
-
 SCOPE_NARROWER = "scope-narrower-than-diff"
 
 
@@ -155,6 +147,9 @@ def run_gates_with_cache(
     from gate_runner import run_gates
 
     files = relevant_files or []
+    if (early := refuse_invalid_relevant_files(files, slug, append_notes_fn, details)) is not None:
+        return early
+
     # verify-handle-dies-on-a-tasks-own-export-file: the WRITE half of the
     # subtraction. This very run rewrites `tausik/tasks/<slug>.md` (declared
     # scope, run number, receipt), so a hash that included it could not agree
@@ -307,17 +302,36 @@ def run_gates_with_cache(
                     f"ran_at={hit['ran_at']}, scope={hit['scope']})",
                 )
             return True, [], "hit"
-        # The relaxed fallback that used to live here (v14-cache-relaxed-
-        # mismatch-hit) is gone. It accepted any fresh green row whose recorded
-        # command named no files as a certificate for an explicit file set, on
-        # the premise that a manual-scope verify was a *broader* pass. The
-        # premise was false — with no declared files the scoped gates are
-        # skipped, so the row proved nothing about the files it was certifying.
-        # It leaked two further ways: the lookup was called WITHOUT a
-        # `command_prefix`, so it also matched rows stamped `noncacheable|`
-        # (contradicting the guarantee claimed further down this function) and
-        # rows from the `task-done` bucket. Removed rather than tightened:
-        # under the empty-scope rule above, every branch of it now rejects.
+        # v14-cache-relaxed-mismatch-hit removed: an empty-scope green never
+        # certifies an explicit file set (scoped gates were skipped).
+
+    from verify_no_test_roots import no_test_roots_refusal, record_no_test_roots_block
+
+    # Only the verify trigger runs the pytest lane. task-done stays cheap and
+    # must not fail open projects that never declare a suite. TB-005: configured
+    # roots without pytest in .tausik/venv are the same class of early refusal.
+    early_refusal = None
+    if trigger == "verify":
+        early_refusal = no_test_roots_refusal(files)
+        if early_refusal is None:
+            from testing_venv_pytest import missing_venv_pytest_refusal
+
+            early_refusal = missing_venv_pytest_refusal()
+    if early_refusal:
+        return record_no_test_roots_block(
+            conn,
+            slug=slug,
+            scope=scope,
+            cache_command=cache_command,
+            files_hash=files_hash,
+            files=files,
+            scope_desc=scope_desc,
+            trigger=trigger,
+            details=details,
+            gate_signature=gate_signature,
+            message=early_refusal,
+            append_notes_fn=append_notes_fn,
+        )
 
     t0 = _time.monotonic()
     # The wall-time bound lives in `verify_envelope`. `run_gates` is handed to

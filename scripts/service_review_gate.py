@@ -21,11 +21,16 @@ def enforce_assurance_review(
     risk: dict[str, Any] | None,
     report: dict[str, Any],
 ) -> bool:
-    """Append a blocking failure when the latest review cannot satisfy the route."""
-    if not external_agent_review_enabled(service):
-        return False
+    """Append a blocking failure when the latest review cannot satisfy the route.
 
+    Opt-in ``review.external_agents`` enables the residual-assurance gate for
+    ordinary routes. A non-null ``hard_floor`` on the route always enforces
+    (TauX TB-012): an L3 hard floor cannot be closed by silence or by a
+    supplementary lower-level record alone.
+    """
+    from review_routing import build_review_route, review_record_blockers
     from stack_registry import registry_for_project
+    from task_context_package import _assurance_projection, _review_route
 
     stack = task.get("stack")
     stack_assurance = (
@@ -39,12 +44,6 @@ def enforce_assurance_review(
         or stack_assurance.get("profiles")
         or stack_assurance.get("impact")
     )
-    if not assurance_declared:
-        return False
-
-    from review_routing import build_review_route, review_record_blockers
-    from task_context_package import _assurance_projection, _review_route
-
     assurance = _assurance_projection(service, task)
     review_route = _review_route(service, task, assurance)
     if risk is not None:
@@ -61,6 +60,12 @@ def enforce_assurance_review(
                 measured_high=True,
                 configured_extreme_floor=bool(review_route.get("deep")),
             )
+    hard_floor = review_route.get("hard_floor")
+    opted_in = external_agent_review_enabled(service)
+    if not hard_floor and not opted_in:
+        return False
+    if not hard_floor and not assurance_declared:
+        return False
     project_root = Path(service.tausik_dir()).resolve().parent
     blockers = review_record_blockers(service.be._conn, slug, review_route, project_root)
     if not blockers:

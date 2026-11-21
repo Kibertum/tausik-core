@@ -48,6 +48,7 @@ generated from those declarations.
 
 | Page | Reader | Languages |
 |---|---|---|
+| `codex-l3-readonly.md` | agent | en, ru |
 | `cost-telemetry.md` | user | en, ru |
 | `dev-doc-checks.md` | maintainer | en, ru |
 | `doctor.md` | user | en, ru |
@@ -135,6 +136,7 @@ generated from those declarations.
 | `whats-new-1.12.md` | user | en, ru |
 | `whats-new-1.13.md` | user | en, ru |
 | `whats-new-1.14.md` | user | en, ru |
+| `whats-new-1.15.md` | user | en, ru |
 | `whats-new-1.8.md` | user | en, ru |
 | `whats-new-1.9.md` | user | en, ru |
 
@@ -162,4 +164,4 @@ generated from those declarations.
 
 - **unpaired** (1): `at-generation-procedure.md`
 
-86 page(s), 85 carried by both languages.
+88 page(s), 87 carried by both languages.

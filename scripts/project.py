@@ -58,7 +58,7 @@ def main() -> None:
     from project_cli_verify import cmd_verify
     from project_cli_audit import cmd_audit
     from project_cli_metrics import cmd_metrics
-    from project_cli_doc import cmd_doc, cmd_update_claudemd
+    from project_cli_doc import cmd_context, cmd_doc, cmd_update_claudemd
     from project_cli_explore import cmd_explore
     from project_cli_knowledge import cmd_dead_end
     from project_cli_run import cmd_run
@@ -111,6 +111,7 @@ def main() -> None:
         "suggest-model": cmd_suggest_model,
         "team": cmd_team,
         "update-claudemd": cmd_update_claudemd,
+        "context": cmd_context,
         "events": cmd_events,
         "spec": cmd_spec,
         "state": cmd_state,

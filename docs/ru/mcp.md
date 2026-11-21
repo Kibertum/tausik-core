@@ -130,11 +130,14 @@ tausik_task_done(slug=…, ac_verified=True)   # лёгкое: lookup в кеш�
 {"cohort":{"action":"open","tasks":["task-a","task-b"],"json":true}}
 {"cohort":{"action":"status","cohort_id":42,"json":true}}
 {"cohort":{"action":"record","cohort_id":42,"round":1,"packet_digest":"<digest-from-packet>","results":[{"task":"task-a","critical":0,"high":0,"warnings":0,"dependency_map_complete":true}],"author_model":"gpt-5","reviewer_model":"claude-opus-4"}}
+{"cohort":{"action":"infrastructure-blocked","cohort_id":42,"round":1,"packet_digest":"<digest-from-packet>","reason":"host cannot read the tree","code":"L3_READONLY_POLICY_BLOCKS_READS","detail":"Windows PowerShell"}}
 {"cohort":{"action":"decide","cohort_id":42,"decision":"manual-review","owner":"release-owner","reason":"round 2 remains red","finding_refs":["finding-1"]}}
 ```
 
 Другие selectors для `open`: `story` и `epic`. `record` принимает необязательный
-`usage`; `decide` — `accept-risk`, `manual-review` или `repair-open`. Отсутствующий
+`usage`; `decide` — `accept-risk`, `manual-review` или `repair-open`.
+`infrastructure-blocked` пишет `review_infrastructure_blocked` без сжигания
+repair-раунда (TB-009 / `docs/ru/codex-l3-readonly.md`). Отсутствующий
 или смешанный selector, malformed arrays, строка вместо объекта и отсутствие
 packet digest приводят к отказу без transport coercion.
 

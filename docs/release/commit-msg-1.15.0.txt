@@ -1,0 +1,7 @@
+release(1.15.0): Cursor failClosed unfreeze + TauX dogfood
+
+Fold Unreleased into 1.15.0 (EN/RU), bump version stamps, ship whats-new and
+release body. Includes Codex L3 preflight, QG-2 phantom-STALE fix, verify honesty
+and related dogfood TB-005…016.
+
+Co-Authored-By: Claude <noreply@anthropic.com>

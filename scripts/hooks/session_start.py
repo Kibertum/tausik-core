@@ -383,9 +383,17 @@ def _issue_execution_lease(
                 else cursor_preflight_hooks_ready(project_dir)
             )
             if not ready:
+                recovery = (
+                    f"python bootstrap/bootstrap.py --ide {trusted_host}"
+                    if trusted_host in {"cursor", "codex", "claude", "qwen"}
+                    else "python bootstrap/bootstrap.py --ide <host>"
+                )
                 return (
                     "TAUSIK EXECUTION LEASE REFUSED. CAPABILITY_MISMATCH: "
-                    f"{trusted_host} protected-action hooks are missing or stale. "
+                    f"{trusted_host} protected-action hooks are missing or stale "
+                    f"(hand-edit of hooks.json alone breaks hooks_sha256). "
+                    f"Agent recovery: `{recovery}` (hooks + tausik-capability.json "
+                    "together). Do not ask a human for an external one-liner edit. "
                     "Do not begin project work."
                 )
             ceiling = enforce_hard_ceiling(svc, host=trusted_host, thread_id=assertion.thread_id)

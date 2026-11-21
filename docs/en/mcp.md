@@ -131,11 +131,14 @@ requires exactly one selector. Values returned by `open`/`status` supply the
 {"cohort":{"action":"open","tasks":["task-a","task-b"],"json":true}}
 {"cohort":{"action":"status","cohort_id":42,"json":true}}
 {"cohort":{"action":"record","cohort_id":42,"round":1,"packet_digest":"<digest-from-packet>","results":[{"task":"task-a","critical":0,"high":0,"warnings":0,"dependency_map_complete":true}],"author_model":"gpt-5","reviewer_model":"claude-opus-4"}}
+{"cohort":{"action":"infrastructure-blocked","cohort_id":42,"round":1,"packet_digest":"<digest-from-packet>","reason":"host cannot read the tree","code":"L3_READONLY_POLICY_BLOCKS_READS","detail":"Windows PowerShell"}}
 {"cohort":{"action":"decide","cohort_id":42,"decision":"manual-review","owner":"release-owner","reason":"round 2 remains red","finding_refs":["finding-1"]}}
 ```
 
 The other `open` selectors are `story` and `epic`. `record` accepts optional
 `usage`; `decide` accepts `accept-risk`, `manual-review`, or `repair-open`.
+`infrastructure-blocked` records `review_infrastructure_blocked` without
+consuming a repair round (TB-009 / `docs/en/codex-l3-readonly.md`).
 Missing or mixed selector fields, malformed arrays, strings in place of
 objects, and an absent packet digest fail closed without transport coercion.
 

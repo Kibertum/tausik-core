@@ -24,8 +24,10 @@ def test_defaults_present():
 
 
 def test_load_families_non_dict_returns_defaults():
-    assert list(mp.load_families("not-a-dict").keys()) == ["claude", "glm", "openai"]
-    assert list(mp.load_families(None).keys()) == ["claude", "glm", "openai"]
+    expected = ["claude", "glm", "openai", "cursor"]
+    assert list(mp.load_families("not-a-dict").keys()) == expected
+    assert list(mp.load_families(None).keys()) == expected
+    assert mp.load_families(None)["cursor"]["haiku"]["model"] == "composer-2.5-fast"
 
 
 def test_load_families_merges_and_extends():

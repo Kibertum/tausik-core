@@ -9,22 +9,22 @@
     "scripts/adherence_runtime.py": "8c33c7ab9cf296545f92729825cee1206c4b378dd2ec1101883f8118dfd4a61f",
     "scripts/backend_migrations_v82.py": "1146c354832d4fd0bbd6820578509c5091c31a567e9406f2639cc3a37c7c148b",
     "scripts/backend_migrations_v83.py": "d00ae3e230071ad2114975a3ce7dbecdab7fde50262444cf0027eca825d9692b",
-    "scripts/backend_migrations_v84.py": "ebb99f32d29d8e1dc47cb051b6279f16be51a9beaff326fd061e7624d39b511b",
+    "scripts/backend_migrations_v84.py": "692d02251f35fa477a42725bd3c24a03267a7b23184525037804fc5ad1ed1b4c",
     "scripts/backend_migrations_v85.py": "3decae62914de4b47a653f82d168b051b374bb4ce3c1b74840d5127cab87dff9",
     "scripts/backend_migrations_v86.py": "61bc88dd699ee7fb0605864050725552edb0804bf3bbb8a7545616c91466de33",
     "scripts/mcp_handler_shape.py": "d1a859f19a4068892f9e4789e8d29a1c54ba67bfeb87e3dd8b9b768c34e3f82c",
-    "tests/fixtures/adherence/manifest-v1.json": "8fd813561e4359f2a8a2f97e6927daac5b2c940611461cce553b13d1eab2746d",
+    "tests/fixtures/adherence/manifest-v1.json": "3a5289eb724a989feae6cc90c4c48aec72f0c3fd7ba400a60de422c54b173ed9",
     "tests/fixtures/adherence/policy-v1.json": "2f44c49325dd4b88c5b33399c23eab942d048b5caef55398509115261e5d17c2",
     "tests/fixtures/adherence/valid-events-v1.json": "f1ee79dce8dc53e2ca69158864a4acb53fb3fccd69570399a0901475f8cc69d4"
   },
   "native_lanes": {
-    "contract": {
-      "count": 72,
-      "nodes_sha256": "2f2bb2e6aaee63f3399c14e863c164bb0cbd340fab8d481612c9d6dde1df1247"
-    },
     "codex_cursor": {
       "count": 274,
       "nodes_sha256": "7ca0f875d9509dabd5d9d2ddb48c1861148e643f5768726c3cb368441cfa0a9e"
+    },
+    "contract": {
+      "count": 72,
+      "nodes_sha256": "2f2bb2e6aaee63f3399c14e863c164bb0cbd340fab8d481612c9d6dde1df1247"
     },
     "governance_restart": {
       "count": 231,

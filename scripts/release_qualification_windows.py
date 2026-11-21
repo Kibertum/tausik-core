@@ -49,6 +49,24 @@ def _validate_ratchet(candidate: Path, trusted: Path) -> Path:
     return trusted_harness
 
 
+def _empty_pytest_config_path() -> str:
+    """Return a config path pytest can open as empty.
+
+    On Windows ``os.devnull`` is the device ``nul``. Pytest 9 treats ``-c nul``
+    as a real rootdir (``\\\\.\\nul\\``), then fails to collect an absolute
+    harness path. Unix keeps ``/dev/null``; Windows gets a tiny temp ini.
+    """
+    if os.name != "nt":
+        return os.devnull
+    with tempfile.NamedTemporaryFile(
+        prefix="tausik-rq-empty-",
+        suffix=".ini",
+        delete=False,
+    ) as handle:
+        handle.write(b"[pytest]\n")
+        return handle.name
+
+
 def _pytest_command(harness: Path, report: Path) -> list[str]:
     return [
         sys.executable,
@@ -56,7 +74,7 @@ def _pytest_command(harness: Path, report: Path) -> list[str]:
         "-m",
         "pytest",
         "-c",
-        os.devnull,
+        _empty_pytest_config_path(),
         "--noconftest",
         "--override-ini",
         "addopts=",

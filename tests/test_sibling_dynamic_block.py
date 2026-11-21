@@ -78,8 +78,10 @@ def _knob(tmp_path, value):
     )
 
 
-def _cli(svc):
-    cmd_update_claudemd(svc, argparse.Namespace(claudemd=None, dry_run=False))
+def _cli(svc, *, sibling: bool = True):
+    # Sibling writes are opt-in (`--sibling`); tests that assert AGENTS.md
+    # content pass sibling=True. Default CLI/MCP leave AGENTS.md alone.
+    cmd_update_claudemd(svc, argparse.Namespace(claudemd=None, dry_run=False, sibling=sibling))
 
 
 def _mcp(svc):
@@ -87,21 +89,27 @@ def _mcp(svc):
 
 
 class TestTheKnob:
-    @pytest.mark.parametrize("run", [_cli, _mcp], ids=["cli", "mcp"])
-    def test_default_refreshes_the_sibling(self, project, run):
+    def test_default_cli_leaves_sibling_untouched(self, project):
+        tmp_path, svc = project
+        before = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+        svc.memory_add("convention", "Slugs in kebab-case", "so")
+        _cli(svc, sibling=False)
+        assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == before
+        assert "kebab-case" in _block(tmp_path / "CLAUDE.md")
+
+    def test_explicit_sibling_refreshes_agents(self, project):
         tmp_path, svc = project
         svc.memory_add("convention", "Slugs in kebab-case", "so")
-        run(svc)
+        _cli(svc, sibling=True)
         assert "kebab-case" in _block(tmp_path / "AGENTS.md")
         assert "old" not in _block(tmp_path / "AGENTS.md")
 
-    @pytest.mark.parametrize("run", [_cli, _mcp], ids=["cli", "mcp"])
-    def test_false_leaves_the_sibling_untouched(self, project, run):
-        """NEGATIVE: knob off — CLAUDE.md is refreshed, AGENTS.md keeps its old block byte for byte."""
+    def test_false_leaves_the_sibling_untouched_even_with_sibling_flag(self, project):
+        """NEGATIVE: knob off — CLAUDE.md is refreshed, AGENTS.md keeps its old block."""
         tmp_path, svc = project
         _knob(tmp_path, False)
         before = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
-        run(svc)
+        _cli(svc, sibling=True)
         assert "old" not in _block(tmp_path / "CLAUDE.md")
         assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == before
 
@@ -115,15 +123,14 @@ class TestTheKnob:
 
 
 class TestForeignKnowledgeNeverReachesTheSibling:
-    @pytest.mark.parametrize("run", [_cli, _mcp], ids=["cli", "mcp"])
     @pytest.mark.parametrize("knob", [None, True], ids=["default", "explicit-true"])
-    def test_the_shared_section_is_in_the_primary_and_not_in_the_sibling(self, project, run, knob):
-        """NEGATIVE: at any knob value that writes the sibling, the foreign section stays out."""
+    def test_the_shared_section_is_in_the_primary_and_not_in_the_sibling(self, project, knob):
+        """NEGATIVE: when sibling is written, the foreign section stays out."""
         tmp_path, svc = project
         if knob is not None:
             _knob(tmp_path, knob)
         svc.memory_add("convention", "Slugs in kebab-case", "so")
-        run(svc)
+        _cli(svc, sibling=True)
         primary, sibling = _block(tmp_path / "CLAUDE.md"), _block(tmp_path / "AGENTS.md")
         assert ska.SHARED_KNOWLEDGE_HEADING in primary and "from elsewhere" in primary
         assert ska.SHARED_KNOWLEDGE_HEADING not in sibling and "from elsewhere" not in sibling
@@ -131,7 +138,7 @@ class TestForeignKnowledgeNeverReachesTheSibling:
 
     def test_a_project_whose_only_knowledge_is_shared_gives_the_sibling_no_tail(self, project):
         tmp_path, svc = project
-        _cli(svc)
+        _cli(svc, sibling=True)
         sibling = _block(tmp_path / "AGENTS.md")
         assert ska.MEMORY_TAIL_HEADING not in sibling, "a heading over nothing is not a tail"
         assert "Session:" in sibling, "the state itself is still written"
@@ -160,7 +167,8 @@ class TestForeignKnowledgeNeverReachesTheSibling:
         )
         before = (other / "AGENTS.md").read_text(encoding="utf-8")
         cmd_update_claudemd(
-            svc, argparse.Namespace(claudemd=str(other / "CLAUDE.md"), dry_run=False)
+            svc,
+            argparse.Namespace(claudemd=str(other / "CLAUDE.md"), dry_run=False, sibling=True),
         )
         assert "old" not in _block(other / "CLAUDE.md")
         assert (other / "AGENTS.md").read_text(encoding="utf-8") == before
@@ -188,7 +196,7 @@ class TestTheGateJudgesWhatTheWriterWrites:
         self, project, monkeypatch
     ):
         tmp_path, svc = project
-        _cli(svc)
+        _cli(svc, sibling=True)
         outcome = self._gate(tmp_path, monkeypatch)
         assert outcome[0] is True, outcome[1]
 
@@ -196,7 +204,7 @@ class TestTheGateJudgesWhatTheWriterWrites:
         tmp_path, svc = project
         _knob(tmp_path, False)
         svc.memory_add("convention", "Slugs in kebab-case", "so")
-        _cli(svc)
+        _cli(svc, sibling=True)
         outcome = self._gate(tmp_path, monkeypatch)
         assert outcome[0] is True, outcome[1]
 
@@ -204,7 +212,7 @@ class TestTheGateJudgesWhatTheWriterWrites:
         """NEGATIVE: the trimming does not blind the gate to the failure it exists for."""
         tmp_path, svc = project
         svc.memory_add("convention", "Slugs in kebab-case", "so")
-        _cli(svc)
+        _cli(svc, sibling=True)
         text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
         head = text[: text.index("<!-- DYNAMIC:START -->") + len("<!-- DYNAMIC:START -->")]
         wiped = (
@@ -223,7 +231,7 @@ class TestAWriterThatIgnoresTheKnobIsCaught:
     def test_writing_the_full_block_to_the_sibling_is_visible(self, project, monkeypatch):
         tmp_path, svc = project
         monkeypatch.setattr(cw, "strip_foreign_knowledge", lambda block: block)
-        _cli(svc)
+        _cli(svc, sibling=True)
         assert ska.SHARED_KNOWLEDGE_HEADING in _block(tmp_path / "AGENTS.md"), (
             "with trimming disabled the foreign section reaches the sibling — "
             "the assertion the real tests make would fail here"
@@ -234,5 +242,5 @@ class TestAWriterThatIgnoresTheKnobIsCaught:
         _knob(tmp_path, False)
         monkeypatch.setattr(cw, "sibling_dynamic_enabled", lambda tausik_dir=None: True)
         before = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
-        _cli(svc)
+        _cli(svc, sibling=True)
         assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") != before

@@ -50,8 +50,8 @@
     ],
     "total": 7
   },
-  "content_sha256": "78eca8acc21294b5378af822a3f86cdedc194e0534e31420d10c3eafdb140235",
-  "contract_bundle_sha256": "712df2f5ecfc1f85a4049b2f03bddb5f65ed4ad66c54ca7caaea39ce122da2dc",
+  "content_sha256": "049a94f2b989d15299ed3e7df226d4d8169a674eadb3b7f64194db728b7943a9",
+  "contract_bundle_sha256": "3972ff837df7c3e458b5418deae160176d5b70fd769d4066ef0941cfd8375b34",
   "counts": {
     "collected": 13,
     "deselected": 0,
@@ -107,5 +107,5 @@
   },
   "phase": "acceptance",
   "policy_sha256": "6560a8c5817aef6e6176f01f890bc57fc3f14fdf7991fefdd213c667562e5b90",
-  "registry_sha256": "707c38850682973efb2e1c8e4db3f0ad26415879988c067c30e1443019ff139e"
+  "registry_sha256": "bdcc5e0e5b2622119ec03ff237910727633640b14368ff29fd31e0509c802403"
 }

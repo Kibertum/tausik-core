@@ -56,7 +56,7 @@ hard ceiling is reached.
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `updates.check` | `true` | Before every public session start, synchronously send one anonymous GET (2 s timeout) to GitHub's `releases/latest` for `Kibertum/tausik-core`. A newer SemVer release refuses the start and names both versions plus the upgrade command. Network, timeout or malformed answers allow start but report the installed version as unverified; they never mean current. The request contains no project name, path, user, schema or installed version. `false` sends no request and allows start with the same explicit unverified state. The standalone `update-check` command retains its at-most-daily cache for `status` and `doctor`. |
+| `updates.check` | `true` | Before every public session start, synchronously send one anonymous GET (2 s timeout) to GitHub's `releases/latest` for `Kibertum/tausik-core`. A newer SemVer release opens the session with a warning that names both versions plus the upgrade command (it does not refuse the start). Network, timeout or malformed answers allow start but report the installed version as unverified; they never mean current. The request contains no project name, path, user, schema or installed version. `false` sends no request and allows start with the same explicit unverified state. The standalone `update-check` command retains its at-most-daily cache for `status` and `doctor`. |
 
 ## Verification cache (SENAR Rule 5)
 

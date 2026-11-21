@@ -120,20 +120,23 @@ def test_mcp_and_cli_build_the_same_dynamic_block(seeded):
         assert line in mcp_block, f"строка CLI отсутствует в блоке MCP: {line!r}"
 
 
-def test_mcp_refreshes_the_agents_md_sibling(seeded):
-    """AGENTS.md рядом с CLAUDE.md обновляется и по пути MCP.
+def test_mcp_does_not_silently_refresh_agents_md_sibling(seeded):
+    """MCP update_claudemd is Claude-only; AGENTS.md stays untouched.
 
-    resolve_sibling_targets звал только CLI, поэтому у пользователей Codex и
-    прочих IDE, читающих AGENTS.md, файл устаревал молча.
+    Host-neutral refresh is `context refresh --target agents` (or CLI
+    `update-claudemd --sibling`). Auto-mirroring would overwrite hand-maintained
+    AGENTS.md or report skip-as-success — both refused by this task's AC.
     """
     tmp_path, svc = seeded
     (tmp_path / "AGENTS.md").write_text(_CLAUDEMD, encoding="utf-8")
+    before = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
 
     _handle_tool(svc, "tausik_update_claudemd", {})
 
+    after = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert after == before
     agents = _dynamic_block(tmp_path / "AGENTS.md")
-    assert "### Memory tail" in agents
-    assert "kebab-case" in agents
+    assert "### Memory tail" not in agents
 
 
 def test_empty_memory_adds_no_empty_tail_heading(project):

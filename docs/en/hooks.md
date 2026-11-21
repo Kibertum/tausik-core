@@ -96,6 +96,11 @@ Cursor runs these adapters only after the workspace project hooks are trusted.
 Bootstrap binds every adapter to the selected Python interpreter and project,
 attests the complete generated hook configuration, and routes both
 `postToolUse` and `postToolUseFailure` through the durable preflight audit.
+Hand-editing `.cursor/hooks.json` alone invalidates `hooks_sha256` and yields
+`CAPABILITY_MISMATCH`. Agent recovery is `python bootstrap/bootstrap.py --ide cursor`
+(hooks + `tausik-capability.json` together). Do not ask a human for an external
+one-liner edit of timeouts as the product fix; PreToolUse timeouts use a ≥45s floor
+and `cursor_hook.map_exit` never returns bare exit 1 under `failClosed`.
 In the `full` profile, the managed Cursor MCP server requires a Cursor-bound execution lease, so
 a direct mutating MCP call cannot bypass the `preToolUse` authorization path.
 Cursor cloud agents do not run `sessionStart`, `sessionEnd`, `beforeMCPExecution`

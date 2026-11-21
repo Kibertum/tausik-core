@@ -61,14 +61,18 @@ and the refusal came from `verify` worded as "no tests mapped" (GitLab #13).
 Since 1.9 an element that carries a comma and resolves to no file is refused at
 the write, naming the right form; a path with a comma in its name that exists
 is accepted as it is, and a declared path that does not exist yet is accepted
-with a note — the task may be about to create it.
+with a note — the task may be about to create it. Since 1.15, `.` / the project
+root and any existing directory are refused before gates (no silent expand):
+declare concrete files only so QG-2 scope honesty and undeclared-security
+checks stay meaningful.
 
 **`--no-tests-expected`.** A run in which no gate actually executed (everything
 `[SKIP]`) blocks: it proves nothing, and a green recorded against it would stay
 valid for the whole TTL across arbitrary tree changes. For documentation,
 config and migrations that is a dead end — no test maps to those files and none
 ever will. The flag declares this EXPLICITLY: the run is recorded green under
-`no_tests_declared = 1`.
+`no_tests_declared = 1`. Close that run with `task done … --gates-not-applicable`
+(the flag on `done` acknowledges the recorded declaration).
 
 The same holds when the only gates that ran are PROJECT-WIDE — a gate with no
 `file_extensions`, no `file_patterns` and no `{files}` in its command, such as a
@@ -87,7 +91,18 @@ SELECT task_slug, ran_at FROM verification_runs WHERE no_tests_declared = 1;
 ```
 
 It applies only to SKIPPED gates. A failing gate stays red and `verify` still
-exits 1.
+exits 1. **It does not launder `COULD_NOT_RUN`.** If an applicable gate was
+expected to produce evidence and did not (missing tool, pytest selection
+unavailable, timed out), the run stays red — `--no-tests-expected` cannot turn
+that into a declaration of "no tests".
+
+**No test roots / docs-only.** When the project has neither `testing.roots` nor
+a discoverable `tests/` tree, a scope that still names Python *sources* is
+refused up front as `NoTestRoots` (before the expensive gate lane). Configure
+`testing.roots` or add `tests/`. A docs-only scope (no Python sources) never
+hits that refusal: use `--no-tests-expected` and close with
+`--gates-not-applicable`. Explicit `test_*.py` / `*_test.py` paths remain valid
+without a discovered root.
 
 **Verify-first workflow:**
 

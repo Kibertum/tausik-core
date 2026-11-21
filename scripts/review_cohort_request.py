@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 
-_ACTIONS = {"open", "status", "record", "decide"}
+_ACTIONS = {"open", "status", "record", "decide", "infrastructure-blocked"}
 _DECISIONS = {"accept-risk", "manual-review", "repair-open"}
 
 
@@ -49,7 +49,7 @@ def decode_cohort_request(raw: Any) -> dict[str, Any]:
     payload = _object(raw, "cohort request")
     action = _text(payload.get("action"), "action")
     if action not in _ACTIONS:
-        raise ValueError("action must be open, status, record, or decide")
+        raise ValueError("action must be open, status, record, decide, or infrastructure-blocked")
     json_output = payload.get("json", False)
     if not isinstance(json_output, bool):
         raise ValueError("json must be a boolean")
@@ -109,6 +109,34 @@ def decode_cohort_request(raw: Any) -> dict[str, Any]:
             "json": json_output,
         }
 
+    if action == "infrastructure-blocked":
+        _only(
+            payload,
+            {
+                "action",
+                "cohort_id",
+                "round",
+                "packet_digest",
+                "reason",
+                "code",
+                "detail",
+                "json",
+            },
+        )
+        detail = payload.get("detail")
+        if detail is not None and (not isinstance(detail, str) or not detail.strip()):
+            raise ValueError("detail must be a non-empty string when present")
+        return {
+            "action": action,
+            "cohort_id": _integer(payload.get("cohort_id"), "cohort_id"),
+            "round": _integer(payload.get("round"), "round", choices={1, 2}),
+            "packet_digest": _text(payload.get("packet_digest"), "packet_digest"),
+            "reason": _text(payload.get("reason"), "reason"),
+            "code": _text(payload.get("code"), "code"),
+            "detail": detail.strip() if isinstance(detail, str) else None,
+            "json": json_output,
+        }
+
     _only(
         payload,
         {"action", "cohort_id", "decision", "owner", "reason", "finding_refs", "json"},
@@ -136,18 +164,26 @@ def execute_cohort_request(svc: Any, raw: Any) -> tuple[dict[str, Any], bool]:
         open_review_cohort,
         record_review_round,
     )
+    from review_cohort_infrastructure import (
+        attach_preflight,
+        record_infrastructure_blocked,
+        refuse_record_if_blocked,
+    )
 
     action = request["action"]
     if action == "open":
-        out = open_review_cohort(
-            svc,
-            tasks=request.get("tasks"),
-            story=request.get("story"),
-            epic=request.get("epic"),
+        out = attach_preflight(
+            open_review_cohort(
+                svc,
+                tasks=request.get("tasks"),
+                story=request.get("story"),
+                epic=request.get("epic"),
+            )
         )
     elif action == "status":
-        out = cohort_status(svc, request["cohort_id"])
+        out = attach_preflight(cohort_status(svc, request["cohort_id"]))
     elif action == "record":
+        refuse_record_if_blocked(svc)
         out = record_review_round(
             svc,
             request["cohort_id"],
@@ -157,6 +193,16 @@ def execute_cohort_request(svc: Any, raw: Any) -> tuple[dict[str, Any], bool]:
             author_model=request["author_model"],
             reviewer_model=request["reviewer_model"],
             usage=request["usage"],
+        )
+    elif action == "infrastructure-blocked":
+        out = record_infrastructure_blocked(
+            svc,
+            request["cohort_id"],
+            round_number=request["round"],
+            packet_digest=request["packet_digest"],
+            reason=request["reason"],
+            code=request["code"],
+            detail=request.get("detail"),
         )
     else:
         out = decide_review_cohort(

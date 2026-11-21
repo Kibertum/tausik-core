@@ -133,6 +133,22 @@ def run_optional_checks(
         print_warn("Enforcement coverage", f"could not validate: {e}")
         warnings += 1
 
+    # Configured testing.roots require pytest inside .tausik/venv (TB-005).
+    try:
+        from testing_venv_pytest import doctor_venv_pytest_check
+
+        row = doctor_venv_pytest_check(project_dir)
+        if row is not None:
+            level, label, detail = row
+            if level == "fail":
+                print_fail(label, detail)
+                failures += 1
+            else:
+                print_ok(label, detail)
+    except Exception as e:  # noqa: BLE001 — best-effort: a check bug must not crash doctor
+        print_warn("Venv pytest", f"could not validate: {e}")
+        warnings += 1
+
     # Identifier style — a name is an interface: traces, grep, pytest node ids and
     # coverage reports all read it, and a non-ASCII one breaks quietly (console
     # encoding, a regex on \w, a backslash in sh). Prose is not the subject; the

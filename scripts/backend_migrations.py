@@ -61,6 +61,7 @@ from backend_migrations_v86 import MIGRATION_V86
 from backend_migrations_v87 import MIGRATION_V87
 from backend_migrations_v88 import MIGRATION_V88
 from backend_migrations_v89 import MIGRATION_V89
+from backend_migrations_v90 import MIGRATION_V90
 
 __all__ = ["MIGRATIONS", "run_migrations", "seed_v18_roles"]
 
@@ -496,6 +497,7 @@ _CURRENT_MIGRATIONS: dict[int, list[str]] = {
     87: MIGRATION_V87,
     88: MIGRATION_V88,
     89: MIGRATION_V89,
+    90: MIGRATION_V90,
 }
 
 # Merged: legacy + current

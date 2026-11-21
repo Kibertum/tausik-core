@@ -90,12 +90,21 @@ TEST_FILE_NAME = (
     r"|[\w\-]+_spec\.rb"
     r"|[\w\-]+Tests?\.(?:java|kts|kt|cs|swift|php|dart))"
 )
+# A name segment after `::`: pytest-style `word` / `word[case]`, or a Node/Jest
+# title — either quoted (`"…"`, `'…'`, `` `…` ``) or unquoted with spaces
+# (TB-010). Quoted form is the durable contract; unquoted spaces are kept as
+# one citation so a green `test("renders the title")` is not truncated to
+# `::renders` by whitespace splitting.
+_NAME_SEG = (
+    r'(?:::(?:"[^"\n]+"|\'[^\'\n]+\'|`[^`\n]+`'
+    r"|[\w_\-]+(?:\[[^\]\s]*\])?(?:\s+[\w_\-.,:;!?/'’]+)*))"
+)
 TEST_REF_RE = re.compile(
     r"("
     rf"(?:[\w.\-]+/)*{TEST_DIR_SEGMENT}[\w/.\-]+\.(?:{TEST_SOURCE_EXTS})(?![\w.])"
     rf"|(?:[\w.\-]+/)*{TEST_FILE_NAME}"
     r")"
-    r"((?:::[\w_\-]+(?:\[[^\]\s]*\])?)*)",
+    rf"({_NAME_SEG}*)",
     re.IGNORECASE,
 )
 # A citation that LOOKS like `path.ext::name` but is none of the forms above —
@@ -103,8 +112,85 @@ TEST_REF_RE = re.compile(
 UNRECOGNISED_REF_RE = re.compile(r"[\w/.\-]+\.[a-z0-9]{1,5}::[\w_]+", re.IGNORECASE)
 
 # Punctuation a citation is wrapped in when it sits inside prose: `(…)`, a
-# trailing comma or full stop, backticks.
-_TOKEN_TRIM = "(){}<>`'\",;:!?"  # not [] — a pytest id carries `[case-3]`
+# trailing comma or full stop. Quotes are NOT stripped here — they belong to
+# Node titles (`path::"a b"`); wrapping quotes around a whole citation are
+# peeled by `_trim_citation` only when they do not open a `::"…"` name.
+_TOKEN_TRIM = "(){}<>`,;:!?"  # not [] — a pytest id carries `[case-3]`
+
+# Title continuation after `path::first-word` (unquoted Node titles).
+_TITLE_CONTINUATION_RE = re.compile(r"^[\w_\-.,:;!?/'’]+$")
+_TEST_PATH_WITH_NAME_RE = re.compile(
+    rf"^(?:(?:[\w.\-]+/)*{TEST_DIR_SEGMENT}[\w/.\-]+\.(?:{TEST_SOURCE_EXTS})"
+    rf"|(?:[\w.\-]+/)*{TEST_FILE_NAME})"
+    r"::\S",
+    re.IGNORECASE,
+)
+
+
+def _trim_citation(raw: str) -> str:
+    """Peel prose wrappers without destroying `path::\"title with spaces\"`."""
+    t = raw.strip()
+    # One layer of matching wrappers around the whole citation.
+    pairs = {"(": ")", "[": "]", "{": "}", "<": ">"}
+    if len(t) >= 2 and t[0] in pairs and t[-1] == pairs[t[0]]:
+        t = t[1:-1].strip()
+    if len(t) >= 2 and t[0] in "'\"" and t[-1] == t[0] and f"::{t[0]}" not in t:
+        t = t[1:-1].strip()
+    if len(t) >= 2 and t[0] == "`" and t[-1] == "`" and "::`" not in t:
+        t = t[1:-1].strip()
+    while t and t[-1] in ",;:!?" and not t.endswith(('::"', "::'", "::`")):
+        # Keep trailing punctuation that is inside a quoted Node title.
+        if '::"' in t or "::'" in t or "::`" in t:
+            break
+        t = t[:-1]
+    return t
+
+
+def _evidence_tokens(text: str) -> list[str]:
+    """Whitespace tokens that keep `path::\"title with spaces\"` as one unit."""
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        while i < n and text[i].isspace():
+            i += 1
+        if i >= n:
+            break
+        start = i
+        while i < n and not text[i].isspace():
+            if text.startswith(('::"', "::'", "::`"), i):
+                quote = text[i + 2]
+                i += 3
+                while i < n and text[i] != quote and text[i] != "\n":
+                    i += 1
+                if i < n and text[i] == quote:
+                    i += 1
+                continue
+            i += 1
+        out.append(text[start:i])
+    return out
+
+
+def _merge_unquoted_titles(tokens: list[str]) -> list[str]:
+    """Join `file.test.ts::renders` + `the` + `title` into one citation token."""
+    merged: list[str] = []
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if _TEST_PATH_WITH_NAME_RE.match(_trim_citation(tok)) and i + 1 < len(tokens):
+            parts = [tok]
+            j = i + 1
+            while j < len(tokens) and _TITLE_CONTINUATION_RE.fullmatch(_trim_citation(tokens[j])):
+                parts.append(tokens[j])
+                j += 1
+            candidate = " ".join(parts)
+            if TEST_REF_RE.fullmatch(_trim_citation(candidate)):
+                merged.append(candidate)
+                i = j
+                continue
+        merged.append(tok)
+        i += 1
+    return merged
 
 
 def find_test_refs(text: str) -> list[str]:
@@ -116,10 +202,13 @@ def find_test_refs(text: str) -> list[str]:
     `deep/deep/…` (review, session #254). Notes are the adversary's surface, so
     the detector must not be the slow part. Each whitespace-delimited token is
     trimmed of wrapping punctuation and matched WHOLE, from one anchor.
+
+    Quoted Node titles (`path::\"a b\"`) stay one token; unquoted titles with
+    spaces are re-joined so the first word alone is not the whole citation.
     """
     found: list[str] = []
-    for raw in text.split():
-        token = raw.strip(_TOKEN_TRIM)
+    for raw in _merge_unquoted_titles(_evidence_tokens(text)):
+        token = _trim_citation(raw)
         if not token or "." not in token:
             continue
         m = TEST_REF_RE.fullmatch(token)
@@ -131,8 +220,8 @@ def find_test_refs(text: str) -> list[str]:
 def find_unrecognised_refs(text: str) -> list[str]:
     """Tokens shaped like `path.ext::name` that `find_test_refs` did not read."""
     found: list[str] = []
-    for raw in text.split():
-        token = raw.strip(_TOKEN_TRIM)
+    for raw in _merge_unquoted_titles(_evidence_tokens(text)):
+        token = _trim_citation(raw)
         if (
             "::" in token
             and UNRECOGNISED_REF_RE.fullmatch(token)

@@ -22,15 +22,30 @@ AND IT TOUCHES ONLY THE DECLARED SCOPE. The first version ran `ruff format .` an
 `ruff_format.legacy_unformatted` list — a ratchet that only shrinks, quietly emptied by a
 convenience. Editing files nobody declared is Rule 2 by another route, so a step that takes
 files is given the task's own relevant_files and is SKIPPED, out loud, when there are none.
+
+CONSUMER LAYOUT. Deployed copies under `.{ide}/scripts/` are formatted by rewriting the
+`library_source` originals, then redeployed — never by applying the product `pyproject`
+line-length to the deploy tree (that oscillates with `bootstrap_drift`). On a consumer the
+bootstrap entrypoint is `.tausik-lib/bootstrap/bootstrap.py` when `bootstrap/` is absent.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+
+from tausik_utils import library_source
+
+# MIRROR of bootstrap_config.SCAFFOLD_IDES — keep in step (convention #249).
+_SCAFFOLD_IDES = ("claude", "cursor", "qwen", "kilo", "opencode", "codex")
+_BOOTSTRAP_CANDIDATES = (
+    "bootstrap/bootstrap.py",
+    ".tausik-lib/bootstrap/bootstrap.py",
+)
 
 
 @dataclass(frozen=True)
@@ -48,11 +63,9 @@ class Step:
     #: `ruff format` can rewrite valid data as Python-like syntax, so selection belongs
     #: to the preparation contract rather than to caller discipline.
     suffixes: tuple[str, ...] | None = None
-    #: A path that must exist under the root for this step to MEAN anything. Absent, the
-    #: step does not apply and is skipped out loud — it has not failed. A project that
-    #: installs TAUSIK as a dependency has no `bootstrap/` of its own, and treating that
-    #: as a failed preparation would refuse every check it ever ran.
-    requires: str | None = None
+    #: Dynamic bootstrap resolution — see `resolve_bootstrap_argv`. When True, `argv` is
+    #: only a template for tests that inspect STEPS; `run` rebuilds it per tree.
+    resolves_bootstrap: bool = False
 
 
 #: The closed list. Adding to it is a decision about what "preparation" means, so it is
@@ -72,13 +85,69 @@ STEPS: tuple[Step, ...] = (
         argv=(sys.executable, "bootstrap/bootstrap.py", "--ide", "all"),
         because="the CLI runs the DEPLOYED copies under .claude/, so an edit under "
         "scripts/ leaves bootstrap_drift red until the profile is rebuilt",
-        requires="bootstrap/bootstrap.py",
+        resolves_bootstrap=True,
     ),
 )
 
 
 class PreparationFailed(RuntimeError):
     """A preparation step failed. The run stops here rather than judging an unprepared tree."""
+
+
+def resolve_bootstrap_argv(root: str | Path) -> list[str] | None:
+    """Bootstrap entrypoint for this tree, or None when neither layout is present."""
+    base = Path(root)
+    for rel in _BOOTSTRAP_CANDIDATES:
+        if (base / rel).is_file():
+            return [sys.executable, rel.replace("/", os.sep), "--ide", "all"]
+    return None
+
+
+def map_format_target(root: str | Path, rel: str) -> str:
+    """Map a declared path to the file `ruff format` should rewrite.
+
+    Deployed `.{ide}/scripts/...` copies are rewritten at `library_source` so the
+    product pyproject never reformats TAUSIK harness code to a different line length.
+    Product and test paths pass through unchanged.
+    """
+    norm = rel.replace("\\", "/")
+    src = library_source(str(root), "scripts")
+    if src is None:
+        return rel
+    src_path = Path(src)
+    root_path = Path(root)
+    for ide in _SCAFFOLD_IDES:
+        prefix = f".{ide}/scripts/"
+        if not norm.startswith(prefix):
+            continue
+        mapped = src_path / norm[len(prefix) :]
+        if mapped.is_file():
+            try:
+                return str(mapped.relative_to(root_path)).replace("\\", "/")
+            except ValueError:
+                return str(mapped)
+        return rel
+    return rel
+
+
+def format_targets(
+    root: str | Path, files: Sequence[str], suffixes: tuple[str, ...] | None
+) -> list[str]:
+    """Declared Python paths, deploy→library mapped, de-duplicated, order preserved."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in files:
+        if not raw:
+            continue
+        if suffixes and Path(raw).suffix not in suffixes:
+            continue
+        mapped = map_format_target(root, raw)
+        key = mapped.replace("\\", "/")
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(mapped)
+    return out
 
 
 def run(
@@ -97,17 +166,35 @@ def run(
     said: list[str] = []
     targets = [f for f in (files or []) if f]
     for step in STEPS:
-        if step.requires and not (Path(root) / step.requires).exists():
-            said.append(
-                f"NOT PREPARED: {step.name} — this tree has no {step.requires}, so the "
-                "step does not apply here. It has not failed."
+        if step.resolves_bootstrap:
+            argv = resolve_bootstrap_argv(root)
+            if argv is None:
+                said.append(
+                    "NOT PREPARED: bootstrap redeploy — this tree has no "
+                    "bootstrap/bootstrap.py and no .tausik-lib/bootstrap/bootstrap.py, "
+                    "so the step does not apply here. It has not failed."
+                )
+                continue
+            proc = runner(
+                argv,
+                cwd=str(root),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
             )
+            if proc.returncode != 0:
+                raise PreparationFailed(
+                    f"preparation step '{step.name}' exited {proc.returncode} — the gates were "
+                    f"NOT run, because a check over a tree that was not prepared would report "
+                    f"on something other than what was asked for.\n"
+                    f"{(proc.stderr or proc.stdout or '').strip()[:2000]}"
+                )
+            tail = (proc.stdout or "").strip().splitlines()
+            said.append(f"PREPARED: {step.name} — {tail[-1] if tail else 'ok'}")
             continue
-        step_targets = (
-            [f for f in targets if not step.suffixes or Path(f).suffix in step.suffixes]
-            if step.takes_files
-            else []
-        )
+
+        step_targets = format_targets(root, targets, step.suffixes) if step.takes_files else []
         if step.takes_files and not step_targets:
             said.append(
                 f"NOT PREPARED: {step.name} — no supported file in the declared scope, "

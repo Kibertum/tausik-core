@@ -22,6 +22,7 @@ from project_backend import SQLiteBackend
 from project_service import ProjectService
 from state_export import ENTITY_DIRS, build_tree
 from state_import import import_tree, parse_tree
+from state_import_cols import task_cols  # noqa: F401 — scoped-verify import edge
 from state_parse import (
     ParseError,
     parse_frontmatter,

@@ -199,3 +199,64 @@ class TestPreparationIsTheDefaultRatherThanAFlag:
         branch = text[text.index("elif not task_slug:") :]
         branch = branch[: branch.index("else:")]
         assert "run_preparation" not in branch
+
+
+class TestConsumerDeployMapsToLibrarySource:
+    """AC-1 / AC-2 / AC-3: format the library original; redeploy from .tausik-lib;
+    never apply the product pyproject to deploy copies (oscillation)."""
+
+    def test_deploy_script_path_formats_library_source(self, tmp_path):
+        lib_scripts = tmp_path / ".tausik-lib" / "scripts"
+        lib_scripts.mkdir(parents=True)
+        (lib_scripts / "hook.py").write_text("x=1\n", encoding="utf-8")
+        deploy = tmp_path / ".claude" / "scripts"
+        deploy.mkdir(parents=True)
+        (deploy / "hook.py").write_text("x=1\n", encoding="utf-8")
+        (tmp_path / ".tausik-lib" / "bootstrap").mkdir(parents=True)
+        (tmp_path / ".tausik-lib" / "bootstrap" / "bootstrap.py").write_text(
+            "print('ok')\n", encoding="utf-8"
+        )
+
+        run = _runner()
+        prep.run(tmp_path, [".claude/scripts/hook.py"], runner=run)
+        format_argv = run.calls[0]  # type: ignore[attr-defined]
+        assert format_argv[:2] == ["ruff", "format"]
+        assert format_argv[2].replace("\\", "/").endswith(".tausik-lib/scripts/hook.py")
+        assert ".claude/scripts/hook.py" not in format_argv[2]
+
+    def test_consumer_redeploy_uses_tausik_lib_bootstrap(self, tmp_path):
+        (tmp_path / ".tausik-lib" / "bootstrap").mkdir(parents=True)
+        (tmp_path / ".tausik-lib" / "bootstrap" / "bootstrap.py").write_text(
+            "print('ok')\n", encoding="utf-8"
+        )
+        run = _runner()
+        said = prep.run(tmp_path, ["notes.md"], runner=run)
+        assert said[0].startswith("NOT PREPARED: ruff format")
+        argv = run.calls[0]  # type: ignore[attr-defined]
+        joined = " ".join(argv).replace("\\", "/")
+        assert ".tausik-lib/bootstrap/bootstrap.py" in joined
+        assert argv[-2:] == ["--ide", "all"]
+
+    def test_product_py_is_not_remapped_to_library(self, tmp_path):
+        """NEGATIVE: product code keeps the product pyproject; only deploy copies map."""
+        lib_scripts = tmp_path / ".tausik-lib" / "scripts"
+        lib_scripts.mkdir(parents=True)
+        (lib_scripts / "hook.py").write_text("x=1\n", encoding="utf-8")
+        product = tmp_path / "app"
+        product.mkdir()
+        (product / "main.py").write_text("y=2\n", encoding="utf-8")
+        (tmp_path / ".tausik-lib" / "bootstrap").mkdir(parents=True)
+        (tmp_path / ".tausik-lib" / "bootstrap" / "bootstrap.py").write_text(
+            "print('ok')\n", encoding="utf-8"
+        )
+
+        run = _runner()
+        prep.run(tmp_path, ["app/main.py"], runner=run)
+        assert run.calls[0] == ["ruff", "format", "app/main.py"]  # type: ignore[attr-defined]
+
+    def test_absent_bootstrap_layouts_skip_out_loud(self, tmp_path):
+        run = _runner()
+        said = prep.run(tmp_path, [], runner=run)
+        assert said[0].startswith("NOT PREPARED: ruff format")
+        assert said[1].startswith("NOT PREPARED: bootstrap redeploy")
+        assert run.calls == []  # type: ignore[attr-defined]

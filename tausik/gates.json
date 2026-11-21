@@ -15,10 +15,32 @@
       "CHANGELOG.md",
       "CHANGELOG.ru.md",
       "cli.md",
-      "agent-contract.md"
+      "agent-contract.md",
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
+      "bun.lockb",
+      "Cargo.lock",
+      "poetry.lock",
+      "Pipfile.lock",
+      "composer.lock",
+      "Gemfile.lock",
+      "uv.lock",
+      "go.sum"
     ],
     "_exempt_basenames_reasons": {
-      "agent-contract.md": "BY SPECIES, not by count. This page exists BECAUSE of the line cap on CLAUDE.md: everything non-enforceable was moved out of the per-turn hot path into one place a reader opens on demand. Splitting it would spread the agent's contract across several files and reopen the question the split already answered - which of them is the contract. Same treatment as cli.md, a reference whose value is being one address. Note how this surfaced: the RU half had been 527 lines for a long time and nothing said so, because the filesize gate looks only at a task's declared scope (a deliberate gap, documented in known-limitations.md) and no task had declared this file."
+      "agent-contract.md": "BY SPECIES, not by count. This page exists BECAUSE of the line cap on CLAUDE.md: everything non-enforceable was moved out of the per-turn hot path into one place a reader opens on demand. Splitting it would spread the agent's contract across several files and reopen the question the split already answered - which of them is the contract. Same treatment as cli.md, a reference whose value is being one address. Note how this surfaced: the RU half had been 527 lines for a long time and nothing said so, because the filesize gate looks only at a task's declared scope (a deliberate gap, documented in known-limitations.md) and no task had declared this file.",
+      "package-lock.json": "GENERATED lockfile (TauX TB-014). Line count measures the resolved dependency graph, not authored source; keep visible in task scope without the 500-line authored cap.",
+      "yarn.lock": "GENERATED lockfile — same species as package-lock.json (TB-014).",
+      "pnpm-lock.yaml": "GENERATED lockfile — same species as package-lock.json (TB-014).",
+      "bun.lockb": "GENERATED lockfile — same species as package-lock.json (TB-014).",
+      "Cargo.lock": "GENERATED lockfile — same species as package-lock.json (TB-014).",
+      "poetry.lock": "GENERATED lockfile — same species as package-lock.json (TB-014).",
+      "Pipfile.lock": "GENERATED lockfile — same species as package-lock.json (TB-014).",
+      "composer.lock": "GENERATED lockfile — same species as package-lock.json (TB-014).",
+      "Gemfile.lock": "GENERATED lockfile — same species as package-lock.json (TB-014).",
+      "uv.lock": "GENERATED lockfile — same species as package-lock.json (TB-014).",
+      "go.sum": "GENERATED lock checksum file — same species as package-lock.json (TB-014)."
     },
     "_exempt_files_comment": "EXACT repo-relative paths, read by gate_filesize._resolve_exempt_files. File-precise on purpose: a directory exemption also covers every file added there later, which is how the blanket harness/claude/mcp/ entry came to hide the repo's two largest modules. Each entry below states WHY, and a temporary one names the task that retires it. Adding an entry is a reviewable diff, not a default.",
     "exempt_files": [
@@ -163,7 +185,6 @@
       "tests/test_token_accounting.py",
       "tests/test_v13_hardening.py",
       "tests/test_verify_commit_ownership.py",
-      "tests/test_verify_handle_integration.py",
       "tests/test_web_cache.py"
     ]
   },
@@ -181,8 +202,9 @@
     "_baseline_comment": "RATCHET, may only shrink. Session #229 measured 145 tools / 56108 bytes. Session #295 (release 1.11.3 Track A) raised by exactly two tools -- tausik_verify_cohort and tausik_verify_hierarchy -- the MCP half of pooled verification parity (r1112-cohort-receipts / r1112-hierarchy): without them IDE agents cannot pool or atomically close, and the 60.4% duplicate-verify cost this release exists to cut stays CLI-only. The raise is the whole delta: 147->149 tools, 57678->59242 bytes; nothing else moved. Session #297 (fix-pooled-verify-close-path-identity-root-handle) raised BYTES ONLY, 59242->59602, tools stay 149: the two pooled tools gained the `scope` property (default standard, was hardcoded manual) plus uncertain-dependency-mapping wording in their descriptions -- audit HIGH 'MCP pooled lane skips preparation + scope default mismatch' made parity with the CLI lane a defect fix, not an enhancement. No other tool moved. Session #299 (blocked-is-a-status-without-a-question-to-unblock-it) raised BYTES ONLY again, 59602->60273, tools stay 149: tausik_task_block/tausik_task_unblock schemas gained question/unblock_criteria/criterion_met/by -- the v77 contract that a block without a question is a task abandoned with a note to self, enforced on BOTH transports or not at all. The whole +671 is those four properties and their descriptions; no other tool moved. Session #309 (mo-agent-brief, 1.11.7): raised by exactly one tool -- tausik_memory_brief -- the budgeted memory-only playbook RPC (do/dont from advertise_do_dont, no session). Delta 149->150 tools, 60273->60509 bytes; nothing else moved. Session #309 (mo-decide-memory-routing): BYTES ONLY 60509->60632, tools stay 150 -- tausik_memory_add.task_slug optional description + rename agent_brief→memory_brief for domain-token searchability; no other tool moved. Session #309 (nothing-can-rename-a-task-and-the-slug-is-published, 1.11.7): raised by exactly one tool — tausik_task_rename — published slug is a projection filename and must move with every referring column. Delta 150->151 tools, 60632->61097 bytes; nothing else moved.",
     "_r1118_raise_comment": "Session #310 (r1118-memory-preflight-token): exactly one tool added -- tausik_memory_preflight -- because trusted Codex needs an atomic inspection/acknowledgement RPC before protected host actions. Initial delta 151->152 tools, 61097->61824 bytes. Same-family review then required the second phase to return the exact inspection_id so an acknowledgement cannot silently bind to changed memory; that security contract adds 157 schema bytes and no tool. Final delta 151->152 tools, 61097->61981 bytes. Session #310 (r1118-can-stop-guard) raises BYTES ONLY 61981->62245, tools stay 152: the existing tausik_task_block schema gains lease-bound attempt_event_ids plus a required resume_action so the Stop guard can accept observed unavailable authority/capability evidence without trusting caller prose. The +264 bytes are exactly those properties and descriptions; no other tool moved.",
     "_r1140_raise_comment": "Session #324 (1.14.0 tip): BYTES ONLY 62245->62486, tools stay 152. The release cut (be5463f3) lengthened existing tool schema prose without moving the ratchet; measured on tip before mcp tip-load. No tool added.",
+    "_tb009_raise_comment": "Session #330 (TB-009 Codex L3): BYTES ONLY 62486->63235, tools stay 152. Existing tausik_task_review cohort schema gained action infrastructure-blocked plus code/detail fields so infra refusals do not burn repair rounds. No tool added.",
     "max_tools": 152,
-    "max_bytes": 62486,
+    "max_bytes": 63235,
     "_host_note": "names-only cost is 3362 bytes (~840 tokens); full surface ~15495 tokens. The first is what THIS host pays and was observed; the second follows from the protocol and was not observed here."
   },
   "closure_evidence": {
