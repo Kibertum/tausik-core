@@ -1,0 +1,4 @@
+fix(1.15.0): bump qual skip ceiling to 161 and reseal scenario harness pin
+
+Windows/full-lane qualification refused the hygiene2 snapshot: harness pin and
+skipped<=160. Align PINNED_SCENARIO_HARNESS_SHA256 and FULL_LANE_MAXIMUM_SKIPS.

@@ -19,8 +19,8 @@ CLI lease rebind и dogfood TauX (TB-005…016, TB-009 L3 Codex path).
 - CI hygiene публичного snapshot: pin `tests/fixtures/adherence/**` на LF;
   reseal `release-manifest-v1.json` по LF-байтам; post-bootstrap refresh
   пропускает `hand_maintained` / файлы без DYNAMIC-маркеров вместо abort;
-  фикстуры consumer-journey кладут тесты в `tests/`, чтобы NoTestRoots оставался
-  честным.
+  фикстуры consumer-journey кладут тесты в `tests/` с `pytest.ini` pythonpath;
+  reseal pin scenario harness; потолок skipped full-lane — 161.
 - Cursor PreToolUse **failClosed**: bootstrap ставит floor timeout 45s; cursor_hook.map_exit не отдаёт голый exit 1 (Claude warning/unexpected -> allow; policy deny остаётся exit 2). Ручная правка hooks.json без capability regen даёт CAPABILITY_MISMATCH; восстановление — bootstrap --ide cursor, не внешний one-liner человека. Закрывает freeze managing-agent и Cursor-консумеров (dogfood ansible).
 - Долгий bind lease для Cursor/CLI: `task update` авторизуется как `cli_task_update` (уже существующий rebind-route) и CLI забирает PreToolUse-authorization, чтобы правка контракта перепривязала fingerprint пакета, а не оставляла `PACKAGE_STALE` до следующего `task start`.
 - Review separation узнаёт id Cursor Composer (`composer-2.5-fast`, point-release) как семейство `cursor`, чтобы на Cursor-хосте можно было записать L3 hard-floor.

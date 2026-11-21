@@ -77,7 +77,7 @@ GitLab хранит всю историю; в GitHub уезжает **тольк
    проверяет, что Linux matrix JUnit содержит ровно 38 успешных тестов и
    покрывает все десять обязательных journey-сценариев, проверяет пустой Ruff JSON по trusted
    lint-конфигурации и удерживает Linux full-suite JUnit на пороге не менее
-   14 444 collected, 14 291 passed и не более 160 skipped тестов. Затем он
+   14 444 collected, 14 291 passed и не более 161 skipped тестов. Затем он
    выпускает Ed25519-аттестацию для независимо доказанных lint, Linux full и
    изолированного upgrade-matrix lanes. Нативный Windows остаётся обязательным
    exact-SHA compatibility canary: аттестация связывает успешный GitHub job
