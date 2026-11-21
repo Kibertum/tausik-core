@@ -291,6 +291,8 @@ def _initialize(snapshot: Path, consumer: Path, host: str) -> None:
     consumer.mkdir()
     (consumer / "src").mkdir()
     (consumer / "tests").mkdir()
+    (consumer / "src" / "__init__.py").write_text("", encoding="utf-8")
+    (consumer / "pytest.ini").write_text("[pytest]\npythonpath = .\n", encoding="utf-8")
     (consumer / "src" / "calc.py").write_text(
         "def add(a, b):\n    return a + b\n", encoding="utf-8"
     )

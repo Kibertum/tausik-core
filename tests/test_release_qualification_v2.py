@@ -407,7 +407,7 @@ def test_trusted_verifier_ratchets_are_literal_and_reviewable():
     )
     assert (
         hashlib.sha256((ROOT / qualification.SCENARIO_HARNESS_PATH).read_bytes()).hexdigest()
-        == "e4cb6f5e6110b960316ee810e66dd989b39dbef6fe3362bed97217e651ec90d3"
+        == "bc7c7ae0e21163e1d210a28ed733fc6698b4080f0dd1fb5f16483eef3f81058f"
     )
 
 

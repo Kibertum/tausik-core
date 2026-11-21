@@ -83,6 +83,8 @@ def consumer(tmp_path_factory) -> Path:
     root = tmp_path_factory.mktemp("consumer")
     (root / "src").mkdir()
     (root / "tests").mkdir()
+    (root / "src" / "__init__.py").write_text("", encoding="utf-8")
+    (root / "pytest.ini").write_text("[pytest]\npythonpath = .\n", encoding="utf-8")
     (root / "src" / "calc.py").write_text(_CALC, encoding="utf-8")
     (root / "tests" / "test_calc.py").write_text(_TEST, encoding="utf-8")
     _run(["git", "init", "-q", "."], root)

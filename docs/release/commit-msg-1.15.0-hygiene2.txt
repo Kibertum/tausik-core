@@ -1,0 +1,4 @@
+fix(1.15.0): consumer fixture pythonpath + reseal upgrade-matrix harness hash
+
+Give consumer journey fixtures pytest.ini pythonpath and src/__init__.py so
+tests/test_calc.py imports resolve; update the trusted scenario harness seal.
