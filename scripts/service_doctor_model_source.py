@@ -65,6 +65,32 @@ def check_session_model(svc: Any) -> Iterator[tuple[str, str, str]]:
         )
         return
 
+    # A host-bound session must never borrow the managing process's model.
+    # SessionStart may run before a native journal exists; that is unavailable
+    # telemetry, not a reason to restart an otherwise operational integration.
+    thread = session.get("host_session_id")
+    if thread:
+        lease = svc.be._q1(
+            "SELECT host_instance FROM execution_leases WHERE session_id=? ORDER BY id DESC LIMIT 1",
+            (session["id"],),
+        )
+        if lease and lease["host_instance"] == "codex":
+            from agent_model_source import sanitise
+            from providers.codex import CodexProvider
+
+            available = sanitise(CodexProvider().get_active_model(str(thread)))
+            yield (
+                "warn" if available else "ok",
+                _LABEL,
+                f"session #{session['id']} exact native thread model "
+                + (
+                    f"available: {available}; reopen TAUSIK session to pin it"
+                    if available
+                    else "unavailable; model telemetry is incomplete, no model is guessed; work may continue"
+                ),
+            )
+            return
+
     # The session opened without a model. Ask the chain again for the reader's
     # benefit: if a source WOULD answer now, the session simply predates the fix,
     # and saying so is more useful than repeating that the column is empty.

@@ -49,6 +49,17 @@ def _run_hook(project: Path, script: Path, payload: dict[str, str], *, host: str
         ("Which tasks are open?", "read_only"),
         ("Show me the open tasks", "read_only"),
         ("List open tasks.", "read_only"),
+        ("Проверь готовность фреймворка", "read_only"),
+        (
+            "Проверь всего ли хватает чтобы продолжить работу. Фреймворк должен быть починен",
+            "read_only",
+        ),
+        ("Проверь всего ли хватает чтобы продолжить работу и исправь ошибки", "work"),
+        ("Проверь состояние TAUSIK.", "read_only"),
+        ("Check framework readiness", "read_only"),
+        ("Is TAUSIK ready?", "read_only"),
+        ("Проверь готовность фреймворка и исправь ошибки", "work"),
+        ("Check framework readiness, then fix it", "work"),
         (
             "\u041a\u0430\u043a\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u043e\u0442\u043a\u0440\u044b\u0442\u044b \u0438 \u0437\u0430\u043a\u0440\u043e\u0439 \u0438\u0445",
             "work",
@@ -108,14 +119,16 @@ def test_exact_open_tasks_dialogue_allows_repeated_stop_without_creating_task(
     assert service.be._q1("SELECT id FROM tasks LIMIT 1") is None
 
 
+@pytest.mark.parametrize("prompt", [OPEN_TASKS_RU, "Проверь готовность фреймворка"])
 def test_read_only_interruption_preserves_active_task_and_next_work_turn(
     bound_service,  # noqa: F811
+    prompt,
 ):
     service, project, lease = bound_service
     read_turn = {
         "session_id": "thread-a",
         "turn_id": "read-during-work",
-        "prompt": OPEN_TASKS_RU,
+        "prompt": prompt,
     }
     work_turn = {
         "session_id": "thread-a",
@@ -137,5 +150,5 @@ def test_read_only_interruption_preserves_active_task_and_next_work_turn(
     assert task_after_read["status"] == "active"
     assert lease_after_read["task_slug"] == "stop-work"
     assert first_block.returncode == repeated_block.returncode == 0
-    assert json.loads(first_block.stdout) == json.loads(repeated_block.stdout)
-    assert "complete plan step 1: run the negative matrix" in first_block.stdout
+    assert first_block.stdout == repeated_block.stdout == ""
+    assert service.be.task_get("stop-work")["status"] == "active"

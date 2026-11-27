@@ -35,7 +35,7 @@
 
 ## Бюджет контекста host thread
 
-`host_context_budget` ограничивает реальный thread хоста. В каждом пороге три положительных целых поля: `responses`, накопленные `input_tokens` и `context_tokens` последнего ответа. Пересечение любого advisory-порога один раз сохраняет checkpoint и возвращает готовый промпт нового окна. Пересечение любого hard-порога задаёт `allow_continue=false`; старый thread без привязанной TAUSIK-сессии не открывается. Дефолты: advisory `{24, 2500000, 140000}` и hard `{32, 4000000, 180000}` в указанном порядке полей. Каждый advisory-порог должен быть ниже hard.
+`host_context_budget` наблюдает нагрузку хоста. По умолчанию `enforcement="advisory"`: пересечение любого порога рекомендует checkpoint, но не отзывает lease, не запрещает инструменты и не требует нового чата. Явное `"hard"` включает обязательный checkpoint/handoff на верхнем пороге. Оба порога содержат положительные целые `responses`, накопленные `input_tokens` и `context_tokens` последнего ответа. Дефолты: advisory `{24, 2500000, 140000}`, hard `{32, 4000000, 180000}`; каждый advisory ниже hard. Бюджеты задач и авторизация изменений работают независимо.
 
 Codex отдаёт native identity и usage из локального журнала. Хост без таких сигналов возвращает `level=unavailable` с причиной и fail-open использует прежние советы по времени и вызовам. Завершение и повторное открытие TAUSIK-сессии в том же host thread не делает `fresh_context=true`.
 
@@ -151,6 +151,7 @@ AGENTS.md в большинстве проектов версионируетс�
   "session_max_minutes": 240,
   "session_idle_threshold_minutes": 15,
   "host_context_budget": {
+    "enforcement": "advisory",
     "advisory": {"responses": 20, "input_tokens": 2000000, "context_tokens": 120000},
     "hard": {"responses": 28, "input_tokens": 3500000, "context_tokens": 170000}
   },

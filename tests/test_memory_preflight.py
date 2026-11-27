@@ -13,7 +13,6 @@ import pytest
 
 from memory_preflight import (
     MemoryPreflightError,
-    action_binding,
     classify_action,
     complete_preflight,
     complete_preflight_for_thread,
@@ -22,6 +21,7 @@ from memory_preflight import (
     issue_preflight,
     reserve_preflight,
 )
+from memory_preflight_binding import action_binding
 from memory_preflight_classification import ProtectedActionClassificationError
 from project_backend import SQLiteBackend
 from project_service import ProjectService
@@ -538,6 +538,25 @@ def test_single_use_lifecycle_and_replay_are_durable(preflight):
     assert row["status"] == "executed"
     with pytest.raises(MemoryPreflightError, match="TOKEN_REPLAY"):
         reserve_preflight(preflight.be, lease, "Bash", payload)
+
+
+@pytest.mark.parametrize("requested_tool", ["Shell", "PowerShell", "Bash"])
+@pytest.mark.parametrize("observed_tool", ["Bash", "PowerShell"])
+def test_codex_shell_aliases_share_exact_action_lifecycle(preflight, requested_tool, observed_tool):
+    payload = {"command": "git ls-remote https://example.invalid/repo.git refs/tags/v1"}
+    issued, _ = _inspect_and_issue(
+        preflight, tool=requested_tool, kind="remote_operation", payload=payload
+    )
+    lease = preflight._authorized_execution_lease
+    with pytest.raises(MemoryPreflightError, match="TOKEN_MISSING"):
+        reserve_preflight(preflight.be, lease, observed_tool, {"command": payload["command"] + "2"})
+    reserved = reserve_preflight(preflight.be, lease, observed_tool, payload)
+    assert reserved["token"] == issued["token"]
+    assert complete_preflight_for_thread(
+        preflight.be, "project", "thread", observed_tool, payload, host_instance="codex"
+    )
+    with pytest.raises(MemoryPreflightError, match="TOKEN_REPLAY"):
+        reserve_preflight(preflight.be, lease, observed_tool, payload)
 
 
 def test_duplicate_pretooluse_reserve_is_idempotent_within_grace(preflight):

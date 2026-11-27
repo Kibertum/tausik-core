@@ -116,7 +116,8 @@ class TestНаборПравилУОбоихОдин:
             if _codex_script(command) in {"codex_write_gate.py", "memory_preflight_posttool.py"}
         ]
         assert len(adapters) == 2
-        assert len(_hook_commands(_read_json(claude))) == len(commands) - len(adapters), (
+        assert not any(_codex_script(command) == "keyword_detector.py" for command in commands)
+        assert len(_hook_commands(_read_json(claude))) == len(commands) - len(adapters) + 1, (
             "у одного хоста команд больше — набор правил разошёлся между хостами"
         )
 

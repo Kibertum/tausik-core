@@ -1015,9 +1015,9 @@ def test_host_consumer_completes_clean_or_upgraded_journey(published_repo, tmp_p
         }
         _hook(consumer, host, "user_prompt_submit.py", work_turn)
         blocked = _hook(consumer, host, "can_stop_gate.py", work_turn)
-        assert json.loads(blocked.stdout)["decision"] == "block"
+        assert blocked.stdout == ""
         blocked_again = _hook(consumer, host, "can_stop_gate.py", work_turn)
-        assert json.loads(blocked_again.stdout)["decision"] == "block"
+        assert blocked_again.stdout == ""
     else:
         cursor_turn = {
             "conversation_id": "matrix-thread-a",
@@ -1233,7 +1233,7 @@ def _assert_boundary_postconditions(
                     "SELECT decision FROM can_stop_turns WHERE turn_id='matrix-work'"
                 )
             )
-            assert decisions == ("CONTINUE",)
+            assert decisions == (None,)
         elif boundary == "handoff":
             thread = "matrix-handoff-thread"
             _hook(
@@ -1271,7 +1271,7 @@ def _assert_boundary_postconditions(
                 conn.execute(
                     "SELECT decision FROM can_stop_turns WHERE turn_id='matrix-handoff-work'"
                 ).fetchone()[0]
-                == "ALLOW_HANDOFF"
+                is None
             )
         elif boundary == "call-budget-recovery-retirement":
             thread = "matrix-budget-thread"
@@ -1327,14 +1327,11 @@ def _assert_boundary_postconditions(
                 "prompt": "continue the active work",
             }
             _hook(consumer, "codex", "user_prompt_submit.py", turn)
-            assert (
-                json.loads(_hook(consumer, "codex", "can_stop_gate.py", turn).stdout)["decision"]
-                == "block"
-            )
+            assert _hook(consumer, "codex", "can_stop_gate.py", turn).stdout == ""
             decision = conn.execute(
                 "SELECT decision FROM can_stop_turns WHERE turn_id='matrix-budget-work'"
             ).fetchone()[0]
-            assert decision == "CONTINUE"
+            assert decision is None
         else:
             raise AssertionError(f"unhandled upgrade boundary {boundary}")
 

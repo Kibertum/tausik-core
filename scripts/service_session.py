@@ -258,5 +258,10 @@ class SessionMixin:
             if not row.get("handoff"):
                 raise ServiceError(f"Session #{session_id} has no handoff recorded.")
         if row and row.get("handoff"):
-            return dict(json.loads(row["handoff"]))
+            handoff = dict(json.loads(row["handoff"]))
+            if session_id is None:
+                from service_host_context import context_handoff_view
+
+                return context_handoff_view(self, handoff)
+            return handoff
         return None

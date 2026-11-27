@@ -172,7 +172,7 @@ def _install_valid_codex_profile(project_dir: Path) -> tuple[Path, Path]:
                 "python_executable": "python",
                 "adapters": {
                     path.name: hashlib.sha256(path.read_bytes()).hexdigest()
-                    for path in (pretool, posttool, composite, prompt, stop)
+                    for path in (pretool, posttool, composite, prompt)
                 },
             }
         ),
@@ -398,12 +398,15 @@ class TestRagSummary:
         assert "db unreadable" not in out
 
 
-def test_native_codex_session_start_command_issues_durable_lease(tmp_path):
+@pytest.mark.parametrize("optional_stop_present", [True, False])
+def test_native_codex_session_start_command_issues_durable_lease(tmp_path, optional_stop_present):
     from project_backend import SQLiteBackend
 
     backend = SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db"))
     backend.close()
     _install_valid_codex_profile(tmp_path)
+    if not optional_stop_present:
+        (tmp_path / ".codex/scripts/hooks/can_stop_gate.py").unlink()
     env = {
         key: value
         for key, value in os.environ.items()
@@ -571,13 +574,15 @@ def test_codex_capability_attestation_rejects_adapter_content_drift(tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("event", "adapter"),
+    ("event", "adapter", "ready"),
     [
-        ("Stop", "can_stop_gate.py"),
-        ("UserPromptSubmit", "user_prompt_submit.py"),
+        ("Stop", "can_stop_gate.py", True),
+        ("UserPromptSubmit", "user_prompt_submit.py", False),
     ],
 )
-def test_codex_capability_rejects_project_suffix_for_trusted_host_hooks(tmp_path, event, adapter):
+def test_codex_capability_validates_authority_hooks_independently_of_stop(
+    tmp_path, event, adapter, ready
+):
     ss = _load_session_start()
     pretool, _posttool = _install_valid_codex_profile(tmp_path)
     hooks_path = tmp_path / ".codex" / "hooks.json"
@@ -594,4 +599,4 @@ def test_codex_capability_rejects_project_suffix_for_trusted_host_hooks(tmp_path
     )
     hooks_path.write_text(json.dumps(document), encoding="utf-8")
 
-    assert ss._codex_preflight_hooks_ready(str(tmp_path)) is False
+    assert ss._codex_preflight_hooks_ready(str(tmp_path)) is ready

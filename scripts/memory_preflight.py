@@ -10,11 +10,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
 from memory_relevance import MAX_ENTRIES
+from memory_preflight_binding import action_binding
 from memory_preflight_classification import (
     PROTECTED_KINDS,
-    binding_payload,
     classify_action,
-    normalize_host_shell_tool,
     within_reserve_grace,
 )
 from memory_preflight_query import (
@@ -48,26 +47,6 @@ def _now() -> datetime:
 
 def _canonical(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
-
-
-def action_binding(tool_name: str, tool_input: Mapping[str, Any], kind: str) -> tuple[str, str]:
-    if kind not in PROTECTED_KINDS:
-        raise MemoryPreflightError("PROTECTED_KIND_UNKNOWN", f"unsupported kind {kind!r}")
-    # Cursor emits Shell; hooks reserve under PowerShell/Bash. Bind the dialect
-    # name so issued tokens match PreToolUse after cursor_hook.normalize_event.
-    bound_tool = normalize_host_shell_tool(tool_name)
-    observed = classify_action(tool_name, tool_input)
-    if observed != kind:
-        raise MemoryPreflightError(
-            "PROTECTED_KIND_MISMATCH",
-            f"trusted identifier classifies as {observed!r}, not {kind!r}",
-        )
-    payload_hash = hashlib.sha256(
-        _canonical(binding_payload(tool_name, tool_input)).encode()
-    ).hexdigest()
-    target = bound_tool.strip().lower()
-    action_id = hashlib.sha256(f"{kind}\0{target}\0{payload_hash}".encode()).hexdigest()
-    return action_id, payload_hash
 
 
 def content_revision(be: Any) -> str:
@@ -180,7 +159,9 @@ def issue_preflight(
         raise MemoryPreflightError(
             "LEASE_MISSING", "preflight requires an authorized execution lease"
         )
-    action_id, payload_hash = action_binding(tool_name, tool_input, protected_kind)
+    action_id, payload_hash = action_binding(
+        tool_name, tool_input, protected_kind, host_instance=lease.get("host_instance")
+    )
     if secret_literal_names(_canonical(dict(tool_input))):
         raise MemoryPreflightError(
             "SECRET_REFUSED", "protected payload contains a credential literal"
@@ -353,7 +334,9 @@ def reserve_preflight(
     kind = classify_action(tool_name, tool_input)
     if kind is None:
         return None
-    action_id, payload_hash = action_binding(tool_name, tool_input, kind)
+    action_id, payload_hash = action_binding(
+        tool_name, tool_input, kind, host_instance=lease.get("host_instance")
+    )
     instant = now or _now()
     terminal_error: MemoryPreflightError | None = None
     reserved: dict[str, Any] | None = None
@@ -426,7 +409,10 @@ def complete_preflight(
     kind = classify_action(tool_name, tool_input)
     if kind is None:
         return False
-    action_id, payload_hash = action_binding(tool_name, tool_input, kind)
+    lease = be._q1("SELECT host_instance FROM execution_leases WHERE id=?", (lease_id,))
+    action_id, payload_hash = action_binding(
+        tool_name, tool_input, kind, host_instance=(lease or {}).get("host_instance")
+    )
     status = "failed" if failed else "executed"
     instant = _iso(now or _now())
     with be.transaction():
@@ -454,7 +440,9 @@ def complete_preflight_for_thread(
     kind = classify_action(tool_name, tool_input)
     if kind is None:
         return False
-    action_id, payload_hash = action_binding(tool_name, tool_input, kind)
+    action_id, payload_hash = action_binding(
+        tool_name, tool_input, kind, host_instance=host_instance.casefold()
+    )
     row = be._q1(
         "SELECT t.id FROM memory_preflight_tokens t "
         "JOIN execution_leases l ON l.id=t.lease_id "

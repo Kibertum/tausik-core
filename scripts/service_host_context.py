@@ -15,6 +15,18 @@ DEFAULT_BUDGET = {
 _METRICS = tuple(DEFAULT_BUDGET["advisory"])
 
 
+def _enforcement(config: Mapping[str, Any]) -> str:
+    raw = config.get("host_context_budget", {})
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, Mapping):
+        raise ServiceError("host_context_budget must be an object")
+    mode = raw.get("enforcement", "advisory")
+    if not isinstance(mode, str) or mode not in {"advisory", "hard"}:
+        raise ServiceError("host_context_budget.enforcement must be advisory or hard")
+    return str(mode)
+
+
 def native_identity(env: Mapping[str, str] | None = None) -> tuple[str | None, str | None]:
     """Return a native host/thread pair only when the host exposes one."""
     values = env or os.environ
@@ -25,6 +37,7 @@ def native_identity(env: Mapping[str, str] | None = None) -> tuple[str | None, s
 
 
 def _budget(config: Mapping[str, Any]) -> dict[str, dict[str, int]]:
+    _enforcement(config)
     raw = config.get("host_context_budget", {})
     if raw is None:
         raw = {}
@@ -136,10 +149,57 @@ def enforce_hard_ceiling(svc: Any, *, host: str, thread_id: str) -> dict[str, An
     """Checkpoint/revoke an over-budget thread before any lease-protected mutation."""
 
     config = load_config(svc.tausik_dir())
+    if _enforcement(config) != "hard":
+        return None
     observed = _usage(os.path.dirname(svc.tausik_dir()), host, thread_id)
     if _level(observed, _budget(config)) != "hard":
         return None
     return open_session(svc, host=host, thread_id=thread_id, usage=observed)
+
+
+def _pin_missing_model(
+    svc: Any, session: Mapping[str, Any], host: str | None, thread_id: str | None
+) -> None:
+    """SessionStart may precede the first native model record; fill only absence."""
+    if host != "codex" or not thread_id or session.get("model_id"):
+        return
+    from agent_model_source import sanitise
+    from providers.codex import CodexProvider
+
+    model = sanitise(CodexProvider().get_active_model(thread_id))
+    if model:
+        svc.be._ex(
+            "UPDATE sessions SET model_id=?,model_source='provider:codex' WHERE id=? AND model_id IS NULL",
+            (model, session["id"]),
+        )
+
+
+def context_handoff_view(svc: Any, handoff: dict[str, Any]) -> dict[str, Any]:
+    """Apply current interaction policy to the live view, never rewrite history."""
+    if _enforcement(load_config(svc.tausik_dir())) != "advisory":
+        return handoff
+    marker = handoff.get("host_context_budget")
+    if not isinstance(marker, dict) or marker.get("level") not in {"hard", "advisory"}:
+        return handoff
+    warnings = handoff.get("warnings") or []
+    steps = handoff.get("next_steps") or []
+    if not isinstance(warnings, list) or not isinstance(steps, list):
+        return handoff
+    old_warning = "Host context budget reached; continue in a fresh host window."
+    advice = "Host context usage is high. Save a checkpoint at a convenient boundary; continue this chat unless the owner chooses a new one."
+    return {
+        **handoff,
+        "warnings": [item for item in warnings if item != old_warning],
+        "next_steps": [
+            advice if item == marker.get("fresh_window_prompt") else item for item in steps
+        ],
+        "host_context_budget": {
+            **marker,
+            "saved_level": marker.get("level"),
+            "level": "advisory",
+            "fresh_window_prompt": advice,
+        },
+    }
 
 
 def open_session(
@@ -159,6 +219,8 @@ def open_session(
     project_dir = os.path.dirname(svc.tausik_dir())
     observed = dict(usage) if usage is not None else _usage(project_dir, host, thread_id)
     level = _level(observed, budget)
+    if level == "hard" and _enforcement(config) == "advisory":
+        level = "advisory"
     existing = svc.be.session_current(thread_id) if thread_id else svc.be.session_current()
     legacy = svc.be.session_current() if thread_id and existing is None else None
     prompt: str | None
@@ -243,10 +305,16 @@ def open_session(
     svc.session_start(thread_id)
     current = svc.be.session_current(thread_id) if thread_id else svc.be.session_current()
     assert current is not None
+    _pin_missing_model(svc, current, host, thread_id)
+    current = svc.be.session_current(thread_id) if thread_id else svc.be.session_current()
+    assert current is not None
     checkpoint_saved = False
     prompt = None
     if level in {"advisory", "hard"}:
-        prompt = _fresh_window_prompt(current["id"], thread_id)
+        prompt = (
+            "Host context usage is high. Save a checkpoint at a convenient boundary; "
+            "continue this chat unless the owner chooses a new one."
+        )
         marker = {
             "level": level,
             "host": host,
@@ -255,10 +323,12 @@ def open_session(
             "fresh_window_prompt": prompt,
         }
         previous = current.get("handoff") or ""
-        if thread_id and thread_id not in str(previous):
+        if _enforcement(config) == "hard" and thread_id and thread_id not in str(previous):
             svc.session_handoff(
                 {
-                    "warnings": ["Host context budget reached; continue in a fresh host window."],
+                    "warnings": [
+                        "Host context usage is high; checkpoint saved, same-chat work may continue."
+                    ],
                     "next_steps": [prompt],
                     "host_context_budget": marker,
                 },

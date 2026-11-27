@@ -57,8 +57,8 @@ class CodexProvider(Provider):
     def name(self) -> str:
         return "codex"
 
-    def get_transcript_path(self) -> str | None:
-        thread = _current_thread()
+    def get_transcript_path(self, thread_id: str | None = None) -> str | None:
+        thread = thread_id or _current_thread()
         root = _sessions_root()
         if not thread or not root.is_dir():
             return None
@@ -68,8 +68,8 @@ class CodexProvider(Provider):
             return None
         return str(matches[-1]) if matches else None
 
-    def get_active_model(self) -> str | None:
-        path = self.get_transcript_path()
+    def get_active_model(self, thread_id: str | None = None) -> str | None:
+        path = self.get_transcript_path(thread_id)
         return _model_from_tail(Path(path)) if path else None
 
 

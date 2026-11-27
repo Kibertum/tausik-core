@@ -173,7 +173,7 @@ behavior, idempotence, rollback, or postconditions.
 - Goal or AC is a placeholder ("the acceptance criteria have 0 word(s) of substance") → write what is checked and how
 - No negative scenario in AC → add a criterion like "Returns error on invalid input"
 - A session above the advisory threshold is advice, not a refusal: save state with `/checkpoint` or hand off with `/end`
-- The host-thread budget is separate from session time. Native Codex response/input/context signals trigger an automatic checkpoint and fresh-window prompt at advisory level; hard level refuses continuation. Reopening TAUSIK inside the same host thread does not reset it. Missing native usage is shown as unavailable and fails open.
+- Host-thread usage is separate from session time. Thresholds recommend a checkpoint by default and allow same-chat work. Only explicit `host_context_budget.enforcement="hard"` can refuse further work at the hard threshold. Missing native usage is unavailable, not a work blocker.
 
 **QG-2 blocks task completion:**
 - AC not verified → log evidence: `task log <slug> "AC verified: 1. ... ✓ 2. ... ✓"`
@@ -237,10 +237,21 @@ No special setup is needed. Just run multiple agent sessions in the same project
 - **[Skills](skills.md)** — full list of what the agent can do
 - **[CLI Commands](cli.md)** — if you want to manage TAUSIK from the terminal
 - **[Architecture](architecture.md)** — how the framework works internally
-## Trusted Codex Stop boundary (1.11.8)
+## Codex chat completion and authorization
 
-`UserPromptSubmit` binds the host thread, exact current turn ID, execution lease, active task, and host-derived request kind in one durable record. `Stop` requires and consumes that exact turn ID; it never selects the newest row by inference. Read-only recognition uses a closed grammar. Answer prose, suffix text, punctuation, and model-supplied Stop fields cannot reclassify a work request as read-only.
+Codex Stop does not force another model turn, require closure of an active task,
+or infer permission to execute its plan from the wording of a question. The
+compatibility `can_stop_gate.py --trusted-host codex` adapter returns no block;
+bootstrap omits the phrase-based `keyword_detector.py` Stop hook. Stop is not a
+required security capability. Open tasks and verification evidence remain in
+the database when an answer ends.
 
-The bounded read-only grammar includes direct status and explanation requests. Its Codex branch also accepts complete EN/RU forms that ask to show or list open tasks; Cursor retains its previous classification. A mutation clause or any unknown suffix keeps the whole request classified as work. A read-only turn during an active task ends only that answer: it does not close the task or detach its execution lease. The next work turn resumes governance for the same task. Repeated Stop calls for an unchanged unfinished work turn return the same canonical `CONTINUE` action; a durable done, blocked, or handoff transition is re-evaluated instead of replaying a stale block.
+PreToolUse execution leases, task/scope checks, protected-action memory preflight,
+PostToolUse audit, QG-0 and QG-2 continue to enforce mutations and task closure.
+An answer ending does not certify completion of an unfinished task.
 
-Incomplete work returns `CONTINUE` with the first safe plan or continuity-recovery action. The two hard ceilings have different recovery paths. A hard task call ceiling allows one authorized handoff only after a persisted checkpoint, a copy-ready `task start <slug> --package` command, and revocation of the old lease. At `HOST_CONTEXT_HARD`, the trusted boundary writes that copy-ready checkpoint automatically, closes the exhausted host thread, and repeated Stop returns `ALLOW_HANDOFF`; do not retry MCP or CLI handoff in that thread. A blocker must reference unavailable capability or authority events observed by the trusted PostToolUse hook from an allowlisted structural host error code, never stdout/stderr text, plus an executed blocker memory preflight. The hook injects the trusted `attempt_event_id` into PostToolUse context. Supply that ID and `resume_action` together to `tausik_task_block` (CLI: repeat `--attempt-event-id` and add `--resume-action`); caller prose cannot create Stop evidence. Timeout, crash, malformed output, or no native block verdict is recorded as non-enforced.
+Host context thresholds are advisory by default. Save a checkpoint when useful,
+then continue the requested work. Only explicit project configuration
+`host_context_budget.enforcement="hard"` makes the hard threshold refuse further
+tool work and require a fresh thread. Missing native telemetry is reported as
+unavailable and does not block work. Explicit task call budgets are unchanged.

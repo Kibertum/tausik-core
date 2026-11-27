@@ -122,6 +122,16 @@ def _commands(document: dict) -> list[str]:
     ]
 
 
+def test_codex_bootstrap_separates_chat_completion_from_security(tmp_path):
+    hooks = bootstrap_codex.build_codex_hooks(str(tmp_path / ".codex"))
+    stops = [_script_of(hook["command"]) for entry in hooks["Stop"] for hook in entry["hooks"]]
+    assert not any(Path(path).name == "keyword_detector.py" for path in stops)
+    assert "can_stop_gate.py" not in CODEX_SECURITY_ADAPTERS
+    assert "codex_write_gate.py" in CODEX_SECURITY_ADAPTERS
+    assert "memory_preflight_posttool.py" in CODEX_SECURITY_ADAPTERS
+    assert hooks["PreToolUse"] and hooks["PostToolUse"]
+
+
 def _script_of(command: str) -> str:
     """Путь к скрипту из строки команды `<python> -X utf8 <script> [аргументы]`.
 

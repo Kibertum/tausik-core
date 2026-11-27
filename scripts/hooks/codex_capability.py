@@ -10,7 +10,6 @@ import subprocess
 
 CAPABILITY_VERSION = 5
 CODEX_ROLE_CONTRACTS = {
-    "stop": ("can_stop_gate.py", "Stop", "trusted-host"),
     "composite": ("codex_composite_mcp.py", None, None),
     "write": ("codex_write_gate.py", "PreToolUse", "project"),
     "posttool": ("memory_preflight_posttool.py", "PostToolUse", "project"),

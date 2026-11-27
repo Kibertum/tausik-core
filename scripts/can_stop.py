@@ -112,6 +112,11 @@ def classify_request(prompt: str, *, host_instance: str | None = None) -> str:
     )
     if host_instance and host_instance.casefold() == "codex":
         read_only_forms += (
+            r"(?:проверь|покажи) (?:готовность|состояние) (?:фреймворка|таусика|tausik)",
+            r"проверь (?:вс[её] ли готово|всего ли хватает)(?: чтобы продолжить работу)?"
+            r"(?:\. (?:фреймворк|таусик|tausik) должен быть починен)?",
+            r"(?:check|show) (?:the )?(?:framework|tausik) (?:readiness|status)",
+            r"is (?:the )?(?:framework|tausik) ready",
             r"which tasks are open",
             r"(?:show (?:me )?(?:the )?|list (?:the )?)open tasks",
             "\u043a\u0430\u043a\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u043e\u0442\u043a\u0440\u044b\u0442\u044b",
@@ -352,6 +357,14 @@ def decide_persisted_stop(
         else:
             turn = None
         if turn is None:
+            # SessionStart may refuse a hard-budget thread before lease/turn
+            # issuance. Native usage can authorize checkpoint-only termination,
+            # never another mutation or a fallback to a different trusted turn.
+            from service_host_context import enforce_hard_ceiling
+
+            ceiling = enforce_hard_ceiling(svc, host=host_instance, thread_id=thread_id)
+            if ceiling is not None:
+                return StopDecision("ALLOW_HANDOFF", ceiling["host_context"]["fresh_window_prompt"])
             return StopDecision("CONTINUE", "trusted turn record is missing; continue safely")
         retrying_continue = turn.get("consumed_at") is not None
         if retrying_continue:
@@ -363,6 +376,17 @@ def decide_persisted_stop(
         task = svc.be.task_get(current_slug) if current_slug else None
         if task is None and not current_slug:
             closed_slug = turn.get("task_slug")
+            if not closed_slug:
+                # Recover legacy late-bound turns only from an executed token's
+                # immutable package on this exact lease and within this turn.
+                packages = svc.be._q(
+                    "SELECT DISTINCT p.task_slug FROM memory_preflight_tokens m "
+                    "JOIN task_context_packages p ON p.fingerprint=m.package_fingerprint "
+                    "WHERE m.lease_id=? AND m.status='executed' AND m.issued_at>=?",
+                    (turn["lease_id"], turn["created_at"]),
+                )
+                if len(packages) == 1:
+                    closed_slug = packages[0]["task_slug"]
             closed_task = svc.be.task_get(closed_slug) if closed_slug else None
             if closed_task and closed_task.get("status") == "done":
                 current_slug = str(closed_slug)

@@ -23,6 +23,7 @@ from can_stop import (
     run_native_stop_probe,
 )
 from project_backend import SQLiteBackend
+from backend_execution_lease import ExecutionLeaseMixin
 from project_service import ProjectService
 from service_execution_lease import (
     assertion_from_session_start,
@@ -173,14 +174,21 @@ def test_stop_cannot_select_a_turn_from_another_thread_or_replay_one(bound_servi
     assert replay.action == "complete plan step 1: run the negative matrix"
 
 
-def test_repeated_stop_allows_a_task_completed_after_continue(bound_service):
-    service, project, _lease = bound_service
+@pytest.mark.parametrize("late_binding", [False, True])
+def test_repeated_stop_allows_a_task_completed_after_continue(bound_service, late_binding):
+    service, project, lease = bound_service
+    if late_binding:
+        service.be._ex("UPDATE execution_leases SET task_slug=NULL WHERE id=?", (lease["id"],))
     _record(service, project)
+    if late_binding:
+        service.be._ex(
+            "UPDATE execution_leases SET task_slug='stop-work' WHERE id=?", (lease["id"],)
+        )
     first = decide_persisted_stop(
         service, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
     )
     service.be._ex("UPDATE tasks SET status='done' WHERE slug='stop-work'")
-    service.be._execution_lease_unbind_task("stop-work", utcnow_iso())
+    ExecutionLeaseMixin._execution_lease_unbind_task(service.be, "stop-work", utcnow_iso())
 
     repeated = decide_persisted_stop(
         service, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
@@ -191,6 +199,42 @@ def test_repeated_stop_allows_a_task_completed_after_continue(bound_service):
     assert repeated.action == "task is complete"
     row = service.be._q1("SELECT consumed_at,decision FROM can_stop_turns WHERE turn_id='turn-1'")
     assert row["consumed_at"] and row["decision"] == "CONTINUE"
+
+
+@pytest.mark.parametrize("token_status", ["executed", "issued", "failed"])
+def test_legacy_unbound_turn_recovers_only_executed_exact_package(bound_service, token_status):
+    service, project, lease = bound_service
+    service.be._ex("UPDATE execution_leases SET task_slug=NULL WHERE id=?", (lease["id"],))
+    _record(service, project)
+    now = utcnow_iso()
+    service.be._ex("UPDATE tasks SET status='done' WHERE slug='stop-work'")
+    service.be._ex(
+        "INSERT INTO task_context_packages(task_slug,fingerprint,payload_json,bytes,max_bytes,"
+        "task_revision,selected_memory_revisions,created_at) VALUES(?,?,?,?,?,?,?,?)",
+        ("stop-work", "legacy-package", "{}", 2, 100, "r1", "[]", now),
+    )
+    service.be._ex(
+        "INSERT INTO memory_preflight_tokens(token,lease_id,package_fingerprint,content_revision,"
+        "acknowledged_ids,protected_kind,action_id,payload_hash,status,issued_at,expires_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            "legacy-token",
+            lease["id"],
+            "legacy-package",
+            "revision",
+            "[]",
+            "remote_operation",
+            "action",
+            "hash",
+            token_status,
+            now,
+            now,
+        ),
+    )
+    decision = decide_persisted_stop(
+        service, host_instance="codex", thread_id="thread-a", turn_id="turn-1"
+    )
+    assert decision.code == ("ALLOW_DONE" if token_status == "executed" else "CONTINUE")
 
 
 def test_concurrent_stop_consumers_are_idempotent(bound_service):
@@ -726,7 +770,7 @@ def _run_hook(project, payload):
     )
 
 
-def test_native_hook_blocks_malformed_and_missing_durable_turn(bound_service):
+def test_codex_completion_is_not_a_mutation_authority_boundary(bound_service):
     _service, project, _lease = bound_service
 
     malformed = subprocess.run(
@@ -741,12 +785,11 @@ def test_native_hook_blocks_malformed_and_missing_durable_turn(bound_service):
     missing = _run_hook(project, {"session_id": "thread-a"})
 
     for result in (malformed, missing):
-        verdict = json.loads(result.stdout)
         assert result.returncode == 0
-        assert verdict["decision"] == "block"
+        assert result.stdout == ""
 
 
-def test_native_hook_allows_only_a_persisted_allow_verdict(bound_service):
+def test_native_hook_allows_a_persisted_read_only_turn(bound_service):
     service, project, _lease = bound_service
     _record(service, project, prompt="show status", turn_id="read-turn")
 
@@ -754,6 +797,30 @@ def test_native_hook_allows_only_a_persisted_allow_verdict(bound_service):
 
     assert result.returncode == 0
     assert result.stdout == ""
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "finish the work",
+        "Проверяем возможность продолжения работы",
+        "check readiness then edit the source",
+    ],
+)
+def test_codex_stop_does_not_turn_any_request_into_automatic_work(bound_service, prompt):
+    service, project, lease = bound_service
+    _record(service, project, prompt=prompt)
+    before = service.be.task_get("stop-work")
+    for _ in range(3):
+        result = _run_hook(project, {"session_id": "thread-a", "turn_id": "turn-1"})
+        assert result.returncode == 0 and result.stdout == ""
+    assert service.be.task_get("stop-work") == before
+    assert (
+        service.be._q1("SELECT task_slug FROM execution_leases WHERE id=?", (lease["id"],))[
+            "task_slug"
+        ]
+        == "stop-work"
+    )
 
 
 @pytest.mark.parametrize(

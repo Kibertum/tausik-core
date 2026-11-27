@@ -117,6 +117,15 @@ def build_codex_hooks(
                 argv = split_hook_command(str(hook.get("command", "")))
                 if os.path.basename(argv[3]) == script:
                     hook["command"] = _serialized_hook(script, "--trusted-host", "codex")
+    # Completion policy is separate from write authorization. Do not install
+    # hooks that synthesize another user turn from task state or answer prose.
+    for entry in hooks.get("Stop", []):
+        entry["hooks"] = [
+            hook
+            for hook in entry.get("hooks", [])
+            if os.path.basename(split_hook_command(str(hook.get("command", "")))[3])
+            != "keyword_detector.py"
+        ]
     # Live 0.153.4 payloads differ from Claude's canonical Write/PowerShell shapes.
     # Keep shared registrations intact and add one narrowly scoped adapter.
     if governance_profile == "full":

@@ -57,7 +57,7 @@ PROJECTION_PATHS = tuple(f"scripts/hooks/{name}" for name in CODEX_SECURITY_ADAP
 SCENARIO_MANIFEST_PATH = "tests/fixtures/codex_upgrade_matrix_v1.json"
 SCENARIO_HARNESS_PATH = "tests/test_codex_upgrade_matrix.py"
 PINNED_SCENARIO_MANIFEST_SHA256 = "aff62c6d0ab079fc3746959916fa22c443fe87b76efa8f819a33cb05e567c128"
-PINNED_SCENARIO_HARNESS_SHA256 = "bc7c7ae0e21163e1d210a28ed733fc6698b4080f0dd1fb5f16483eef3f81058f"
+PINNED_SCENARIO_HARNESS_SHA256 = "fed922821a5115690c5478ba729639f4ea7a65225cd72be78895a3216cb740dc"
 SIGNING_SEED_ENV = "TAUSIK_RELEASE_QUALIFICATION_SIGNING_SEED"
 # Provision through a reviewed change that commits only the public key. The
 # matching seed belongs exclusively in the protected GitHub environment.

@@ -35,7 +35,7 @@ nor an MCP process that expects those hooks to mint a lease.
 
 ## Host context budget
 
-`host_context_budget` guards the real host thread. Each threshold has three positive integer fields: `responses`, cumulative `input_tokens`, and the latest response's `context_tokens`. Crossing any advisory field writes one checkpoint and returns a copy-ready new-window prompt. Crossing any hard field sets `allow_continue=false`; an old thread without a bound TAUSIK session is not opened. Defaults are advisory `{24, 2500000, 140000}` and hard `{32, 4000000, 180000}` in that field order. Every advisory value must be below its hard value.
+`host_context_budget` observes native host usage. Its `enforcement` is `"advisory"` by default: crossing either threshold recommends a checkpoint but never revokes a lease, refuses a tool, or requires a new chat. Explicit `"hard"` enables mandatory checkpoint/handoff at the hard threshold. Both threshold objects use positive integer `responses`, cumulative `input_tokens`, and latest-response `context_tokens`. Defaults: advisory `{24, 2500000, 140000}`, hard `{32, 4000000, 180000}`; each advisory value must be below hard. Explicit task budgets and mutation authorization remain independent.
 
 Codex supplies native thread identity and usage from its local journal. A host without those signals returns `level=unavailable` and a reason, then fails open to the existing time/call advice. Ending and reopening a TAUSIK session in the same host thread never makes `fresh_context` true.
 
@@ -151,6 +151,7 @@ credits, not API USD rates or a conversion of remaining included allowance.
   "session_max_minutes": 240,
   "session_idle_threshold_minutes": 15,
   "host_context_budget": {
+    "enforcement": "advisory",
     "advisory": {"responses": 20, "input_tokens": 2000000, "context_tokens": 120000},
     "hard": {"responses": 28, "input_tokens": 3500000, "context_tokens": 170000}
   },

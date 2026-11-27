@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import marshal
 import os
+import re
 from collections.abc import Callable, Iterator
 
 #: Never walked. vendors/ and research/ are read-only by decision; .tausik/
@@ -47,6 +48,10 @@ _PYC_HEADER = 16
 
 
 def _norm(path: str) -> str:
+    if os.name == "nt":
+        mounted = re.match(r"^/mnt/([a-zA-Z])/(.*)$", path)
+        if mounted:
+            path = f"{mounted[1]}:/{mounted[2]}"
     return os.path.normcase(os.path.normpath(os.path.abspath(path)))
 
 
@@ -69,6 +74,11 @@ def recorded_source(pyc_path: str) -> str | None:
 
 def _pyc_files(root: str) -> Iterator[str]:
     for dirpath, dirnames, filenames in os.walk(root):
+        if "pyvenv.cfg" in filenames:
+            # Environment caches belong to their interpreter (e.g. WSL), not
+            # this checkout's source tree. Do not diagnose or purge them here.
+            dirnames[:] = []
+            continue
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
         if os.path.basename(dirpath) != "__pycache__":
             continue

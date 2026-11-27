@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Trusted Stop adapter: fail closed until deterministic can_stop allows termination."""
+"""Legacy Stop adapter; Codex completion never grants mutation authority."""
 
 from __future__ import annotations
 
@@ -19,6 +19,12 @@ def main() -> int:
     parser.add_argument("--trusted-host")
     args, _ = parser.parse_known_args()
     if os.environ.get("TAUSIK_SKIP_HOOKS") or args.trusted_host not in {"codex", "cursor"}:
+        return 0
+    if args.trusted_host == "codex":
+        # Stop block JSON is an instruction to run another model turn. Task
+        # status and natural-language classification cannot authorize that work.
+        # Keep old installed registrations harmless; mutations stay gated by
+        # PreToolUse, execution leases, preflight and QG-0/QG-2.
         return 0
     try:
         payload = json.load(sys.stdin)

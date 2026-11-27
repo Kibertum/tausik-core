@@ -27,7 +27,7 @@ if str(HOOKS_DIR) not in sys.path:
 from write_tools import MCP_SHELL_TOOLS, WRITE_TOOLS  # noqa: E402
 
 
-def run_gate(root, event, state="no_task"):
+def run_gate(root, event, state="no_task", *, preflight_tool=None):
     event = dict(event)
     directory = root / ".tausik"
     directory.mkdir(exist_ok=True)
@@ -85,13 +85,13 @@ def run_gate(root, event, state="no_task"):
                     preview = issue_preflight(
                         svc,
                         protected_kind=protected_kind,
-                        tool_name=action_tool,
+                        tool_name=preflight_tool or action_tool,
                         tool_input=action_input,
                     )
                     issue_preflight(
                         svc,
                         protected_kind=protected_kind,
-                        tool_name=action_tool,
+                        tool_name=preflight_tool or action_tool,
                         tool_input=action_input,
                         acknowledged_ids=preview["acknowledge_ids"],
                         inspection_id=preview["inspection_id"],
@@ -218,7 +218,16 @@ def test_payload_cwd_resolves_relative_patch_targets(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "command", ["Get-Content allowed.py", "Write-Output 'Set-Content outside.py'"]
+    "command",
+    [
+        "Get-Content allowed.py",
+        "Write-Output 'Set-Content outside.py'",
+        "rg -n 'TAUSIK' allowed.py",
+        'rg -n "tausik task start probe" allowed.py',
+        "Get-Content 'tausik'",
+        "Write-Output 'tausik task done probe'",
+        "printf '%s' 'python scripts/project.py task start probe'",
+    ],
 )
 def test_read_or_quoted_write_text_is_not_promoted_to_a_write(tmp_path, command):
     event = {"tool_name": "Bash", "tool_input": {"command": command}}
@@ -444,16 +453,18 @@ def test_composite_session_open_bootstraps_before_task_package_binding(tmp_path)
         "env X=1 git push origin main",
         "cd repo && gh release create v1",
         ".tausik/tausik task block probe reason",
+        "git ls-remote https://github.com/Kibertum/tausik-core.git refs/tags/v1.15.0",
     ],
 )
-def test_protected_shell_and_cli_reserve_the_exact_preflight(tmp_path, command):
+@pytest.mark.parametrize("preflight_tool", ["Bash", "Shell", "PowerShell"])
+def test_protected_shell_and_cli_reserve_the_exact_preflight(tmp_path, command, preflight_tool):
     event = {
         "tool_name": "Bash",
         "tool_input": {"command": command},
         "session_id": "thread-a",
     }
     assert "TOKEN_MISSING" in assert_denied(run_gate(tmp_path, event, "allowed"))
-    allowed = run_gate(tmp_path, event, "allowed_preflight")
+    allowed = run_gate(tmp_path, event, "allowed_preflight", preflight_tool=preflight_tool)
     assert allowed.returncode == 0
     assert not allowed.stdout
 
@@ -781,6 +792,10 @@ def test_cli_start_options_before_slug_authorize_the_exact_task(tmp_path, comman
         "! python scripts/project.py task start probe",
         "{ python scripts/project.py task start probe; }",
         "bash -c 'python scripts/project.py task start probe'",
+        "rg --pre 'tausik task log other bad' pattern allowed.py",
+        'rg "$(tausik task log other bad)" allowed.py',
+        "Write-Output (tausik task log other bad)",
+        "rg (tausik task log other bad) allowed.py",
     ],
 )
 def test_unsupported_tausik_shell_wrappers_fail_closed(tmp_path, command):

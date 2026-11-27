@@ -77,4 +77,4 @@ Tell the user: "Checkpoint saved. Context preserved for session continuity."
 - **Authored JSON must be valid JSON** — unescaped quotes in values will break the command. With no authored fields, call it without arguments.
 - **Checkpoint does NOT commit** — code changes are only in working tree.
 - **Session duration** — an advisory, not a limit (decision #376): mention it, do not stop work for it.
-- **Handoff permission is mechanical.** For a task-call ceiling, Codex Stop requires a persisted checkpoint, copy-ready resume command and revoked old lease. For `HOST_CONTEXT_HARD`, TAUSIK records those facts automatically and explicit handoff remains blocked in the exhausted thread.
+- **Chat completion does not authorize more work.** Codex Stop does not require task closure or synthesize continuation turns. Explicit task call budgets still govern tool authorization. Host-context thresholds recommend a checkpoint; only owner-configured `host_context_budget.enforcement="hard"` forces a new thread.

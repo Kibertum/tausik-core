@@ -61,13 +61,12 @@ closes or unbinds an active task.
 
 | Hook | When | What It Does |
 |------|------|-------------|
-| `keyword_detector.py` | On agent stop | Catches "I'll implement"/"сейчас напишу" drift phrases → blocks stop |
-| `can_stop_gate.py` | On trusted Codex stop | Consumes the current durable turn and blocks incomplete work with the exact next plan action. Runtime errors fail closed. |
+| `keyword_detector.py` | On other hosts' stop | Phrase-based drift reminder; not installed for Codex |
+| `can_stop_gate.py` | Legacy Codex registration | Nonblocking compatibility adapter; never synthesizes another model turn |
 | `session_cleanup_check.py` | On agent stop | Warns about open exploration / review tasks / session timeout |
 
-For an unchanged unfinished work turn, repeated `can_stop_gate.py` calls keep
-returning the same canonical action and re-evaluate later durable done,
-blocked, or handoff state.
+Codex chat completion does not close its task or authorize another action.
+Mutation checks and QG-2 remain independent of Stop.
 
 ## SessionEnd
 

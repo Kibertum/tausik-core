@@ -136,6 +136,11 @@ class ExecutionLeaseMixin:
     def _execution_lease_unbind_task(self, task_slug: str, changed_at: str) -> int:
         """Release live leases from a terminal task without touching other threads."""
         self._ex(
+            "UPDATE can_stop_turns SET task_slug=? WHERE task_slug IS NULL AND lease_id IN "
+            "(SELECT id FROM execution_leases WHERE task_slug=? AND revoked_at IS NULL)",
+            (task_slug, task_slug),
+        )
+        self._ex(
             "UPDATE execution_authorizations SET consumed_at=? "
             "WHERE consumed_at IS NULL AND lease_id IN "
             "(SELECT id FROM execution_leases WHERE task_slug=? AND revoked_at IS NULL)",

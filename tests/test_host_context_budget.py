@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import service_host_context as policy
 from project_backend import SQLiteBackend
 from project_service import ProjectService
+from service_session import SessionMixin
 from service_execution_lease import (
     assertion_from_session_start,
     issue_execution_lease,
@@ -37,8 +38,94 @@ def measured(responses=1, input_tokens=100, context_tokens=50):
     }
 
 
-def test_same_thread_reopen_is_not_fresh_but_a_new_thread_is(svc, monkeypatch):
+@pytest.mark.parametrize("mode", [None, "advisory"])
+def test_default_high_usage_preserves_session_lease_and_authorized_work(svc, monkeypatch, mode):
+    from hooks import execution_lease_gate
+
+    config = {} if mode is None else {"host_context_budget": {"enforcement": mode}}
+    monkeypatch.setattr(policy, "load_config", lambda _path: config)
+    project = os.path.dirname(svc.tausik_dir())
+    assertion = assertion_from_session_start(
+        {"hook_event_name": "SessionStart", "session_id": "thread-a"}, project, trusted_host="codex"
+    )
+    reconcile_execution_lease_state(svc, assertion)
+    lease = issue_execution_lease(svc, assertion)
+    svc.task_add(None, "ongoing-work", "Ongoing work", complexity="simple")
+    svc.task_update(
+        "ongoing-work",
+        goal="Continue the authorized work",
+        acceptance_criteria="Work remains authorized. Negative: unrelated actions remain refused.",
+    )
+    svc.task_start("ongoing-work", include_memory=False, execution_lease_id=lease["id"])
+    high = measured(responses=100, input_tokens=10_000_000, context_tokens=250_000)
+    monkeypatch.setattr(policy, "_usage", lambda *_args: high)
+    opened = policy.open_session(svc, host="codex", thread_id="thread-a", usage=high)
+    assert opened["host_context"]["level"] == "advisory"
+    assert opened["host_context"]["allow_continue"] is True
+    assert svc.be._execution_lease_by_nonce(lease["nonce"])["revoked_at"] is None
+    assert policy.enforce_hard_ceiling(svc, host="codex", thread_id="thread-a") is None
+    allowed, reason = execution_lease_gate.require_live_lease(
+        {"hook_event_name": "PreToolUse", "session_id": "thread-a"},
+        project,
+        route="codex_implementation_write",
+        arguments={"tool": "Write", "payload_sha256": "x"},
+        authorize=False,
+    )
+    assert allowed, reason
+
+
+@pytest.mark.parametrize("usage_kind", ["high", "low", "unavailable"])
+@pytest.mark.parametrize("old_session_closed", [True, False])
+def test_advisory_upgrade_replaces_only_machine_handoff_directives(
+    svc, monkeypatch, usage_kind, old_session_closed
+):
     monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    svc.session_start("thread-a")
+    old_prompt = "Continue TAUSIK from checkpoint session #1; previous host thread thread-a."
+    old_warning = "Host context budget reached; continue in a fresh host window."
+    svc.session_handoff(
+        {
+            "warnings": [old_warning, "Preserve the existing infrastructure"],
+            "next_steps": [old_prompt, "Wait for owner approval before deployment"],
+            "operator_note": "Keep this owner note",
+            "host_context_budget": {
+                "level": "hard",
+                "host": "codex",
+                "thread_id": "thread-a",
+                "fresh_window_prompt": old_prompt,
+            },
+        },
+        host_session_id="thread-a",
+    )
+    old_id = svc.be.session_current("thread-a")["id"]
+    saved = svc.be.session_last_handoff(old_id)["handoff"]
+    if old_session_closed:
+        svc.be.session_end(old_id, "Old hard-context checkpoint")
+    usage = (
+        {"availability": "unavailable"}
+        if usage_kind == "unavailable"
+        else measured(responses=100 if usage_kind == "high" else 1)
+    )
+    opened = policy.open_session(svc, host="codex", thread_id="thread-a", usage=usage)
+    handoff = SessionMixin.session_last_handoff(svc)
+    assert opened["host_context"]["allow_continue"] is True
+    assert old_warning not in handoff["warnings"] and old_prompt not in handoff["next_steps"]
+    assert "Preserve the existing infrastructure" in handoff["warnings"]
+    assert "Wait for owner approval before deployment" in handoff["next_steps"]
+    assert handoff["operator_note"] == "Keep this owner note"
+    assert handoff["host_context_budget"]["level"] == "advisory"
+    assert handoff["host_context_budget"]["saved_level"] == "hard"
+    assert svc.be.session_last_handoff(old_id)["handoff"] == saved
+    assert old_warning in svc.session_last_handoff(old_id)["warnings"]
+    assert svc.be.session_current("thread-a")["ended_at"] is None
+    again = policy.open_session(svc, host="codex", thread_id="thread-a", usage=usage)
+    assert again["host_context"]["checkpoint_saved"] is False
+
+
+def test_same_thread_reopen_is_not_fresh_but_a_new_thread_is(svc, monkeypatch):
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
     first = policy.open_session(svc, host="codex", thread_id="thread-a", usage=measured())
     reopened = policy.open_session(svc, host="codex", thread_id="thread-a", usage=measured())
     another = policy.open_session(svc, host="codex", thread_id="thread-b", usage=measured())
@@ -51,8 +138,43 @@ def test_same_thread_reopen_is_not_fresh_but_a_new_thread_is(svc, monkeypatch):
     assert another["session"]["id"] != first["session"]["id"]
 
 
+@pytest.mark.parametrize("journal_thread", ["thread-a", "other-thread"])
+def test_reopen_pins_late_native_model_only_from_exact_thread(
+    svc, monkeypatch, tmp_path, journal_thread
+):
+    import agent_model_source
+
+    monkeypatch.setattr(
+        agent_model_source,
+        "resolve",
+        lambda: {"model_id": None, "model_version": None, "source": None},
+    )
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "native"))
+    monkeypatch.setenv("CODEX_THREAD_ID", "other-thread")
+    first = policy.open_session(svc, host="codex", thread_id="thread-a", usage=measured())
+    assert first["session"]["model_id"] is None
+    journal = tmp_path / "native/sessions" / f"rollout-{journal_thread}.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text(
+        json.dumps({"type": "turn_context", "payload": {"model": "gpt-native-model"}}) + "\n",
+        encoding="utf-8",
+    )
+    reopened = policy.open_session(svc, host="codex", thread_id="thread-a", usage=measured())
+    assert reopened["session"]["model_id"] == (
+        "gpt-native-model" if journal_thread == "thread-a" else None
+    )
+    journal.write_text(
+        json.dumps({"type": "turn_context", "payload": {"model": "different-model"}}) + "\n",
+        encoding="utf-8",
+    )
+    repeated = policy.open_session(svc, host="codex", thread_id="thread-a", usage=measured())
+    assert repeated["session"]["model_id"] == reopened["session"]["model_id"]
+
+
 def test_advisory_saves_one_checkpoint_and_returns_a_new_window_prompt(svc, monkeypatch):
-    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
     usage = measured(responses=24)
     result = policy.open_session(svc, host="codex", thread_id="thread-a", usage=usage)
     repeated = policy.open_session(svc, host="codex", thread_id="thread-a", usage=usage)
@@ -65,7 +187,9 @@ def test_advisory_saves_one_checkpoint_and_returns_a_new_window_prompt(svc, monk
 
 
 def test_hard_ceiling_refuses_an_old_unbound_thread_and_stops_a_bound_one(svc, monkeypatch):
-    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
     hard = measured(responses=32)
     refused = policy.open_session(svc, host="codex", thread_id="old-thread", usage=hard)
     policy.open_session(svc, host="codex", thread_id="bound-thread", usage=measured())
@@ -78,8 +202,43 @@ def test_hard_ceiling_refuses_an_old_unbound_thread_and_stops_a_bound_one(svc, m
     assert stopped["host_context"]["checkpoint_saved"] is True
 
 
+@pytest.mark.parametrize("session_kind", ["absent", "legacy", "bound"])
+@pytest.mark.parametrize("hard", [False, True])
+def test_stop_without_turn_checks_native_context_before_requesting_more_work(
+    svc, monkeypatch, session_kind, hard
+):
+    from can_stop import decide_persisted_stop
+
+    if session_kind == "legacy":
+        svc.session_start()
+    elif session_kind == "bound":
+        policy.open_session(svc, host="codex", thread_id="thread-a", usage=measured())
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
+    monkeypatch.setattr(policy, "_usage", lambda *_args: measured(responses=32 if hard else 1))
+
+    for _ in range(3):
+        decision = decide_persisted_stop(
+            svc, host_instance="codex", thread_id="thread-a", turn_id="missing-turn"
+        )
+        assert decision.code == ("ALLOW_HANDOFF" if hard else "CONTINUE")
+        if hard:
+            assert "checkpoint" in decision.action
+            assert "thread-a" in decision.action
+
+    assert svc.be._q("SELECT * FROM execution_leases") == []
+    assert svc.be._q("SELECT * FROM can_stop_turns") == []
+    if hard:
+        handoff = svc.session_last_handoff()
+        assert handoff["host_context_budget"]["thread_id"] == "thread-a"
+        assert handoff["host_context_budget"]["level"] == "hard"
+
+
 def test_hard_ceiling_revokes_live_lease_and_checkpoints_only_once(svc, monkeypatch):
-    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
     project = os.path.dirname(svc.tausik_dir())
     assertion = assertion_from_session_start(
         {"hook_event_name": "SessionStart", "session_id": "thread-a"},
@@ -116,7 +275,9 @@ def test_pretool_boundary_rejects_old_thread_after_hard_ceiling(svc, monkeypatch
     )
     reconcile_execution_lease_state(svc, assertion)
     lease = issue_execution_lease(svc, assertion)
-    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
     monkeypatch.setattr(policy, "_usage", lambda *_args: measured(responses=32))
 
     allowed, reason = execution_lease_gate.require_live_lease({"session_id": "thread-a"}, project)
@@ -154,7 +315,9 @@ def test_hard_ceiling_persists_copy_ready_handoff_without_reopening_old_thread(
         ),
     )
     svc.task_start("resume-work", include_memory=False, execution_lease_id=lease["id"])
-    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
     advisory = policy.open_session(
         svc, host="codex", thread_id="thread-a", usage=measured(responses=24)
     )
@@ -250,7 +413,9 @@ def test_pretool_boundary_allows_only_task_done_after_hard_ceiling(svc, monkeypa
     )
     svc.task_plan("stop-work", ["finish the verified work"])
     svc.task_start("stop-work", include_memory=False, execution_lease_id=lease["id"])
-    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
     monkeypatch.setattr(policy, "_usage", lambda *_args: measured(responses=32))
     monkeypatch.setenv("TAUSIK_ENFORCE_EXECUTION_LEASE", "1")
 
@@ -334,7 +499,9 @@ def test_pretool_boundary_allows_only_task_done_after_hard_ceiling(svc, monkeypa
 
 
 def test_hard_ceiling_checkpoints_a_legacy_unbound_session_without_reopening_it(svc, monkeypatch):
-    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
     svc.session_start()
     legacy_id = svc.session_current()["id"]
 
@@ -349,7 +516,9 @@ def test_hard_ceiling_checkpoints_a_legacy_unbound_session_without_reopening_it(
 
 
 def test_missing_native_usage_is_explicit_and_never_claims_fresh_context(svc, monkeypatch):
-    monkeypatch.setattr(policy, "load_config", lambda _path: {})
+    monkeypatch.setattr(
+        policy, "load_config", lambda _path: {"host_context_budget": {"enforcement": "hard"}}
+    )
     result = policy.open_session(
         svc,
         host="claude",
@@ -365,6 +534,8 @@ def test_missing_native_usage_is_explicit_and_never_claims_fresh_context(svc, mo
 @pytest.mark.parametrize(
     "config",
     [
+        {"host_context_budget": {"enforcement": "unknown"}},
+        {"host_context_budget": {"enforcement": {}}},
         {"host_context_budget": {"advisory": {"responses": 0}}},
         {
             "host_context_budget": {

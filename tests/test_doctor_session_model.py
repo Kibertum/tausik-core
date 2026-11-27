@@ -101,3 +101,42 @@ def test_silence_everywhere_stays_a_warning_and_names_the_way_out(monkeypatch, d
 
 def test_no_open_session_is_not_asked_and_not_complained_about():
     assert list(sdms.check_session_model(_svc(None))) == []
+
+
+def test_native_session_never_borrows_model_from_another_thread(tmp_path, monkeypatch):
+    import json
+    from project_backend import SQLiteBackend
+    from project_service import ProjectService
+
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "native"))
+    monkeypatch.setenv("CODEX_THREAD_ID", "other-thread")
+    journal = tmp_path / "native/sessions/rollout-other-thread.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text(
+        json.dumps({"type": "turn_context", "payload": {"model": "gpt-other"}}) + "\n",
+        encoding="utf-8",
+    )
+    backend = SQLiteBackend(str(tmp_path / "project/.tausik/tausik.db"))
+    try:
+        from service_execution_lease import (
+            assertion_from_session_start,
+            reconcile_execution_lease_state,
+            issue_execution_lease,
+        )
+
+        service = ProjectService(backend)
+        assertion = assertion_from_session_start(
+            {"hook_event_name": "SessionStart", "session_id": "thread-a"},
+            str(tmp_path / "project"),
+            trusted_host="codex",
+        )
+        reconcile_execution_lease_state(service, assertion)
+        issue_execution_lease(service, assertion)
+        backend._ex("UPDATE sessions SET model_id=NULL,model_source=NULL")
+        rows = list(sdms.check_session_model(service))
+        assert rows[0][0] == "ok"
+        assert "unavailable" in rows[0][2]
+        assert "gpt-other" not in rows[0][2]
+        assert backend.session_current()["model_id"] is None
+    finally:
+        backend.close()

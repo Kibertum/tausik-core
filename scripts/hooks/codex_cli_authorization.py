@@ -209,11 +209,34 @@ def _statement_may_invoke_tausik(statement: str) -> bool:
     except ImportError:  # Standalone deployed hook: hooks directory is sys.path[0].
         from python_invocation import is_python, python_script
 
-    if _mentions_tausik_cli(statement):
-        return True
     words = _statement_words(statement)
     if words is None:
         return _unparsed_statement_may_invoke_tausik(statement)
+    # These commands consume arguments as data. CLI-looking search patterns,
+    # filenames and output text are not invocations. Substitution and rg's
+    # executable preprocessor still require the conservative wrapper check.
+    executable = ntpath.basename(words[0]).lower().removesuffix(".exe") if words else ""
+    data_commands = {
+        "rg",
+        "grep",
+        "get-content",
+        "select-string",
+        "write-output",
+        "echo",
+        "printf",
+        "cat",
+    }
+    preprocessor = executable == "rg" and any(
+        word == "--pre" or word.startswith("--pre=") for word in words[1:]
+    )
+    if (
+        executable in data_commands
+        and not preprocessor
+        and not _has_executable_substitution(statement, include_parentheses=True)
+    ):
+        return False
+    if _mentions_tausik_cli(statement):
+        return True
     for index, word in enumerate(words):
         if _is_tausik_entrypoint(word) or _dynamic_word_may_be_entrypoint(word):
             return True
@@ -227,7 +250,7 @@ def _statement_may_invoke_tausik(statement: str) -> bool:
     return False
 
 
-def _has_executable_substitution(statement: str) -> bool:
+def _has_executable_substitution(statement: str, *, include_parentheses: bool = False) -> bool:
     """Detect command substitution outside single quotes without executing it."""
     quote: str | None = None
     escaped = False
@@ -247,6 +270,7 @@ def _has_executable_substitution(statement: str) -> bool:
             quote = None if quote == '"' else '"'
         elif (
             char == "`"
+            or (include_parentheses and char == "(" and quote is None)
             or (char == "$" and statement[index : index + 2] == "$(")
             or (char in "<>" and statement[index : index + 2] in {"<(", ">("})
         ):

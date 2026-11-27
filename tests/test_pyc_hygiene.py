@@ -43,6 +43,30 @@ def _moved_tree(tmp_path):
 
 
 class TestDetection:
+    @pytest.mark.skipif(os.name != "nt", reason="Windows doctor inspecting WSL bytecode")
+    @pytest.mark.parametrize("same_drive", [True, False])
+    def test_wsl_mount_is_the_same_source_but_another_drive_is_not(self, tmp_path, same_drive):
+        cache = _compile_at(tmp_path, "pkg/mod.py")
+        source = tmp_path / "pkg/mod.py"
+        drive = source.drive[0].lower()
+        recorded_drive = drive if same_drive else ("z" if drive != "z" else "y")
+        recorded = f"/mnt/{recorded_drive}/{source.as_posix()[3:]}"
+        py_compile.compile(str(source), cfile=cache, dfile=recorded, doraise=True)
+        assert bool(H.stale_bytecode(str(tmp_path))) is not same_drive
+
+    @pytest.mark.parametrize("environment", [".venv", "venv", "custom-env"])
+    def test_virtual_environment_caches_belong_to_their_own_interpreter(
+        self, tmp_path, environment
+    ):
+        moved = _moved_tree(tmp_path / "packages")
+        target = tmp_path / environment
+        shutil.copytree(moved, target)
+        (target / "pyvenv.cfg").write_text("home = /usr/bin\n", encoding="utf-8")
+        shutil.rmtree(tmp_path / "packages")
+        assert H.stale_bytecode(str(tmp_path)) == []
+        project = _moved_tree(tmp_path / "project")
+        assert len(H.stale_bytecode(str(tmp_path))) == len(H.stale_bytecode(str(project))) == 2
+
     def test_a_fresh_cache_next_to_its_source_is_honest(self, tmp_path):
         _compile_at(tmp_path, "pkg/mod.py")
         assert H.stale_bytecode(str(tmp_path)) == []

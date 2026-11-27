@@ -33,7 +33,7 @@ The `session` and `self_check` sections are **projections**, not the full produc
 
 Each section is best-effort: a sub-call failure surfaces as an `error` key inside that section, the other six still render. **Drift fallback**: if `self_check.drift_detected=true`, do NOT trust subsequent MCP results in this session — warn the user and fall back to `.tausik/tausik` CLI (which reloads from disk every call) until IDE restart.
 
-Apply `host_context` before continuing. `hard` means the service already wrote a checkpoint when a bound session existed: print `fresh_window_prompt` and stop this host thread. `advisory` means print the prompt and finish the current bounded action; do not start another task here. `unavailable` is an explicit fail-open degradation: say the native signal is unavailable and use the time/call signals without claiming the context is fresh. `fresh_context=false` on a reopened thread remains false even if a TAUSIK session was ended and opened again.
+Host-context thresholds are advisory by default. Mention high usage once and save a checkpoint at a convenient boundary; continue the owner's requested work in the same chat. Do not require another chat, change task scope, or execute an active task's plan merely because a threshold was crossed. Only explicit `host_context_budget.enforcement="hard"` may return `hard` and refuse work in an exhausted thread. `unavailable` means telemetry is absent; it is not a reason to stop. `fresh_context=false` on a reopened thread remains false.
 
 Skip these by default — they bloat context without commensurate signal:
 - `tausik_metrics` — pull only on user request (`tausik metrics`)
@@ -84,4 +84,4 @@ Narrow before you read: `Grep` with a `path`/`glob`, `Read` with `offset`/`limit
 - **Session numbering** is auto-incremented. If `session start` fails, DB might be locked — check `.tausik/tausik.db-wal`.
 - **Session duration limit** — SENAR Rule 9.2. If `compact` status flags warning, surface it prominently and suggest `/end`.
 - **MCP self_check** is bundled into `tausik_session_open` (Phase 1) — it's the only signal for stale-module hangs (#77/#79/#80). If `self_check.drift_detected=true`, do NOT trust subsequent MCP results in this session; warn the user and use `.tausik/tausik` CLI for verify/task_done until IDE restart.
-- **Trusted Stop is turn-bound on Codex.** A refused Stop is not a completed turn; continue with the exact action returned by `can_stop`.
+- **Completion is separate from authority.** Codex Stop does not require another turn or task closure. Report remaining work honestly; only the owner's request and authorized task operations determine what to execute next.

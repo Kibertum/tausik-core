@@ -99,7 +99,7 @@ def _record_trusted_turn(project_dir: str, prompt: str, trusted_host: str | None
     if not isinstance(thread_id, str) or not thread_id:
         return (
             f"[TAUSIK can_stop] Trusted {trusted_host} thread identity is missing; "
-            "Stop requires the exact current turn and will fail closed."
+            "Stop audit is unavailable; tool authorization is checked independently."
         )
     scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if scripts_dir not in sys.path:
@@ -133,7 +133,7 @@ def _record_trusted_turn(project_dir: str, prompt: str, trusted_host: str | None
         finally:
             backend.close()
     except Exception as exc:  # noqa: BLE001 - trusted Stop will refuse this turn
-        return f"[TAUSIK can_stop] Turn record failed closed: {type(exc).__name__}."
+        return f"[TAUSIK can_stop] Stop audit unavailable: {type(exc).__name__}; chat completion is not blocked."
     return None
 
 

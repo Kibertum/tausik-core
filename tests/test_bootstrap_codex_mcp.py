@@ -32,6 +32,7 @@ for _sub in ("scripts", "bootstrap"):
         sys.path.insert(0, str(_REPO / _sub))
 
 import bootstrap_codex_mcp as mcp  # noqa: E402
+from hooks.codex_capability import CAPABILITY_VERSION, CODEX_SECURITY_ADAPTERS  # noqa: E402
 
 CROSSCUTTING_SCOPE = ["bootstrap/"]
 
@@ -49,19 +50,13 @@ def live() -> dict:
 def _install_transport_capability(target: Path) -> None:
     hooks = target / "scripts" / "hooks"
     hooks.mkdir(parents=True, exist_ok=True)
-    names = (
-        "codex_write_gate.py",
-        "memory_preflight_posttool.py",
-        "codex_composite_mcp.py",
-        "user_prompt_submit.py",
-        "can_stop_gate.py",
-    )
+    names = CODEX_SECURITY_ADAPTERS
     for name in names:
         (hooks / name).write_text(name, encoding="utf-8")
     (target / "tausik-capability.json").write_text(
         json.dumps(
             {
-                "capability_version": 5,
+                "capability_version": CAPABILITY_VERSION,
                 "mcp_transport_modes": ["direct", "functions.exec"],
                 "python_executable": "python",
                 "adapters": {

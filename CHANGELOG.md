@@ -9,6 +9,42 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.16.1] — 2026-11-27
+
+### Fixed
+
+- Finalize bilingual release-note sections and the generated documentation map
+  before public publication. The preliminary development tag 1.16.0 remains unchanged.
+
+## [1.16.0] — 2026-11-27
+
+### Changed
+
+- Codex chat completion is nonblocking: no forced continuation from task status
+  or phrase matching. The phrase-based Stop hook is no longer installed; Stop
+  is not required for execution-lease capability attestation.
+- Host context thresholds are advisory by default. Projects can explicitly opt
+  into `host_context_budget.enforcement="hard"`. Write authorization, protected
+  preflight, explicit task budgets and QG-0/QG-2 remain enforced.
+
+### Fixed
+
+- Codex readiness/status inspections can finish without closing an active work
+  task. Literal search/output arguments mentioning TAUSIK no longer trigger CLI
+  authorization, while command substitution and executable wrappers stay guarded.
+- Stop retains tasks selected after the prompt when closure unbinds the lease;
+  old unbound turns can recover completion from an executed exact-package token.
+- Reopening a Codex session fills a missing model from that exact thread's native
+  journal once it becomes available, without replacing an existing model pin.
+- Bytecode hygiene excludes virtual environments identified by `pyvenv.cfg`,
+  preserving WSL interpreter caches instead of repeatedly purging them from Windows.
+- Codex preflight binds Shell/PowerShell requests to the host's native Bash
+  event label throughout issue, reservation and completion. Exact commands and
+  single-use authorization remain required; other hosts retain dialect binding.
+- Legacy Codex Stop registrations now return without blocking, including missing
+  identity and malformed state. Saved checkpoint guidance follows the current
+  advisory policy without changing historical records or owner instructions.
+
 ## [1.15.0] — 2026-11-21
 
 Cursor PreToolUse **failClosed** unfreeze for managing-agent and consumers, durable
