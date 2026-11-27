@@ -41,10 +41,6 @@ def cohort_svc(tmp_path, monkeypatch):
         }
     }
     monkeypatch.setattr("project_config.load_config", lambda *a, **k: cfg)
-    monkeypatch.setattr(
-        "review_l3_preflight.load_preflight",
-        lambda: __import__("review_l3_preflight").preflight_from_config(cfg),
-    )
     svc = ProjectService(SQLiteBackend(str(tmp_path / ".tausik" / "tausik.db")))
     svc.epic_add("e", "E")
     svc.story_add("e", "s", "S")
@@ -160,10 +156,7 @@ def test_infrastructure_blocked_preserves_round_budget(cohort_svc):
 def test_write_capable_host_must_not_be_l3_pass(cohort_svc, monkeypatch):
     """Negative: write-capable surface stays infrastructure, never product green."""
     cfg = {"review": {"l3_host": {"tools": ["Read", "Write", "Grep"]}}}
-    monkeypatch.setattr(
-        "review_l3_preflight.load_preflight",
-        lambda: __import__("review_l3_preflight").preflight_from_config(cfg),
-    )
+    monkeypatch.setattr("project_config.load_config", lambda *a, **k: cfg)
     opened, _ = execute_cohort_request(cohort_svc, {"action": "open", "tasks": ["a"], "json": True})
     assert opened["l3_capability"]["ok"] is False
     with pytest.raises(ValueError, match=RECEIPT_KIND):

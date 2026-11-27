@@ -9,6 +9,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.16.2] — 2026-11-27
+
+### Fixed
+
+- Add language switchers to release pages and isolate L3 conformance fixtures so lazy imports cannot retain a patched preflight loader.
+
 ## [1.16.1] — 2026-11-27
 
 ### Fixed

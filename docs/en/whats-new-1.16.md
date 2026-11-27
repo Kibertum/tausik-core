@@ -1,8 +1,10 @@
-# TAUSIK 1.16.1: reliable Codex chat completion
+[English](../en/whats-new-1.16.md) | [Русский](../ru/whats-new-1.16.md)
+
+# TAUSIK 1.16.2: reliable Codex chat completion
 
 <!-- doc-map: reader=user; zone=release-notes -->
 
-## 1.16.1 — 2026-11-27
+## 1.16.2 — 2026-11-27
 
 TAUSIK 1.16 separates chat completion from authorization to change a project.
 Codex Stop no longer forces another model turn because a task is unfinished or
@@ -25,7 +27,7 @@ handling of bytecode belonging to WSL virtual environments.
 
 ## Upgrade
 
-Update your framework checkout to `v1.16.1`, then rerun bootstrap for your
+Update your framework checkout to `v1.16.2`, then rerun bootstrap for your
 configured hosts. Reload the IDE once to load updated MCP modules and skills.
 For a Codex-only checkout:
 
@@ -41,4 +43,4 @@ that the new release contains them.
 ## 1.16.0 — preliminary development tag
 
 The development tag records the reviewed runtime changes. Public publication
-uses1.16.1 with completed release documentation; the earlier tag is unchanged.
+uses 1.16.2 with completed release documentation; the earlier tag is unchanged.
