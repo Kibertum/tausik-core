@@ -563,8 +563,8 @@ def _lane_report(passed: int, skipped: int) -> bytes:
     [
         (14_443, 0, False),
         (14_290, 153, False),
-        (14_291, 162, False),
-        (14_291, 161, True),
+        (14_291, 168, False),
+        (14_291, 167, True),
     ],
     ids=["case-floor", "pass-floor", "skip-ceiling", "exact-boundary"],
 )
@@ -573,7 +573,7 @@ def test_full_lane_ratchet_enforces_each_independent_boundary(passed, skipped, v
         qualification.junit.FULL_LANE_MINIMUM_CASES,
         qualification.junit.FULL_LANE_MINIMUM_PASSES,
         qualification.junit.FULL_LANE_MAXIMUM_SKIPS,
-    ) == (14_444, 14_291, 161)
+    ) == (14_444, 14_291, 167)
     report = _lane_report(passed, skipped)
 
     if valid:

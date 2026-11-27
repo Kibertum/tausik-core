@@ -58,7 +58,11 @@ EXACT_WINDOWS_TESTS = (*EXACT_MATRIX_TESTS, WINDOWS_NATIVE_TEST)
 # cases=14444 passed=14291 failed=0 skipped=153.
 FULL_LANE_MINIMUM_CASES = 14_444
 FULL_LANE_MINIMUM_PASSES = 14_291
-FULL_LANE_MAXIMUM_SKIPS = 161
+# 1.16: exact JUnit delta from successful run44917583499 to run46014307841:
+# four history-only doc claims for the new EN/RU release pages, plus two
+# Windows-only WSL bytecode cases (both exercised on Windows). No old case
+# became skipped; case/pass floors and zero-failure requirement stay fixed.
+FULL_LANE_MAXIMUM_SKIPS = 167
 
 
 class JunitEvidenceError(ValueError):

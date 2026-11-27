@@ -80,7 +80,10 @@ byte for byte, and a machine checks that equality, not a memory.
    SHA, verifies that the Linux matrix JUnit contains exactly 38 passing tests
    and covers all ten required journeys, verifies an empty Ruff JSON report
    against the trusted lint configuration, and ratchets the Linux full-suite JUnit
-   report at 14,444 collected, 14,291 passed, and at most 161 skipped tests.
+   report at 14,444 collected, 14,291 passed, and at most 167 skipped tests.
+   The 1.16 skip delta is exactly four history-only claims on the new bilingual
+   release pages and two Windows-only WSL bytecode cases; previous skipped cases
+   are unchanged, as proved against the successful 1.15 qualification JUnit.
    It then emits its Ed25519 attestation for the independently evidenced lint,
    Linux full, and isolated upgrade-matrix lanes. Native Windows remains an
    obligatory exact-SHA compatibility canary: the attestation binds GitHub's
